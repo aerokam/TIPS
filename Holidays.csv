@@ -1,0 +1,131 @@
+Row,A,B,C,D,E
+1,Date,Holiday,"Date,Holiday from Copilot",Date (split),Holiday (split)
+2,=VALUE(D2),=E2,"2021-01-01,New Year's Day","=SPLIT(C2,"","")",New Year's Day
+3,=VALUE(D3),=E3,"2021-01-18,Martin Luther King Jr. Day","=SPLIT(C3,"","")",Martin Luther King Jr. Day
+4,=VALUE(D4),=E4,"2021-02-15,Presidents Day","=SPLIT(C4,"","")",Presidents Day
+5,=VALUE(D5),=E5,"2021-04-02,Good Friday","=SPLIT(C5,"","")",Good Friday
+6,=VALUE(D6),=E6,"2021-05-31,Memorial Day","=SPLIT(C6,"","")",Memorial Day
+7,=VALUE(D7),=E7,"2021-07-05,Independence Day (Observed)","=SPLIT(C7,"","")",Independence Day (Observed)
+8,=VALUE(D8),=E8,"2021-09-06,Labor Day","=SPLIT(C8,"","")",Labor Day
+9,=VALUE(D9),=E9,"2021-10-11,Columbus Day","=SPLIT(C9,"","")",Columbus Day
+10,=VALUE(D10),=E10,"2021-11-11,Veterans Day","=SPLIT(C10,"","")",Veterans Day
+11,=VALUE(D11),=E11,"2021-11-25,Thanksgiving Day","=SPLIT(C11,"","")",Thanksgiving Day
+12,=VALUE(D12),=E12,"2021-12-24,Christmas Day (Observed)","=SPLIT(C12,"","")",Christmas Day (Observed)
+13,=VALUE(D13),=E13,"2021-12-31,New Year's Day (Observed)","=SPLIT(C13,"","")",New Year's Day (Observed)
+14,=VALUE(D14),=E14,"2022-01-17,Martin Luther King Jr. Day","=SPLIT(C14,"","")",Martin Luther King Jr. Day
+15,=VALUE(D15),=E15,"2022-02-21,Presidents Day","=SPLIT(C15,"","")",Presidents Day
+16,=VALUE(D16),=E16,"2022-04-15,Good Friday","=SPLIT(C16,"","")",Good Friday
+17,=VALUE(D17),=E17,"2022-05-30,Memorial Day","=SPLIT(C17,"","")",Memorial Day
+18,=VALUE(D18),=E18,"2022-06-20,Juneteenth (Observed)","=SPLIT(C18,"","")",Juneteenth (Observed)
+19,=VALUE(D19),=E19,"2022-07-04,Independence Day","=SPLIT(C19,"","")",Independence Day
+20,=VALUE(D20),=E20,"2022-09-05,Labor Day","=SPLIT(C20,"","")",Labor Day
+21,=VALUE(D21),=E21,"2022-10-10,Columbus Day","=SPLIT(C21,"","")",Columbus Day
+22,=VALUE(D22),=E22,"2022-11-11,Veterans Day","=SPLIT(C22,"","")",Veterans Day
+23,=VALUE(D23),=E23,"2022-11-24,Thanksgiving Day","=SPLIT(C23,"","")",Thanksgiving Day
+24,=VALUE(D24),=E24,"2022-12-26,Christmas Day (Observed)","=SPLIT(C24,"","")",Christmas Day (Observed)
+25,=VALUE(D25),=E25,"2023-01-02,New Year's Day (Observed)","=SPLIT(C25,"","")",New Year's Day (Observed)
+26,=VALUE(D26),=E26,"2023-01-16,Martin Luther King Jr. Day","=SPLIT(C26,"","")",Martin Luther King Jr. Day
+27,=VALUE(D27),=E27,"2023-02-20,Presidents Day","=SPLIT(C27,"","")",Presidents Day
+28,=VALUE(D28),=E28,"2023-04-07,Good Friday","=SPLIT(C28,"","")",Good Friday
+29,=VALUE(D29),=E29,"2023-05-29,Memorial Day","=SPLIT(C29,"","")",Memorial Day
+30,=VALUE(D30),=E30,"2023-06-19,Juneteenth","=SPLIT(C30,"","")",Juneteenth
+31,=VALUE(D31),=E31,"2023-07-04,Independence Day","=SPLIT(C31,"","")",Independence Day
+32,=VALUE(D32),=E32,"2023-09-04,Labor Day","=SPLIT(C32,"","")",Labor Day
+33,=VALUE(D33),=E33,"2023-10-09,Columbus Day","=SPLIT(C33,"","")",Columbus Day
+34,=VALUE(D34),=E34,"2023-11-10,Veterans Day (Observed)","=SPLIT(C34,"","")",Veterans Day (Observed)
+35,=VALUE(D35),=E35,"2023-11-23,Thanksgiving Day","=SPLIT(C35,"","")",Thanksgiving Day
+36,=VALUE(D36),=E36,"2023-12-25,Christmas Day","=SPLIT(C36,"","")",Christmas Day
+37,=VALUE(D37),=E37,"2024-01-01,New Year's Day","=SPLIT(C37,"","")",New Year's Day
+38,=VALUE(D38),=E38,"2024-01-15,Martin Luther King Jr. Day","=SPLIT(C38,"","")",Martin Luther King Jr. Day
+39,=VALUE(D39),=E39,"2024-02-19,Presidents Day","=SPLIT(C39,"","")",Presidents Day
+40,=VALUE(D40),=E40,"2024-03-29,Good Friday","=SPLIT(C40,"","")",Good Friday
+41,=VALUE(D41),=E41,"2024-05-27,Memorial Day","=SPLIT(C41,"","")",Memorial Day
+42,=VALUE(D42),=E42,"2024-06-19,Juneteenth","=SPLIT(C42,"","")",Juneteenth
+43,=VALUE(D43),=E43,"2024-07-04,Independence Day","=SPLIT(C43,"","")",Independence Day
+44,=VALUE(D44),=E44,"2024-09-02,Labor Day","=SPLIT(C44,"","")",Labor Day
+45,=VALUE(D45),=E45,"2024-10-14,Columbus Day","=SPLIT(C45,"","")",Columbus Day
+46,=VALUE(D46),=E46,"2024-11-11,Veterans Day","=SPLIT(C46,"","")",Veterans Day
+47,=VALUE(D47),=E47,"2024-11-28,Thanksgiving Day","=SPLIT(C47,"","")",Thanksgiving Day
+48,=VALUE(D48),=E48,"2024-12-25,Christmas Day","=SPLIT(C48,"","")",Christmas Day
+49,=VALUE(D49),=E49,"2025-01-01,New Year's Day","=SPLIT(C49,"","")",New Year's Day
+50,=VALUE(D50),=E50,"2025-01-20,Martin Luther King Jr. Day","=SPLIT(C50,"","")",Martin Luther King Jr. Day
+51,=VALUE(D51),=E51,"2025-02-17,Presidents Day","=SPLIT(C51,"","")",Presidents Day
+52,=VALUE(D52),=E52,"2025-04-18,Good Friday","=SPLIT(C52,"","")",Good Friday
+53,=VALUE(D53),=E53,"2025-05-26,Memorial Day","=SPLIT(C53,"","")",Memorial Day
+54,=VALUE(D54),=E54,"2025-06-19,Juneteenth","=SPLIT(C54,"","")",Juneteenth
+55,=VALUE(D55),=E55,"2025-07-04,Independence Day","=SPLIT(C55,"","")",Independence Day
+56,=VALUE(D56),=E56,"2025-09-01,Labor Day","=SPLIT(C56,"","")",Labor Day
+57,=VALUE(D57),=E57,"2025-10-13,Columbus Day","=SPLIT(C57,"","")",Columbus Day
+58,=VALUE(D58),=E58,"2025-11-11,Veterans Day","=SPLIT(C58,"","")",Veterans Day
+59,=VALUE(D59),=E59,"2025-11-27,Thanksgiving Day","=SPLIT(C59,"","")",Thanksgiving Day
+60,=VALUE(D60),=E60,"2025-12-25,Christmas Day","=SPLIT(C60,"","")",Christmas Day
+61,=VALUE(D61),=E61,"2026-01-01,New Year's Day","=SPLIT(C61,"","")",New Year's Day
+62,=VALUE(D62),=E62,"2026-01-19,Martin Luther King Jr. Day","=SPLIT(C62,"","")",Martin Luther King Jr. Day
+63,=VALUE(D63),=E63,"2026-02-16,Presidents Day","=SPLIT(C63,"","")",Presidents Day
+64,=VALUE(D64),=E64,"2026-04-03,Good Friday","=SPLIT(C64,"","")",Good Friday
+65,=VALUE(D65),=E65,"2026-05-25,Memorial Day","=SPLIT(C65,"","")",Memorial Day
+66,=VALUE(D66),=E66,"2026-06-19,Juneteenth","=SPLIT(C66,"","")",Juneteenth
+67,=VALUE(D67),=E67,"2026-07-03,Independence Day (Observed)","=SPLIT(C67,"","")",Independence Day (Observed)
+68,=VALUE(D68),=E68,"2026-09-07,Labor Day","=SPLIT(C68,"","")",Labor Day
+69,=VALUE(D69),=E69,"2026-10-12,Columbus Day","=SPLIT(C69,"","")",Columbus Day
+70,=VALUE(D70),=E70,"2026-11-11,Veterans Day","=SPLIT(C70,"","")",Veterans Day
+71,=VALUE(D71),=E71,"2026-11-26,Thanksgiving Day","=SPLIT(C71,"","")",Thanksgiving Day
+72,=VALUE(D72),=E72,"2026-12-25,Christmas Day","=SPLIT(C72,"","")",Christmas Day
+73,=VALUE(D73),=E73,"2027-01-01,New Year's Day","=SPLIT(C73,"","")",New Year's Day
+74,=VALUE(D74),=E74,"2027-01-18,Martin Luther King Jr. Day","=SPLIT(C74,"","")",Martin Luther King Jr. Day
+75,=VALUE(D75),=E75,"2027-02-15,Presidents Day","=SPLIT(C75,"","")",Presidents Day
+76,=VALUE(D76),=E76,"2027-03-26,Good Friday","=SPLIT(C76,"","")",Good Friday
+77,=VALUE(D77),=E77,"2027-05-31,Memorial Day","=SPLIT(C77,"","")",Memorial Day
+78,=VALUE(D78),=E78,"2027-06-18,Juneteenth (Observed)","=SPLIT(C78,"","")",Juneteenth (Observed)
+79,=VALUE(D79),=E79,"2027-07-05,Independence Day (Observed)","=SPLIT(C79,"","")",Independence Day (Observed)
+80,=VALUE(D80),=E80,"2027-09-06,Labor Day","=SPLIT(C80,"","")",Labor Day
+81,=VALUE(D81),=E81,"2027-10-11,Columbus Day","=SPLIT(C81,"","")",Columbus Day
+82,=VALUE(D82),=E82,"2027-11-11,Veterans Day","=SPLIT(C82,"","")",Veterans Day
+83,=VALUE(D83),=E83,"2027-11-25,Thanksgiving Day","=SPLIT(C83,"","")",Thanksgiving Day
+84,=VALUE(D84),=E84,"2027-12-24,Christmas Day (Observed)","=SPLIT(C84,"","")",Christmas Day (Observed)
+85,=VALUE(D85),=E85,"2028-01-03,New Year's Day (Observed)","=SPLIT(C85,"","")",New Year's Day (Observed)
+86,=VALUE(D86),=E86,"2028-01-17,Martin Luther King Jr. Day","=SPLIT(C86,"","")",Martin Luther King Jr. Day
+87,=VALUE(D87),=E87,"2028-02-21,Presidents Day","=SPLIT(C87,"","")",Presidents Day
+88,=VALUE(D88),=E88,"2028-04-14,Good Friday","=SPLIT(C88,"","")",Good Friday
+89,=VALUE(D89),=E89,"2028-05-29,Memorial Day","=SPLIT(C89,"","")",Memorial Day
+90,=VALUE(D90),=E90,"2028-06-19,Juneteenth","=SPLIT(C90,"","")",Juneteenth
+91,=VALUE(D91),=E91,"2028-07-04,Independence Day","=SPLIT(C91,"","")",Independence Day
+92,=VALUE(D92),=E92,"2028-09-04,Labor Day","=SPLIT(C92,"","")",Labor Day
+93,=VALUE(D93),=E93,"2028-10-09,Columbus Day","=SPLIT(C93,"","")",Columbus Day
+94,=VALUE(D94),=E94,"2028-11-10,Veterans Day (Observed)","=SPLIT(C94,"","")",Veterans Day (Observed)
+95,=VALUE(D95),=E95,"2028-11-23,Thanksgiving Day","=SPLIT(C95,"","")",Thanksgiving Day
+96,=VALUE(D96),=E96,"2028-12-25,Christmas Day","=SPLIT(C96,"","")",Christmas Day
+97,=VALUE(D97),=E97,"2029-01-01,New Year's Day","=SPLIT(C97,"","")",New Year's Day
+98,=VALUE(D98),=E98,"2029-01-15,Martin Luther King Jr. Day","=SPLIT(C98,"","")",Martin Luther King Jr. Day
+99,=VALUE(D99),=E99,"2029-02-19,Presidents Day","=SPLIT(C99,"","")",Presidents Day
+100,=VALUE(D100),=E100,"2029-03-30,Good Friday","=SPLIT(C100,"","")",Good Friday
+101,=VALUE(D101),=E101,"2029-05-28,Memorial Day","=SPLIT(C101,"","")",Memorial Day
+102,=VALUE(D102),=E102,"2029-06-19,Juneteenth","=SPLIT(C102,"","")",Juneteenth
+103,=VALUE(D103),=E103,"2029-07-04,Independence Day","=SPLIT(C103,"","")",Independence Day
+104,=VALUE(D104),=E104,"2029-09-03,Labor Day","=SPLIT(C104,"","")",Labor Day
+105,=VALUE(D105),=E105,"2029-10-08,Columbus Day","=SPLIT(C105,"","")",Columbus Day
+106,=VALUE(D106),=E106,"2029-11-12,Veterans Day (Observed)","=SPLIT(C106,"","")",Veterans Day (Observed)
+107,=VALUE(D107),=E107,"2029-11-22,Thanksgiving Day","=SPLIT(C107,"","")",Thanksgiving Day
+108,=VALUE(D108),=E108,"2029-12-25,Christmas Day","=SPLIT(C108,"","")",Christmas Day
+109,=VALUE(D109),=E109,"2028-02-21,Presidents Day","=SPLIT(C109,"","")",Presidents Day
+110,=VALUE(D110),=E110,"2028-04-14,Good Friday","=SPLIT(C110,"","")",Good Friday
+111,=VALUE(D111),=E111,"2028-05-29,Memorial Day","=SPLIT(C111,"","")",Memorial Day
+112,=VALUE(D112),=E112,"2028-06-19,Juneteenth","=SPLIT(C112,"","")",Juneteenth
+113,=VALUE(D113),=E113,"2028-07-04,Independence Day","=SPLIT(C113,"","")",Independence Day
+114,=VALUE(D114),=E114,"2028-09-04,Labor Day","=SPLIT(C114,"","")",Labor Day
+115,=VALUE(D115),=E115,"2028-10-09,Columbus Day","=SPLIT(C115,"","")",Columbus Day
+116,=VALUE(D116),=E116,"2028-11-10,Veterans Day (Observed)","=SPLIT(C116,"","")",Veterans Day (Observed)
+117,=VALUE(D117),=E117,"2028-11-23,Thanksgiving Day","=SPLIT(C117,"","")",Thanksgiving Day
+118,=VALUE(D118),=E118,"2028-12-25,Christmas Day","=SPLIT(C118,"","")",Christmas Day
+119,=VALUE(D119),=E119,"2029-01-01,New Year's Day","=SPLIT(C119,"","")",New Year's Day
+120,=VALUE(D120),=E120,"2029-01-15,Martin Luther King Jr. Day","=SPLIT(C120,"","")",Martin Luther King Jr. Day
+121,=VALUE(D121),=E121,"2029-02-19,Presidents Day","=SPLIT(C121,"","")",Presidents Day
+122,=VALUE(D122),=E122,"2029-03-30,Good Friday","=SPLIT(C122,"","")",Good Friday
+123,=VALUE(D123),=E123,"2029-05-28,Memorial Day","=SPLIT(C123,"","")",Memorial Day
+124,=VALUE(D124),=E124,"2029-06-19,Juneteenth","=SPLIT(C124,"","")",Juneteenth
+125,=VALUE(D125),=E125,"2029-07-04,Independence Day","=SPLIT(C125,"","")",Independence Day
+126,=VALUE(D126),=E126,"2029-09-03,Labor Day","=SPLIT(C126,"","")",Labor Day
+127,=VALUE(D127),=E127,"2029-10-08,Columbus Day","=SPLIT(C127,"","")",Columbus Day
+128,=VALUE(D128),=E128,"2029-11-12,Veterans Day (Observed)","=SPLIT(C128,"","")",Veterans Day (Observed)
+129,=VALUE(D129),=E129,"2029-11-22,Thanksgiving Day","=SPLIT(C129,"","")",Thanksgiving Day
+130,=VALUE(D130),=E130,"2029-12-25,Christmas Day","=SPLIT(C130,"","")",Christmas Day
