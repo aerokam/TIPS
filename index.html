@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TIPS Ladder Rebalancer</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; font-size: 13px; margin: 0; padding: 20px; color: #222; background: #fafafa; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+
+  /* ── Form ── */
+  .form-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px 20px; max-width: 640px; margin-bottom: 20px; }
+  .form-card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: #666; margin: 0 0 12px; }
+  .fields { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 4px; }
+  .field label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
+  .field input, .field select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+  .field input[type="file"] { padding: 4px; }
+  button { padding: 7px 18px; background: #1a56db; color: #fff; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  button:disabled { background: #aaa; cursor: default; }
+  button:hover:not(:disabled) { background: #1748c0; }
+
+  /* ── Status ── */
+  #status { margin: 8px 0; font-size: 12px; color: #555; min-height: 18px; }
+  #status.error { color: #c0392b; font-weight: 600; }
+
+  /* ── Summary boxes ── */
+  .sections { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+  .box { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px 16px; min-width: 200px; }
+  .box h3 { font-size: 11px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
+  .box table { border-collapse: collapse; width: 100%; }
+  .box td { padding: 2px 0; }
+  .box td:last-child { font-weight: 600; text-align: right; padding-left: 12px; }
+  .box th { font-size: 11px; color: #888; font-weight: 400; text-align: right; padding: 0 0 4px; }
+  .box th:first-child { text-align: left; }
+  .net { font-weight: 700; font-size: 16px; margin: 4px 0 0; }
+
+  /* ── Main table ── */
+  .table-wrap { overflow-x: auto; }
+  table.main { border-collapse: collapse; width: 100%; background: #fff; font-size: 12px; }
+  table.main th { background: #1e293b; color: #fff; padding: 5px 8px; text-align: right; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+  table.main th:first-child, table.main th:nth-child(3), table.main th:nth-child(4) { text-align: left; }
+  table.main td { padding: 4px 8px; border-bottom: 1px solid #eee; white-space: nowrap; }
+  table.main td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table.main tr:hover td { background: #fffde7; }
+  .pos { color: #16a34a; } .neg { color: #dc2626; }
+  .net.pos { color: #16a34a; } .net.neg { color: #dc2626; }
+
+  /* ── Data freshness ── */
+  #data-info { font-size: 11px; color: #888; margin-bottom: 16px; }
+
+  #output { display: none; }
+</style>
+</head>
+<body>
+<h1>TIPS Ladder Rebalancer</h1>
+
+<div id="data-info">Loading market data…</div>
+
+<div class="form-card">
+  <h2>Inputs</h2>
+  <div class="fields">
+    <div class="field">
+      <label>Holdings CSV</label>
+      <input type="file" id="holdings-file" accept=".csv">
+    </div>
+    <div class="field">
+      <label>DARA ($)</label>
+      <input type="number" id="dara" placeholder="Leave blank to infer" step="1" min="0" style="width:160px">
+    </div>
+    <div class="field">
+      <label>Method</label>
+      <select id="method">
+        <option value="Gap">Gap</option>
+        <option value="Full">Full</option>
+      </select>
+    </div>
+    <div class="field" style="justify-content:flex-end">
+      <button id="run-btn" disabled>Run Rebalance</button>
+    </div>
+  </div>
+  <div id="status"></div>
+</div>
+
+<div id="output">
+  <div class="sections" id="summary-boxes"></div>
+  <div class="table-wrap">
+    <table class="main" id="main-table"></table>
+  </div>
+</div>
+
+<script type="module">
+import { buildTipsMapFromYields, localDate, runRebalance } from './rebalance-lib.js';
+
+// ─── CSV parser (simple: no quoted-field support needed for these CSVs) ──────
+function parseCsv(text) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(s => s.trim());
+  return lines.slice(1).map(line => {
+    const vals = line.split(',').map(s => s.trim());
+    const obj = {};
+    headers.forEach((h, i) => { obj[h] = vals[i] ?? ''; });
+    return obj;
+  });
+}
+
+// ─── Load data CSVs from same repo ───────────────────────────────────────────
+let tipsMap = null, refCpiRows = null, settlementDate = null;
+
+async function loadData() {
+  const status = document.getElementById('status');
+  const dataInfo = document.getElementById('data-info');
+  try {
+    const [yieldsRes, refCpiRes] = await Promise.all([
+      fetch('./data/TipsYields.csv'),
+      fetch('./data/RefCPI.csv'),
+    ]);
+    if (!yieldsRes.ok) throw new Error(`TipsYields.csv: HTTP ${yieldsRes.status}`);
+    if (!refCpiRes.ok) throw new Error(`RefCPI.csv: HTTP ${refCpiRes.status}`);
+
+    const yieldsRows = parseCsv(await yieldsRes.text()).map(r => ({
+      settlementDate: r.settlementDate,
+      cusip:    r.cusip,
+      maturity: r.maturity,
+      coupon:   parseFloat(r.coupon),
+      baseCpi:  parseFloat(r.baseCpi),
+      price:    parseFloat(r.price)  || null,
+      yield:    parseFloat(r.yield)  || null,
+    }));
+
+    refCpiRows = parseCsv(await refCpiRes.text()).map(r => ({
+      date:   r.date,
+      refCpi: parseFloat(r.refCpi),
+    }));
+
+    // Settlement date = date field from TipsYields.csv (all rows share same date)
+    const settleDateStr = yieldsRows[0]?.settlementDate;
+    if (!settleDateStr) throw new Error('TipsYields.csv has no settlementDate');
+    settlementDate = localDate(settleDateStr);
+
+    tipsMap = buildTipsMapFromYields(yieldsRows);
+
+    dataInfo.textContent = `Market data as of ${settleDateStr} · ${yieldsRows.length} TIPS · RefCPI rows: ${refCpiRows.length}`;
+    document.getElementById('run-btn').disabled = false;
+  } catch (err) {
+    dataInfo.textContent = '';
+    setStatus('Failed to load market data: ' + err.message, true);
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+function setStatus(msg, isError = false) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = isError ? 'error' : '';
+}
+
+function lookupRefCpi(dateStr) {
+  const matches = refCpiRows.filter(r => r.date <= dateStr);
+  if (matches.length === 0) throw new Error(`No RefCPI data on or before ${dateStr}`);
+  return matches[matches.length - 1].refCpi;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function fmtI(n) { return typeof n === 'number' ? Math.round(n).toLocaleString() : String(n); }
+function pct(n)  { return typeof n === 'number' ? (n * 100).toFixed(1) + '%' : 'N/A'; }
+function sign(n) {
+  if (typeof n !== 'number') return String(n);
+  const r = Math.round(n);
+  return (r > 0 ? '+' : '') + r.toLocaleString();
+}
+
+function cell(v, ci) {
+  let s;
+  if (typeof v !== 'number') {
+    s = String(v);
+  } else if (ci === 1 || ci === 3) {
+    s = String(Math.round(v));
+  } else {
+    s = Math.round(v).toLocaleString('en-US');
+  }
+  return `<td class="${ci >= 4 ? 'num' : ''}">${esc(s)}</td>`;
+}
+
+// ─── Render output ────────────────────────────────────────────────────────────
+function renderOutput({ results, HDR, summary }) {
+  const {
+    settleDateDisp, refCPI, DARA, inferredDARA, method,
+    firstYear, lastYear, rungCount, gapYears,
+    gapParams, brackets,
+    lowerDuration, upperDuration, lowerWeight, upperWeight,
+    beforeLowerWeight, beforeUpperWeight, afterLowerWeight, afterUpperWeight,
+    costDeltaSum,
+  } = summary;
+
+  const boxesEl = document.getElementById('summary-boxes');
+  boxesEl.innerHTML = `
+    <div class="box"><h3>Parameters</h3><table>
+      <tr><td>Settlement</td><td>${esc(settleDateDisp)}</td></tr>
+      <tr><td>RefCPI</td><td>${refCPI}</td></tr>
+      <tr><td>DARA</td><td>${fmtI(DARA)}</td></tr>
+      <tr><td>Inferred DARA</td><td>${fmtI(inferredDARA)}</td></tr>
+      <tr><td>Method</td><td>${esc(method)}</td></tr>
+      <tr><td>Range</td><td>${firstYear} – ${lastYear} (${rungCount} rungs)</td></tr>
+      <tr><td>Gap Years</td><td>${gapYears.join(', ')}</td></tr>
+    </table></div>
+
+    <div class="box"><h3>Duration Matching</h3><table>
+      <tr><td>Gap Avg Duration</td><td>${gapParams.avgDuration.toFixed(4)}</td></tr>
+      <tr><td>Gap Total Cost</td><td>${fmtI(gapParams.totalCost)}</td></tr>
+      <tr><td>Lower (${brackets.lowerYear})</td><td>${lowerDuration.toFixed(4)}</td></tr>
+      <tr><td>Upper (${brackets.upperYear})</td><td>${upperDuration.toFixed(4)}</td></tr>
+    </table></div>
+
+    <div class="box"><h3>Weights</h3><table>
+      <tr><th></th><th>Target</th><th>Before</th><th>After</th></tr>
+      <tr><td>Lower</td><td>${pct(lowerWeight)}</td><td>${pct(beforeLowerWeight)}</td><td>${pct(afterLowerWeight)}</td></tr>
+      <tr><td>Upper</td><td>${pct(upperWeight)}</td><td>${pct(beforeUpperWeight)}</td><td>${pct(afterUpperWeight)}</td></tr>
+    </table></div>
+
+    <div class="box"><h3>Net Cash</h3>
+      <p class="net ${costDeltaSum >= 0 ? 'pos' : 'neg'}">${sign(costDeltaSum)}</p>
+    </div>
+  `;
+
+  const tableEl = document.getElementById('main-table');
+  const headerRow = `<thead><tr>${HDR.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>`;
+  const bodyRows  = results.map(r => '<tr>' + r.map((v, ci) => cell(v, ci)).join('') + '</tr>').join('\n');
+  tableEl.innerHTML = headerRow + `<tbody>${bodyRows}</tbody>`;
+
+  // Colour Qty Delta (col 9) and Cost Delta (col 11)
+  tableEl.querySelectorAll('tbody tr').forEach(tr => {
+    [9, 11].forEach(ci => {
+      const td = tr.cells[ci];
+      if (!td) return;
+      const v = parseFloat(td.textContent.replace(/,/g, ''));
+      if (!isNaN(v)) td.classList.add(v > 0 ? 'pos' : v < 0 ? 'neg' : '');
+    });
+  });
+
+  document.getElementById('output').style.display = '';
+}
+
+// ─── Run handler ─────────────────────────────────────────────────────────────
+document.getElementById('run-btn').addEventListener('click', async () => {
+  setStatus('');
+  const fileInput = document.getElementById('holdings-file');
+  if (!fileInput.files.length) { setStatus('Please select a holdings CSV file.', true); return; }
+
+  const daraInput = document.getElementById('dara').value.trim();
+  const dara      = daraInput ? parseFloat(daraInput) : null;
+  const method    = document.getElementById('method').value;
+
+  const text = await fileInput.files[0].text();
+  const holdingsRaw = text.trim().split('\n')
+    .filter(l => l.trim())
+    .map(line => {
+      const [cusip, qty] = line.split(',').map(s => s.trim());
+      return { cusip, qty: parseInt(qty, 10) };
+    })
+    .filter(h => h.cusip && !isNaN(h.qty));
+
+  if (holdingsRaw.length === 0) { setStatus('Holdings CSV appears empty or invalid.', true); return; }
+
+  try {
+    const settleDateStr = settlementDate.toLocaleDateString('en-CA');
+    const refCPI = lookupRefCpi(settleDateStr);
+    setStatus('Running rebalance…');
+    const result = runRebalance({ dara, method, holdings: holdingsRaw, tipsMap, refCPI, settlementDate });
+    renderOutput(result);
+    setStatus('');
+  } catch (err) {
+    setStatus('Error: ' + err.message, true);
+    console.error(err);
+  }
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+loadData();
+</script>
+</body>
+</html>

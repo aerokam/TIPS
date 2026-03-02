@@ -33,6 +33,7 @@ async function main() {
   const rows = await fetchTipsRef();
 
   if (arg) {
+    // Diagnostic lookup for a single CUSIP
     const row = rows.find(r => r.cusip === arg.toUpperCase());
     if (!row) {
       console.error(`CUSIP ${arg} not found.`);
@@ -44,20 +45,16 @@ async function main() {
     console.log(`Coupon:     ${(row.coupon * 100).toFixed(3)}%`);
     console.log(`Base CPI:   ${row.baseCpi.toFixed(5)}`);
   } else {
-    console.log(`\nTIPS Base CPI (ref_cpi_on_dated_date) — ${rows.length} bonds\n`);
-    const h = ['CUSIP', 'Maturity', 'Coupon%', 'Base CPI'];
-    const data = rows.map(r => [
-      r.cusip,
-      r.maturity,
-      (r.coupon * 100).toFixed(3),
-      r.baseCpi.toFixed(5),
-    ]);
-    const widths = h.map((col, i) => Math.max(col.length, ...data.map(r => r[i].length)));
-    const fmt = row => row.map((v, i) => v.padStart(widths[i])).join('  ');
-    console.log(fmt(h));
-    console.log(widths.map(w => '-'.repeat(w)).join('  '));
-    data.forEach(r => console.log(fmt(r)));
-    console.log(`\n${rows.length} TIPS`);
+    // Write data/TipsRef.csv
+    const fs = await import('fs');
+    const path = await import('path');
+    const outPath = path.join(__dirname, 'data', 'TipsRef.csv');
+    const header = 'cusip,maturity,datedDate,coupon,baseCpi,term';
+    const lines = rows.map(r =>
+      `${r.cusip},${r.maturity},${r.datedDate},${r.coupon},${r.baseCpi},${r.term}`
+    );
+    fs.writeFileSync(outPath, [header, ...lines].join('\n') + '\n');
+    console.error(`Wrote ${rows.length} rows → ${outPath}`);
   }
 }
 

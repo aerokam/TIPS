@@ -36,7 +36,7 @@ async function fetchRefCpi() {
 }
 
 async function main() {
-  const argDate = process.argv[2];
+  const arg = process.argv[2];
   const rows = await fetchRefCpi();
 
   if (rows.length === 0) {
@@ -44,16 +44,25 @@ async function main() {
     process.exit(1);
   }
 
-  if (argDate) {
+  if (arg === '--write') {
+    // Write all rows to data/RefCPI.csv
+    const fs   = await import('fs');
+    const path = await import('path');
+    const outPath = path.join(__dirname, 'data', 'RefCPI.csv');
+    const header = 'date,refCpi';
+    const lines = rows.map(r => `${r.date},${r.refCpi}`);
+    fs.writeFileSync(outPath, [header, ...lines].join('\n') + '\n');
+    console.error(`Wrote ${rows.length} rows → ${outPath}`);
+  } else if (arg) {
     // Find exact match or nearest prior date
-    const matches = rows.filter(r => r.date <= argDate);
+    const matches = rows.filter(r => r.date <= arg);
     if (matches.length === 0) {
-      console.error(`No data on or before ${argDate}.`);
+      console.error(`No data on or before ${arg}.`);
       process.exit(1);
     }
     const row = matches[matches.length - 1]; // already sorted asc
-    if (row.date !== argDate) {
-      console.error(`No data for ${argDate}, using nearest prior date.`);
+    if (row.date !== arg) {
+      console.error(`No data for ${arg}, using nearest prior date.`);
     }
     console.log(`${row.date}  ${row.refCpi.toFixed(5)}`);
   } else {
