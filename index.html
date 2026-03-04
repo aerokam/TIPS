@@ -9,31 +9,43 @@
   body { font-family: system-ui, sans-serif; font-size: 13px; margin: 0; padding: 20px; color: #222; background: #fafafa; }
   h1 { font-size: 18px; margin: 0 0 16px; }
 
+  /* ── Top row (form + net cash) ── */
+  #top-row { display: flex; gap: 12px; align-items: stretch; margin-bottom: 16px; }
+
   /* ── Form ── */
-  .form-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px 20px; max-width: 640px; margin-bottom: 20px; }
-  .form-card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: #666; margin: 0 0 12px; }
-  .fields { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
-  .field { display: flex; flex-direction: column; gap: 4px; }
+  .form-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; }
+  .fields { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
+  .field { display: flex; flex-direction: column; gap: 3px; }
   .field label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
-  .field input, .field select { padding: 6px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-  .field input[type="file"] { padding: 4px; }
-  button { padding: 7px 18px; background: #1a56db; color: #fff; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 600; }
+  .field input, .field select { padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
+  .field input[type="file"] { padding: 3px; }
+  button { padding: 5px 14px; background: #1a56db; color: #fff; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 600; }
   button:disabled { background: #aaa; cursor: default; }
   button:hover:not(:disabled) { background: #1748c0; }
 
   /* ── Status ── */
-  #status { margin: 8px 0; font-size: 12px; color: #555; min-height: 18px; }
+  #status { margin: 4px 0 0; font-size: 12px; color: #555; min-height: 16px; }
   #status.error { color: #c0392b; font-weight: 600; }
 
-  /* ── Summary boxes ── */
-  .sections { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
-  .box { background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 12px 16px; min-width: 200px; }
-  .box h3 { font-size: 11px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: .05em; color: #666; }
-  .box table { border-collapse: collapse; width: 100%; }
-  .box td { padding: 2px 0; }
-  .box td:last-child { font-weight: 600; text-align: right; padding-left: 12px; }
-  .box th { font-size: 11px; color: #888; font-weight: 400; text-align: right; padding: 0 0 4px; }
-  .box th:first-child { text-align: left; }
+  /* ── Net Cash callout ── */
+  #net-cash-bar { display: none; background: #fff; border: 1px solid #ddd; border-radius: 6px;
+                  padding: 10px 20px; flex-direction: column; justify-content: center; }
+  #net-cash-bar .nc-label { font-size: 10px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+  #net-cash-bar .nc-val { font-size: 22px; font-weight: 700; margin-top: 2px; line-height: 1; }
+
+  /* ── Parameters bar ── */
+  .params-bar { display: flex; flex-wrap: wrap; gap: 0; background: #fff; border: 1px solid #ddd; border-radius: 6px; padding: 10px 16px; margin-bottom: 12px; }
+  .param { display: flex; flex-direction: column; padding: 0 20px 0 0; margin-right: 20px; border-right: 1px solid #eee; }
+  .param:last-child { border-right: none; padding-right: 0; margin-right: 0; }
+  .param-label { font-size: 10px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: .04em; }
+  .param-val { font-weight: 600; font-size: 13px; margin-top: 2px; white-space: nowrap; }
+
+  /* ── Detail info bar ── */
+  .detail-bar { display: flex; flex-wrap: wrap; background: #fff; border-bottom: 1px solid #eee; }
+  .param-group { display: flex; padding: 10px 16px; border-right: 2px solid #cbd5e1; }
+  .param-group:last-child { border-right: none; }
+  .param-group .param { border-right: 1px solid #eee; padding-right: 16px; margin-right: 16px; }
+  .param-group .param:last-child { border-right: none; padding-right: 0; margin-right: 0; }
   .net { font-weight: 700; font-size: 16px; margin: 4px 0 0; }
 
   /* ── Main table ── */
@@ -50,6 +62,26 @@
   /* ── Data freshness ── */
   #data-info { font-size: 11px; color: #888; margin-bottom: 16px; }
 
+  /* ── Tabs ── */
+  .tabs { display: flex; gap: 2px; margin-bottom: 0; }
+  .tab-btn { padding: 6px 16px; background: #e2e8f0; border: 1px solid #cbd5e1; border-bottom: none;
+             border-radius: 5px 5px 0 0; font-size: 12px; font-weight: 600; color: #64748b;
+             cursor: pointer; }
+  .tab-btn.active { background: #fff; color: #1e293b; border-color: #ddd; }
+  .tab-panels { border: 1px solid #ddd; border-radius: 0 6px 6px 6px; background: #fff; }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
+
+  /* ── Simple table ── */
+  table.simple { border-collapse: collapse; width: auto; font-size: 13px; }
+  table.simple th { background: #1e293b; color: #fff; padding: 6px 12px; text-align: right;
+                    font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
+  table.simple th:first-child, table.simple th:nth-child(2), table.simple th:nth-child(3) { text-align: left; }
+  table.simple td { padding: 6px 12px; border-bottom: 1px solid #eee; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.simple td:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) { text-align: right; }
+  table.simple tr.no-change td { color: #bbb; }
+  table.simple tr:hover td { background: #fffde7; }
+
   #output { display: none; }
 </style>
 <script data-goatcounter="https://tipsladder.goatcounter.com/count"
@@ -60,35 +92,54 @@
 
 <div id="data-info">Loading market data…</div>
 
-<div class="form-card">
-  <h2>Inputs</h2>
-  <div class="fields">
-    <div class="field">
-      <label>Holdings CSV</label>
-      <input type="file" id="holdings-file" accept=".csv">
+<div id="top-row">
+  <div class="form-card">
+    <div class="fields">
+      <div class="field">
+        <label>Holdings CSV</label>
+        <input type="file" id="holdings-file" accept=".csv">
+      </div>
+      <div class="field">
+        <label>DARA ($)</label>
+        <input type="number" id="dara" placeholder="auto-infer" step="1" min="0" style="width:110px">
+      </div>
+      <div class="field">
+        <label>Method</label>
+        <select id="method">
+          <option value="Gap">Gap</option>
+          <option value="Full">Full</option>
+        </select>
+      </div>
+      <div class="field" style="justify-content:flex-end">
+        <button id="run-btn" disabled>Run Rebalance</button>
+      </div>
     </div>
-    <div class="field">
-      <label>DARA ($)</label>
-      <input type="number" id="dara" placeholder="Leave blank to infer" step="1" min="0" style="width:160px">
-    </div>
-    <div class="field">
-      <label>Method</label>
-      <select id="method">
-        <option value="Gap">Gap</option>
-        <option value="Full">Full</option>
-      </select>
-    </div>
-    <div class="field" style="justify-content:flex-end">
-      <button id="run-btn" disabled>Run Rebalance</button>
-    </div>
+    <div id="status"></div>
   </div>
-  <div id="status"></div>
+  <div id="net-cash-bar">
+    <div class="nc-label">Net Cash</div>
+    <div class="nc-val" id="net-cash-val"></div>
+  </div>
 </div>
 
 <div id="output">
-  <div class="sections" id="summary-boxes"></div>
-  <div class="table-wrap">
-    <table class="main" id="main-table"></table>
+  <div class="params-bar" id="params-bar"></div>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="simple">Simple</button>
+    <button class="tab-btn" data-tab="detail">Detail</button>
+  </div>
+  <div class="tab-panels">
+    <div class="tab-panel active" id="tab-simple">
+      <div class="table-wrap" style="padding:12px 16px">
+        <table class="simple" id="simple-table"></table>
+      </div>
+    </div>
+    <div class="tab-panel" id="tab-detail">
+      <div class="detail-bar" id="detail-bar"></div>
+      <div class="table-wrap">
+        <table class="main" id="main-table"></table>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -146,6 +197,21 @@ async function loadData() {
 
     dataInfo.textContent = `Market data as of ${settleDateStr} · ${yieldsRows.length} TIPS · RefCPI rows: ${refCpiRows.length}`;
     document.getElementById('run-btn').disabled = false;
+
+    // Pre-populate sample holdings if no file already selected
+    const fileInput = document.getElementById('holdings-file');
+    if (!fileInput.files.length) {
+      try {
+        const sampleRes = await fetch('./data/CusipQtyTest.csv');
+        if (sampleRes.ok) {
+          const blob = await sampleRes.blob();
+          const file = new File([blob], 'CusipQtyTest.csv', { type: 'text/csv' });
+          const dt = new DataTransfer();
+          dt.items.add(file);
+          fileInput.files = dt.files;
+        }
+      } catch (_) { /* sample load failure is non-fatal */ }
+    }
   } catch (err) {
     dataInfo.textContent = '';
     setStatus('Failed to load market data: ' + err.message, true);
@@ -189,6 +255,16 @@ function cell(v, ci) {
   return `<td class="${ci >= 4 ? 'num' : ''}">${esc(s)}</td>`;
 }
 
+// ─── Tab switching ────────────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
 // ─── Render output ────────────────────────────────────────────────────────────
 function renderOutput({ results, HDR, summary }) {
   const {
@@ -197,38 +273,50 @@ function renderOutput({ results, HDR, summary }) {
     gapParams, brackets,
     lowerDuration, upperDuration, lowerWeight, upperWeight,
     beforeLowerWeight, beforeUpperWeight, afterLowerWeight, afterUpperWeight,
+    totalCurrentExcess, totalExcessCost,
     costDeltaSum,
   } = summary;
 
-  const boxesEl = document.getElementById('summary-boxes');
-  boxesEl.innerHTML = `
-    <div class="box"><h3>Parameters</h3><table>
-      <tr><td>Settlement</td><td>${esc(settleDateDisp)}</td></tr>
-      <tr><td>RefCPI</td><td>${refCPI}</td></tr>
-      <tr><td>DARA</td><td>${fmtI(DARA)}</td></tr>
-      <tr><td>Inferred DARA</td><td>${fmtI(inferredDARA)}</td></tr>
-      <tr><td>Method</td><td>${esc(method)}</td></tr>
-      <tr><td>Range</td><td>${firstYear} – ${lastYear} (${rungCount} rungs)</td></tr>
-      <tr><td>Gap Years</td><td>${gapYears.join(', ')}</td></tr>
-    </table></div>
+  const ncBar = document.getElementById('net-cash-bar');
+  const ncVal = document.getElementById('net-cash-val');
+  ncVal.textContent = sign(costDeltaSum);
+  ncVal.className = 'nc-val ' + (costDeltaSum >= 0 ? 'pos' : 'neg');
+  ncBar.style.display = 'flex';
 
-    <div class="box"><h3>Duration Matching</h3><table>
-      <tr><td>Gap Avg Duration</td><td>${gapParams.avgDuration.toFixed(4)}</td></tr>
-      <tr><td>Gap Total Cost</td><td>${fmtI(gapParams.totalCost)}</td></tr>
-      <tr><td>Lower (${brackets.lowerYear})</td><td>${lowerDuration.toFixed(4)}</td></tr>
-      <tr><td>Upper (${brackets.upperYear})</td><td>${upperDuration.toFixed(4)}</td></tr>
-    </table></div>
+  const param = (label, val) =>
+    `<div class="param"><span class="param-label">${label}</span><span class="param-val">${val}</span></div>`;
 
-    <div class="box"><h3>Weights</h3><table>
-      <tr><th></th><th>Target</th><th>Before</th><th>After</th></tr>
-      <tr><td>Lower</td><td>${pct(lowerWeight)}</td><td>${pct(beforeLowerWeight)}</td><td>${pct(afterLowerWeight)}</td></tr>
-      <tr><td>Upper</td><td>${pct(upperWeight)}</td><td>${pct(beforeUpperWeight)}</td><td>${pct(afterUpperWeight)}</td></tr>
-    </table></div>
+  document.getElementById('params-bar').innerHTML =
+    param('Date',          esc(settleDateDisp)) +
+    param('RefCPI',        refCPI) +
+    param('DARA',          fmtI(DARA)) +
+    param('Inferred DARA', fmtI(inferredDARA)) +
+    param('Method',        esc(method)) +
+    param('Range',         `${firstYear} – ${lastYear} (${rungCount} rungs)`) +
+    param('Gap Years',     gapYears.join(', ') || '—');
 
-    <div class="box"><h3>Net Cash</h3>
-      <p class="net ${costDeltaSum >= 0 ? 'pos' : 'neg'}">${sign(costDeltaSum)}</p>
-    </div>
-  `;
+  const dp = (label, val) =>
+    `<div class="param"><span class="param-label">${label}</span><span class="param-val">${val}</span></div>`;
+
+  const wpct = n => typeof n === 'number' ? Math.round(n * 100) + '%' : 'N/A';
+
+  const grp = (...items) => `<div class="param-group">${items.join('')}</div>`;
+
+  document.getElementById('detail-bar').innerHTML =
+    grp(
+      dp('Gap Avg Dur',                       gapParams.avgDuration.toFixed(1)),
+      dp(`Lower Dur (${brackets.lowerYear})`, lowerDuration.toFixed(1)),
+      dp(`Upper Dur (${brackets.upperYear})`, upperDuration.toFixed(1)),
+    ) +
+    grp(
+      dp('Gap Total Cost', fmtI(gapParams.totalCost)),
+      dp('Excess Before',  fmtI(totalCurrentExcess)),
+      dp('Excess After',   fmtI(totalExcessCost)),
+    ) +
+    grp(
+      dp('Lower Wt Target/Before/After', `${wpct(lowerWeight)} / ${wpct(beforeLowerWeight)} / ${wpct(afterLowerWeight)}`),
+      dp('Upper Wt Target/Before/After', `${wpct(upperWeight)} / ${wpct(beforeUpperWeight)} / ${wpct(afterUpperWeight)}`),
+    );
 
   const tableEl = document.getElementById('main-table');
   const headerRow = `<thead><tr>${HDR.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>`;
@@ -244,6 +332,42 @@ function renderOutput({ results, HDR, summary }) {
       if (!isNaN(v) && v !== 0) td.classList.add(v > 0 ? 'pos' : 'neg');
     });
   });
+
+  // Simple view
+  // HDR: 0=CUSIP 1=Qty 2=Maturity 3=FY 8=Target Qty 9=Qty Delta 11=Cost Delta
+  const SIMPLE_COLS = [
+    { label: 'CUSIP',    ci: 0 },
+    { label: 'Maturity', ci: 2 },
+    { label: 'FY',       ci: 3 },
+    { label: 'Qty',      ci: 1 },
+    { label: 'Target',   ci: 8 },
+    { label: 'Delta',    ci: 9 },
+    { label: 'Cash Δ',   ci: 11 },
+  ];
+  const simpleEl = document.getElementById('simple-table');
+  const simpleHeader = `<thead><tr>${SIMPLE_COLS.map(c => `<th>${esc(c.label)}</th>`).join('')}</tr></thead>`;
+  const simpleBody = results.map(r => {
+    const delta = r[9];
+    const noChange = typeof delta === 'number' && delta === 0;
+    const cells = SIMPLE_COLS.map(({ ci }) => {
+      const v = r[ci];
+      let s;
+      if (typeof v !== 'number') {
+        s = String(v);
+      } else if (ci === 1 || ci === 3 || ci === 8) {
+        s = String(Math.round(v));  // plain integers, no comma
+      } else {
+        const rounded = Math.round(v);
+        s = (ci === 9 || ci === 11) && rounded > 0 ? '+' + rounded.toLocaleString('en-US')
+          : rounded.toLocaleString('en-US');
+      }
+      let cls = '';
+      if ((ci === 9 || ci === 11) && typeof v === 'number' && v !== 0) cls = v > 0 ? ' class="pos"' : ' class="neg"';
+      return `<td${cls}>${esc(s)}</td>`;
+    }).join('');
+    return `<tr class="${noChange ? 'no-change' : ''}">${cells}</tr>`;
+  }).join('\n');
+  simpleEl.innerHTML = simpleHeader + `<tbody>${simpleBody}</tbody>`;
 
   document.getElementById('output').style.display = 'block';
 }

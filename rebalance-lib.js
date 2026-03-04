@@ -670,6 +670,7 @@ export function runRebalance({ dara, method, holdings: holdingsRaw, tipsMap, ref
     gapParams, brackets,
     lowerDuration, upperDuration, lowerWeight, upperWeight,
     beforeLowerWeight, beforeUpperWeight, afterLowerWeight, afterUpperWeight,
+    totalCurrentExcess, totalExcessCost,
     costDeltaSum,
   };
 

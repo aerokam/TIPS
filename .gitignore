@@ -9,3 +9,4 @@ data/*
 !data/TipsYields.csv
 !data/RefCPI.csv
 !data/TipsRef.csv
+!data/CusipQtyTest.csv

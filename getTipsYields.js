@@ -5,45 +5,34 @@
 // Usage: node getTipsYields.js
 // Run on-demand before rebalance (prices update throughout the day on FedInvest).
 
-const FEDINVEST_URL = 'https://www.treasurydirect.gov/GA-FI/FedInvest/securityPriceDetail';
+const FEDINVEST_URL = 'https://www.treasurydirect.gov/GA-FI/FedInvest/todaySecurityPriceDetail';
 
-// ─── Date helpers ─────────────────────────────────────────────────────────────
-function mostRecentWeekday(date = new Date()) {
-  const d = new Date(date);
-  const day = d.getDay();
-  if (day === 0) d.setDate(d.getDate() - 2);
-  if (day === 6) d.setDate(d.getDate() - 1);
-  return d;
-}
-
+// ─── Date helper (used by yieldFromPrice) ────────────────────────────────────
 function localDate(str) {
   const [y, m, d] = str.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
-function toDateStr(date) {
-  return date.toLocaleDateString('en-CA'); // YYYY-MM-DD in local time
-}
-
 // ─── FedInvest price fetch ────────────────────────────────────────────────────
-async function fetchTipsPrices(date) {
-  const day   = String(date.getDate()).padStart(2, '0');
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const year  = String(date.getFullYear());
+async function fetchTipsPrices() {
+  const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
 
-  const body = new URLSearchParams({
-    priceDateDay: day, priceDateMonth: month, priceDateYear: year,
-    fileType: 'csv', csv: 'CSV FORMAT'
-  });
+  // GET HTML for settlement date + POST for CSV — run in parallel
+  const [htmlRes, csvRes] = await Promise.all([
+    fetch(FEDINVEST_URL),
+    fetch(FEDINVEST_URL, { method: 'POST', body: new URLSearchParams({ fileType: 'csv', csv: 'CSV FORMAT' }) }),
+  ]);
+  if (!htmlRes.ok) throw new Error(`FedInvest HTML HTTP ${htmlRes.status}`);
+  if (!csvRes.ok)  throw new Error(`FedInvest CSV HTTP ${csvRes.status}`);
+  const [html, text] = await Promise.all([htmlRes.text(), csvRes.text()]);
 
-  const res = await fetch(FEDINVEST_URL, { method: 'POST', body });
-  if (!res.ok) throw new Error(`FedInvest HTTP ${res.status}`);
+  // "Prices For: 2026 Mar 3" → YYYY-MM-DD
+  const m = html.match(/Prices For:\s+(\d{4})\s+(\w{3})\s+(\d+)/);
+  if (!m) throw new Error('Could not parse settlement date from FedInvest response');
+  const settleDateStr = new Date(+m[1], months[m[2]], +m[3]).toLocaleDateString('en-CA');
 
-  const text = await res.text();
-  const lines = text.trim().split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
-
-  return lines.slice(1)
+  const rows = text.trim().split('\n')
+    .filter(l => /^[A-Z0-9]{9},/.test(l))   // CUSIP data rows only
     .map(line => {
       const c = line.split(',').map(s => s.trim());
       return {
@@ -57,6 +46,8 @@ async function fetchTipsPrices(date) {
       };
     })
     .filter(r => r.type === 'TIPS');
+
+  return { rows, settleDateStr };
 }
 
 // ─── Yield from price (actual/actual, matches Excel YIELD(...,2,1)) ───────────
@@ -152,20 +143,10 @@ async function main() {
 
   const refMap = new Map(refRows.map(r => [r.cusip, r]));
 
-  // Fetch FedInvest prices — walk back from today until data found
+  // Fetch FedInvest prices (today's latest available)
   console.error('Fetching TIPS prices from FedInvest...');
-  let priceRows = [];
-  let priceDate = mostRecentWeekday();
-  for (let attempt = 0; attempt < 5; attempt++) {
-    priceRows = await fetchTipsPrices(priceDate);
-    if (priceRows.length > 0) break;
-    console.error(`No data for ${toDateStr(priceDate)}, trying previous weekday...`);
-    priceDate.setDate(priceDate.getDate() - 1);
-    priceDate = mostRecentWeekday(priceDate);
-  }
+  const { rows: priceRows, settleDateStr } = await fetchTipsPrices();
   if (priceRows.length === 0) throw new Error('No TIPS price data found from FedInvest');
-
-  const settleDateStr = toDateStr(priceDate);
   console.error(`Settlement date: ${settleDateStr}`);
 
   // Merge prices with metadata and calculate yields
