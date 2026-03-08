@@ -380,6 +380,8 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 
     document.getElementById('output').style.display     = isRebalance && rebalanceRendered ? 'block' : 'none';
     document.getElementById('bfs-output').style.display = !isRebalance && bfsRendered     ? 'block' : 'none';
+    document.getElementById('net-cash-bar').style.display     = isRebalance && rebalanceRendered ? 'flex' : 'none';
+    document.getElementById('bfs-net-cash-bar').style.display = !isRebalance && bfsRendered ? 'flex' : 'none';
 
     setStatus('');
   });
