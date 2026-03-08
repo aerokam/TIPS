@@ -119,6 +119,9 @@ export function runBuildFromScratch({ dara, lastYear, tipsMap, refCPI, settlemen
   const lowerWt   = (upperDur - gapParams.avgDuration) / (upperDur - lowerDur);
   const upperWt   = 1 - lowerWt;
 
+  const BL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const lowerMonth = BL_MONTHS[lowerBond.maturity.getMonth()];
+  const upperMonth = BL_MONTHS[upperBond.maturity.getMonth()];
   const lowerCPB  = (lowerBond.price ?? 0) / 100 * (refCPI / (lowerBond.baseCpi ?? refCPI)) * 1000;
   const upperCPB  = (upperBond.price ?? 0) / 100 * (refCPI / (upperBond.baseCpi ?? refCPI)) * 1000;
   const lowerExQty     = lowerCPB > 0 ? Math.round(gapParams.totalCost * lowerWt / lowerCPB) : 0;
@@ -127,19 +130,24 @@ export function runBuildFromScratch({ dara, lastYear, tipsMap, refCPI, settlemen
 
   // 5. Build output rows (ascending year order for display)
   const results = [];
+  const details = [];
   let totalBuyCost = 0;
   for (const year of rangeYears) {
-    const bond   = yearBondMap[year];
-    const fyQty  = prelim[year].targetFYQty;
-    const exQty  = year === lowerYear ? lowerExQty : year === upperYear ? upperExQty : 0;
-    const totQty = fyQty + exQty;
-    const ir       = refCPI / (bond.baseCpi ?? refCPI);
-    const cpb      = (bond.price ?? 0) / 100 * ir * 1000;
+    const bond      = yearBondMap[year];
+    const fyQty     = prelim[year].targetFYQty;
+    const exQty     = year === lowerYear ? lowerExQty : year === upperYear ? upperExQty : 0;
+    const totQty    = fyQty + exQty;
+    const ir        = Math.round(refCPI / (bond.baseCpi ?? refCPI) * 1e5) / 1e5;
+    const cpb       = (bond.price ?? 0) / 100 * ir * 1000;
     const isBracket = exQty > 0;
-    const fyAmt    = fyQty * prelim[year].pi + prelim[year].laterMatInt;
-    const exAmt    = isBracket ? exQty * prelim[year].pi : '';
-    const fyCost   = fyQty * cpb;
-    const exCost   = isBracket ? exQty * cpb : '';
+    const monthF    = bond.maturity.getMonth() + 1;
+    const halfOrFull = monthF < 7 ? 0.5 : 1.0;
+    const principalPerBond     = 1000 * ir;
+    const ownRungCouponPerBond = principalPerBond * (bond.coupon ?? 0) * halfOrFull;
+    const fyAmt  = fyQty * prelim[year].pi + prelim[year].laterMatInt;
+    const exAmt  = isBracket ? exQty * prelim[year].pi : '';
+    const fyCost = fyQty * cpb;
+    const exCost = isBracket ? exQty * cpb : '';
     totalBuyCost += totQty * cpb;
     results.push([
       bond.cusip,             // 0: CUSIP
@@ -153,6 +161,31 @@ export function runBuildFromScratch({ dara, lastYear, tipsMap, refCPI, settlemen
       exAmt,                  // 8: Excess Amount (bracket only)
       exCost,                 // 9: Excess Cost (bracket only)
     ]);
+    details.push({
+      fy: year,
+      cusip: bond.cusip,
+      maturityStr: fmtDate(bond.maturity),
+      coupon: bond.coupon ?? 0,
+      price: bond.price ?? 0,
+      baseCpi: bond.baseCpi ?? refCPI,
+      refCPI,
+      indexRatio: ir,
+      halfOrFull,
+      dara,
+      fy_qty: fyQty,
+      fy_laterMatInt: prelim[year].laterMatInt,
+      fy_pi: prelim[year].pi,
+      fy_principalTotal: fyQty * principalPerBond,
+      fy_ownRungInt: fyQty * ownRungCouponPerBond,
+      fy_amt: fyAmt,
+      fy_costPerBond: cpb,
+      fy_cost: fyCost,
+      ex_qty: exQty,
+      ex_principalTotal: exQty * principalPerBond,
+      ex_ownRungInt: exQty * ownRungCouponPerBond,
+      ex_amt: isBracket ? exQty * prelim[year].pi : 0,
+      ex_cost: isBracket ? exQty * cpb : 0,
+    });
   }
 
   const HDR = ['CUSIP', 'Maturity', 'FY', 'FY Qty', 'Excess Qty', 'Total Qty', 'FY Amount', 'FY Cost', 'Excess Amount', 'Excess Cost'];
@@ -161,10 +194,10 @@ export function runBuildFromScratch({ dara, lastYear, tipsMap, refCPI, settlemen
     settleDateDisp, refCPI, dara,
     firstYear, lastYear, gapYears,
     gapParams, lowerYear, upperYear,
-    lowerDur, upperDur, lowerWt, upperWt,
+    lowerDur, upperDur, lowerWt, upperWt, lowerMonth, upperMonth,
     lowerExQty, upperExQty, totalExcessCost,
     totalBuyCost,
   };
 
-  return { results, HDR, summary };
+  return { results, HDR, summary, details };
 }

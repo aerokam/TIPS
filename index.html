@@ -66,6 +66,10 @@
   .pos { color: #16a34a; } .neg { color: #dc2626; }
   .net.pos { color: #16a34a; } .net.neg { color: #dc2626; }
 
+  /* ── Drillable cells ── */
+  td.drillable { cursor: pointer; text-decoration: underline dotted #94a3b8; }
+  td.drillable:hover { background: #fef9c3 !important; text-decoration: underline solid #475569; }
+
   /* ── Data freshness ── */
   #data-info { font-size: 11px; color: #888; margin-bottom: 16px; }
 
@@ -142,6 +146,15 @@
     <p>Synthetic TIPS are created for gap years using yield interpolation between the bracket anchors. Excess bonds are split between the lower and upper bracket so their weighted duration matches the average duration of the gap years:</p>
     <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:8px;font-size:12px;margin:6px 0;">lowerWt × lowerDur + upperWt × upperDur = gapAvgDuration
 e.g.  0.46 × 9.1 (2036) + 0.54 × 12.1 (2040) = 10.7</pre>
+  </div>
+</div>
+
+<!-- Drill-down modal -->
+<div id="drill-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow:hidden;">
+  <div id="drill-modal" style="background:#fff;max-width:calc(100vw - 32px);box-sizing:border-box;border-radius:8px;padding:24px 28px;position:fixed;top:60px;left:50%;transform:translateX(-50%);font-size:13px;">
+    <button id="drill-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;">×</button>
+    <div id="drill-title" style="font-size:13px;font-weight:700;margin-bottom:14px;padding-right:20px;color:#1e293b;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;"></div>
+    <div id="drill-content"></div>
   </div>
 </div>
 
@@ -357,6 +370,7 @@ function cell(v, ci) {
 // ─── Mode toggle ──────────────────────────────────────────────────────────────
 let currentMode = 'rebalance';
 let rebalanceRendered = false, bfsRendered = false;
+let bfsDetails = null;
 
 document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -499,12 +513,12 @@ function renderOutput({ results, HDR, summary }) {
 }
 
 // ─── Render Build from Scratch output ────────────────────────────────────────
-function renderBFSOutput({ results, HDR, summary }) {
+function renderBFSOutput({ results, HDR, summary, details }) {
   const {
     settleDateDisp, refCPI, dara,
     firstYear, lastYear, gapYears,
     gapParams, lowerYear, upperYear,
-    lowerDur, upperDur, lowerWt, upperWt,
+    lowerDur, upperDur, lowerWt, upperWt, lowerMonth, upperMonth,
     totalBuyCost, totalExcessCost,
   } = summary;
 
@@ -518,8 +532,8 @@ function renderBFSOutput({ results, HDR, summary }) {
     `<div class="param"><span class="param-label">${label}</span><span class="param-val">${val}</span></div>`;
 
   const durFormula =
-    `${lowerWt.toFixed(2)} × ${lowerDur.toFixed(1)} (${lowerYear}) + ` +
-    `${upperWt.toFixed(2)} × ${upperDur.toFixed(1)} (${upperYear}) = ` +
+    `${lowerWt.toFixed(2)} × ${lowerDur.toFixed(1)} (${lowerMonth} ${lowerYear} duration) + ` +
+    `${upperWt.toFixed(2)} × ${upperDur.toFixed(1)} (${upperMonth} ${upperYear} duration) = ` +
     `${gapParams.avgDuration.toFixed(1)}`;
 
   // Gap Cost + Excess Cost grouped with a blue tint box
@@ -528,7 +542,7 @@ function renderBFSOutput({ results, HDR, summary }) {
     `<span class="param-label">${label}</span><span class="param-val">${val}</span></div>`;
   const costGroup =
     `<div style="display:inline-flex;align-items:flex-start;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;padding:6px 10px;">` +
-    gp('Gap Cost', fmtI(gapParams.totalCost)) +
+    gp('Cost of Hypothetical Gap Year TIPS', fmtI(gapParams.totalCost)) +
     gp('Excess Cost', fmtI(totalExcessCost), true) +
     `</div>`;
 
@@ -538,9 +552,8 @@ function renderBFSOutput({ results, HDR, summary }) {
     param('DARA',      fmtI(dara)) +
     param('Range',     `${firstYear} – ${lastYear}`) +
     param('Gap Years', gapYears.join(', ') || '—') +
-    param('Lower ⌂',  `${lowerYear} (${lowerDur.toFixed(1)} yr)`) +
-    param('Upper ⌂',  `${upperYear} (${upperDur.toFixed(1)} yr)`) +
-    param('Dur Match', durFormula) +
+    param('Hypothetical Avg Gap Year Duration', gapParams.avgDuration.toFixed(1) + ' yr') +
+    param('Duration Match', durFormula) +
     costGroup;
 
   // Build table — columns: CUSIP(0), Maturity(1), FY(2), FY Qty(3), Excess Qty(4), Total Qty(5), FY Amount(6), FY Cost(7), Excess Amount(8), Excess Cost(9)
@@ -550,7 +563,9 @@ function renderBFSOutput({ results, HDR, summary }) {
     return `<th style="${align}">${esc(h)}</th>`;
   }).join('')}</tr></thead>`;
 
-  const body = results.map(r => {
+  bfsDetails = details;
+
+  const body = results.map((r, ri) => {
     const isBracket = r[2] === lowerYear || r[2] === upperYear;
     const cells = r.map((v, i) => {
       let s;
@@ -561,10 +576,14 @@ function renderBFSOutput({ results, HDR, summary }) {
       } else {
         s = Math.round(v).toLocaleString('en-US');
       }
-      const align = i <= 1 ? '' : ' style="text-align:right"';
-      return `<td${align}>${esc(s)}</td>`;
+      const isDrillable = (i === 6 || i === 7) || ((i === 8 || i === 9) && typeof v === 'number');
+      const styleAttr = i > 1 ? ' style="text-align:right"' : '';
+      const drillAttr = isDrillable
+        ? ' class="drillable" data-row="' + ri + '" data-col="' + i + '"'
+        : '';
+      return '<td' + styleAttr + drillAttr + '>' + esc(s) + '</td>';
     }).join('');
-    return `<tr class="${isBracket ? 'bracket' : ''}">${cells}</tr>`;
+    return '<tr class="' + (isBracket ? 'bracket' : '') + '">' + cells + '</tr>';
   }).join('\n');
 
   tableEl.innerHTML = header + `<tbody>${body}</tbody>`;
@@ -645,6 +664,154 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     console.error(err);
   }
 });
+
+// ─── Drill-down content builder ──────────────────────────────────────────────────────────────────────────────────────
+function buildDrillHTML(d, colIdx) {
+  const fm  = n => '$' + Math.round(n).toLocaleString('en-US');
+  const fd  = (n, dp) => Number(n).toFixed(dp);
+  const fm2 = n => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const nPeriods    = d.halfOrFull === 0.5 ? 1 : 2;
+  const couponPct   = fd(d.coupon / 2 * 100, 5) + '%';
+  const couponLabel = nPeriods === 1 ? 'Last coupon (1 period)' : 'Last 2 coupons (2 periods)';
+  const principalPerBond = 1000 * d.indexRatio;
+
+  function row(label, formula, value, isTotal) {
+    const ts = isTotal ? 'font-weight:700;border-top:2px solid #1e293b;padding-top:6px;' : '';
+    const f  = formula
+      ? '<td style="padding:3px 14px;color:#64748b;font-size:11px;' + ts + '">' + formula + '</td>'
+      : '<td style="padding:3px 14px;' + ts + '"></td>';
+    return '<tr>'
+         + '<td style="padding:3px 16px 3px 0;white-space:nowrap;' + ts + '">' + label + '</td>'
+         + f
+         + '<td style="padding:3px 0 3px 14px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;' + ts + '">' + value + '</td>'
+         + '</tr>';
+  }
+  function sep() {
+    return '<tr><td colspan="3" style="padding:4px 0;border-bottom:1px dashed #e2e8f0"></td></tr>';
+  }
+
+  // Shared variable rows used by both FY Amount and Excess Amount
+  const DRILL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const matMonth = DRILL_MONTHS[parseInt(d.maturityStr.slice(0,2), 10) - 1];
+  function bondVarRows(qty) {
+    return row('Price (unadjusted)', '', fd(d.price, 4)) +
+      row('refCPI', '', fd(d.refCPI, 5)) +
+      row('Dated date CPI', '', fd(d.baseCpi, 5)) +
+      row('Index ratio', fd(d.refCPI, 5) + ' / ' + fd(d.baseCpi, 5), fd(d.indexRatio, 5)) +
+      row('Principal per bond', 'price/100 × index ratio × 1,000', fm2(principalPerBond)) +
+      row('Coupon per period', 'annual coupon / 2', couponPct) +
+      row('Coupon periods in FY', '', nPeriods + (nPeriods === 1 ? ' (1 semi-annual)' : ' (Jan + ' + matMonth + ')'));
+  }
+
+  let rows = '';
+
+  if (colIdx === 6) {
+    const netNeeded = d.dara - d.fy_laterMatInt;
+    const piPerBond = d.fy_pi;
+    rows =
+      row('DARA target', '', fm(d.dara)) +
+      row('Later maturity interest', 'from bonds maturing after ' + d.fy, '− ' + fm(d.fy_laterMatInt)) +
+      row('Net needed from FY bonds', 'DARA − later mat. int.', fm(netNeeded)) +
+      sep() +
+      bondVarRows(d.fy_qty) +
+      row('P+I per bond', 'principal/bond × (1 + coupon/period × periods)', fm2(piPerBond)) +
+      row('Qty', 'round(' + fm(netNeeded) + ' / ' + fm2(piPerBond) + ')', d.fy_qty + ' bonds') +
+      sep() +
+      row('Principal', 'principal/bond × qty', fm(d.fy_principalTotal)) +
+      row(couponLabel, 'principal/bond × coupon/period × periods × qty', fm(d.fy_ownRungInt)) +
+      row('Later maturity interest', '', fm(d.fy_laterMatInt)) +
+      row('FY Amount', '', fm(d.fy_amt), true);
+
+  } else if (colIdx === 7) {
+    rows =
+      row('Price (unadjusted)', '', fd(d.price, 4)) +
+      row('refCPI', '', fd(d.refCPI, 5)) +
+      row('Dated date CPI', '', fd(d.baseCpi, 5)) +
+      row('Index ratio', fd(d.refCPI, 5) + ' / ' + fd(d.baseCpi, 5), fd(d.indexRatio, 5)) +
+      row('Cost per bond', 'price/100 × index ratio × 1,000', fm2(d.fy_costPerBond)) +
+      row('Qty', '', d.fy_qty + ' bonds') +
+      row('FY Cost', 'cost/bond × qty', fm(d.fy_cost), true);
+
+  } else if (colIdx === 8) {
+    rows =
+      bondVarRows(d.ex_qty) +
+      row('P+I per bond', 'principal/bond × (1 + coupon/period × periods)', fm2(d.fy_pi)) +
+      row('Excess Qty', '', d.ex_qty + ' bonds') +
+      sep() +
+      row('Principal', 'principal/bond × excess qty', fm(d.ex_principalTotal)) +
+      row(couponLabel, 'principal/bond × coupon/period × periods × excess qty', fm(d.ex_ownRungInt)) +
+      row('Excess Amount', '', fm(d.ex_amt), true);
+
+  } else if (colIdx === 9) {
+    rows =
+      row('Price (unadjusted)', '', fd(d.price, 4)) +
+      row('refCPI', '', fd(d.refCPI, 3)) +
+      row('Base CPI', '', fd(d.baseCpi, 3)) +
+      row('refCPI', '', fd(d.refCPI, 5)) +
+      row('Dated date CPI', '', fd(d.baseCpi, 5)) +
+      row('Index ratio', fd(d.refCPI, 5) + ' / ' + fd(d.baseCpi, 5), fd(d.indexRatio, 5)) +
+      row('Cost per bond', 'price/100 × index ratio × 1,000', fm2(d.fy_costPerBond)) +
+      row('Excess Qty', '', d.ex_qty + ' bonds') +
+      row('Excess Cost', 'cost/bond × excess qty', fm(d.ex_cost), true);
+  }
+
+  return '<table style="border-collapse:collapse;width:100%;font-size:12px">' + rows + '</table>';
+}
+
+// ─── Drill-down event wiring ────────────────────────────────────────────────────────────
+document.getElementById('bfs-table').addEventListener('click', e => {
+  const td = e.target.closest('td.drillable');
+  if (!td || !bfsDetails) return;
+  const ri = parseInt(td.dataset.row, 10);
+  const ci = parseInt(td.dataset.col, 10);
+  const d  = bfsDetails[ri];
+  if (!d) return;
+  const colNames = { 6: 'FY Amount', 7: 'FY Cost', 8: 'Excess Amount', 9: 'Excess Cost' };
+  const suffix   = (ci === 8 || ci === 9) ? ' (bracket)' : '';
+  document.getElementById('drill-title').textContent =
+    colNames[ci] + ' — FY ' + d.fy + suffix + ' · ' + d.cusip + ' · ' + d.maturityStr;
+  document.getElementById('drill-content').innerHTML = buildDrillHTML(d, ci);
+  const _ov = document.getElementById('drill-overlay');
+  const _dm = document.getElementById('drill-modal');
+  _dm.style.left = '50%'; _dm.style.top = '60px'; _dm.style.transform = 'translateX(-50%)';
+  _ov.style.display = 'block';
+});
+document.getElementById('drill-close').addEventListener('click', () => {
+  document.getElementById('drill-overlay').style.display = 'none';
+});
+document.getElementById('drill-overlay').addEventListener('click', e => {
+  if (_drillDragging) return;
+  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') document.getElementById('drill-overlay').style.display = 'none';
+});
+// ─── Draggable drill modal ──────────────────────────────────────────────────────────────────────────────────────
+let _drillDragging = false;
+{
+  const _modal = document.getElementById('drill-modal');
+  const _title = document.getElementById('drill-title');
+  let _offX = 0, _offY = 0;
+  _title.addEventListener('mousedown', e => {
+    const rect = _modal.getBoundingClientRect();
+    _modal.style.transform = 'none';
+    _modal.style.left = rect.left + 'px';
+    _modal.style.top  = rect.top  + 'px';
+    _offX = e.clientX - rect.left;
+    _offY = e.clientY - rect.top;
+    _drillDragging = true;
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!_drillDragging) return;
+    _modal.style.left = (e.clientX - _offX) + 'px';
+    _modal.style.top  = (e.clientY - _offY) + 'px';
+  });
+  document.addEventListener('mouseup', () => {
+    if (_drillDragging) setTimeout(() => { _drillDragging = false; }, 0);
+  });
+}
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 loadData();
