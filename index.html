@@ -413,25 +413,23 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
     param('Date',          esc(settleDateDisp)) +
     param('RefCPI',        refCPI) +
     param('DARA',          fmtI(DARA)) +
-    param('Inferred DARA', fmtI(inferredDARA)) +
-    param('Method',        esc(method)) +
     param('Range',         `${firstYear} – ${lastYear} (${rungCount} rungs)`) +
     param('Gap Years',     gapYears.join(', ') || '—') +
-    (portfolioCash !== null ? param('Portfolio Cash', '$' + Math.round(portfolioCash).toLocaleString()) : '');
+    (portfolioCash !== null ? param('Market Value', '$' + Math.round(portfolioCash).toLocaleString()) : '');
 
   rebalDetails = details;
 
-  // Simple view: CUSIP | Maturity | FY | ARA After | ARA Before | Excess After | Excess Before | Qty After | Qty Before | QtyΔ | CashΔ
+  // Simple view: CUSIP | Maturity | FY | Amount After | Amount Before | Excess After | Excess Before | Qty After | Qty Before | QtyΔ | CashΔ
   const SCOLS = [
     { label: 'CUSIP',         ci: 0,  fmt: 'str' },
     { label: 'Maturity',      ci: 2,  fmt: 'str' },
     { label: 'FY',            ci: 3,  fmt: 'fy'  },
-    { label: 'ARA After',     ci: 14, fmt: 'amt', key: 'araAfter'     },
-    { label: 'ARA Before',    ci: 12, fmt: 'amt', key: 'araBefore'    },
-    { label: 'Excess After',  ci: 17, fmt: 'amt', key: 'excessAfter'  },
+    { label: 'Amount Before',    ci: 12, fmt: 'amt', key: 'araBefore'    },
+    { label: 'Amount After',     ci: 14, fmt: 'amt', key: 'araAfter'     },
     { label: 'Excess Before', ci: 16, fmt: 'amt', key: 'excessBefore' },
-    { label: 'Qty After',     ci: 8,  fmt: 'qty', key: 'qtyAfter'     },
+    { label: 'Excess After',  ci: 17, fmt: 'amt', key: 'excessAfter'  },
     { label: 'Qty Before',    ci: 1,  fmt: 'qty' },
+    { label: 'Qty After',     ci: 8,  fmt: 'qty', key: 'qtyAfter'     },
     { label: 'Qty Δ',        ci: 9,  fmt: 'sgn' },
     { label: 'Cash Δ',       ci: 11, fmt: 'sgn', key: 'cashDelta' },
   ];
@@ -830,10 +828,10 @@ function buildRebalDrillHTML(d, colKey) {
       + row(couponLabel, 'principal/bond × coupon/period × periods × qty', fm(ownCoupon))
       + row('Later maturity interest', 'from bonds maturing after FY', fm(laterMatInt))
       + sep()
-      + row(isBef ? 'ARA Before' : 'ARA After', 'Principal + Coupons + Later mat int', fm(araTotal), true)
+      + row(isBef ? 'Amount Before' : 'Amount After', 'Principal + Coupons + Later mat int', fm(araTotal), true)
       + sep()
       + row('DARA', '', fm(d.DARA))
-      + row('Surplus / Deficit', (isBef ? 'ARA Before' : 'ARA After') + ' − DARA',
+      + row('Surplus / Deficit', (isBef ? 'Amount Before' : 'Amount After') + ' − DARA',
             (araTotal - d.DARA >= 0 ? '+' : '') + Math.round(araTotal - d.DARA).toLocaleString('en-US'));
 
   } else if (colKey === 'excessBefore' || colKey === 'excessAfter') {
@@ -910,7 +908,7 @@ document.getElementById('simple-table').addEventListener('click', e => {
   const key = td.dataset.col;
   const d   = rebalDetails[ri];
   if (!d) return;
-  const colNames = { araBefore: 'ARA Before', araAfter: 'ARA After',
+  const colNames = { araBefore: 'Amount Before', araAfter: 'Amount After',
     excessBefore: 'Excess Before', excessAfter: 'Excess After',
     qtyBefore: 'Qty Before', qtyAfter: 'Qty After', cashDelta: 'Cash Δ' };
   document.getElementById('drill-title').textContent =
