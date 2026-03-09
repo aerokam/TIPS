@@ -56,7 +56,8 @@
   .net { font-weight: 700; font-size: 16px; margin: 4px 0 0; }
 
   /* ── Main table ── */
-  .table-wrap { overflow-x: auto; }
+  .table-wrap { padding: 12px 16px; }
+  .table-scroll-wrap { overflow: auto; }
   table.main { border-collapse: collapse; width: 100%; background: #fff; font-size: 12px; }
   table.main th { background: #1e293b; color: #fff; padding: 5px 8px; text-align: right; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
   table.main th:first-child, table.main th:nth-child(3), table.main th:nth-child(4) { text-align: left; }
@@ -207,16 +208,20 @@ e.g.  0.46 × 9.1 (2036) + 0.54 × 12.1 (2040) = 10.7</pre>
 <!-- Rebalance output -->
 <div id="output">
   <div class="params-bar" id="params-bar"></div>
-  <div class="table-wrap" style="padding:12px 16px">
-    <table class="simple" id="simple-table"></table>
+  <div class="table-wrap">
+    <div class="table-scroll-wrap" id="simple-scroll">
+      <table class="simple" id="simple-table"></table>
+    </div>
   </div>
 </div>
 
 <!-- Build from Scratch output -->
 <div id="bfs-output">
   <div class="params-bar" id="bfs-params-bar"></div>
-  <div style="border:1px solid #ddd; border-radius:6px; background:#fff; overflow-x:auto; padding:12px 16px;">
-    <table class="simple" id="bfs-table"></table>
+  <div style="border:1px solid #ddd; border-radius:6px; background:#fff; padding:12px 16px;">
+    <div class="table-scroll-wrap" id="bfs-scroll">
+      <table class="simple" id="bfs-table"></table>
+    </div>
   </div>
 </div>
 
@@ -604,8 +609,12 @@ function renderBFSOutput({ results, HDR, summary, details }) {
 function updateStickyTop(tableId, paramsBarId) {
   const topRow    = document.getElementById('top-row');
   const paramsBar = document.getElementById(paramsBarId);
-  const top = topRow ? topRow.offsetHeight : 0;
-  document.querySelectorAll('#' + tableId + ' th').forEach(th => { th.style.top = top + 'px'; });
+  const scrollId  = tableId === 'simple-table' ? 'simple-scroll' : 'bfs-scroll';
+  const scrollWrap = document.getElementById(scrollId);
+  if (!scrollWrap) return;
+  const used = (topRow ? topRow.offsetHeight : 0) + (paramsBar ? paramsBar.offsetHeight : 0) + 48;
+  scrollWrap.style.maxHeight = (window.innerHeight - used) + 'px';
+  // th top:0 is relative to scroll container — no inline override needed
 }
 
 // ─── Run handler ──────────────────────────────────────────────────────────────
