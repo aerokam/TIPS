@@ -518,8 +518,8 @@ export function runRebalance({ dara, method, holdings: holdingsRaw, tipsMap, ref
 
         let targetLatestQty = Math.round((totalPINeeded - nonLatestPI) / piMap[targetCUSIP]);
 
-        if (targetLatestQty < currentQty) {
-          // Would need to sell latest → zero non-latest from earliest first instead
+        if (isFullMode && targetLatestQty < currentQty) {
+          // Full rebalance only: sell earliest maturities first to avoid selling latest
           let reducedNonLatestPI = nonLatestPI;
           for (const h of nonLatest) {
             reducedNonLatestPI    -= h.qty * piMap[h.cusip];
@@ -527,7 +527,6 @@ export function runRebalance({ dara, method, holdings: holdingsRaw, tipsMap, ref
             targetLatestQty = Math.round((totalPINeeded - reducedNonLatestPI) / piMap[targetCUSIP]);
             if (targetLatestQty >= currentQty) break; // enough freed up
           }
-          // Issue 1: even after zeroing all non-latest, clamp at 0
           targetLatestQty = Math.max(0, targetLatestQty);
         }
 
