@@ -4,14 +4,10 @@ appsscript/
 # Auto-memory (Claude Code internal)
 memory/
 
-# Data — only the 3 auto-updated reference CSVs are tracked
-data/*
-!data/TipsYields.csv
-!data/RefCPI.csv
-!data/TipsRef.csv
-!data/CusipQtyTest.csv
+# Data
+data/
 
 # Wrangler local state
 .wrangler/
 tips-data-worker/.wrangler/
-!data/CusipQtyTestLumpy.csv
+node_modules/

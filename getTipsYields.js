@@ -7,6 +7,29 @@
 
 const FEDINVEST_URL = 'https://www.treasurydirect.gov/GA-FI/FedInvest/todaySecurityPriceDetail';
 
+async function uploadToR2(key, body) {
+  const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
+  const {
+    CLOUDFLARE_ACCOUNT_ID,
+    R2_ACCESS_KEY_ID,
+    R2_SECRET_ACCESS_KEY,
+    R2_BUCKET,
+  } = process.env;
+
+  if (!CLOUDFLARE_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET) {
+    throw new Error('Cloudflare R2 credentials not found in environment variables (CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET).');
+  }
+
+  const s3 = new S3Client({
+    region: 'auto',
+    endpoint: `https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
+  });
+
+  await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: body, ContentType: 'text/csv' }));
+  console.error(`Wrote ${body.trim().split('\n').length - 1} rows → R2 bucket "${R2_BUCKET}", key "${key}"`);
+}
+
 // ─── Date helper (used by yieldFromPrice) ────────────────────────────────────
 function localDate(str) {
   const [y, m, d] = str.split('-').map(Number);
@@ -125,15 +148,14 @@ function yieldFromPrice(cleanPrice, coupon, settleDateStr, maturityStr) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  const fs   = await import('fs');
-  const path = await import('path');
+  const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS';
 
   // Read TipsRef.csv for base CPI / coupon / maturity metadata
-  const refPath = path.join(__dirname, 'data', 'TipsRef.csv');
-  if (!fs.existsSync(refPath)) {
-    throw new Error(`data/TipsRef.csv not found — run fetchTipsRef.js first`);
-  }
-  const refRows = fs.readFileSync(refPath, 'utf8')
+  console.error('Fetching TipsRef.csv from R2...');
+  const refRes = await fetch(`${R2_BASE_URL}/TipsRef.csv`);
+  if (!refRes.ok) throw new Error(`Failed to fetch TipsRef.csv from R2: ${refRes.status}`);
+  const refText = await refRes.text();
+  const refRows = refText
     .trim().split('\n').slice(1)               // skip header
     .filter(l => l.trim())
     .map(line => {
@@ -169,15 +191,12 @@ async function main() {
     });
   }
 
-  // Write data/TipsYields.csv
-  const outPath = path.join(__dirname, 'data', 'TipsYields.csv');
-  fs.mkdirSync(path.dirname(outPath), { recursive: true });
+  // Write TipsYields.csv to R2
   const header = 'settlementDate,cusip,maturity,coupon,baseCpi,price,yield';
   const lines = rows.map(r =>
     `${r.settlementDate},${r.cusip},${r.maturity},${r.coupon},${r.baseCpi},${r.price},${r.yield}`
   );
-  fs.writeFileSync(outPath, [header, ...lines].join('\n') + '\n');
-  console.error(`Wrote ${rows.length} rows → ${outPath}`);
+  await uploadToR2('TIPS/TipsYields.csv', [header, ...lines].join('\n') + '\n');
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
