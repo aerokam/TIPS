@@ -25,17 +25,15 @@ npx serve .
 
 | Module | Role |
 |--------|------|
-| `bond-math.js` | Pure per-bond math: `bondCalcs()`, `calculateMDuration()`, `rungAmount()` |
-| `gap-math.js` | Gap/bracket math: `calcGapParams()`, `bracketWeights()`, `bracketExcessQtys()`, yield interpolation |
-| `ladder-math.js` | Sweep helpers: `fyQty()`, `laterMatIntContribution()` |
-| `rebalance-lib.js` | Rebalance orchestrator — calls the above, no raw formulas |
-| `build-lib.js` | Build-from-scratch orchestrator — same constraint |
-| `render.js` | Table HTML from unified `COLS` schema (183L) |
-| `drill.js` | Popup builder: `buildDrillHTML(d, colKey, summary, mode)` |
-| `data.js` | CSV fetch/parse from R2 |
+| `src/bond-math.js` | Pure per-bond math: `bondCalcs()`, `calculateMDuration()`, `rungAmount()` |
+| `src/gap-math.js` | Gap/bracket math: `calcGapParams()`, `bracketWeights()`, `bracketExcessQtys()`, yield interpolation |
+| `src/ladder-math.js` | Sweep helpers: `fyQty()`, `laterMatIntContribution()` |
+| `src/rebalance-lib.js` | Rebalance orchestrator — calls the above, no raw formulas |
+| `src/build-lib.js` | Build-from-scratch orchestrator — same constraint |
+| `src/render.js` | Table HTML from unified `COLS` schema (183L) |
+| `src/drill.js` | Popup builder: `buildDrillHTML(d, colKey, summary, mode)` |
+| `src/data.js` | CSV fetch/parse from R2 |
 | `index.html` | Thin shell: event wiring, calls render/drill, zero business logic |
-
-`rebalance.js` at root is legacy (pre-refactor) — do not touch.
 
 ### Spec-First Protocol (hard rule)
 

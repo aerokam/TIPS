@@ -53,18 +53,16 @@ This positions the tool as educational infrastructure for understanding TIPS lad
 
 ---
 
-## Planned Refactor
+## Completed Refactor (March 2026)
 
-The prototype-driven development has left technical debt that should be addressed before the deep drill-down layer is built:
+The following architectural improvements have been implemented to stabilize the codebase:
 
-1. **Split index.html**: Move all JS into ES modules (render.js, drill.js, data.js, etc.)
-2. **Unified popup builder**: Single `buildDrillHTML(d, colKey, summary)` serving both Build and Rebalance modes — currently two parallel implementations sharing ~70% of logic
-3. **Unified column schema**: Single COLS definition driving table rendering, popup wiring, and totals
-4. **Harmonize build-lib / rebalance-lib naming**: Use consistent variable names (`fyQty`, `costPerBond`, `lowerWeight`/`lowerDur`) across both libs — currently divergent (see 4.0 §Code Variable Mapping)
-5. **Shared gap/bracket math**: Extract duplicated gap parameter and bracket identification logic into a shared module
-6. **Remove patch scripts**: `_patch*.js` build artifacts in root should be deleted
-
-Refactor constraint: Do not touch algorithm logic in rebalance-lib.js or build-lib.js without regression test coverage.
+1. **Modularization**: JS moved from `index.html` to `src/` modules (`render.js`, `drill.js`, `data.js`, etc.).
+2. **Unified Rendering**: Single `buildDrillHTML` and `COLS` schema serving both Build and Rebalance modes.
+3. **Variable Harmonization**: Consistent naming (`fyQty`, `costPerBond`) across `build-lib` and `rebalance-lib`.
+4. **Shared Math**: Gap/bracket logic extracted to `src/gap-math.js`.
+5. **Data Pipeline**: Backend scripts moved to `scripts/` and integrated with Cloudflare R2 via GitHub Actions.
+6. **Testing**: Robust E2E and regression suite in `tests/` with static fixtures.
 
 ---
 
@@ -72,7 +70,7 @@ Refactor constraint: Do not touch algorithm logic in rebalance-lib.js or build-l
 
 The `knowledge/` directory is the spec layer:
 
-- **1.0** Bond Basics → **2.0** Bond Ladders → **2.1** TIPS Basics → **3.0** TIPS Ladders → **4.0** TIPS Ladder Rebalancing
+- **1.0** Bond Basics → **2.0** Bond Ladders → **2.1** TIPS Basics → **3.0** TIPS Ladders / **3.1** Data Pipeline → **4.0** TIPS Ladder Rebalancing
 - Each file inherits from dependencies; formulas are additive up the chain
 - **4.0** is the primary reference: contains all named quantities, formulas, code variable mapping, and algorithm phases
 - When adding a new displayed value: spec it in the appropriate knowledge file first, then implement

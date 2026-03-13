@@ -487,6 +487,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
 
   let rebuildLaterMatInt = 0;
   const yearLaterMatIntSnapshot = {};
+  let costForNewRungs = 0;
 
   for (const year of allYearsSorted) {
     if (gapYearSet.has(year)) continue;
@@ -595,6 +596,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
               costDelta:  -((newQ - h.qty) * hCPB),
               targetCost: newQ * hCPB,
             };
+            if (isRebal) costForNewRungs += -nonTargetSells[h.cusip].costDelta;
           }
         }
       }
@@ -613,6 +615,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
           ? (currentQty - bracketTargetFYQtyBefore[year]) * costPerBond
           : undefined,
       };
+      if (isRebal) costForNewRungs += -buySellTargets[year].costDelta;
     } else {
       targetFYQty  = currentQty;
       postRebalQty = currentQty;
@@ -851,6 +854,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
   const afterLowerWeight     = totalExcessCost > 0 ? lowerExcessCost  / totalExcessCost : null;
   const afterUpperWeight     = totalExcessCost > 0 ? upperExcessCost  / totalExcessCost : null;
   const afterNewLowerWeight  = is3Bracket && totalExcessCost > 0 ? newLowerExcessCost3 / totalExcessCost : null;
+  const gapCoverageSurplus   = totalCurrentExcess - costForNewRungs - gapParams.totalCost;
 
   const HDR = ['CUSIP','Qty','Maturity','FY','Principal','Interest','ARA','Cost',
                'Target Qty','Qty Delta','Target Cost','Cost Delta',
@@ -867,6 +871,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
     afterLowerWeight, afterUpperWeight, afterNewLowerWeight,
     totalCurrentExcess, totalExcessCost,
     costDeltaSum,
+    costForNewRungs, gapCoverageSurplus,
   };
 
   return { results, HDR, summary, details };

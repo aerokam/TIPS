@@ -8,10 +8,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const csv = name => readFileSync(path.join(ROOT, 'data', name), 'utf8');
+const FIXTURES = path.join(ROOT, 'tests', 'e2e');
+const csv = name => readFileSync(path.join(FIXTURES, name), 'utf8');
 
 // Holdings CSV for rebalance tests (simple 2-col format: cusip,qty)
-const HOLDINGS_PATH = path.join(ROOT, 'data', 'TipsCusipK.csv');
+const HOLDINGS_PATH = path.join(ROOT, 'tests', 'CusipQtyTestLumpy.csv');
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/TIPS/TipsYields.csv', r =>
@@ -221,7 +222,7 @@ test('drill popup: closes on backdrop click', async ({ page }) => {
 // ── 7. Error handling ─────────────────────────────────────────────────────────
 test('rebalance: running without holdings file shows status error', async ({ page, context }) => {
   // Block the pre-populate fetch so no sample file is loaded into the input
-  await page.route('**/data/CusipQtyTestLumpy.csv', r => r.abort());
+  await page.route('**/tests/CusipQtyTestLumpy.csv', r => r.abort());
   await page.reload();
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 15_000 });
 

@@ -280,6 +280,8 @@ export function buildDurationPopupRows(summary, mode) {
   const { lowerDuration, upperDuration, lowerWeight, upperWeight, gapParams } = summary;
   const is3 = mode === 'rebal' && summary.bracketMode === '3bracket' && summary.newLowerCUSIP;
 
+  let rows = [];
+
   if (is3) {
     const { newLowerYear, newLowerDuration, origLowerWeight, newLowerWeight3 } = summary;
     const w1 = (origLowerWeight ?? 0), w2 = (newLowerWeight3 ?? 0), w3 = upperWeight ?? 0;
@@ -288,7 +290,7 @@ export function buildDurationPopupRows(summary, mode) {
                 + ' + ' + w2.toFixed(4) + ' × ' + newLowerDuration.toFixed(2)
                 + ' + ' + w3.toFixed(4) + ' × ' + upperDuration.toFixed(2)
                 + ' ≈ ' + gapParams.avgDuration.toFixed(2);
-    return [
+    rows = [
       { label: 'Gap avg duration', value: gapParams.avgDuration.toFixed(2) + ' yr' },
       { label: 'Gap years',        value: (summary.gapYears || []).join(', ') || '—' },
       { sep: true },
@@ -304,22 +306,39 @@ export function buildDurationPopupRows(summary, mode) {
         ? [{ label: 'Infeasible', note: 'Orig lower excess alone exceeds gap cost (w1 > 1). No new lower/upper excess bought. Duration match is approximate.', total: true }]
         : [{ label: 'Duration match', note: match, total: true }]),
     ];
+  } else {
+    const wFml = '(upper dur − avg dur) / (upper dur − lower dur)';
+    const match = lowerWeight.toFixed(4) + ' × ' + lowerDuration.toFixed(2)
+                + ' + ' + upperWeight.toFixed(4) + ' × ' + upperDuration.toFixed(2)
+                + ' = ' + gapParams.avgDuration.toFixed(2);
+    rows = [
+      { label: 'Gap avg duration', value: gapParams.avgDuration.toFixed(2) + ' yr' },
+      { label: 'Gap years',        value: (summary.gapYears || []).join(', ') || '—' },
+      { sep: true },
+      { label: 'Lower bracket (' + lowerLabel + ')', note: 'mod. duration', value: lowerDuration.toFixed(2) + ' yr' },
+      { label: 'Upper bracket (' + upperLabel + ')', note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
+      { sep: true },
+      { label: 'Lower weight', note: wFml, value: lowerWeight.toFixed(4) },
+      { label: 'Upper weight', note: '1 − lower weight', value: upperWeight.toFixed(4) },
+      { sep: true },
+      { label: 'Duration match', note: match, total: true },
+    ];
   }
 
-  const wFml = '(upper dur − avg dur) / (upper dur − lower dur)';
-  const match = lowerWeight.toFixed(4) + ' × ' + lowerDuration.toFixed(2)
-              + ' + ' + upperWeight.toFixed(4) + ' × ' + upperDuration.toFixed(2)
-              + ' = ' + gapParams.avgDuration.toFixed(2);
-  return [
-    { label: 'Gap avg duration', value: gapParams.avgDuration.toFixed(2) + ' yr' },
-    { label: 'Gap years',        value: (summary.gapYears || []).join(', ') || '—' },
-    { sep: true },
-    { label: 'Lower bracket (' + lowerLabel + ')', note: 'mod. duration', value: lowerDuration.toFixed(2) + ' yr' },
-    { label: 'Upper bracket (' + upperLabel + ')', note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
-    { sep: true },
-    { label: 'Lower weight', note: wFml, value: lowerWeight.toFixed(4) },
-    { label: 'Upper weight', note: '1 − lower weight', value: upperWeight.toFixed(4) },
-    { sep: true },
-    { label: 'Duration match', note: match, total: true },
-  ];
+  // Excess Balance Check (Rebalance only)
+  if (typeof summary.gapCoverageSurplus === 'number') {
+    const s = summary.gapCoverageSurplus;
+    const surplusLbl = s >= 0 ? 'Surplus' : 'Deficit';
+    const surplusVal = (s >= 0 ? '+' : '') + Math.round(s).toLocaleString('en-US');
+    rows.push(
+      { sep: true },
+      { heading: 'Excess Balance Check' },
+      { label: 'Current excess $',  value: '$' + Math.round(summary.totalCurrentExcess).toLocaleString() },
+      { label: 'Rebal rungs cost',  note: 'cost to fill newly available years', value: '$' + Math.round(summary.costForNewRungs).toLocaleString() },
+      { label: 'Future gap cost',   note: 'cost to fill remaining gaps', value: '$' + Math.round(summary.gapParams.totalCost).toLocaleString() },
+      { label: 'Gap coverage ' + surplusLbl.toLowerCase(), note: 'Current excess − Rebal rungs − Future gap', value: surplusVal, total: true }
+    );
+  }
+
+  return rows;
 }

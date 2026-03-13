@@ -242,12 +242,12 @@
 </div>
 
 <script type="module">
-import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash } from './rebalance-lib.js';
-import { runBuild } from './build-lib.js';
-import { renderTable } from './render.js';
-import { buildDrillHTML, buildDurationPopupRows } from './drill.js';
-import { showPopup, hidePopup } from './popup.js';
-import { fetchTipsData, lookupRefCpi } from './data.js';
+import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash } from './src/rebalance-lib.js';
+import { runBuild } from './src/build-lib.js';
+import { renderTable } from './src/render.js';
+import { buildDrillHTML, buildDurationPopupRows } from './src/drill.js';
+import { showPopup, hidePopup } from './src/popup.js';
+import { fetchTipsData, lookupRefCpi } from './src/data.js';
 
 const simpleEl = document.getElementById('simple-table');
 const tableEl  = document.getElementById('build-table');
@@ -317,7 +317,7 @@ async function loadData() {
     const fileInput = document.getElementById('holdings-file');
     if (!fileInput.files.length) {
       try {
-        const sampleRes = await fetch('./data/CusipQtyTestLumpy.csv');
+        const sampleRes = await fetch('./tests/CusipQtyTestLumpy.csv');
         if (sampleRes.ok) {
           const blob = await sampleRes.blob();
           const file = new File([blob], 'CusipQtyTestLumpy.csv', { type: 'text/csv' });
