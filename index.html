@@ -190,14 +190,14 @@
         <label>Method</label>
         <select id="method">
           <option value="Gap">Gap</option>
-          <option value="Full">Full</option>
+          <option value="Full" selected>Full</option>
         </select>
       </div>
       <div class="field" id="field-bracket-mode">
         <label>Brackets</label>
         <select id="bracket-mode">
           <option value="2bracket">2-bracket</option>
-          <option value="3bracket">3-bracket (orig + new lower + upper)</option>
+          <option value="3bracket" selected>3-bracket (orig + new lower + upper)</option>
         </select>
       </div>
       <div class="field" id="field-first-year" style="display:none">
@@ -222,8 +222,9 @@
           <span style="font-size:11px;color:#475569">Include</span>
         </label>
       </div>
-      <div class="field" style="justify-content:flex-end">
+      <div class="field" style="justify-content:flex-end;flex-direction:row;gap:8px;">
         <button id="run-btn" disabled>Run Rebalance</button>
+        <button id="export-csv-btn" style="display:none;background:#1e293b;" title="Export table to CSV">Export CSV</button>
       </div>
       <div id="net-cash-inline">
         <span class="nc-label" id="nc-label">Net Cash</span>
@@ -303,6 +304,8 @@ async function loadData() {
       opt.value = y; opt.textContent = y;
       lastYearSel.appendChild(opt);
     });
+    if (bfsYears.includes(2047)) lastYearSel.value = 2047;
+
     const firstYearSel = document.getElementById('first-year');
     while (firstYearSel.options.length > 1) firstYearSel.remove(1);
     bfsYears.forEach(y => {
@@ -377,7 +380,7 @@ let rebalDetails = null;
 let rebalSummary = null;
 let buildSummary = null;
 let _staticInfo = '', _rebalRunInfo = '', _buildRunInfo = '';
-let _daraRebal = '', _daraBuild = '10000';
+let _daraRebal = '', _daraBuild = '40000';
 const _infoPopups = {};
 let _rebalDurationRows = null, _buildDurationRows = null;
 
@@ -408,6 +411,7 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 
     document.getElementById('output').style.display     = isRebalance && rebalanceRendered ? 'block' : 'none';
     document.getElementById('build-output').style.display = !isRebalance && buildRendered     ? 'block' : 'none';
+    document.getElementById('export-csv-btn').style.display = 'none';
     const _nci = document.getElementById('net-cash-inline');
     _nci.style.display = (isRebalance ? rebalanceRendered : buildRendered) ? '' : 'none';
     document.getElementById('nc-label').textContent = isRebalance ? 'Net Cash' : 'Total Cost';
@@ -465,7 +469,7 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
 
     rebalanceRendered = true;
   document.getElementById('output').style.display = 'block';
-  
+  document.getElementById('export-csv-btn').style.display = 'block';
 }
 
 // ─── Render Build from Scratch output ────────────────────────────────────────
@@ -501,7 +505,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
 
     buildRendered = true;
   document.getElementById('build-output').style.display = 'block';
-  
+  document.getElementById('export-csv-btn').style.display = 'block';
 }
 
 // ─── Sticky header helper ─────────────────────────────────────────────────────────
@@ -773,6 +777,34 @@ document.getElementById('simple-table').addEventListener('click', e => {
   const _dm = document.getElementById('drill-modal');
   _dm.style.left = '50%'; _dm.style.top = '60px'; _dm.style.transform = 'translateX(-50%)';
   _ov.style.display = 'block';
+});
+
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+  const tableId = currentMode === 'rebalance' ? 'simple-table' : 'build-table';
+  const filename = `tips-ladder-${currentMode}-${new Date().toISOString().split('T')[0]}.csv`;
+  const table = document.getElementById(tableId);
+  if (!table) return;
+  
+  const csvData = [];
+  const rows = table.querySelectorAll('tr');
+  for (const row of rows) {
+    const rowData = [];
+    const cols = row.querySelectorAll('td, th');
+    for (const col of cols) {
+      let data = col.textContent.trim().replace(/,/g, '').replace(/"/g, '""');
+      rowData.push('"' + data + '"');
+    }
+    csvData.push(rowData.join(','));
+  }
+  const blob = new Blob([csvData.join('\n')], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.setAttribute('href', url);
+  a.setAttribute('download', filename);
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
 });
 
 // ─── Init ─────────────────────────────────────────────────────────────────────

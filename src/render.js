@@ -20,7 +20,7 @@ function fmtCls(v, fmt) {
   return (fmt === 'sgn' && typeof v === 'number' && v !== 0) ? (v > 0 ? 'pos' : 'neg') : '';
 }
 
-function pi(d) { return d.principalPerBond * (1 + d.coupon / 2 * d.nPeriods); }
+function pi(d) { return d.principalPerBond * (1 + d.coupon / 2 * (d.nPeriods || 2)); }
 
 // COLS schema -- single source for all table rendering (6.0_UI_Schema.md)
 export const COLS = [
@@ -30,52 +30,53 @@ export const COLS = [
   { label: 'Maturity',    key: 'maturity',    fmt: 'str',
     value: d => d.maturityStr, subValue: d => d.maturityStr },
   { label: 'Funded Year', key: 'fundedYear',  fmt: 'fy',
-    value: d => d.fundedYear,  subValue: () => 'Gap' },
+    value: (d, ri, details) => (ri === details.length - 1 || details[ri+1].fundedYear !== d.fundedYear) ? d.fundedYear : '',
+    subValue: () => 'Gap' },
 
   // Rebalance-only
   { label: 'Amount Before', key: 'amtBefore', fmt: 'amt', rebalOnly: true,
     value:       d => d.araBeforeTotal,
     subValue:    d => d.excessQtyBefore * pi(d),
     subDrillKey: 'gapAmtBefore',
-    total: true, totalFn: d => d.araBeforeTotal ?? 0,
+    total: true, totalFn: d => (d.araBeforeTotal ?? 0) + (d.excessQtyBefore * pi(d) || 0),
     drill: true, drillCond: (_v, d) => d.araBeforeTotal !== null },
 
   { label: 'Amount After',  key: 'amtAfter',  fmt: 'amt', rebalOnly: true,
     value:       d => d.araAfterTotal,
     subValue:    d => d.excessQtyAfter * pi(d),
     subDrillKey: 'gapAmtAfter',
-    total: true, totalFn: d => d.araAfterTotal ?? 0,
+    total: true, totalFn: d => (d.araAfterTotal ?? 0) + (d.excessQtyAfter * pi(d) || 0),
     drill: true, drillCond: (_v, d) => d.araAfterTotal !== null },
 
   { label: 'Cost Before',   key: 'costBefore', fmt: 'amt', rebalOnly: true,
-    value:       d => (d.isBracketTarget ? d.fundedYearQty : d.qtyBefore) * d.costPerBond,
+    value:       d => d.fundedYearQtyBefore * d.costPerBond,
     subValue:    d => d.excessQtyBefore * d.costPerBond,
     subDrillKey: 'gapCostBefore',
-    total: true, totalFn: d => d.qtyBefore * d.costPerBond,
+    total: true, totalFn: d => (d.fundedYearQtyBefore * d.costPerBond) + (d.excessQtyBefore * d.costPerBond || 0),
     drill: true, drillCond: v => typeof v === 'number' && v > 0 },
 
   { label: 'Cost After',    key: 'costAfter',  fmt: 'amt', rebalOnly: true,
-    value:       d => d.fundedYearQty * d.costPerBond,
+    value:       d => d.fundedYearQtyAfter * d.costPerBond,
     subValue:    d => d.excessQtyAfter * d.costPerBond,
     subDrillKey: 'gapCostAfter',
-    total: true, totalFn: d => d.qtyAfter * d.costPerBond,
+    total: true, totalFn: d => (d.fundedYearQtyAfter * d.costPerBond) + (d.excessQtyAfter * d.costPerBond || 0),
     drill: true, drillCond: v => typeof v === 'number' && v > 0 },
 
   { label: 'Qty Before',    key: 'qtyBefore',  fmt: 'qty', rebalOnly: true,
-    value:    d => d.isBracketTarget ? d.fundedYearQty : d.qtyBefore,
+    value:    d => d.fundedYearQtyBefore,
     subValue: d => d.excessQtyBefore },
 
   { label: 'Qty After',     key: 'qtyAfter',   fmt: 'qty', rebalOnly: true,
-    value:    d => d.isBracketTarget ? d.fundedYearQty : d.qtyAfter,
+    value:    d => d.fundedYearQtyAfter,
     subValue: d => d.excessQtyAfter,
     drill: true, drillCond: v => typeof v === 'number' && v > 0 },
 
   { label: 'Qty Delta',     key: 'qtyDelta',   fmt: 'sgn', rebalOnly: true,
-    value:    d => d.isBracketTarget ? 0 : d.qtyAfter - d.qtyBefore,
+    value:    d => d.qtyAfter - d.qtyBefore,
     subValue: d => d.excessQtyAfter - d.excessQtyBefore },
 
   { label: 'Cash Delta',    key: 'cashDelta',  fmt: 'sgn', rebalOnly: true,
-    value:    d => d.isBracketTarget ? 0 : -((d.qtyAfter - d.qtyBefore) * d.costPerBond),
+    value:    d => -((d.qtyAfter - d.qtyBefore) * d.costPerBond),
     subValue: d => -((d.excessQtyAfter - d.excessQtyBefore) * d.costPerBond),
     subDrillKey: 'gapCashDelta',
     total: true, totalFn: d => -((d.qtyAfter - d.qtyBefore) * d.costPerBond),
@@ -86,7 +87,7 @@ export const COLS = [
     value:       d => d.fundedYearAmt,
     subValue:    d => d.excessAmt,
     subDrillKey: 'gapAmount',
-    total: true, totalFn: d => d.fundedYearAmt ?? 0,
+    total: true, totalFn: d => (d.fundedYearAmt ?? 0) + (d.excessAmt ?? 0),
     drill: true },
 
   { label: 'Cost',   key: 'cost',   fmt: 'amt', buildOnly: true,
@@ -103,7 +104,7 @@ export const COLS = [
 ];
 
 function isBracket(d, mode) {
-  return mode === 'rebal' ? !!d.isBracketTarget : d.excessQty > 0;
+  return mode === 'rebal' ? (d.excessQtyBefore > 0 || d.excessQtyAfter > 0) : d.excessQty > 0;
 }
 
 function isUpperBracket(d, summary, mode) {
@@ -125,7 +126,6 @@ function cellHtml(col, v, ri, drillKey) {
   return '<td' + attr + align + '>' + esc(s) + '</td>';
 }
 
-// renderTable: header + body + tfoot from COLS filtered by mode.
 export function renderTable({ details, mode, summary }) {
   const cols = COLS.filter(c => mode === 'rebal' ? !c.buildOnly : !c.rebalOnly);
 
@@ -136,10 +136,10 @@ export function renderTable({ details, mode, summary }) {
   const bodyRows = details.map((d, ri) => {
     const bt    = isBracket(d, mode);
     const upper = bt && isUpperBracket(d, summary, mode);
-    const noChg = mode === 'rebal' && !d.isBracketTarget && d.qtyAfter === d.qtyBefore;
+    const noChg = mode === 'rebal' && d.qtyAfter === d.qtyBefore && d.excessQtyAfter === d.excessQtyBefore;
 
     const mainCells = cols.map(col => {
-      const v = col.value(d);
+      const v = col.value(d, ri, details);
       let drillKey = null;
       if (col.drill) {
         const ok = col.drillCond ? col.drillCond(v, d) : (v != null && v !== 0);
@@ -151,7 +151,7 @@ export function renderTable({ details, mode, summary }) {
 
     if (bt) {
       const subCells = cols.map(col => {
-        const sv = col.subValue ? col.subValue(d) : null;
+        const sv = col.subValue ? col.subValue(d, ri, details) : null;
         return cellHtml(col, sv, ri, col.subDrillKey ?? null);
       }).join('');
       const subRow = '<tr class="excess-subrow bracket">' + subCells + '</tr>';
@@ -166,7 +166,7 @@ export function renderTable({ details, mode, summary }) {
     if (col.key === 'cusip') {
       s = 'Total';
     } else if (col.total) {
-      const fn = col.totalFn ?? (d => { const v = col.value(d); return typeof v === 'number' ? v : 0; });
+      const fn = col.totalFn ?? (d => { const v = col.value(d, 0, details); return typeof v === 'number' ? v : 0; });
       const sum = details.reduce((acc, d) => acc + fn(d), 0);
       s = col.fmt === 'sgn'
         ? (Math.round(sum) > 0 ? '+' : '') + Math.round(sum).toLocaleString('en-US')

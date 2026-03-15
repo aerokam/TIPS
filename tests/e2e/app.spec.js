@@ -234,7 +234,8 @@ test('build: running without selecting last year shows status error', async ({ p
   await page.locator('.mode-btn[data-mode="build"]').click();
   // Clear DARA so we get an error before year check, set it
   await page.locator('#dara').fill('10000');
-  // last-year still shows placeholder "Select year…"
+  // Clear the default last-year selection to trigger the error
+  await page.locator('#last-year').selectOption('');
   await page.locator('#run-btn').click();
   await expect(page.locator('#status')).toContainText(/year/i);
 });
