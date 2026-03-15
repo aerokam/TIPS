@@ -59,7 +59,7 @@ function calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim) 
 // Returns: { results, HDR, summary }
 // Spec: knowledge/3.0_TIPS_Ladders.md and knowledge/4.0_TIPS_Ladder_Rebalancing.md §Full Rebalance
 // Variable naming note: fundedYearQty, excessQty, costPerBond (harmonized) — see §Code Variable Mapping
-export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', preLadderInterest = false }) {
+export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', preLadderInterest = false, daraByYear = null }) {
   const firstYear      = firstYearOpt ?? settlementDate.getFullYear();
   const settleDateDisp = fmtDate(settlementDate);
 
@@ -104,7 +104,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   for (const year of [...rangeYears].sort((a, b) => b - a)) {
     const bond = yearBondMap[year];
     const pi   = bondCalcs(bond, refCPI).piPerBond;
-    const qty  = _fyQty(dara, laterMatInt, pi);
+    const qty  = _fyQty(daraByYear?.get(year) ?? dara, laterMatInt, pi);
     const ir   = refCPI / (bond.baseCpi ?? refCPI);
     const ann  = qty * 1000 * ir * (bond.coupon ?? 0);
     prelim[year] = { targetFundedYearQty: qty, annualInterest: ann, laterMatInt, pi };
@@ -125,7 +125,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
 
     let remaining = preLadderPool;
     for (const year of [...rangeYears].sort((a, b) => a - b)) {  // short → long
-      const need = dara - prelim[year].laterMatInt;
+      const need = (daraByYear?.get(year) ?? dara) - prelim[year].laterMatInt;
       if (need <= 0) { zeroedFundedYears.add(year); continue; }  // already covered by laterMatInt
       if (remaining >= need) {
         zeroedFundedYears.add(year);
@@ -164,9 +164,10 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     const isZeroed = zeroedFundedYears.has(year);
     const prelim_pi = prelim[year].pi;
     const prelim_lmi = prelim[year].laterMatInt;
+    const yearDara = daraByYear?.get(year) ?? dara;
     const fundedYearQty = isZeroed ? 0
       : year === partialCreditYear
-        ? Math.max(0, Math.round((dara - prelim_lmi - partialCredit) / prelim_pi))
+        ? Math.max(0, Math.round((yearDara - prelim_lmi - partialCredit) / prelim_pi))
         : prelim[year].targetFundedYearQty;
     const excessQty  = year === lowerYear ? lowerExQty : year === upperYear ? upperExQty : 0;
     const totQty     = fundedYearQty + excessQty;

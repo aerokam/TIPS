@@ -238,6 +238,15 @@
   </div>
 </div>
 
+<!-- Per-year DARA panel -->
+<div id="dara-by-year" style="display:none">
+  <div style="border:1px solid #ddd; border-radius:6px; background:#fff; padding:12px 16px;">
+    <div class="table-scroll-wrap" id="dara-by-year-scroll">
+      <table class="simple" id="dara-by-year-table"></table>
+    </div>
+  </div>
+</div>
+
 <!-- Rebalance output -->
 <div id="output">
   <div class="table-wrap">
@@ -514,7 +523,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
 {
   function _setSH() {
     const used = document.getElementById('top-row').offsetHeight + 32;
-    ['simple-scroll', 'build-scroll'].forEach(id => {
+    ['simple-scroll', 'build-scroll', 'dara-by-year-scroll'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.maxHeight = (window.innerHeight - used) + 'px';
     });
@@ -522,6 +531,89 @@ function renderBuildOutput({ results, HDR, summary, details }) {
   new ResizeObserver(_setSH).observe(document.getElementById('top-row'));
   window.addEventListener('resize', _setSH);
 }
+
+// ─── Per-year DARA panel ──────────────────────────────────────────────────────
+let _daraByYearPanelDefault = null;
+
+function renderDaraByYearPanel() {
+  const daraVal = document.getElementById('dara').value.trim();
+  const panel   = document.getElementById('dara-by-year');
+  if (!daraVal || !tipsMap) { panel.style.display = 'none'; _daraByYearPanelDefault = null; return; }
+  const defaultDara = parseFloat(daraVal);
+  if (isNaN(defaultDara) || defaultDara <= 0) { panel.style.display = 'none'; _daraByYearPanelDefault = null; return; }
+
+  let years = [];
+  if (currentMode === 'rebalance') {
+    if (!currentHoldingsArray) { panel.style.display = 'none'; _daraByYearPanelDefault = null; return; }
+    const yearSet = new Set();
+    for (const h of currentHoldingsArray) {
+      const bond = tipsMap.get(h.cusip);
+      if (bond?.maturity) yearSet.add(bond.maturity.getFullYear());
+    }
+    years = [...yearSet].sort((a, b) => a - b);
+  } else {
+    const firstYearVal = document.getElementById('first-year').value;
+    const lastYearVal  = document.getElementById('last-year').value;
+    if (!firstYearVal || !lastYearVal) { panel.style.display = 'none'; _daraByYearPanelDefault = null; return; }
+    const fy = parseInt(firstYearVal, 10), ly = parseInt(lastYearVal, 10);
+    const yearSet = new Set();
+    for (const bond of tipsMap.values()) {
+      if (bond.maturity && bond.maturity > settlementDate) {
+        const yr = bond.maturity.getFullYear();
+        if (yr >= fy && yr <= ly) yearSet.add(yr);
+      }
+    }
+    years = [...yearSet].sort((a, b) => a - b);
+  }
+  if (!years.length) { panel.style.display = 'none'; _daraByYearPanelDefault = null; return; }
+
+  const tableEl = document.getElementById('dara-by-year-table');
+
+  // If panel already visible: update only inputs still at previous default (preserve user edits)
+  if (panel.style.display !== 'none' && _daraByYearPanelDefault !== null) {
+    const prevDefault = _daraByYearPanelDefault;
+    for (const inp of tableEl.querySelectorAll('input[data-year]')) {
+      if (parseFloat(inp.value) === prevDefault) inp.value = defaultDara;
+    }
+    _daraByYearPanelDefault = defaultDara;
+    return;
+  }
+
+  // Fresh render: all cells initialised to defaultDara
+  tableEl.innerHTML =
+    '<thead><tr>'
+    + '<th style="text-align:left;cursor:default;white-space:nowrap">Funded<br>Year</th>'
+    + '<th style="cursor:default">DARA ($)</th>'
+    + '</tr></thead>'
+    + '<tbody>'
+    + years.map(y =>
+        '<tr><td style="text-align:center">' + y + '</td>'
+        + '<td style="text-align:right"><input type="number" value="' + defaultDara + '" step="1000" min="0" data-year="' + y + '"'
+        + ' style="width:100px;text-align:right;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-size:12px;font-variant-numeric:tabular-nums"></td></tr>'
+      ).join('')
+    + '</tbody>';
+
+  _daraByYearPanelDefault = defaultDara;
+  panel.style.display = 'block';
+  document.getElementById('output').style.display = 'none';
+  document.getElementById('build-output').style.display = 'none';
+  document.getElementById('export-csv-btn').style.display = 'none';
+  document.getElementById('net-cash-inline').style.display = 'none';
+}
+
+function getDaraByYear() {
+  const panel = document.getElementById('dara-by-year');
+  if (panel.style.display === 'none') return null;
+  const map = new Map();
+  for (const inp of document.querySelectorAll('#dara-by-year-table input[data-year]')) {
+    const yr = parseInt(inp.dataset.year, 10);
+    const v  = parseFloat(inp.value);
+    if (!isNaN(v) && v >= 0) map.set(yr, v);
+  }
+  return map.size > 0 ? map : null;
+}
+
+document.getElementById('dara').addEventListener('input', renderDaraByYearPanel);
 
 // ─── Run handler ──────────────────────────────────────────────────────────────
 document.getElementById('run-btn').addEventListener('click', async () => {
@@ -548,7 +640,9 @@ document.getElementById('run-btn').addEventListener('click', async () => {
       const firstYear = firstYearVal ? parseInt(firstYearVal, 10) : undefined;
       const maturityPref = document.getElementById('build-maturity').value;
       const preLadderInterest = document.getElementById('pre-ladder-interest').checked;
-      const result = runBuild({ dara, firstYear, lastYear, tipsMap, refCPI, settlementDate, maturityPref, preLadderInterest });
+      const daraByYear = getDaraByYear();
+      const result = runBuild({ dara, firstYear, lastYear, tipsMap, refCPI, settlementDate, maturityPref, preLadderInterest, daraByYear });
+      document.getElementById('dara-by-year').style.display = 'none';
       renderBuildOutput(result);
       setStatus('');
 
@@ -574,7 +668,9 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         ({ dara: finalDara, portfolioCash } = inferDARAFromCash({ bracketMode, holdings, tipsMap, refCPI, settlementDate }));
       }
       setStatus('Running rebalance…');
-      const result = runRebalance({ dara: finalDara, method, bracketMode, holdings, tipsMap, refCPI, settlementDate });
+      const daraByYear = getDaraByYear();
+      const result = runRebalance({ dara: finalDara, method, bracketMode, holdings, tipsMap, refCPI, settlementDate, daraByYear });
+      document.getElementById('dara-by-year').style.display = 'none';
       renderOutput(result, portfolioCash);
       setStatus('');
     }
@@ -640,6 +736,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
       if (acctNames.length === 1) {
         currentHoldingsArray = parsedAccounts[acctNames[0]];
         setStatus(`Loaded 1 account: ${acctNames[0]} (${currentHoldingsArray.length} TIPS).`);
+        renderDaraByYearPanel();
       } else {
         window._pendingBrokerAccounts = parsedAccounts;
         const listEl = document.getElementById('account-list');
@@ -668,6 +765,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
       if (arr.length === 0) { setStatus('Holdings CSV has no valid data rows.', true); return; }
       currentHoldingsArray = arr;
       setStatus(`Loaded standard CSV (${arr.length} TIPS).`);
+      renderDaraByYearPanel();
     }
   } catch (err) {
     setStatus('Error reading file: ' + err.message, true);
@@ -684,6 +782,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     for (const name of selected) combined = combined.concat(window._pendingBrokerAccounts[name]);
     currentHoldingsArray = combined;
     setStatus(`Loaded ${selected.length} account(s) (${combined.length} TIPS total).`);
+    renderDaraByYearPanel();
   });
   document.getElementById('account-cancel').addEventListener('click', () => {
     document.getElementById('account-overlay').style.display = 'none';
@@ -810,6 +909,9 @@ document.getElementById('export-csv-btn').addEventListener('click', () => {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 // ─── Method toggle: hide DARA for Full rebalance ───────────────────────────────────────
+
+document.getElementById('first-year').addEventListener('change', renderDaraByYearPanel);
+document.getElementById('last-year').addEventListener('change', renderDaraByYearPanel);
 
 loadData();
 </script>

@@ -191,7 +191,7 @@ export function inferDARAFromCash({ bracketMode = '2bracket', holdings: holdings
   return { dara: foundDARA, portfolioCash };
 }
 
-export function runRebalance({ dara, method, bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate }) {
+export function runRebalance({ dara, method, bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear = null }) {
   const settleDateStr  = toDateStr(settlementDate);
   const settleDateDisp = fmtDate(settlementDate);
 
@@ -317,7 +317,8 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
     const piB = calculatePIPerBond(bCUSIP, bMat, refCPI, tipsMap);
     let nonPI = 0;
     for (const h of yh) { if (h.cusip !== bCUSIP) nonPI += h.qty * calculatePIPerBond(h.cusip, h.maturity, refCPI, tipsMap); }
-    bracketTargetFundedYearQtyBefore[bYear] = Math.round((DARA - laterMatIntBefore - nonPI) / piB);
+    const bDara = daraByYear?.get(bYear) ?? DARA;
+    bracketTargetFundedYearQtyBefore[bYear] = Math.round((bDara - laterMatIntBefore - nonPI) / piB);
   }
 
   let lowerWeight, upperWeight, origLowerWeight, newLowerWeight3, upperWeight3;
@@ -376,7 +377,8 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
 
     let tFundedYearQty, postQ;
     if (isBracket || isRebal) {
-      const needed = DARA - rebuildLaterMatInt;
+      const yearDara = daraByYear?.get(year) ?? DARA;
+      const needed = yearDara - rebuildLaterMatInt;
       if (isFullMode) {
         const sortedH = [...yi.holdings].sort((a, b) => a.maturity - b.maturity);
         const nonTarget = sortedH.filter(h => h.cusip !== targetCUSIP);
