@@ -82,20 +82,8 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   for (let y = firstYear; y <= lastYear; y++) {
     if (!yearBondMap[y]) gapYears.push(y);
   }
-  if (!gapYears.length)
-    throw new Error('No gap years in range — bracket logic requires at least one gap year');
-
-  const minGapYear = Math.min(...gapYears);
-
-  // 2. Identify brackets
-  const upperYear = 2040;
-  if (!yearBondMap[upperYear])
-    throw new Error('No TIPS available in 2040 — lastYear must be ≥ 2040');
-
-  // Lower bracket: the largest rangeYear strictly before the first gap year
-  const yearsBeforeGap = rangeYears.filter(y => y < minGapYear);
-  if (!yearsBeforeGap.length) throw new Error('No TIPS bonds available before the gap');
-  const lowerYear = Math.max(...yearsBeforeGap);
+  // 2. Identify brackets (only needed when there are gap years)
+  let lowerYear = null, upperYear = null;
 
   // 3. Preliminary sweep (longest → shortest, no bracket excess)
   //    Accumulates rebuildLaterMatInt the same way as Phase 4 of the rebalancer.
@@ -138,22 +126,37 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     }
   }
 
-  // 4. Gap parameters → duration matching → bracket weights
-  const gapParams = calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim);
+  // 4. Gap parameters → duration matching → bracket weights (only when gap years exist)
+  let gapParams = null;
+  let lowerDuration = null, upperDuration = null, lowerWeight = null, upperWeight = null;
+  let lowerMonth = null, upperMonth = null;
+  let lowerExQty = 0, upperExQty = 0, totalExcessCost = 0;
 
-  const lowerBond = yearBondMap[lowerYear];
-  const upperBond = yearBondMap[upperYear];
-  const lowerDuration = calculateMDuration(settlementDate, lowerBond.maturity, lowerBond.coupon ?? 0, lowerBond.yield ?? 0);
-  const upperDuration = calculateMDuration(settlementDate, upperBond.maturity, upperBond.coupon ?? 0, upperBond.yield ?? 0);
-  const { lowerWeight, upperWeight } = bracketWeights(lowerDuration, upperDuration, gapParams.avgDuration);
+  if (gapYears.length > 0) {
+    const minGapYear = Math.min(...gapYears);
+    upperYear = 2040;
+    if (!yearBondMap[upperYear])
+      throw new Error('No TIPS available in 2040 — lastYear must be ≥ 2040');
+    const yearsBeforeGap = rangeYears.filter(y => y < minGapYear);
+    if (!yearsBeforeGap.length) throw new Error('No TIPS bonds available before the gap');
+    lowerYear = Math.max(...yearsBeforeGap);
 
-  const BL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  const lowerMonth = BL_MONTHS[lowerBond.maturity.getMonth()];
-  const upperMonth = BL_MONTHS[upperBond.maturity.getMonth()];
-  const lowerCPB = (lowerBond.price ?? 0) / 100 * (refCPI / (lowerBond.baseCpi ?? refCPI)) * 1000;
-  const upperCPB = (upperBond.price ?? 0) / 100 * (refCPI / (upperBond.baseCpi ?? refCPI)) * 1000;
-  const { lowerExQty, upperExQty } = bracketExcessQtys(gapParams.totalCost, lowerWeight, upperWeight, lowerCPB, upperCPB);
-  const totalExcessCost = lowerExQty * lowerCPB + upperExQty * upperCPB;
+    gapParams = calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim);
+
+    const lowerBond = yearBondMap[lowerYear];
+    const upperBond = yearBondMap[upperYear];
+    lowerDuration = calculateMDuration(settlementDate, lowerBond.maturity, lowerBond.coupon ?? 0, lowerBond.yield ?? 0);
+    upperDuration = calculateMDuration(settlementDate, upperBond.maturity, upperBond.coupon ?? 0, upperBond.yield ?? 0);
+    ({ lowerWeight, upperWeight } = bracketWeights(lowerDuration, upperDuration, gapParams.avgDuration));
+
+    const BL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    lowerMonth = BL_MONTHS[lowerBond.maturity.getMonth()];
+    upperMonth = BL_MONTHS[upperBond.maturity.getMonth()];
+    const lowerCPB = (lowerBond.price ?? 0) / 100 * (refCPI / (lowerBond.baseCpi ?? refCPI)) * 1000;
+    const upperCPB = (upperBond.price ?? 0) / 100 * (refCPI / (upperBond.baseCpi ?? refCPI)) * 1000;
+    ({ lowerExQty, upperExQty } = bracketExcessQtys(gapParams.totalCost, lowerWeight, upperWeight, lowerCPB, upperCPB));
+    totalExcessCost = lowerExQty * lowerCPB + upperExQty * upperCPB;
+  }
 
   // 5. Build output rows (ascending year order for display)
   const results = [];

@@ -211,7 +211,7 @@
       </div>
       <div class="field" id="field-last-year" style="display:none">
         <label>Last Year</label>
-        <select id="last-year"><option value="">Select year…</option></select>
+        <select id="last-year"><option value="">—</option></select>
       </div>
       <div class="field" id="field-build-maturity" style="display:none">
         <label>Maturity pick</label>
@@ -497,15 +497,20 @@ function renderBuildOutput({ results, HDR, summary, details }) {
     document.getElementById('net-cash-val').className = 'nc-val';
     document.getElementById('nc-label').textContent = 'Total Cost';
     document.getElementById('net-cash-inline').style.display = '';
-    _buildDurationRows = buildDurationPopupRows(summary, 'build');
-    _infoPopups.duration = _buildDurationRows;
+    const _hasGaps = gapYears && gapYears.length > 0;
+    if (_hasGaps) {
+      _buildDurationRows = buildDurationPopupRows(summary, 'build');
+      _infoPopups.duration = _buildDurationRows;
+    } else {
+      _infoPopups.duration = null;
+    }
     const _plNote = (preLadderYears > 0 && zeroedFundedYears && zeroedFundedYears.length)
       ? ' · <span style="color:#854d0e">Pre-ladder: ' + zeroedFundedYears.length + ' yr' + (zeroedFundedYears.length > 1 ? 's' : '') + ' zeroed (' + zeroedFundedYears.join(', ') + ')</span>'
       : '';
     _buildRunInfo = ' · DARA <b>' + esc(Math.round(dara).toLocaleString()) + '</b>'
       + ' · FY ' + firstYear + '–' + lastYear
       + _plNote
-      + ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>';
+      + (_hasGaps ? ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>' : '');
     document.getElementById('info-strip').innerHTML = '<div class="info-row">' + _staticInfo + '</div><div class="info-row">' + _buildRunInfo + '</div>';
     buildDetails = details;
   buildSummary  = summary;
@@ -569,12 +574,36 @@ function renderDaraByYearPanel() {
 
   const tableEl = document.getElementById('dara-by-year-table');
 
-  // If panel already visible: update only inputs still at previous default (preserve user edits)
+  // If panel already visible: check whether year set has changed
   if (panel.style.display !== 'none' && _daraByYearPanelDefault !== null) {
     const prevDefault = _daraByYearPanelDefault;
-    for (const inp of tableEl.querySelectorAll('input[data-year]')) {
-      if (parseFloat(inp.value) === prevDefault) inp.value = defaultDara;
+    const existingInputs = [...tableEl.querySelectorAll('input[data-year]')];
+    const existingYears  = new Set(existingInputs.map(inp => parseInt(inp.dataset.year, 10)));
+    const newYearSet     = new Set(years);
+    const yearSetChanged = years.length !== existingYears.size || years.some(y => !existingYears.has(y));
+
+    if (!yearSetChanged) {
+      // Same years: only update inputs still at the previous default
+      for (const inp of existingInputs) {
+        if (parseFloat(inp.value) === prevDefault) inp.value = defaultDara;
+      }
+      _daraByYearPanelDefault = defaultDara;
+      return;
     }
+
+    // Year set changed: preserve user-edited values for years still in new range
+    const savedValues = {};
+    for (const inp of existingInputs) {
+      const yr = parseInt(inp.dataset.year, 10);
+      if (newYearSet.has(yr)) savedValues[yr] = parseFloat(inp.value);
+    }
+
+    tableEl.querySelector('tbody').innerHTML = years.map(y => {
+      const val = savedValues[y] !== undefined ? savedValues[y] : defaultDara;
+      return '<tr><td style="text-align:center">' + y + '</td>'
+        + '<td style="text-align:right"><input type="number" value="' + val + '" step="1000" min="0" data-year="' + y + '"'
+        + ' style="width:100px;text-align:right;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-size:12px;font-variant-numeric:tabular-nums"></td></tr>';
+    }).join('');
     _daraByYearPanelDefault = defaultDara;
     return;
   }
