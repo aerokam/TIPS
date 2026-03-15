@@ -436,7 +436,7 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
 // ─── Render rebalance output ──────────────────────────────────────────────────
 function renderOutput({ results, HDR, summary, details }, portfolioCash = null) {
   const {
-    settleDateDisp, refCPI, DARA, inferredDARA, method,
+    settleDateDisp, refCPI, DARA, inferredDARA, daraIsInferred, method,
     firstYear, lastYear, rungCount, gapYears,
     gapParams, brackets,
     lowerDuration, upperDuration, lowerWeight, upperWeight,
@@ -464,7 +464,7 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
       ? ' · New lower: ' + summary.newLowerCUSIP + ' (' + summary.newLowerYear + ')'
       : '';
     _rebalRunInfo = ' · DARA <b><span class="copy-dara" data-val="' + Math.round(DARA) + '" title="Click to copy">' + esc(Math.round(DARA).toLocaleString()) + '</span></b>'
-      + (inferredDARA ? ' <span style="color:#888;font-weight:400">(inferred)</span>' : '')
+      + (daraIsInferred ? ' <span style="color:#888;font-weight:400">(inferred)</span>' : '')
       + ' · FY ' + firstYear + '–' + lastYear + ', ' + rungCount + ' rungs'
       + _bracketInfo
       + ' <a class="info-link" data-popup="range">ⓘ</a>'
