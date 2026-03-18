@@ -64,16 +64,19 @@ export const COLS = [
 
   { label: 'Qty Before',    headerHTML: 'Qty<br>Before', key: 'qtyBefore',  fmt: 'qty', rebalOnly: true,
     value:    d => d.fundedYearQtyBefore,
-    subValue: d => d.excessQtyBefore },
+    subValue: d => d.excessQtyBefore,
+    total: true, totalFn: d => d.qtyBefore || 0 },
 
   { label: 'Qty After',     headerHTML: 'Qty<br>After', key: 'qtyAfter',   fmt: 'qty', rebalOnly: true,
     value:    d => d.fundedYearQtyAfter,
     subValue: d => d.excessQtyAfter,
+    total: true, totalFn: d => d.qtyAfter || 0,
     drill: true, drillCond: v => typeof v === 'number' && v > 0 },
 
   { label: 'Qty Delta',     headerHTML: 'Qty<br>Delta', key: 'qtyDelta',   fmt: 'sgn', rebalOnly: true,
     value:    d => d.fundedYearQtyAfter - d.fundedYearQtyBefore,
-    subValue: d => d.excessQtyAfter - d.excessQtyBefore },
+    subValue: d => d.excessQtyAfter - d.excessQtyBefore,
+    total: true, totalFn: d => (d.qtyAfter || 0) - (d.qtyBefore || 0) },
 
   { label: 'Cash Delta',    headerHTML: 'Cash<br>Delta', key: 'cashDelta',  fmt: 'sgn', rebalOnly: true,
     value:    d => -((d.fundedYearQtyAfter - d.fundedYearQtyBefore) * d.costPerBond),
@@ -100,7 +103,7 @@ export const COLS = [
   { label: 'Qty',    key: 'qty',    fmt: 'qty', buildOnly: true,
     value:    d => d.fundedYearQty,
     subValue: d => d.excessQty,
-    total: false },
+    total: true, totalFn: d => (d.fundedYearQty || 0) + (d.excessQty || 0) },
 ];
 
 function isBracket(d, mode) {

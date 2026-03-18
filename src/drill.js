@@ -290,11 +290,11 @@ export function buildDurationPopupRows(summary, mode) {
   if (is3) {
     const { newLowerYear, newLowerDuration, origLowerWeight, newLowerWeight3 } = summary;
     const w1 = (origLowerWeight ?? 0), w2 = (newLowerWeight3 ?? 0), w3 = upperWeight ?? 0;
-    const infeasible = w3 < 0 || w1 > 1;
+    const fellBack = !!summary.bracketFellBack3to2;
     const match = w1.toFixed(4) + ' × ' + lowerDuration.toFixed(2)
                 + ' + ' + w2.toFixed(4) + ' × ' + newLowerDuration.toFixed(2)
                 + ' + ' + w3.toFixed(4) + ' × ' + upperDuration.toFixed(2)
-                + ' ≈ ' + gapParams.avgDuration.toFixed(2);
+                + ' = ' + gapParams.avgDuration.toFixed(2);
     rows = [
       { label: 'Gap avg duration', value: gapParams.avgDuration.toFixed(2) + ' yr' },
       { label: 'Gap years',        value: (summary.gapYears || []).join(', ') || '—' },
@@ -303,13 +303,12 @@ export function buildDurationPopupRows(summary, mode) {
       { label: 'New lower (' + newLowerYear + ')',  note: 'mod. duration', value: newLowerDuration.toFixed(2) + ' yr' },
       { label: 'Upper (' + upperYear + ')',         note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
       { sep: true },
-      { label: 'Orig lower weight', note: 'current excess / gap total cost (fixed)', value: w1.toFixed(4) },
-      { label: 'New lower weight',  note: 'solved from duration constraint',          value: w2.toFixed(4) },
-      { label: 'Upper weight',      note: '1 − w1 − w2',                             value: w3.toFixed(4) },
+      { label: 'Orig lower weight', note: fellBack ? '2-bracket formula (fell back)' : 'current excess / gap total cost (fixed)', value: w1.toFixed(4) },
+      { label: 'New lower weight',  note: fellBack ? 'n/a (fell back to 2-bracket)'  : 'solved from duration constraint',         value: w2.toFixed(4) },
+      { label: 'Upper weight',      note: fellBack ? '2-bracket formula (fell back)'  : '1 − w1 − w2',                            value: w3.toFixed(4) },
       { sep: true },
-      ...(infeasible
-        ? [{ label: 'Infeasible', note: 'Orig lower excess alone exceeds gap cost (w1 > 1). No new lower/upper excess bought. Duration match is approximate.', total: true }]
-        : [{ label: 'Duration match', note: match, total: true }]),
+      { label: 'Duration match', note: match, total: true },
+      ...(fellBack ? [{ sep: true }, { label: '2-bracket fallback', note: 'Orig lower excess exceeded gap cost (w1 > 1). Sold orig lower to 2-bracket target; no new lower bought.' }] : []),
     ];
   } else {
     const wFml = '(upper dur − avg dur) / (upper dur − lower dur)';

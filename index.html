@@ -116,10 +116,10 @@
     </p>
 
     <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Key Concepts</h3>
-    <p><b>DARA</b> — Desired Annual Real Amount. Your target annual income in today's (inflation-adjusted) dollars. Each rung is sized to produce this amount.</p>
+    <p><b>DARA</b> — Desired Annual Real Amount. Your target annual amount in today's (inflation-adjusted) dollars. Each rung is sized to produce this amount.</p>
     <p><b>Gap Years</b> — Years with no issued TIPS (currently 2037–2039). The ladder holds excess bonds in <b>bracket</b> years flanking the gap to match the average duration of the missing maturities.</p>
     <p><b>Bracket Years</b> — <i>Upper bracket</i>: always the Feb 2040 TIPS. <i>Lower bracket</i>: for Build and 2-bracket Rebalance, the latest issued 10-year TIPS before the gap; for Rebalance, defaults to the TIPS before the gap with the largest existing holdings (original lower). In <i>3-bracket mode</i>, the original lower bracket excess is held as-is; a second lower bracket (the Jan TIPS just before the gap — "new lower") is bought to supplement. Excess bonds in bracket years duration-match the gap.</p>
-    <p><b>RefCPI</b> — Reference CPI value used for all inflation adjustments.</p>
+    <p><b>RefCPI</b> — Reference CPI value used for all inflation adjustments. Defaults to the settlement date. Click the RefCPI value in the info strip to override the reference date (useful for projecting with a future or past CPI). Changing it clears any auto-inferred DARA.</p>
 
     <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Mode: Rebalance</h3>
     <p>For existing TIPS ladder holders. Sells excess bracket bonds and buys into newly available maturities (former gap years). Support for extending the ladder beyond 2040 is included.</p>
@@ -138,10 +138,10 @@
 
     <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Mode: Build</h3>
     <p>Designs a new TIPS ladder from scratch with zero existing holdings.</p>
-    <p><b>DARA</b> (required) — Enter your target annual real income. After entering a value, a per-year table appears where you can override the target for individual funded years. The DARA field shows <b style="color:#7c3aed">by year</b> when any year's target differs from the default.</p>
+    <p><b>DARA</b> (required) — Enter your target annual real amount. After entering a value, a per-year table appears where you can override the target for individual funded years. The DARA field shows <b style="color:#7c3aed">by year</b> when any year's target differs from the default.</p>
     <p><b>First Year / Last Year</b> — Range of funded years. First year defaults to the current calendar year. The per-year DARA table updates automatically when you change the range, preserving any custom values already entered.</p>
     <p><b>Maturity pick</b> — <i>Last</i>: use the latest-maturing TIPS in each year (default). <i>First</i>: use the earliest-maturing TIPS.</p>
-    <p><b>Pre-ladder interest</b> — If checked, coupon income received before the ladder starts (during the years between today and the first funded year) is applied to reduce the quantity needed for the earliest rungs.</p>
+    <p><b>Pre-ladder interest</b> — If checked, coupon payments received before the ladder starts (during the years between today and the first funded year) is applied to reduce the quantity needed for the earliest rungs.</p>
     <p><b>Output columns:</b><br>
     <b>FY Qty</b> — bonds for the rung · <b>Excess Qty</b> — extra bonds in bracket years · <b>Total Qty</b> — sum<br>
     <b>FY Amount</b> ≈ DARA · <b>FY Cost</b> — cost of FY bonds<br>
@@ -235,7 +235,7 @@
         </select>
       </div>
       <div class="field" id="field-pre-ladder" style="display:none">
-        <label style="white-space:nowrap" title="Include coupon income received before the ladder starts, reducing early rung quantities">Pre-ladder int.</label>
+        <label style="white-space:nowrap" title="Include coupon payments received before the ladder starts, reducing early rung quantities">Pre-ladder int.</label>
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
           <input type="checkbox" id="pre-ladder-interest" style="width:auto;margin:0">
           <span style="font-size:11px;color:#475569">Include</span>
@@ -348,7 +348,6 @@ async function loadData() {
     });
     firstYearSel.value = bfsYears[0] || '';
 
-    const staticRefCPI = lookupRefCpi(refCpiRows, settleDateStr);
         const _matYears = new Set([...tipsMap.values()]
           .filter(b => b.maturity > settlementDate).map(b => b.maturity.getFullYear()));
         const _sortedYrs = [..._matYears].sort((a, b) => a - b);
@@ -358,8 +357,9 @@ async function loadData() {
         const _gapSuffix = _gaps.length
           ? ', none for ' + _gaps[0] + '–' + _gaps[_gaps.length - 1] + ' (gap years)'
           : '';
-        _staticInfo = 'Prices as of ' + settleDateStr + ' · RefCPI ' + staticRefCPI.toFixed(5)
-          + ' · ' + yieldsRows.length + ' TIPS' + _gapSuffix;
+        _staticInfoPrefix = 'Prices as of ' + settleDateStr;
+        _staticInfoSuffix = ' · ' + yieldsRows.length + ' TIPS' + _gapSuffix;
+        _staticInfo = _buildStaticInfo();
         dataInfo.innerHTML = '<div class="info-row">' + _staticInfo + '</div>';
     document.getElementById('run-btn').disabled = false;
 
@@ -413,6 +413,8 @@ let rebalDetails = null;
 let rebalSummary = null;
 let buildSummary = null;
 let _staticInfo = '', _rebalRunInfo = '', _buildRunInfo = '';
+let _staticInfoPrefix = '', _staticInfoSuffix = '';
+let activeRefCpiDateStr = null;
 let _daraRebal = '', _daraBuild = '40000';
 const _infoPopups = {};
 let _rebalDurationRows = null, _buildDurationRows = null;
@@ -808,7 +810,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
 
   try {
     const settleDateStr = settlementDate.toLocaleDateString('en-CA');
-    const refCPI = lookupRefCpi(refCpiRows, settleDateStr);
+    const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? settleDateStr);
 
     if (currentMode === 'build') {
       // ── Build from Scratch ──
@@ -903,9 +905,12 @@ document.getElementById('drill-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') document.getElementById('drill-overlay').style.display = 'none';
+  if (e.key === 'Escape') {
+    document.getElementById('drill-overlay').style.display = 'none';
+    document.getElementById('refcpi-picker').style.display = 'none';
+  }
   if (e.key === 'Enter') {
-    const noOverlay = ['drill-overlay','account-overlay','help-overlay']
+    const noOverlay = ['drill-overlay','account-overlay','help-overlay','refcpi-picker']
       .every(id => document.getElementById(id).style.display === 'none');
     const btn = document.getElementById('run-btn');
     if (noOverlay && !btn.disabled) btn.click();
@@ -1032,21 +1037,29 @@ const COL_HELP = {
   cusip:      [{ label: '9-character bond identifier' }],
   maturity:   [{ label: 'Bond maturity date' }],
   fundedYear: [{ label: 'Calendar year this bond’s cash flows are designated to fund' }],
-  amtBefore:  [{ label: 'Annual Real Amount (ARA) — inflation-adjusted funded-year income', note: 'qty × (adjusted principal + own coupon) + coupon income from longer-maturity bonds' }],
-  amtAfter:   [{ label: 'Annual Real Amount (ARA) after rebalance', note: 'qty × (adjusted principal + own coupon) + coupon income from longer-maturity bonds' }],
+  amtBefore:  [{ label: 'Annual Real Amount (ARA) — inflation-adjusted funded-year income', note: 'qty × (adjusted principal + own coupon) + coupon amount from longer-maturity bonds' }],
+  amtAfter:   [{ label: 'Annual Real Amount (ARA) after rebalance', note: 'qty × (adjusted principal + own coupon) + coupon amount from longer-maturity bonds' }],
   costBefore: [{ label: 'Total purchase cost of current holdings', note: 'qty × cost per bond' }],
   costAfter:  [{ label: 'Total purchase cost after rebalance', note: 'qty × cost per bond' }],
   qtyBefore:  [{ label: 'Number of bonds currently held' }],
   qtyAfter:   [{ label: 'Number of bonds after rebalance' }],
   qtyDelta:   [{ label: 'Change in quantity (after − before)', note: 'Negative = sell, positive = buy' }],
   cashDelta:  [{ label: 'Net cash flow from this rung', note: '−(qtyΔ × cost/bond). Negative = cash out.' }],
-  amount:     [{ label: 'Annual Real Amount (ARA) — inflation-adjusted funded-year income', note: 'qty × (adjusted principal + own coupon) + coupon income from longer-maturity bonds' }],
+  amount:     [{ label: 'Annual Real Amount (ARA) — inflation-adjusted funded-year income', note: 'qty × (adjusted principal + own coupon) + coupon amount from longer-maturity bonds' }],
   cost:       [{ label: 'Total purchase cost for this rung', note: 'qty × cost per bond' }],
   qty:        [{ label: 'Number of bonds to buy' }],
 };
 document.addEventListener('click', e => {
+  // Close RefCPI picker on outside click
+  const _rp = document.getElementById('refcpi-picker');
+  if (_rp.style.display !== 'none' && !_rp.contains(e.target) && !e.target.closest('#refcpi-link')) {
+    _rp.style.display = 'none';
+  }
   const cd = e.target.closest('.copy-dara');
   if (cd) { navigator.clipboard.writeText(cd.dataset.val); cd.classList.add('copied'); setTimeout(() => cd.classList.remove('copied'), 1200); return; }
+  // RefCPI picker trigger (also has class info-link — handle before generic info-link)
+  const rl = e.target.closest('#refcpi-link');
+  if (rl) { _showRefCpiPicker(rl); return; }
   const link = e.target.closest('.info-link');
   if (link) {
     const key  = link.dataset.popup;
@@ -1129,7 +1142,143 @@ document.getElementById('rebal-last-year').addEventListener('change', () => {
 });
 document.getElementById('last-year').addEventListener('change', renderDaraByYearPanel);
 
+// ─── RefCPI date picker ───────────────────────────────────────────────────────
+function _fmtMDY(isoStr) {
+  const [y, m, d] = isoStr.split('-');
+  return m + '/' + d + '/' + y;
+}
+function _parseMDY(s) {
+  const p = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (!p) return null;
+  const mm = +p[1], dd = +p[2], yyyy = +p[3];
+  const dt = new Date(yyyy, mm - 1, dd);
+  if (dt.getFullYear() !== yyyy || dt.getMonth() + 1 !== mm || dt.getDate() !== dd) return null;
+  return yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
+}
+function _buildStaticInfo() {
+  const _date = activeRefCpiDateStr ?? (settlementDate ? settlementDate.toLocaleDateString('en-CA') : null);
+  if (!_date || !refCpiRows) return _staticInfoPrefix + _staticInfoSuffix;
+  let _val;
+  try { _val = lookupRefCpi(refCpiRows, _date); } catch(e) { return _staticInfoPrefix + _staticInfoSuffix; }
+  const _note = activeRefCpiDateStr
+    ? ' <span style="color:#888;font-size:11px">(as of ' + _fmtMDY(activeRefCpiDateStr) + ')</span>'
+    : '';
+  return _staticInfoPrefix
+    + ' · RefCPI <span id="refcpi-link" class="info-link" title="Click to change reference CPI date">'
+    + _val.toFixed(5) + '</span>' + _note
+    + _staticInfoSuffix;
+}
+function _refreshInfoStrip() {
+  _staticInfo = _buildStaticInfo();
+  const _runInfo = currentMode === 'rebalance' ? _rebalRunInfo : _buildRunInfo;
+  document.getElementById('info-strip').innerHTML =
+    '<div class="info-row">' + _staticInfo + '</div>' +
+    (_runInfo ? '<div class="info-row">' + _runInfo + '</div>' : '');
+}
+function _showRefCpiPicker(anchorEl) {
+  const picker = document.getElementById('refcpi-picker');
+  const inp    = document.getElementById('refcpi-date-input');
+  inp.value = activeRefCpiDateStr ? _fmtMDY(activeRefCpiDateStr) : '';
+  const prev = document.getElementById('refcpi-date-preview');
+  prev.textContent = ''; prev.style.color = '#555';
+  picker.style.display = 'block';
+  const ar = anchorEl.getBoundingClientRect();
+  const pw = picker.offsetWidth;
+  let left = ar.left, top = ar.bottom + 6;
+  left = Math.min(left, window.innerWidth - pw - 8);
+  left = Math.max(8, left);
+  picker.style.left = left + 'px';
+  picker.style.top  = top  + 'px';
+  inp.focus(); inp.select();
+}
+document.getElementById('refcpi-date-input').addEventListener('input', () => {
+  const inp = document.getElementById('refcpi-date-input');
+  const digits = inp.value.replace(/\D/g, '').slice(0, 8);
+  let fmt = digits;
+  if (digits.length >= 3) fmt = digits.slice(0,2) + '/' + digits.slice(2);
+  if (digits.length >= 5) fmt = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
+  if (inp.value !== fmt) inp.value = fmt;
+  const prev = document.getElementById('refcpi-date-preview');
+  const dateStr = _parseMDY(fmt);
+  if (!dateStr) { prev.textContent = ''; return; }
+  try {
+    const val = lookupRefCpi(refCpiRows, dateStr);
+    prev.textContent = 'RefCPI: ' + val.toFixed(5);
+    prev.style.color = '#555';
+  } catch(e) {
+    prev.textContent = e.message;
+    prev.style.color = '#c0392b';
+  }
+});
+document.getElementById('refcpi-date-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') document.getElementById('refcpi-apply-btn').click();
+});
+document.getElementById('refcpi-apply-btn').addEventListener('click', () => {
+  const s    = document.getElementById('refcpi-date-input').value.trim();
+  const prev = document.getElementById('refcpi-date-preview');
+  if (!s) {
+    activeRefCpiDateStr = null;
+    if (_daraAutoInferred) {
+      document.getElementById('dara').value = '';
+      _daraAutoInferred = false; _lastKnownDara = null;
+      _daraByYearPanelDefault = null; _daraByYearStore.clear();
+    }
+    _refreshInfoStrip();
+    document.getElementById('refcpi-picker').style.display = 'none';
+    return;
+  }
+  const dateStr = _parseMDY(s);
+  if (!dateStr) {
+    prev.textContent = 'Enter date as MM/DD/YYYY';
+    prev.style.color = '#c0392b';
+    return;
+  }
+  try {
+    lookupRefCpi(refCpiRows, dateStr);
+    activeRefCpiDateStr = dateStr;
+    if (_daraAutoInferred) {
+      document.getElementById('dara').value = '';
+      _daraAutoInferred = false; _lastKnownDara = null;
+      _daraByYearPanelDefault = null; _daraByYearStore.clear();
+    }
+    _refreshInfoStrip();
+    document.getElementById('refcpi-picker').style.display = 'none';
+  } catch(e) {
+    prev.textContent = e.message;
+    prev.style.color = '#c0392b';
+  }
+});
+document.getElementById('refcpi-picker-close').addEventListener('click', () => {
+  document.getElementById('refcpi-picker').style.display = 'none';
+});
+document.getElementById('refcpi-reset-btn').addEventListener('click', () => {
+  activeRefCpiDateStr = null;
+  if (_daraAutoInferred) {
+    document.getElementById('dara').value = '';
+    _daraAutoInferred = false; _lastKnownDara = null;
+    _daraByYearPanelDefault = null; _daraByYearStore.clear();
+  }
+  _refreshInfoStrip();
+  document.getElementById('refcpi-picker').style.display = 'none';
+});
+
 loadData();
 </script>
+<!-- RefCPI date picker -->
+<div id="refcpi-picker" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:0;width:230px;box-shadow:0 4px 18px rgba(0,0,0,.14);z-index:400;font-size:12px;">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px 7px 14px;border-bottom:1px solid #e2e8f0;">
+    <span style="font-size:12px;font-weight:700;color:#1e293b">Reference CPI Date</span>
+    <button id="refcpi-picker-close" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;padding:0 0 0 12px;">×</button>
+  </div>
+  <div style="padding:10px 14px;">
+    <input type="text" id="refcpi-date-input" placeholder="MM/DD/YYYY" maxlength="10"
+      style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-variant-numeric:tabular-nums;box-sizing:border-box;">
+    <div id="refcpi-date-preview" style="margin-top:6px;font-size:12px;color:#555;min-height:16px;"></div>
+    <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
+      <button id="refcpi-reset-btn" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;font-size:12px;padding:4px 10px;">Use price date</button>
+      <button id="refcpi-apply-btn">Apply</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

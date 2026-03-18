@@ -25,16 +25,15 @@ npx serve .
 
 | Module | Role |
 |--------|------|
-| `src/bond-math.js` | Pure per-bond math |
-| `src/gap-math.js` | Gap/bracket math + sweep helpers |
+| `src/bond-math.js` | Pure per-bond math: `bondCalcs()`, `calculateMDuration()`, `rungAmount()` |
+| `src/gap-math.js` | Gap/bracket math: `calcGapParams()`, `bracketWeights()`, `bracketExcessQtys()`, yield interpolation |
+| `src/ladder-math.js` | Sweep helpers: `fyQty()`, `laterMatIntContribution()` |
 | `src/rebalance-lib.js` | Rebalance orchestrator — calls the above, no raw formulas |
 | `src/build-lib.js` | Build-from-scratch orchestrator — same constraint |
-| `src/render.js` | Table HTML from unified `COLS` schema |
-| `src/drill.js` | Drill-down popup builder |
+| `src/render.js` | Table HTML from unified `COLS` schema (183L) |
+| `src/drill.js` | Popup builder: `buildDrillHTML(d, colKey, summary, mode)` |
 | `src/data.js` | CSV fetch/parse from R2 |
 | `index.html` | Thin shell: event wiring, calls render/drill, zero business logic |
-
-See `knowledge/5.0_Computation_Modules.md` for function signatures and APIs.
 
 ### Spec-First Protocol (hard rule)
 
@@ -43,16 +42,33 @@ See `knowledge/5.0_Computation_Modules.md` for function signatures and APIs.
 | Doc | Governs |
 |-----|---------|
 | `knowledge/4.0_TIPS_Ladder_Rebalancing.md` | Core rebalance algorithm, all named quantities, formulas, variable mapping |
-| `knowledge/5.0_Computation_Modules.md` | Module APIs (bond-math, gap-math) |
+| `knowledge/5.0_Computation_Modules.md` | Module APIs (bond-math, gap-math, ladder-math) |
 | `knowledge/6.0_UI_Schema.md` | COLS schema, table structure, drill popup routing |
 | `knowledge/2.1_TIPS_Basics.md` | costPerBond, piPerBond, indexRatio, adjustedPrincipal |
 
+**Documentation Parity**: Whenever core logic, UI fields, or default behaviors are changed:
+- `README.md` must be updated to reflect new capabilities.
+- `index.html` Help Modal (`#help-overlay`) must be updated to ensure in-app help is accurate.
+
 Before touching any displayed value: read the relevant knowledge doc first.
+
+### Key Algorithms
+
+**Phase 4 Ladder Rebuild** (rebalance): single longest-to-shortest sweep over ALL years including brackets. Maintains `rebuildLaterMatInt` running pool. Phase 3 only produces weights; Phase 4 does all computation.
+
+**3-Bracket Mode**: "orig lower + new lower + upper" where new lower = `anchorBefore` (latest 10y TIPS with Jan maturity at minGapYear−1). Weights: w1 fixed (orig lower never sold/bought), w2/w3 duration-matched.
+
+**Full Rebalance**: `inferDARAFromCash()` binary-searches DARA until `costDeltaSum ≈ 0`.
+
+### COLS Schema
+
+`render.js` drives table output via a single `COLS` array. Each entry defines: header label, cell value function, sub-row value, totals, drill colKey, and `rebalOnly` flag. After/Before cols in Rebalance = same math as Build cols + `rebalOnly: true`.
 
 ### Data Infrastructure
 
 - **R2 bucket**: `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/` — files: `TipsYields.csv`, `RefCPI.csv`, `TipsRef.csv`
 - **GitHub Actions**: daily yield fetch (`get-tips-yields.yml`), monthly CPI fetch (`fetch-ref-cpi.yml`)
+- **DST note**: After Mar 8 2026, change `0 18` → `0 17` in `get-tips-yields.yml`
 
 ### Naming Conventions
 
