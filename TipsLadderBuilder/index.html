@@ -53,16 +53,6 @@
   td.drillable:hover { background: #fef9c3 !important; text-decoration: underline solid #475569; }
 
 
-  /* ── Tabs ── */
-  .tabs { display: flex; gap: 2px; margin-bottom: 0; }
-  .tab-btn { padding: 6px 16px; background: #e2e8f0; border: 1px solid #cbd5e1; border-bottom: none;
-             border-radius: 5px 5px 0 0; font-size: 12px; font-weight: 600; color: #64748b;
-             cursor: pointer; }
-  .tab-btn.active { background: #fff; color: #1e293b; border-color: #ddd; }
-  .tab-panels { border: 1px solid #ddd; border-radius: 0 6px 6px 6px; background: #fff; }
-  .tab-panel { display: none; }
-  .tab-panel.active { display: block; }
-
   /* ── Simple table ── */
   table.simple { border-collapse: collapse; width: auto; font-size: 13px; }
   table.simple th { background: #1e293b; color: #fff; padding: 6px 12px; text-align: right; box-shadow: 0 1px 0 #334155;
@@ -132,8 +122,6 @@
 912810QF8,100</pre>
     <p><b>DARA</b> — Leave blank to auto-infer from holdings. After entering a value, a per-year table appears where you can set a different target for individual funded years. The DARA field shows <b style="color:#7c3aed">by year</b> when any year's target differs from the default.</p>
     <p><b>Method</b> — <i>Gap</i>: rebalances only the bracket years and previous gap years (sells excess from brackets, buys into previous gap years). <i>Full</i>: rebalances all rungs across the full contiguous ladder range.</p>
-    <p><b>Output (Simple tab)</b> — CUSIP · Maturity · FY · Qty · Target · Delta · Cash Δ. No-change rows dimmed; bracket rows blue.<br>
-    <b>Output (Detail tab)</b> — Full computation with ARA before/after, later maturity interest, weights.</p>
     <p><b>Net Cash</b> — Net proceeds (sells minus buys). Negative = net purchase.</p>
 
     <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Mode: Build</h3>
@@ -142,10 +130,6 @@
     <p><b>First Year / Last Year</b> — Range of funded years. First year defaults to the current calendar year. The per-year DARA table updates automatically when you change the range, preserving any custom values already entered.</p>
     <p><b>Maturity pick</b> — <i>Last</i>: use the latest-maturing TIPS in each year (default). <i>First</i>: use the earliest-maturing TIPS.</p>
     <p><b>Pre-ladder interest</b> — If checked, coupon payments received before the ladder starts (during the years between today and the first funded year) is applied to reduce the quantity needed for the earliest rungs.</p>
-    <p><b>Output columns:</b><br>
-    <b>FY Qty</b> — bonds for the rung · <b>Excess Qty</b> — extra bonds in bracket years · <b>Total Qty</b> — sum<br>
-    <b>FY Amount</b> ≈ DARA · <b>FY Cost</b> — cost of FY bonds<br>
-    <b>Excess Amount / Excess Cost</b> — bracket rows only</p>
     <p><b>Total Cost</b> — full ladder purchase cost.</p>
 
     <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Duration Matching</h3>
@@ -286,6 +270,7 @@ import { renderTable } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { fetchTipsData, lookupRefCpi } from './src/data.js';
+window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
 
 const simpleEl = document.getElementById('simple-table');
