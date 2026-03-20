@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TIPS Seasonal Adjustments (TipsSA)</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; font-size: 13px; margin: 0; padding: 20px; color: #222; background: #fafafa; }
+  h1 { font-size: 18px; margin: 0 0 16px; }
+
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 16px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  
+  /* ── Status ── */
+  #status { margin-bottom: 12px; font-size: 12px; color: #555; }
+  #status.error { color: #c0392b; font-weight: 600; }
+
+  /* ── Chart ── */
+  .chart-container { position: relative; height: 400px; width: 100%; margin-bottom: 20px; }
+
+  /* ── Main table ── */
+  .table-scroll-wrap { overflow: auto; border: 1px solid #e2e8f0; border-radius: 6px; max-height: 600px; }
+  table.main { border-collapse: collapse; width: 100%; background: #fff; font-size: 12px; }
+  table.main th { background: #1e293b; color: #fff; padding: 8px 12px; text-align: right; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 10; }
+  table.main th:first-child, table.main th:nth-child(2) { text-align: left; }
+  table.main td { padding: 6px 12px; border-bottom: 1px solid #eee; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  table.main td:not(:first-child):not(:nth-child(2)) { text-align: right; }
+  table.main tr:hover td { background: #fffde7; }
+  
+  .pos { color: #16a34a; font-weight: 600; } 
+  .neg { color: #dc2626; font-weight: 600; }
+
+  #info-strip { font-size: 12px; color: #64748b; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+  <h1>TIPS Seasonal Adjustments (TipsSA)</h1>
+  
+  <div id="status">Loading market data...</div>
+  <div id="info-strip"></div>
+
+  <div class="card">
+    <div class="chart-container">
+      <canvas id="yieldChart"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-scroll-wrap">
+      <table class="main" id="saTable">
+        <thead>
+          <tr>
+            <th>Maturity</th>
+            <th>CUSIP</th>
+            <th>Coupon</th>
+            <th>Price</th>
+            <th>Ask Yield</th>
+            <th>SA Yield</th>
+            <th>Diff (bps)</th>
+          </tr>
+        </thead>
+        <tbody id="tableBody">
+          <!-- Rows added via JS -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
