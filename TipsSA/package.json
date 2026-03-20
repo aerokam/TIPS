@@ -3,8 +3,12 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "test:e2e": "npx playwright test"
+  },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.0.0",
-    "dotenv": "^16.0.0"
+    "dotenv": "^16.0.0",
+    "playwright": "^1.40.0"
   }
 }

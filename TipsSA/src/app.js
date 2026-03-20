@@ -1,8 +1,7 @@
 // TIPS Seasonal Adjustment (TipsSA) Frontend Logic
 
-const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
-const YIELDS_CSV_URL = `${R2_BASE_URL}/TIPS/TipsYields.csv`;
-const REF_CPI_CSV_URL = `${R2_BASE_URL}/TIPS/RefCpiNsaSa.csv`;
+const YIELDS_CSV_URL = `/TipsSA/data/TipsYields.csv`;
+const REF_CPI_CSV_URL = `/TipsSA/data/RefCpiNsaSa.csv`;
 
 // --- Helpers ---
 function parseCsv(text) {
@@ -290,8 +289,9 @@ function renderChart(bonds) {
       },
       plugins: {
         zoom: {
-          limits: {
-            x: { min: 'original', max: 'original', minRange: 1 }
+          pan: {
+            enabled: true,
+            mode: 'x',
           },
           zoom: {
             wheel: {
@@ -307,31 +307,37 @@ function renderChart(bonds) {
               enabled: true
             },
             mode: 'x',
+            onZoomStart: ({chart, event}) => {
+              if (lockLeftEl.checked) {
+                chart.options.scales.x.min = 0;
+              }
+              return true;
+            },
             onZoomComplete: ({chart}) => {
               const scale = chart.scales.x;
-              let minIndex = Math.max(0, Math.floor(scale.min));
-              let maxIndex = Math.min(labels.length - 1, Math.ceil(scale.max));
+              let minIndex = Math.max(0, Math.round(scale.min));
+              let maxIndex = Math.min(labels.length - 1, Math.round(scale.max));
 
               if (lockLeftEl.checked) {
                 minIndex = 0;
               }
 
               const visibleCount = maxIndex - minIndex + 1;
+              if (visibleCount <= 0) return;
+
               const totalCount = labels.length;
-              
-              // Calculate stretch factor (viewport / visible_fraction)
               const factor = totalCount / visibleCount;
               
-              // Apply stretch to container
+              // Apply physical stretch to container
               resizable.style.width = Math.max(100, factor * 100) + '%';
               
-              // Important: reset internal zoom so chart fills the new wide canvas
-              chart.resetZoom();
+              // Reset internal zoom so data fills the newly sized canvas
+              // We do this by clearing min/max and calling update
               chart.options.scales.x.min = undefined;
               chart.options.scales.x.max = undefined;
               chart.update('none');
 
-              // Sync scroll position
+              // Scroll to the previous logical minIndex
               const scrollPercent = minIndex / totalCount;
               wrapper.scrollLeft = scrollPercent * resizable.offsetWidth;
             }
@@ -350,9 +356,9 @@ function renderChart(bonds) {
 
   document.getElementById('resetZoom').addEventListener('click', () => {
     resizable.style.width = '100%';
-    chart.resetZoom();
     chart.options.scales.x.min = undefined;
     chart.options.scales.x.max = undefined;
+    chart.resetZoom();
     chart.update();
     wrapper.scrollLeft = 0;
   });
