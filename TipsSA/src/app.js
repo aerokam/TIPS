@@ -518,17 +518,21 @@ function renderChart(bonds) {
   };
 }
 
-// Adaptive Step Size: Force alignment with 0.25 grid
+// Adaptive Step Size: Force alignment with 0.25 grid and snap bounds
 function updateDynamicTicks(chart) {
   const yAx = chart.scales.y;
   const range = yAx.max - yAx.min;
   let newStep = 0.25;
 
-  if (range > 3) newStep = 0.50;  // Zoomed out
-  if (range > 7) newStep = 1.00;  // Very zoomed out
-  if (range < 0.6) newStep = 0.05; // Zoomed in (0.05 fits into 0.25 perfectly)
+  if (range > 3) newStep = 0.50;  
+  if (range > 7) newStep = 1.00;  
+  if (range < 0.6) newStep = 0.05; 
 
+  // Snap the actual limits to the new step size for clean grid endpoints
+  chart.options.scales.y.min = Math.floor(yAx.min / newStep + 0.001) * newStep;
+  chart.options.scales.y.max = Math.ceil(yAx.max / newStep - 0.001) * newStep;
   chart.options.scales.y.ticks.stepSize = newStep;
+  
   chart.update('none');
 }
 
