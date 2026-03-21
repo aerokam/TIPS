@@ -215,12 +215,13 @@ function processAndRender() {
   const fedSettleStr = rawYieldsData[0]?.settlementDate;
   
   if (brokerPrices) {
-    sourceLabelEl.textContent = "Using Broker Ask Prices (T+1 Settlement)";
+    const uploadTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    sourceLabelEl.textContent = `Using Broker Ask Prices (Uploaded at ${uploadTime})`;
     priceSourceEl.style.display = 'flex';
-    infoEl.textContent = `Broker Prices as of today · Reference CPI / SA factors from R2`;
+    infoEl.textContent = `Broker Prices (T+1 Settlement)`;
   } else {
     priceSourceEl.style.display = 'none';
-    infoEl.textContent = `FedInvest Prices as of ${fedSettleStr} · Reference CPI / SA factors from R2`;
+    infoEl.textContent = `FedInvest Prices as of ${fedSettleStr}`;
   }
 
   // 1. Initial Processing
