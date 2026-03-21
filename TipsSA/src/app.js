@@ -388,7 +388,7 @@ function renderChart(bonds) {
     data: {
       datasets: [
         {
-          label: 'SAO Yield (%)',
+          label: 'SA with Outlier Factor (SAO)',
           data: saoData,
           borderColor: '#1a56db', // Bold Blue
           backgroundColor: '#1a56db',
@@ -399,7 +399,7 @@ function renderChart(bonds) {
           order: 1
         },
         {
-          label: 'SA Yield (%)',
+          label: 'Seasonally Adjusted (SA)',
           data: saData,
           borderColor: '#475569', // Dark Gray
           backgroundColor: '#475569',
@@ -410,7 +410,7 @@ function renderChart(bonds) {
           order: 2
         },
         {
-          label: 'Ask Yield (%)',
+          label: 'Ask',
           data: askData,
           borderColor: '#94a3b8', // Medium Gray
           backgroundColor: '#94a3b8',
