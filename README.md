@@ -1,4 +1,4 @@
-# TIPS Ecosystem
+# TIPS Portal
 
 A collection of tools for TIPS (Treasury Inflation-Protected Securities).
 
