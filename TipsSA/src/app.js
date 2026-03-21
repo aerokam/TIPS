@@ -517,7 +517,8 @@ function updateDynamicTicks(chart) {
   let visibleMinY = Infinity;
   let visibleMaxY = -Infinity;
 
-  chart.data.datasets.forEach(dataset => {
+  chart.data.datasets.forEach((dataset, datasetIndex) => {
+    if (!chart.isDatasetVisible(datasetIndex)) return;
     dataset.data.forEach(p => {
       if (p.x >= xAx.min && p.x <= xAx.max) {
         if (p.y < visibleMinY) visibleMinY = p.y;
