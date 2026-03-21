@@ -216,7 +216,7 @@ function processAndRender() {
   
   if (brokerPrices) {
     const uploadTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    sourceLabelEl.textContent = `Using Broker Ask Prices (Uploaded at ${uploadTime})`;
+    sourceLabelEl.textContent = `Using Broker Prices (Uploaded at ${uploadTime})`;
     priceSourceEl.style.display = 'flex';
     infoEl.textContent = `Broker Prices (T+1 Settlement)`;
   } else {
@@ -246,17 +246,17 @@ function processAndRender() {
 
     if (!saSettle || !saMature) return null;
 
-    const askYield = yieldFromPrice(price, coupon, settleDateStr, bond.maturity);
+    const marketYield = yieldFromPrice(price, coupon, settleDateStr, bond.maturity);
     const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, settleDateStr, bond.maturity);
 
-    return { ...bond, coupon, price, askYield, saYield, maturityDate: localDate(bond.maturity) };
+    return { ...bond, coupon, price, marketYield, saYield, maturityDate: localDate(bond.maturity) };
   }).filter(b => b !== null).sort((a, b) => a.maturityDate - b.maturityDate);
 
   // 2. Generate SAO Yields (Smoothed SA)
   const smoothed = calculateSAO(allProcessed);
   allProcessed.forEach((b, i) => {
     b.saoYield = smoothed[i];
-    b.diffBps = (b.saYield - b.askYield) * 10000;
+    b.diffBps = (b.saYield - b.marketYield) * 10000;
   });
 
   // 3. Setup Range Filter Dropdowns
@@ -349,7 +349,7 @@ function renderTable(bonds) {
       <td>${b.cusip}</td>
       <td>${(b.coupon * 100).toFixed(3)}%</td>
       <td>${b.price.toFixed(3)}</td>
-      <td>${(b.askYield * 100).toFixed(3)}%</td>
+      <td>${(b.marketYield * 100).toFixed(3)}%</td>
       <td>${(b.saYield * 100).toFixed(3)}%</td>
       <td style="font-weight:700; color:#1a56db;">${(b.saoYield * 100).toFixed(3)}%</td>
       <td class="${b.diffBps >= 0 ? 'pos' : 'neg'}">${b.diffBps.toFixed(1)}</td>
@@ -364,18 +364,18 @@ function renderChart(bonds) {
   if (bonds.length === 0) return;
 
   // Use Numbers for linear scales
-  const askData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.askYield * 100).toFixed(3)) }));
+  const marketData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.marketYield * 100).toFixed(3)) }));
   const saData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.saYield * 100).toFixed(3)) }));
   const saoData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.saoYield * 100).toFixed(3)) }));
 
   // Explicitly set X bounds aligned to Jan 1st for consistent month labels
-  const firstBondDate = new Date(Math.min(...askData.map(d => d.x)));
-  const lastBondDate = new Date(Math.max(...askData.map(d => d.x)));
+  const firstBondDate = new Date(Math.min(...marketData.map(d => d.x)));
+  const lastBondDate = new Date(Math.max(...marketData.map(d => d.x)));
   const minX = new Date(firstBondDate.getFullYear(), 0, 1).getTime();
   const maxX = new Date(lastBondDate.getFullYear() + 1, 0, 1).getTime();
 
   // Calculate Y bounds rounded to nearest 0.25
-  const allY = [...askData, ...saData, ...saoData].map(d => d.y);
+  const allY = [...marketData, ...saData, ...saoData].map(d => d.y);
   const minYRaw = Math.min(...allY);
   const maxYRaw = Math.max(...allY);
   const minY = Math.floor(minYRaw * 4) / 4;
@@ -388,8 +388,8 @@ function renderChart(bonds) {
     data: {
       datasets: [
         {
-          label: 'Ask',
-          data: askData,
+          label: 'Market',
+          data: marketData,
           borderColor: '#94a3b8', // Medium Gray
           backgroundColor: '#94a3b8',
           borderWidth: 1.5,
