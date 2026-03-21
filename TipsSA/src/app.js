@@ -416,11 +416,18 @@ function renderChart(bonds) {
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: { 
-          type: 'linear',
+          type: 'time',
           display: true, 
           title: { display: true, text: 'Maturity' },
           min: minX,
           max: maxX,
+          time: {
+            unit: 'year',
+            displayFormats: {
+              year: 'MMM yyyy',
+              month: 'MMM yyyy'
+            }
+          },
           grid: {
             color: 'rgba(0, 0, 0, 0.05)',
             minor: {
@@ -429,11 +436,14 @@ function renderChart(bonds) {
             }
           },
           ticks: {
-            maxTicksLimit: 20, // More vertical gridlines
-            callback: (val) => {
-              const date = new Date(val);
-              return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-            }
+            autoSkip: true,
+            maxRotation: 0,
+            major: {
+              enabled: true
+            },
+            font: (context) => ({
+              weight: context.tick && context.tick.major ? 'bold' : 'normal'
+            })
           }
         },
         y: { 
@@ -455,7 +465,7 @@ function renderChart(bonds) {
         zoom: {
           pan: { 
             enabled: true, 
-            mode: 'xy', // Enable free-form panning in all directions
+            mode: 'xy',
           },
           zoom: { 
             wheel: { enabled: true }, 
@@ -467,7 +477,7 @@ function renderChart(bonds) {
           callbacks: {
             title: (items) => {
               const date = new Date(items[0].parsed.x);
-              return date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+              return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
             },
             label: (context) => `${context.dataset.label}: ${context.parsed.y}%`
           }
