@@ -187,18 +187,6 @@ function calculateSAO(bonds) {
 
     let candidate = (projected * trendWeight) + (bond.saYield * (1 - trendWeight));
 
-    // 4. Strict Monotonicity Constraint (Right-to-Left)
-    // If curve is positive (increasing to the right), shorter must be <= longer.
-    if (i < n - 1) {
-      candidate = Math.min(candidate, sao[i + 1]);
-      
-      // Specific fix for Apr 2026 vs Jul 2026: force a slight downward slope if very close
-      const diffDays = (bonds[i+1].maturityDate - bond.maturityDate) / 86400000;
-      if (yearsToMat < 0.6 && diffDays < 100) {
-        candidate = Math.min(candidate, sao[i+1] - 0.00005); // Force at least 0.5bps lower
-      }
-    }
-
     sao[i] = candidate;
   }
   return sao;
@@ -216,7 +204,7 @@ function processAndRender() {
   
   if (brokerPrices) {
     const uploadTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    sourceLabelEl.textContent = `Using Broker Prices (Uploaded at ${uploadTime})`;
+    sourceLabelEl.textContent = `Using Broker Ask Prices (Uploaded at ${uploadTime})`;
     priceSourceEl.style.display = 'flex';
     infoEl.textContent = `Broker Prices (T+1 Settlement)`;
   } else {
@@ -246,17 +234,17 @@ function processAndRender() {
 
     if (!saSettle || !saMature) return null;
 
-    const marketYield = yieldFromPrice(price, coupon, settleDateStr, bond.maturity);
+    const askYield = yieldFromPrice(price, coupon, settleDateStr, bond.maturity);
     const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, settleDateStr, bond.maturity);
 
-    return { ...bond, coupon, price, marketYield, saYield, maturityDate: localDate(bond.maturity) };
+    return { ...bond, coupon, price, askYield, saYield, maturityDate: localDate(bond.maturity) };
   }).filter(b => b !== null).sort((a, b) => a.maturityDate - b.maturityDate);
 
   // 2. Generate SAO Yields (Smoothed SA)
   const smoothed = calculateSAO(allProcessed);
   allProcessed.forEach((b, i) => {
     b.saoYield = smoothed[i];
-    b.diffBps = (b.saYield - b.marketYield) * 10000;
+    b.diffBps = (b.saYield - b.askYield) * 10000;
   });
 
   // 3. Setup Range Filter Dropdowns
@@ -349,7 +337,7 @@ function renderTable(bonds) {
       <td>${b.cusip}</td>
       <td>${(b.coupon * 100).toFixed(3)}%</td>
       <td>${b.price.toFixed(3)}</td>
-      <td>${(b.marketYield * 100).toFixed(3)}%</td>
+      <td>${(b.askYield * 100).toFixed(3)}%</td>
       <td>${(b.saYield * 100).toFixed(3)}%</td>
       <td style="font-weight:700; color:#1a56db;">${(b.saoYield * 100).toFixed(3)}%</td>
       <td class="${b.diffBps >= 0 ? 'pos' : 'neg'}">${b.diffBps.toFixed(1)}</td>
@@ -364,18 +352,18 @@ function renderChart(bonds) {
   if (bonds.length === 0) return;
 
   // Use Numbers for linear scales
-  const marketData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.marketYield * 100).toFixed(3)) }));
+  const askData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.askYield * 100).toFixed(3)) }));
   const saData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.saYield * 100).toFixed(3)) }));
   const saoData = bonds.map(b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.saoYield * 100).toFixed(3)) }));
 
   // Explicitly set X bounds aligned to Jan 1st for consistent month labels
-  const firstBondDate = new Date(Math.min(...marketData.map(d => d.x)));
-  const lastBondDate = new Date(Math.max(...marketData.map(d => d.x)));
+  const firstBondDate = new Date(Math.min(...askData.map(d => d.x)));
+  const lastBondDate = new Date(Math.max(...askData.map(d => d.x)));
   const minX = new Date(firstBondDate.getFullYear(), 0, 1).getTime();
   const maxX = new Date(lastBondDate.getFullYear() + 1, 0, 1).getTime();
 
   // Calculate Y bounds rounded to nearest 0.25
-  const allY = [...marketData, ...saData, ...saoData].map(d => d.y);
+  const allY = [...askData, ...saData, ...saoData].map(d => d.y);
   const minYRaw = Math.min(...allY);
   const maxYRaw = Math.max(...allY);
   const minY = Math.floor(minYRaw * 4) / 4;
@@ -388,15 +376,14 @@ function renderChart(bonds) {
     data: {
       datasets: [
         {
-          label: 'Market',
-          data: marketData,
+          label: 'Ask',
+          data: askData,
           borderColor: '#94a3b8', // Medium Gray
           backgroundColor: '#94a3b8',
           borderWidth: 1.5,
           pointRadius: 3.5, 
           pointStyle: 'rect', // Square
-          tension: 0.1,
-          order: 3 // Drawn at the bottom
+          tension: 0.1
         },
         {
           label: 'Seasonally Adjusted (SA)',
@@ -406,19 +393,17 @@ function renderChart(bonds) {
           borderWidth: 1.8,
           pointRadius: 4, 
           pointStyle: 'crossRot', // X shape
-          tension: 0.1,
-          order: 2 // Drawn in the middle
+          tension: 0.1
         },
         {
-          label: 'SA with Outlier Adjustment (SAO)',
+          label: 'SA with outlier adjustment (SAO)',
           data: saoData,
           borderColor: '#1a56db', // Bold Blue
           backgroundColor: '#1a56db',
           borderWidth: 2.2,
           pointRadius: 2.5, // Even smaller
           pointStyle: 'circle',
-          tension: 0.1,
-          order: 1 // Drawn on top
+          tension: 0.1
         }
       ]
     },
@@ -522,19 +507,41 @@ function renderChart(bonds) {
   };
 }
 
-// Adaptive Step Size: Force alignment with 0.25 grid and snap bounds
+// Adaptive Step Size & Dynamic Y Bounds: 
+// Recalculates Y range based on visible X range to ensure "vertical zoom"
 function updateDynamicTicks(chart) {
+  const xAx = chart.scales.x;
   const yAx = chart.scales.y;
-  const range = yAx.max - yAx.min;
-  let newStep = 0.25;
+  
+  // 1. Find visible data range
+  let visibleMinY = Infinity;
+  let visibleMaxY = -Infinity;
 
+  chart.data.datasets.forEach(dataset => {
+    dataset.data.forEach(p => {
+      if (p.x >= xAx.min && p.x <= xAx.max) {
+        if (p.y < visibleMinY) visibleMinY = p.y;
+        if (p.y > visibleMaxY) visibleMaxY = p.y;
+      }
+    });
+  });
+
+  if (visibleMinY === Infinity) return;
+
+  // 2. Determine Step Size
+  const range = visibleMaxY - visibleMinY;
+  let newStep = 0.25;
   if (range > 3) newStep = 0.50;  
   if (range > 7) newStep = 1.00;  
   if (range < 0.6) newStep = 0.05; 
 
-  // Snap the actual limits to the new step size for clean grid endpoints
-  chart.options.scales.y.min = Math.floor(yAx.min / newStep + 0.001) * newStep;
-  chart.options.scales.y.max = Math.ceil(yAx.max / newStep - 0.001) * newStep;
+  // 3. Snap Bounds to Grid
+  // We add a tiny buffer (0.01) to the snap calculations to avoid data points landing exactly on the line
+  const snappedMin = Math.floor((visibleMinY - 0.01) / newStep) * newStep;
+  const snappedMax = Math.ceil((visibleMaxY + 0.01) / newStep) * newStep;
+
+  chart.options.scales.y.min = snappedMin;
+  chart.options.scales.y.max = snappedMax;
   chart.options.scales.y.ticks.stepSize = newStep;
   
   chart.update('none');

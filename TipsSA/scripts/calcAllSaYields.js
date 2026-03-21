@@ -122,7 +122,7 @@ function main() {
   const header = [
     "Settlement Date", "CUSIP", "Maturity", "Coupon", "Price", 
     "Settle SA Fact", "Mature SA Fact", "Price SA Factor", "SA Price", 
-    "Market Yield", "SA Yield", "Diff (bps)"
+    "Ask Yield", "SA Yield", "Diff (bps)"
   ];
 
   tipsBonds.forEach(bond => {

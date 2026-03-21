@@ -145,7 +145,7 @@ function main() {
   console.log(`Price SA Fact:  ${priceSaFactor.toFixed(5)} (Settle / Mature)`);
   console.log(`SA Price:       ${saPrice.toFixed(5)}`);
   console.log(`--- Yields ---`);
-  console.log(`Market Yield:   ${(realYield * 100).toFixed(4)}%`);
+  console.log(`Ask Yield:      ${(realYield * 100).toFixed(4)}%`);
   console.log(`SA Yield:       ${(saYield * 100).toFixed(4)}%`);
 }
 
