@@ -4,12 +4,6 @@ const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const YIELDS_CSV_URL = `${R2_BASE_URL}/TIPS/TipsYields.csv`;
 const REF_CPI_CSV_URL = `${R2_BASE_URL}/TIPS/RefCpiNsaSa.csv`;
 
-// --- Outlier Adjustments (SAO) ---
-const outlierAdjustments = {
-  '91282CEJ6': { type: 'fit', label: 'Apr 2027' }, // Fit to curve
-  '9128282L3': { type: 'bump', bp: 5, label: 'Jul 2027' } // Bump up 5bps
-};
-
 // --- Helpers ---
 function parseCsv(text) {
   const result = [];
@@ -132,25 +126,17 @@ async function init() {
   const statusEl = document.getElementById('status');
   
   try {
-    console.log('Fetching:', YIELDS_CSV_URL, REF_CPI_CSV_URL);
     const [yieldsRes, refCpiRes] = await Promise.all([
       fetch(YIELDS_CSV_URL).catch(e => ({ ok: false, error: e })),
       fetch(REF_CPI_CSV_URL).catch(e => ({ ok: false, error: e }))
     ]);
 
-    if (!yieldsRes.ok) {
-      const err = yieldsRes.error ? yieldsRes.error.message : `Status ${yieldsRes.status}`;
-      throw new Error(`Failed to fetch yields: ${err} (${YIELDS_CSV_URL})`);
-    }
-    if (!refCpiRes.ok) {
-      const err = refCpiRes.error ? refCpiRes.error.message : `Status ${refCpiRes.status}`;
-      throw new Error(`Failed to fetch RefCPI data: ${err} (${REF_CPI_CSV_URL})`);
-    }
+    if (!yieldsRes.ok) throw new Error(`Failed to fetch yields: ${yieldsRes.status}`);
+    if (!refCpiRes.ok) throw new Error(`Failed to fetch RefCPI: ${refCpiRes.status}`);
 
     rawYieldsData = parseCsv(await yieldsRes.text());
     rawRefCpiData = parseCsv(await refCpiRes.text());
 
-    console.log('Data loaded:', rawYieldsData.length, 'yields,', rawRefCpiData.length, 'CPI rows');
     processAndRender();
 
   } catch (err) {
@@ -158,6 +144,26 @@ async function init() {
     statusEl.className = 'error';
     console.error('Initialization failed:', err);
   }
+}
+
+// Generalized Smoothing Algorithm for SAO
+function calculateSAO(bonds) {
+  // We use a simple 3-point moving average to "fit" the curve.
+  // This naturally pulls outliers back toward the neighbors.
+  return bonds.map((bond, i) => {
+    const prev = bonds[i - 1];
+    const next = bonds[i + 1];
+    
+    if (prev && next) {
+      // Average of self and neighbors
+      return (prev.saYield + bond.saYield + next.saYield) / 3;
+    } else if (prev) {
+      return (prev.saYield + bond.saYield) / 2;
+    } else if (next) {
+      return (bond.saYield + next.saYield) / 2;
+    }
+    return bond.saYield;
+  });
 }
 
 function processAndRender() {
@@ -171,7 +177,7 @@ function processAndRender() {
   infoEl.textContent = `Prices as of ${settleDateStr} · Reference CPI / SA factors from R2`;
   priceSourceEl.style.display = schwabPrices ? 'block' : 'none';
 
-  // 1. Initial Processing
+  // 1. Initial Processing (Calculate SA)
   const allProcessed = rawYieldsData.map(bond => {
     const coupon = parseFloat(bond.coupon);
     let price = parseFloat(bond.price);
@@ -188,45 +194,41 @@ function processAndRender() {
     const askYield = yieldFromPrice(price, coupon, bond.settlementDate, bond.maturity);
     const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, bond.settlementDate, bond.maturity);
 
-    return { ...bond, coupon, price, askYield, saYield, maturityDate: localDate(bond.maturity) };
+    return { 
+      ...bond, 
+      coupon, 
+      price, 
+      askYield, 
+      saYield, 
+      maturityDate: localDate(bond.maturity),
+      diffBps: (saYield - askYield) * 10000 
+    };
   }).filter(b => b !== null).sort((a, b) => a.maturityDate - b.maturityDate);
 
-  // 2. Apply SAO (Outlier Adjustments)
-  allProcessed.forEach((bond, i) => {
-    bond.saoYield = bond.saYield;
-    const adj = outlierAdjustments[bond.cusip];
-    if (adj) {
-      if (adj.type === 'fit') {
-        const prev = allProcessed[i-1], next = allProcessed[i+1];
-        if (prev && next) bond.saoYield = (prev.saYield + next.saYield) / 2;
-        else if (prev) bond.saoYield = prev.saYield;
-        else if (next) bond.saoYield = next.saYield;
-      } else if (adj.type === 'bump') {
-        bond.saoYield += adj.bp / 10000;
-      }
-    }
-    bond.diffBps = (bond.saYield - bond.askYield) * 10000;
+  // 2. Generate SAO Yields (Smoothed SA)
+  const smoothed = calculateSAO(allProcessed);
+  allProcessed.forEach((b, i) => {
+    b.saoYield = smoothed[i];
   });
 
-  // 3. Range Filter Dropdowns
+  // 3. Setup Range Filter Dropdowns (only once)
   const startSel = document.getElementById('startMaturity');
   const endSel = document.getElementById('endMaturity');
   
   if (startSel.options.length === 0) {
     allProcessed.forEach((b, i) => {
-      const opt = (selected) => {
+      const opt = (text, val, selected) => {
         const o = document.createElement('option');
-        o.value = b.maturity; o.textContent = fmtMMM(b.maturity);
+        o.value = val; o.textContent = text;
         if (selected) o.selected = true;
         return o;
       };
-      startSel.appendChild(opt(i === 0));
-      endSel.appendChild(opt(i === allProcessed.length - 1));
+      startSel.appendChild(opt(fmtMMM(b.maturity), b.maturity, i === 0));
+      endSel.appendChild(opt(fmtMMM(b.maturity), b.maturity, i === allProcessed.length - 1));
     });
     
-    const trigger = () => processAndRender();
-    startSel.onchange = trigger;
-    endSel.onchange = trigger;
+    startSel.onchange = () => processAndRender();
+    endSel.onchange = () => processAndRender();
   }
 
   const startDate = localDate(startSel.value);
@@ -316,9 +318,9 @@ function renderChart(bonds) {
         {
           label: 'Ask Yield (%)',
           data: askYields,
-          borderColor: '#94a3b8',
+          borderColor: '#cbd5e1',
           backgroundColor: 'transparent',
-          borderWidth: 1.5,
+          borderWidth: 1,
           pointRadius: 2,
           tension: 0.1
         },
@@ -365,7 +367,12 @@ function renderChart(bonds) {
     }
   });
 
-  document.getElementById('resetZoom').onclick = () => chart.resetZoom();
+  document.getElementById('resetZoom').onclick = () => {
+    chart.resetZoom();
+    chart.options.scales.x.min = undefined;
+    chart.options.scales.x.max = undefined;
+    chart.update();
+  };
 }
 
 init();
