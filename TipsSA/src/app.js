@@ -160,7 +160,7 @@ function _showSaDrill(cusip) {
       <p>A ratio &lt; 1.0 reduces the price (increasing yield), while a ratio &gt; 1.0 increases the price (decreasing yield).</p>
     </div>
   `;
-  _showDrillPopup(\`SA Drill-down: \${bond.cusip} (\${fmtMMM(bond.maturity)})\`, html);
+  _showDrillPopup(`SA Drill-down: ${bond.cusip} (${fmtMMM(bond.maturity)})`, html);
 }
 
 // ─── Main Logic ──────────────────────────────────────────────────────────────
@@ -176,15 +176,15 @@ async function init() {
       fetch(HOLIDAYS_CSV_URL).catch(e => ({ ok: false, error: e }))
     ]);
 
-    if (!yieldsRes.ok) throw new Error(`Failed to fetch yields: \${yieldsRes.status || yieldsRes.error}`);
-    if (!refCpiRes.ok) throw new Error(`Failed to fetch Ref CPI: \${refCpiRes.status || refCpiRes.error}`);
-    if (!holidayRes.ok) throw new Error(`Failed to fetch bond holidays: \${holidayRes.status || holidayRes.error}`);
+    if (!yieldsRes.ok) throw new Error(`Failed to fetch yields: ${yieldsRes.status || yieldsRes.error}`);
+    if (!refCpiRes.ok) throw new Error(`Failed to fetch Ref CPI: ${refCpiRes.status || refCpiRes.error}`);
+    if (!holidayRes.ok) throw new Error(`Failed to fetch bond holidays: ${holidayRes.status || holidayRes.error}`);
 
     console.log("Fetches complete, parsing...");
     rawYieldsData = parseCsv(await yieldsRes.text());
     rawRefCpiData = parseCsv(await refCpiRes.text());
     
-    console.log(\`Parsed \${rawYieldsData.length} yield rows and \${rawRefCpiData.length} RefCPI rows.\`);
+    console.log(`Parsed ${rawYieldsData.length} yield rows and ${rawRefCpiData.length} RefCPI rows.`);
 
     const holidayRows = parseCsv(await holidayRes.text(), false);
     holidaySet = new Set();
@@ -201,7 +201,7 @@ async function init() {
     });
 
   } catch (err) {
-    statusEl.textContent = `Error: \${err.message}`;
+    statusEl.textContent = `Error: ${err.message}`;
     statusEl.className = 'error';
     console.error('Initialization failed:', err);
   }
@@ -261,15 +261,15 @@ function processAndRender() {
   
   if (brokerPrices) {
     const uploadTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    sourceLabelEl.textContent = \`Using Broker Ask Prices (Uploaded at \${uploadTime})\`;
+    sourceLabelEl.textContent = `Using Broker Ask Prices (Uploaded at ${uploadTime})`;
     priceSourceEl.style.display = 'flex';
     const fedSettleDate = localDate(fedSettleStr);
     const tPlus1 = nextBusinessDay(fedSettleDate, holidaySet);
     const displaySettle = toIsoDate(tPlus1);
-    infoEl.textContent = \`Broker Prices · Settlement Date: \${displaySettle} (T+1)\`;
+    infoEl.textContent = `Broker Prices · Settlement Date: ${displaySettle} (T+1)`;
   } else {
     priceSourceEl.style.display = 'none';
-    infoEl.textContent = \`FedInvest market data · Settlement Date: \${fedSettleStr} (T)\`;
+    infoEl.textContent = `FedInvest market data · Settlement Date: ${fedSettleStr} (T)`;
   }
 
   console.log("Processing bonds...");
@@ -288,8 +288,8 @@ function processAndRender() {
     const mmddSettle = settleDateStr.slice(5, 10);
     const mmddMature = bond.maturity.slice(5, 10);
 
-    const saSettle = parseFloat(rawRefCpiData.find(r => r["Ref CPI Date"].includes(\`-\${mmddSettle}\`))?.["SA Factor"]);
-    const saMature = parseFloat(rawRefCpiData.find(r => r["Ref CPI Date"].includes(\`-\${mmddMature}\`))?.["SA Factor"]);
+    const saSettle = parseFloat(rawRefCpiData.find(r => r["Ref CPI Date"].includes(`-${mmddSettle}`))?.["SA Factor"]);
+    const saMature = parseFloat(rawRefCpiData.find(r => r["Ref CPI Date"].includes(`-${mmddMature}`))?.["SA Factor"]);
 
     if (!saSettle || !saMature) return null;
 
@@ -299,7 +299,7 @@ function processAndRender() {
     return { ...bond, coupon, price, askYield, saYield, maturityDate: localDate(bond.maturity), settlementDate: settleDateStr };
   }).filter(b => b !== null).sort((a, b) => a.maturityDate - b.maturityDate);
 
-  console.log(\`Processed \${allProcessed.length} bonds.\`);
+  console.log(`Processed ${allProcessed.length} bonds.`);
 
   const smoothed = calculateSAO(allProcessed);
   allProcessed.forEach((b, i) => {
@@ -330,24 +330,24 @@ function processAndRender() {
 
   renderTable(filteredBonds);
   renderChart(filteredBonds);
-  statusEl.textContent = \`Successfully loaded \${filteredBonds.length} TIPS.\`;
+  statusEl.textContent = `Successfully loaded ${filteredBonds.length} TIPS.`;
 }
 
 function renderTable(bonds) {
   window._currentBonds = bonds;
   const tbody = document.getElementById('tableBody');
-  tbody.innerHTML = bonds.map(b => \`
+  tbody.innerHTML = bonds.map(b => `
     <tr>
-      <td>\${fmtMMM(b.maturity)}</td>
-      <td>\${b.cusip}</td>
-      <td>\${(b.coupon * 100).toFixed(3)}%</td>
-      <td>\${b.price.toFixed(3)}</td>
-      <td>\${(b.askYield * 100).toFixed(3)}%</td>
-      <td class="drillable" data-cusip="\${b.cusip}">\${(b.saYield * 100).toFixed(3)}%</td>
-      <td style="font-weight:700; color:#1a56db;" class="drillable" data-cusip="\${b.cusip}">\${(b.saoYield * 100).toFixed(3)}%</td>
-      <td class="\${b.diffBps >= 0 ? 'pos' : 'neg'}">\${b.diffBps.toFixed(1)}</td>
+      <td>${fmtMMM(b.maturity)}</td>
+      <td>${b.cusip}</td>
+      <td>${(b.coupon * 100).toFixed(3)}%</td>
+      <td>${b.price.toFixed(3)}</td>
+      <td>${(b.askYield * 100).toFixed(3)}%</td>
+      <td class="drillable" data-cusip="${b.cusip}">${(b.saYield * 100).toFixed(3)}%</td>
+      <td style="font-weight:700; color:#1a56db;" class="drillable" data-cusip="${b.cusip}">${(b.saoYield * 100).toFixed(3)}%</td>
+      <td class="${b.diffBps >= 0 ? 'pos' : 'neg'}">${b.diffBps.toFixed(1)}</td>
     </tr>
-  \`).join('');
+  `).join('');
 }
 
 function renderChart(bonds) {
@@ -456,7 +456,7 @@ function renderChart(bonds) {
               const date = new Date(items[0].parsed.x);
               return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
             },
-            label: (context) => \`\${context.dataset.label}: \${context.parsed.y}%\`
+            label: (context) => `${context.dataset.label}: ${context.parsed.y}%`
           }
         }
       }
