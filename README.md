@@ -1,6 +1,8 @@
 # TIPS Portal
 
-A collection of tools for TIPS (Treasury Inflation-Protected Securities).
+A collection of free, open-source tools for the **Bogleheads** community to manage and analyze TIPS (Treasury Inflation-Protected Securities).
+
+[**Read our Project Vision**](./PROJECT_VISION.md)
 
 ## Projects
 - **TipsLadderManager**: Browser-based TIPS ladder design and rebalancing.

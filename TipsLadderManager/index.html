@@ -110,7 +110,7 @@
   <div style="background:#fff;max-width:680px;margin:40px auto;border-radius:8px;padding:28px 32px;position:relative;font-size:13px;line-height:1.6;">
     <button id="help-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;color:#888;cursor:pointer;padding:0;line-height:1;">×</button>
     <h2 style="margin:0 0 8px;font-size:16px;">TIPS Ladder Manager — Help</h2>
-    <p style="margin:0 0 6px;color:#444;font-size:12px;">All calculations run in your browser. Prices updated daily ~1 PM ET from FedInvest.</p>
+    <p style="margin:0 0 6px;color:#444;font-size:12px;">A free, open-source tool for the Bogleheads community. All calculations run locally in your browser. Prices updated daily ~1 PM ET from FedInvest.</p>
     <p style="margin:0 0 16px;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:8px;">
       <b>Rebalance</b> — for existing ladder holders rebalancing into newly issued TIPS. Assumes you want to keep using the same lower bracket TIPS you originally purchased.<br>
       <b>Build</b> — designs a new ladder from scratch with zero existing holdings.
@@ -148,6 +148,9 @@
     <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:8px;font-size:12px;margin:6px 0;">2-bracket:  lowerWeight × lowerDur + upperWeight × upperDur = gapAvgDur
 3-bracket:  w1 (orig lower, fixed) + w2 (new lower) + w3 (upper) = 1
             w1×d1 + w2×d2 + w3×d3 = gapAvgDur  →  unique solution given w1</pre>
+
+    <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Methodology & Authority</h3>
+    <p>All calculations follow official U.S. Treasury formulas. <b>Reference CPI</b> values are calculated using daily interpolation per <b>31 CFR § 356 Appendix B</b>. The Ref CPI for the 1st of any month is the CPI-U (NSA) from three months prior. All principal and interest amounts are shown in <i>real</i> terms (today's dollars).</p>
   </div>
 </div>
 
@@ -300,7 +303,6 @@ document.getElementById('help-overlay').addEventListener('click', e => {
 
 // ─── Load data CSVs ───────────────────────────────────────────────────────────
 let tipsMap = null, refCpiRows = null, settlementDate = null, tipsRefMap = null;
-let isBrokerImport = false;
 
 async function loadData() {
   const dataInfo = document.getElementById('info-strip');
@@ -814,20 +816,8 @@ document.getElementById('run-btn').addEventListener('click', async () => {
   setStatus('');
 
   try {
-    const effectiveSettlementDate = (isBrokerImport && currentMode === 'rebalance')
-      ? new Date(settlementDate.getTime() + 86400000)
-      : settlementDate;
-    const settleDateStr = effectiveSettlementDate.toLocaleDateString('en-CA');
+    const settleDateStr = settlementDate.toLocaleDateString('en-CA');
     const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? settleDateStr);
-
-    let effectiveTipsMap = tipsMap;
-    if (effectiveSettlementDate.getTime() !== settlementDate.getTime()) {
-      effectiveTipsMap = new Map();
-      for (const [cusip, bond] of tipsMap.entries()) {
-        const newYield = yieldFromPrice(bond.price, bond.coupon, effectiveSettlementDate, bond.maturity);
-        effectiveTipsMap.set(cusip, { ...bond, yield: newYield });
-      }
-    }
 
     if (currentMode === 'build') {
       // ── Build from Scratch ──
@@ -846,7 +836,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
       const maturityPref = document.getElementById('build-maturity').value;
       const preLadderInterest = document.getElementById('pre-ladder-interest').checked;
       const daraByYear = getDaraByYear();
-      const result = runBuild({ dara, firstYear, lastYear, tipsMap: effectiveTipsMap, refCPI, settlementDate: effectiveSettlementDate, maturityPref, preLadderInterest, daraByYear });
+      const result = runBuild({ dara, firstYear, lastYear, tipsMap, refCPI, settlementDate, maturityPref, preLadderInterest, daraByYear });
       _lastKnownDara = dara;
       document.getElementById('dara-by-year').style.display = 'none';
       updateDaraInput();
@@ -876,7 +866,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
       let _daraWasInferred = false;
       if (method === 'Full' && dara === null) {
         setStatus('Inferring DARA from portfolio cash…');
-        ({ dara: finalDara, portfolioCash } = inferDARAFromCash({ bracketMode, holdings, tipsMap: effectiveTipsMap, refCPI, settlementDate: effectiveSettlementDate, lastYearOverride }));
+        ({ dara: finalDara, portfolioCash } = inferDARAFromCash({ bracketMode, holdings, tipsMap, refCPI, settlementDate, lastYearOverride }));
         finalDara = Math.floor(finalDara);
         document.getElementById('dara').value = String(finalDara);
         _daraByYearPanelDefault = finalDara;
@@ -888,7 +878,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
       setStatus('Running rebalance…');
       // When DARA was just inferred (exact value), skip per-year panel to avoid rounding mismatch
       const daraByYear = _daraWasInferred ? null : getDaraByYear();
-      const result = runRebalance({ dara: finalDara, method, bracketMode, holdings, tipsMap: effectiveTipsMap, refCPI, settlementDate: effectiveSettlementDate, daraByYear, lastYearOverride });
+      const result = runRebalance({ dara: finalDara, method, bracketMode, holdings, tipsMap, refCPI, settlementDate, daraByYear, lastYearOverride });
       document.getElementById('dara-by-year').style.display = 'none';
       updateDaraInput();
       renderOutput(result, portfolioCash);
@@ -959,7 +949,6 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
                         (firstFewLines.includes('symbol') && firstFewLines.includes('quantity'));
 
     if (isBrokerCSV) {
-      isBrokerImport = true;
       const parsedAccounts = parseBrokerCSV(text, tipsMap);
       const acctNames = Object.keys(parsedAccounts);
       if (acctNames.length === 0) { setStatus('No TIPS found in broker export.', true); return; }
@@ -983,7 +972,6 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
         document.getElementById('account-overlay').style.display = 'block';
       }
     } else {
-      isBrokerImport = false;
       const CUSIP_RE = /^[A-Z0-9]{9}$/i;
       const startIdx = CUSIP_RE.test(rawLines[0].split(',')[0].trim()) ? 0 : 1;
       const arr = [];
@@ -1179,19 +1167,15 @@ function _parseMDY(s) {
   return yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
 }
 function _buildStaticInfo() {
-  const _effSettle = (isBrokerImport && currentMode === 'rebalance')
-    ? new Date(settlementDate.getTime() + 86400000)
-    : settlementDate;
-  const _date = activeRefCpiDateStr ?? (_effSettle ? _effSettle.toLocaleDateString('en-CA') : null);
+  const _date = activeRefCpiDateStr ?? (settlementDate ? settlementDate.toLocaleDateString('en-CA') : null);
   if (!_date || !refCpiRows) return _staticInfoPrefix + _staticInfoSuffix;
   let _val;
   try { _val = lookupRefCpi(refCpiRows, _date); } catch(e) { return _staticInfoPrefix + _staticInfoSuffix; }
   const _dateStyle = activeRefCpiDateStr ? ' style="color:#7c3aed"' : '';
-  const _settleNote = (isBrokerImport && currentMode === 'rebalance' && !activeRefCpiDateStr) ? ' <small>(T+1)</small>' : '';
   return _staticInfoPrefix
     + ' · Ref CPI ' + _val.toFixed(5)
     + ' as of <span id="refcpi-link" class="info-link" title="Click to change reference CPI date"' + _dateStyle + '>'
-    + _fmtMDY(_date) + '</span>' + _settleNote
+    + _fmtMDY(_date) + '</span>'
     + _staticInfoSuffix;
 }
 function _clearAutoDara() {

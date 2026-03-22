@@ -600,6 +600,16 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
   
   const totalCurrentExcessReal = lowerCurExReal + upperCurExReal + newLowerCurExReal3;
   const totalExcessCost = lowerExCost + upperExCost + newLowerExCost3;
+
+  const lowerPostQty = buySellTargets[brackets.lowerYear]?.targetQty ?? 0;
+  const lowerTargetFYQty = buySellTargets[brackets.lowerYear]?.targetFundedYearQty ?? 0;
+  const upperPostQty = buySellTargets[brackets.upperYear]?.targetQty ?? 0;
+  const upperTargetFYQty = buySellTargets[brackets.upperYear]?.targetFundedYearQty ?? 0;
+
+  const totalExcessCostReal = (lowerPostQty - lowerTargetFYQty) * lowerCPBReal
+    + (upperPostQty - upperTargetFYQty) * upperCPBReal
+    + (is3Bracket ? ((buySellTargets[newLowerYear]?.postRebalQty ?? 0) - (buySellTargets[newLowerYear]?.targetFundedYearQty ?? 0)) * ((tipsMap.get(newLowerCUSIP)?.price ?? 0) / 100 * 1000) : 0);
+
   const beforeLowerWeight = totalCurrentExcessReal > 0 ? lowerCurExReal / totalCurrentExcessReal : null;
   const beforeUpperWeight = totalCurrentExcessReal > 0 ? upperCurExReal / totalCurrentExcessReal : null;
   const beforeNewLowerWeight = is3Bracket && totalCurrentExcessReal > 0 ? newLowerCurExReal3 / totalCurrentExcessReal : null;
@@ -718,5 +728,5 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
 
   const HDR = ['CUSIP','Qty','Maturity','FY','Principal','Interest','ARA','Cost','Target Qty','Qty Delta','Target Cost','Cost Delta','ARA (Before)','ARA-DARA Before','ARA (After)','ARA-DARA After','Excess ARA Before','Excess ARA After'];
   
-  return { results, HDR, summary: { settleDateDisp, refCPI, DARA, inferredDARA, daraIsInferred: dara === null, method, firstYear, lastYear, rungCount, gapYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, newLowerWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalCurrentExcess: totalCurrentExcessReal, totalExcessCost, araByYear }, details };
+  return { results, HDR, summary: { settleDateDisp, refCPI, DARA, inferredDARA, daraIsInferred: dara === null, method, firstYear, lastYear, rungCount, gapYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, newLowerWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalCurrentExcess: totalCurrentExcessReal, totalExcessCost, totalExcessCostReal, araByYear }, details };
 }

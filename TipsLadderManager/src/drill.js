@@ -338,13 +338,27 @@ export function buildDurationPopupRows(summary, mode) {
     const s = summary.gapCoverageSurplus;
     const surplusLbl = s >= 0 ? 'Surplus' : 'Deficit';
     const surplusVal = (s >= 0 ? '+' : '') + Math.round(s).toLocaleString('en-US');
+    const isFull = summary.method === 'Full';
+
     rows.push(
       { sep: true },
-      { heading: 'Excess Balance Check' },
-      { label: 'Current excess $',  value: '$' + Math.round(summary.totalCurrentExcess).toLocaleString() },
+      { heading: 'Excess Balance Check (Historical)' },
+      { label: 'Previous excess $',  note: 'real cost of bracket excess bonds held before rebalance', value: '$' + Math.round(summary.totalCurrentExcess).toLocaleString() },
       { label: 'Rebal rungs cost',  note: 'cost to fill newly available years', value: '$' + Math.round(summary.costForNewRungs).toLocaleString() },
-      { label: 'Future gap cost',   note: 'cost to fill remaining gaps', value: '$' + Math.round(summary.gapParams.totalCost).toLocaleString() },
-      { label: 'Gap coverage ' + surplusLbl.toLowerCase(), note: 'Current excess − Rebal rungs − Future gap', value: surplusVal, total: true }
+      { label: 'Future gap cost',   note: 'theoretical cost to cover remaining gaps', value: '$' + Math.round(summary.gapParams.totalCost).toLocaleString() },
+      { label: 'Gap coverage ' + surplusLbl.toLowerCase(),
+        note: s < 0
+          ? (isFull ? 'Previous excess was insufficient; shortfall was covered by total portfolio cash.' : 'Previous excess was insufficient; new cash or lower DARA required.')
+          : 'Previous excess was sufficient to cover these requirements.',
+        value: surplusVal, total: true }
+    );
+
+    rows.push(
+      { sep: true },
+      { heading: 'New Ladder Coverage' },
+      { label: 'Total excess cost', note: 'real cost of excess bonds now held in brackets', value: '$' + Math.round(summary.totalExcessCostReal || summary.totalExcessCost).toLocaleString() },
+      { label: 'Future gap cost',   note: 'theoretical cost to cover remaining gaps', value: '$' + Math.round(summary.gapParams.totalCost).toLocaleString() },
+      { label: 'Coverage status',   note: 'Gap is fully funded by the new bracket excess', value: 'Fully Funded', total: true }
     );
   }
 

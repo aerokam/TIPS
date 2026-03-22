@@ -1,11 +1,13 @@
 // TIPS Seasonal Adjustment (TipsSA) Frontend Logic
+import { yieldFromPrice } from '../../shared/src/bond-math.js';
 
 const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const YIELDS_CSV_URL = `${R2_BASE_URL}/TIPS/TipsYields.csv`;
 const REF_CPI_CSV_URL = `${R2_BASE_URL}/TIPS/RefCpiNsaSa.csv`;
+const HOLIDAYS_CSV_URL = `${R2_BASE_URL}/misc/BondHolidaysSifma.csv`;
 
 // --- Helpers ---
-function parseCsv(text) {
+function parseCsv(text, hasHeader = true) {
   const result = [];
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length === 0) return result;
@@ -28,114 +30,75 @@ function parseCsv(text) {
     return parts.map(p => p.replace(/^"|"$/g, '').trim());
   };
 
-  const headers = parseRow(lines[0]);
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseRow(lines[i]);
-    const obj = {};
-    headers.forEach((h, idx) => {
-      if (h) obj[h] = values[idx];
-    });
-    result.push(obj);
+  if (hasHeader) {
+    const headers = parseRow(lines[0]);
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseRow(lines[i]);
+      const obj = {};
+      headers.forEach((h, idx) => {
+        if (h) obj[h] = values[idx];
+      });
+      result.push(obj);
+    }
+  } else {
+    return lines.map(parseRow);
   }
   return result;
 }
 
 function localDate(s) {
+  if (!s) return null;
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
 
-// Yield calculation (actual/actual)
-function yieldFromPrice(cleanPrice, coupon, settleDateStr, maturityStr) {
-  if (!cleanPrice || cleanPrice <= 0) return null;
-  const settle = localDate(settleDateStr);
-  const mature = localDate(maturityStr);
-  if (settle >= mature) return null;
+function toIsoDate(date) {
+  return date.getFullYear() + '-' +
+    String(date.getMonth() + 1).padStart(2, '0') + '-' +
+    String(date.getDate()).padStart(2, '0');
+}
 
-  const semiCoupon = (coupon / 2) * 100;
-  const matMon = mature.getMonth() + 1;
-  const cm1 = matMon <= 6 ? matMon : matMon - 6;
-  const cm2 = cm1 + 6;
-
-  function nextCouponOnOrAfter(d) {
-    const candidates = [];
-    for (let y = d.getFullYear() - 1; y <= d.getFullYear() + 1; y++) {
-      candidates.push(new Date(y, cm1 - 1, 15));
-      candidates.push(new Date(y, cm2 - 1, 15));
-    }
-    candidates.sort((a, b) => a - b);
-    return candidates.find(c => c >= d && c <= mature) || null;
-  }
-
-  const nextCoupon = nextCouponOnOrAfter(settle);
-  if (!nextCoupon) return null;
-  const lastCoupon = new Date(nextCoupon.getFullYear(), nextCoupon.getMonth() - 6, 15);
-
-  const days = (a, b) => (b - a) / 86400000;
-  const E = days(lastCoupon, nextCoupon);
-  const A = days(lastCoupon, settle);
-  const DSC = days(settle, nextCoupon);
-  const accrued = semiCoupon * (A / E);
-  const dirtyPrice = cleanPrice + accrued;
-  const w = DSC / E;
-
-  const coupons = [];
-  let d = new Date(nextCoupon);
-  while (d <= mature) {
-    coupons.push(new Date(d));
-    d = new Date(d.getFullYear(), d.getMonth() + 6, 15);
-  }
-  const N = coupons.length;
-  if (N === 0) return null;
-
-  function pv(y) {
-    const r = y / 2;
-    let s = 0;
-    for (let k = 0; k < N; k++) {
-      const cf = k === N - 1 ? semiCoupon + 100 : semiCoupon;
-      s += cf / Math.pow(1 + r, w + k);
-    }
-    return s;
-  }
-  function dpv(y) {
-    const r = y / 2;
-    let s = 0;
-    for (let k = 0; k < N; k++) {
-      const cf = k === N - 1 ? semiCoupon + 100 : semiCoupon;
-      s += (-cf * (w + k)) / (2 * Math.pow(1 + r, w + k + 1));
-    }
-    return s;
-  }
-
-  let y = coupon > 0.005 ? coupon : 0.02;
-  for (let i = 0; i < 200; i++) {
-    const diff = pv(y) - dirtyPrice;
-    if (Math.abs(diff) < 1e-10) break;
-    const deriv = dpv(y);
-    if (Math.abs(deriv) < 1e-15) break;
-    y -= diff / deriv;
-  }
-  return y;
+function nextBusinessDay(date, holidaySet) {
+  const d = new Date(date.getTime());
+  do {
+    d.setDate(d.getDate() + 1);
+  } while (d.getDay() === 0 || d.getDay() === 6 || holidaySet.has(toIsoDate(d)));
+  return d;
 }
 
 let rawYieldsData = null;
 let rawRefCpiData = null;
+let rawHolidayData = null;
+let holidaySet = new Set();
 let brokerPrices = null;
 
 async function init() {
   const statusEl = document.getElementById('status');
   
   try {
-    const [yieldsRes, refCpiRes] = await Promise.all([
+    const [yieldsRes, refCpiRes, holidayRes] = await Promise.all([
       fetch(YIELDS_CSV_URL).catch(e => ({ ok: false, error: e })),
-      fetch(REF_CPI_CSV_URL).catch(e => ({ ok: false, error: e }))
+      fetch(REF_CPI_CSV_URL).catch(e => ({ ok: false, error: e })),
+      fetch(HOLIDAYS_CSV_URL).catch(e => ({ ok: false, error: e }))
     ]);
 
     if (!yieldsRes.ok) throw new Error(`Failed to fetch yields: ${yieldsRes.status}`);
     if (!refCpiRes.ok) throw new Error(`Failed to fetch Ref CPI: ${refCpiRes.status}`);
+    if (!holidayRes.ok) throw new Error(`Failed to fetch bond holidays: ${holidayRes.status}`);
 
     rawYieldsData = parseCsv(await yieldsRes.text());
     rawRefCpiData = parseCsv(await refCpiRes.text());
+    
+    // Parse holidays: "Wednesday, January 1, 2025", New Year's...
+    const holidayRows = parseCsv(await holidayRes.text(), false);
+    holidaySet = new Set();
+    holidayRows.forEach(row => {
+      const datePart = row[0].split(',').slice(1).join(',').trim(); // " January 1, 2025"
+      const d = new Date(datePart);
+      if (!isNaN(d.getTime())) {
+        holidaySet.add(toIsoDate(d));
+      }
+    });
 
     processAndRender();
 
@@ -218,12 +181,15 @@ function processAndRender() {
     let price = parseFloat(bond.price);
     let settleDateStr = bond.settlementDate;
 
+    // Settlement Date Logic:
+    // FedInvest prices: settlement date = date prices published (T)
+    // Broker CSVs: settlement date is T+1
     if (brokerPrices && brokerPrices.has(bond.cusip)) {
       price = brokerPrices.get(bond.cusip);
-      const today = new Date();
-      const tPlus1 = new Date(today);
-      tPlus1.setDate(today.getDate() + 1);
-      settleDateStr = tPlus1.toISOString().split('T')[0];
+      // For broker prices, we shift settlement to T+1 relative to the FedInvest data date
+      const fedSettleDate = localDate(bond.settlementDate);
+      const tPlus1 = nextBusinessDay(fedSettleDate, holidaySet);
+      settleDateStr = toIsoDate(tPlus1);
     }
 
     const mmddSettle = settleDateStr.slice(5, 10);
@@ -234,8 +200,8 @@ function processAndRender() {
 
     if (!saSettle || !saMature) return null;
 
-    const askYield = yieldFromPrice(price, coupon, settleDateStr, bond.maturity);
-    const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, settleDateStr, bond.maturity);
+    const askYield = yieldFromPrice(price, coupon, localDate(settleDateStr), localDate(bond.maturity));
+    const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, localDate(settleDateStr), localDate(bond.maturity));
 
     return { ...bond, coupon, price, askYield, saYield, maturityDate: localDate(bond.maturity) };
   }).filter(b => b !== null).sort((a, b) => a.maturityDate - b.maturityDate);

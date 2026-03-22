@@ -159,7 +159,7 @@ test('build: pre-ladder interest zeroes early years and all row amounts stay nea
   const rows = page.locator('#build-table tbody tr:not(.excess-subrow)');
   const rowCount = await rows.count();
   for (let i = 0; i < rowCount; i++) {
-    const amtText = await rows.nth(i).locator('td').nth(3).textContent();
+    const amtText = await rows.nth(i).locator('td').nth(4).textContent();
     const amt = parseFloat((amtText ?? '').replace(/[^0-9.-]/g, ''));
     if (!isNaN(amt) && amt > 0) {
       expect(amt, `Row ${i} amount ${amt} is unexpectedly low (pre-ladder credit missing?)`).toBeGreaterThan(40000);
@@ -271,7 +271,7 @@ test('build: DARA $2,000 either renders table or shows DARA-too-low error with n
     const rows = page.locator('#build-table tbody tr:not(.excess-subrow)');
     const rowCount = await rows.count();
     for (let i = 0; i < rowCount; i++) {
-      const amtText = await rows.nth(i).locator('td').nth(3).textContent();
+      const amtText = await rows.nth(i).locator('td').nth(4).textContent();
       const amt = parseFloat((amtText ?? '').replace(/[^0-9.-]/g, ''));
       if (!isNaN(amt)) expect(amt, `Row ${i} amount ${amt} is negative`).toBeGreaterThanOrEqual(0);
     }
