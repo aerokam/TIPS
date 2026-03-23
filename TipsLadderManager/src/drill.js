@@ -113,7 +113,6 @@ export function buildDrillHTML(d, colKey, summary) {
       }
     }
 
-  // \u2500\u2500 Rebalance: Amount Before / After \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   } else if (colKey === 'amtBefore' || colKey === 'amtAfter') {
     const isBef       = colKey === 'amtBefore';
     const holdings    = (isBef ? d.araBeforeHoldings : d.araAfterHoldings) ?? [];
@@ -139,42 +138,34 @@ export function buildDrillHTML(d, colKey, summary) {
       + row('Surplus / Deficit', (isBef ? 'Amount Before' : 'Amount After') + ' \u2212 <span class="formula-var" data-source="dara">DARA</span>',
             (araTotal - DARA >= 0 ? '+' : '') + Math.round(araTotal - DARA).toLocaleString('en-US'));
 
-  // \u2500\u2500 Rebalance: Qty After \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
-  } else if (colKey === 'qtyAfter') {
-    const totalQty = d.qtyAfter;
-    const _DARA    = d.DARA ?? summary?.DARA;
-    rows = bondVarRows(d, nPeriods, principalPerBond, couponPct) + sep()
-      + row('Cost per bond', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb');
-    if (d.isBracketTarget) {
+  // \u2500\u2500 Rebalance: Qty Before / After \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  } else if (colKey === 'qtyAfter' || colKey === 'qtyBefore' || colKey === 'qty') {
+    const isBef = colKey === 'qtyBefore';
+    const totalQty = isBef ? d.qtyBefore : (d.qtyAfter ?? d.qty);
+    const fyQty    = isBef ? d.fundedYearQtyBefore : (d.fundedYearQtyAfter ?? d.fundedYearQty);
+    const exQty    = isBef ? d.excessQtyBefore : (d.excessQtyAfter ?? d.excessQty);
+    const cpbReal  = (d.price / 100) * 1000;
+
+    rows = row('Funded year portion', 'Units needed for this year\'s DARA target', fyQty)
+         + row('Excess portion', d.isBracketTarget ? 'Units held for gap duration matching' : 'No excess held', exQty);
+
+    if (d.isBracketTarget && !isBef) {
+      const is3B = summary.bracketMode === '3bracket';
+      const weight = is3B
+        ? (d.fundedYear === summary.lowerYear ? summary.origLowerWeight : (d.fundedYear === summary.newLowerYear ? summary.newLowerWeight3 : summary.upperWeight3))
+        : (d.fundedYear === summary.lowerYear ? summary.lowerWeight : summary.upperWeight);
+      const targetExCost = (summary.gapParams?.totalCost ?? 0) * (weight ?? 0);
+
       rows += sep()
-        + row('Funded Year target qty', 'from rebalance algorithm', d.fundedYearQty + ' bonds')
-        + row('Excess cost to deploy', '', fm(d.excessQtyAfter * d.costPerBond))
-        + row('Cost per bond', '', fm2(d.costPerBond), false, undefined, 'cpb')
-        + row('Excess bonds', 'round(excess cost \xf7 cost per $1k)', d.excessQtyAfter + ' bonds')
-        + sep()
-        + row('Total qty', 'FY target + excess bonds', totalQty + ' bonds', true);
-    } else if (d.qtyAfter !== d.qtyBefore) {
-      const piPB = principalPerBond * (1 + d.coupon / 2 * nPeriods);
-      const lmi  = d.araAfterLaterMatInt ?? 0;
-      const net  = _DARA - lmi;
-      rows = row('Ref CPI', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi')
-        + row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi')
-        + row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir')
-        + row('Par Value per TIPS', '1,000 \xd7 <span class="formula-var" data-source="ir">index ratio</span>', fd(principalPerBond, 2), false, undefined, 'ppb')
-        + row('Coupon per period', 'annual coupon / 2', couponPct, false, undefined, 'cpp')
-        + row('Coupon periods in FY', '', nPeriods === 1 ? '1 semi-annual (' + MONTHS[new Date(d.maturityStr).getMonth()] + ')' : '2 (' + MONTHS[(new Date(d.maturityStr).getMonth() - 6 + 12) % 12] + ' + ' + MONTHS[new Date(d.maturityStr).getMonth()] + ')', false, undefined, 'cp')
-        + sep()
-        + row('P+I per bond', '<span class="formula-var" data-source="ppb">par value/bond</span> \xd7 (1 + <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span>)', fm2(piPB), false, undefined, 'pipb')
-        + sep()
-        + row('DARA', '', fm(_DARA), false, undefined, 'dara')
-        + row('Later mat int', 'from TIPS maturing after FY', fm(lmi), false, undefined, 'lmi')
-        + row('Net needed', '<span class="formula-var" data-source="dara">DARA</span> \u2212 <span class="formula-var" data-source="lmi">Later mat int</span>', fm(net))
-        + sep()
-        + row('Target FY qty', 'round(Net needed \xf7 <span class="formula-var" data-source="pipb">P+I per bond</span>)', totalQty + ' bonds', true);
-    } else {
-      rows += sep()
-        + row('Qty', 'unchanged from current holdings', totalQty + ' bonds', true, undefined, 'qty');
+        + row('Gap total cost (Real)', 'Total $ needed to fund gap rungs', fm(summary.gapParams?.totalCost ?? 0), false, undefined, 'gtc')
+        + row('Bracket weight', 'from <a class="info-link" data-popup="duration" style="border-bottom:1px dotted #94a3b8;color:inherit;text-decoration:none;">Duration Calcs</a>', (weight ?? 0).toFixed(4), false, undefined, 'bw')
+        + row('Target excess cost', '<span class="formula-var" data-source="gtc">Gap total cost</span> \xd7 <span class="formula-var" data-source="bw">Bracket weight</span>', fm(targetExCost), false, undefined, 'tec')
+        + row('Cost per TIPS (Real)', 'price/100 \xd7 1,000', fm2(cpbReal), false, undefined, 'cpbr')
+        + row('Excess portion', 'round(<span class="formula-var" data-source="tec">Target cost</span> \u00f7 <span class="formula-var" data-source="cpbr">Cost per TIPS</span>)', exQty, true);
     }
+
+    rows += sep()
+      + row(isBef ? 'Quantity Before' : 'Quantity After', 'Funded year portion + Excess portion', totalQty, true);
 
   // \u2500\u2500 Rebalance: Cash Delta \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   } else if (colKey === 'cashDelta') {
