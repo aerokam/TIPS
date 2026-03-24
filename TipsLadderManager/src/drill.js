@@ -155,13 +155,19 @@ export function buildDrillHTML(d, colKey, summary) {
         ? (d.fundedYear === summary.lowerYear ? summary.origLowerWeight : (d.fundedYear === summary.newLowerYear ? summary.newLowerWeight3 : summary.upperWeight3))
         : (d.fundedYear === summary.lowerYear ? summary.lowerWeight : summary.upperWeight);
       const targetExCost = (summary.gapParams?.totalCost ?? 0) * (weight ?? 0);
+      const piPerBond = principalPerBond * (1 + d.coupon / 2 * nPeriods);
 
       rows += sep()
-        + row('Gap total cost (Real)', 'Total $ needed to fund gap rungs', fm(summary.gapParams?.totalCost ?? 0), false, undefined, 'gtc')
+        + row('Gap total cost (Real)', 'Total face value needed for gap rungs', fm(summary.gapParams?.totalCost ?? 0), false, undefined, 'gtc')
         + row('Bracket weight', 'from <a class="info-link" data-popup="duration" style="border-bottom:1px dotted #94a3b8;color:inherit;text-decoration:none;">Duration Calcs</a>', (weight ?? 0).toFixed(4), false, undefined, 'bw')
         + row('Target excess cost', '<span class="formula-var" data-source="gtc">Gap total cost</span> \xd7 <span class="formula-var" data-source="bw">Bracket weight</span>', fm(targetExCost), false, undefined, 'tec')
         + row('Cost per TIPS (Real)', 'price/100 \xd7 1,000', fm2(cpbReal), false, undefined, 'cpbr')
-        + row('Excess portion', 'round(<span class="formula-var" data-source="tec">Target cost</span> \u00f7 <span class="formula-var" data-source="cpbr">Cost per TIPS</span>)', exQty, true);
+        + row('Excess portion', 'round(<span class="formula-var" data-source="tec">Target cost</span> \u00f7 <span class="formula-var" data-source="cpbr">Cost per TIPS</span>)', exQty, true)
+        + sep()
+        + bondVarRows(d, nPeriods, principalPerBond, couponPct)
+        + sep()
+        + row('P+I per TIPS', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 (1 + <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span>)', fm2(piPerBond), false, undefined, 'pipb')
+        + row('Excess Amount After', '<span class="formula-var" data-source="qty">Excess Quantity</span> \xd7 <span class="formula-var" data-source="pipb">P+I per TIPS</span>', fm(exQty * piPerBond), true);
     }
 
     rows += sep()

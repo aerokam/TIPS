@@ -56,7 +56,7 @@ export function buildTipsMapFromYields(yieldsRows) {
   return map;
 }
 
-function identifyBrackets(gapYears, holdings, yearInfo, tipsMap) {
+function identifyBrackets(gapYears, holdings, yearInfo, tipsMap, araByYear, DARA) {
   if (gapYears.length === 0) return { lowerCUSIP: null, lowerYear: null, lowerMaturity: null, upperCUSIP: null, upperYear: null, upperMaturity: null };
   const minGapYear = Math.min(...gapYears);
   const upperYear = 2040;
@@ -72,18 +72,17 @@ function identifyBrackets(gapYears, holdings, yearInfo, tipsMap) {
     cusipTotals.set(h.cusip, (cusipTotals.get(h.cusip) ?? 0) + h.qty);
   }
 
-  let maxQty = -1, lowerCUSIP = null, lowerYear = null, lowerMaturity = null;
+  let maxExcess = -Infinity, lowerCUSIP = null, lowerYear = null, lowerMaturity = null;
 
   for (const [cusip, totalQty] of cusipTotals.entries()) {
     const bond = tipsMap.get(cusip);
     if (!bond || !bond.maturity) continue;
     const y = bond.maturity.getFullYear();
-    const m = bond.maturity.getMonth() + 1;
-    // Exclude Jan TIPS of minGapYear-1 because that is reserved for the NEW lower bracket in 3-bracket mode
-    if (y >= LOWEST_LOWER_BRACKET_YEAR && y < minGapYear) {
-      if (y === minGapYear - 1 && m === 1) continue; 
-      if (totalQty > maxQty) {
-        maxQty = totalQty; lowerCUSIP = cusip; lowerYear = y; lowerMaturity = bond.maturity;
+    if (y >= LOWEST_LOWER_BRACKET_YEAR && y < minGapYear && totalQty > 0) {
+      // Metric: Excess ARA. The bracket is the bond with the most spare capacity (ARA >> DARA).
+      const excess = (araByYear[y] || 0) - DARA;
+      if (excess > maxExcess || (excess === maxExcess && totalQty > (cusipTotals.get(lowerCUSIP) || -1))) {
+        maxExcess = excess; lowerCUSIP = cusip; lowerYear = y; lowerMaturity = bond.maturity;
       }
     }
   }
@@ -104,14 +103,14 @@ function bracketWeights(lowerDur, upperDur, dGap) {
 }
 
 function bracketWeights3(d1, d2, d3, dGap, currentExcessCost1, gapTotalCost) {
-  if (gapTotalCost <= 0) return { origLowerWeight: 0, newLowerWeight: 0, upperWeight: 0 };
+  if (gapTotalCost <= 0) return { origLowerWeight: 0, newLowerWeight: 0, upperWeight: 0, feasible: true };
   const w1 = currentExcessCost1 / gapTotalCost;
   const den = d2 - d3;
-  if (Math.abs(den) < 0.0001) return { origLowerWeight: w1, newLowerWeight: (1 - w1) / 2, upperWeight: (1 - w1) / 2 };
+  if (Math.abs(den) < 0.0001) return { origLowerWeight: w1, newLowerWeight: Math.max(0, 1 - w1) / 2, upperWeight: Math.max(0, 1 - w1) / 2, feasible: true };
   const w2_raw = (dGap - d3 + w1 * (d3 - d1)) / den;
   const w2 = Math.max(0, w2_raw);
-  const w3 = 1 - w1 - w2;
-  return { origLowerWeight: w1, newLowerWeight: w2, upperWeight: w3 };
+  const w3 = Math.max(0, 1 - w1 - w2);
+  return { origLowerWeight: w1, newLowerWeight: w2, upperWeight: w3, feasible: w2_raw >= 0 };
 }
 
 function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA, holdings, lastYear, isFullMode) {
@@ -202,10 +201,10 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
     const year  = bond.maturity.getFullYear();
     const month = bond.maturity.getMonth() + 1;
     if (year === minGapYear - 1 && month === 1) {
-      anchorBefore = { maturity: bond.maturity, yield: bond.yield };
+      anchorBefore = { maturity: bond.maturity, yield: bond.yield, baseCpi: bond.baseCpi };
     }
     if (year > maxGapYear && month === 2 && year < anchorAfterYear) {
-      anchorAfter = { maturity: bond.maturity, yield: bond.yield };
+      anchorAfter = { maturity: bond.maturity, yield: bond.yield, baseCpi: bond.baseCpi };
       anchorAfterYear = year;
     }
   }
@@ -228,7 +227,12 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
       if (parseInt(futYear) > year) sumLaterMaturityInterest += gapLaterMaturityInterest[futYear];
     }
 
-    const piPerBond = 1000 + 1000 * synCpn * 0.5;
+    // Interpolate Index Ratio for synthetic TIPS based on RefCPI/BaseCPI of anchors
+    const irBefore = refCPI / (anchorBefore.baseCpi || refCPI);
+    const irAfter  = refCPI / (anchorAfter.baseCpi || refCPI);
+    const syntheticIR = irBefore + (syntheticMat - anchorBefore.maturity) * (irAfter - irBefore) / (anchorAfter.maturity - anchorBefore.maturity);
+
+    const piPerBond = 1000 * syntheticIR + 1000 * syntheticIR * synCpn * 0.5;
     const qty = Math.round((DARA - sumLaterMaturityInterest) / piPerBond);
     
     // Gap total cost is the sum of market costs of all gap years.
@@ -354,7 +358,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
   const DARA         = dara !== null ? dara : inferredDARA;
 
   const gapParams = calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA, holdings, lastYear, isFullMode);
-  const brackets  = identifyBrackets(gapYears, holdings, yearInfo, tipsMap);
+  const brackets  = identifyBrackets(gapYears, holdings, yearInfo, tipsMap, araByYear, DARA);
   const lowerBond = brackets.lowerCUSIP ? tipsMap.get(brackets.lowerCUSIP) : null;
   const upperBond = brackets.upperCUSIP ? tipsMap.get(brackets.upperCUSIP) : null;
   const lowerDuration = brackets.lowerMaturity ? calculateMDuration(settlementDate, brackets.lowerMaturity, lowerBond?.coupon ?? 0, lowerBond?.yield ?? 0) : 0;
@@ -437,9 +441,22 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
     }
   }
 
-  const bracketExcessTargetCost = gapYears.length === 0 ? {}
-    : is3Bracket ? { [brackets.lowerYear]: gapParams.totalCost * (origLowerWeight ?? 0), [brackets.upperYear]: gapParams.totalCost * (upperWeight3 ?? 0), [newLowerYear]: gapParams.totalCost * (newLowerWeight3 ?? 0) }
-                 : { [brackets.lowerYear]: gapParams.totalCost * lowerWeight, [brackets.upperYear]: gapParams.totalCost * upperWeight };
+  const bracketExcessTargetCost = {};
+  if (gapYears.length > 0) {
+    if (is3Bracket) {
+      const w1 = origLowerWeight ?? 0, w2 = newLowerWeight3 ?? 0, w3 = upperWeight3 ?? 0;
+      bracketExcessTargetCost[brackets.lowerYear] = (bracketExcessTargetCost[brackets.lowerYear] || 0) + gapParams.totalCost * w1;
+      bracketExcessTargetCost[newLowerYear]       = (bracketExcessTargetCost[newLowerYear] || 0) + gapParams.totalCost * w2;
+      bracketExcessTargetCost[brackets.upperYear] = (bracketExcessTargetCost[brackets.upperYear] || 0) + gapParams.totalCost * w3;
+      // Update summary weights to reflect the sum if they share a year
+      if (brackets.lowerYear === newLowerYear) {
+        lowerWeight = w1 + w2;
+      }
+    } else {
+      bracketExcessTargetCost[brackets.lowerYear] = gapParams.totalCost * lowerWeight;
+      bracketExcessTargetCost[brackets.upperYear] = gapParams.totalCost * upperWeight;
+    }
+  }
 
   const buySellTargets = {};
   const nonTargetSells = {};

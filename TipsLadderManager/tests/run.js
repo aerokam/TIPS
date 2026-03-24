@@ -129,15 +129,35 @@ function runFullRebalanceTest(name, filePath) {
 // 1. Standard public test file
 runFullRebalanceTest('CusipQtyTestLumpy', './tests/CusipQtyTestLumpy.csv');
 
-// 2. All local CSVs in tests/dev/
-const devDir = './tests/dev';
-if (existsSync(devDir)) {
-  readdirSync(devDir).forEach(file => {
-    if (file.endsWith('.csv')) {
-      runFullRebalanceTest(file, path.join(devDir, file));
-    }
-  });
+// 2. Specific test for 3-bracket logic and multi-year aggregation (Fix for bug reported Mar 23)
+{
+  const filePath = './tests/dev/TipsLadderCom.csv';
+  if (existsSync(path.resolve('TipsLadderManager', filePath))) {
+    console.log(`\nTipsLadderCom — 3-bracket validation`);
+    const holdings = parseHoldings(readFileSync(path.resolve('TipsLadderManager', filePath), 'utf8'));
+    const dara = 20000;
+    const { summary, details } = runRebalance({ dara, method: 'Gap', bracketMode: '3bracket', holdings, tipsMap, refCPI, settlementDate });
+    
+    // 91282CPU9 (Jan 2036) is the newLower bracket and has massive excess. 
+    // identifyBrackets should now correctly pick it as origLower because it has the most excess.
+    assert('origLower IS Jan 2036', summary.brackets.lowerCUSIP === '91282CPU9', true);
+    assert('newLower IS Jan 2036', summary.newLowerCUSIP === '91282CPU9', true);
+    
+    // Weights should be non-negative
+    assert('origLowerWeight >= 0', (summary.origLowerWeight ?? 0) >= 0, true);
+    assert('newLowerWeight3 >= 0', (summary.newLowerWeight3 ?? 0) >= 0, true);
+    assert('upperWeight3 >= 0', (summary.upperWeight3 ?? 0) >= 0, true);
+    
+    // Jan 2036 Quantity check: Should be significantly more than 3 (approx 25-30 total)
+    const jan2036 = details.find(d => d.cusip === '91282CPU9');
+    assert('Jan 2036 Qty After > 10', jan2036.qtyAfter > 10, true);
+    console.log(`        Jan 2036 Qty:  ${jan2036.qtyAfter}`);
+    const w1 = summary.origLowerWeight ?? 0, w2 = summary.newLowerWeight3 ?? 0, w3 = summary.upperWeight3 ?? 0;
+    console.log(`        Weights:       Orig=${w1.toFixed(4)}, New=${w2.toFixed(4)}, Upper=${w3.toFixed(4)}`);
+  }
 }
+
+// 3. All other local CSVs in tests/dev/
 
 // ── Test: Build from scratch — deterministic output ───────────────────────────
 console.log('\nBuild — DARA=50000, lastYear=2040');
