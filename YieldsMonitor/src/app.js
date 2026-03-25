@@ -262,16 +262,16 @@ function createChartInstance(sym) {
               const ts = ticks[index]?.value ?? value;
               if (typeof ts !== 'number') return value;
               const date = new Date(ts);
-              const isIntraday = activeRange === '2D' || activeRange === '10D';
-              if (isIntraday) {
+              if (activeRange === '2D') {
                 return date.toLocaleString('en-US', {
                   timeZone: 'America/New_York', hourCycle: 'h23',
                   month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
                 });
               }
-              return date.toLocaleDateString('en-US', {
-                timeZone: 'America/New_York', month: 'short', day: 'numeric'
-              });
+              if (activeRange === '10D') {
+                return date.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+              }
+              return date.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', year: 'numeric' });
             }
           }
         },
@@ -592,7 +592,6 @@ async function updateAllData() {
   statusEl.textContent = `Updating data...`;
 
   const isIntraday = activeRange === '2D' || activeRange === '10D';
-  const shouldSlant = activeRange === '2D';
 
   const allSymbols = Object.keys(AVAILABLE_SYMBOLS);
   let successCount = 0;
@@ -615,13 +614,15 @@ async function updateAllData() {
 
       if (chart) {
         chart.data.datasets[0].data = data;
-        chart.options.scales.x.time.unit = isIntraday ? 'hour' : 'day';
+        chart.options.scales.x.time.unit = activeRange === '2D' ? 'hour' : activeRange === '10D' ? 'day' : 'month';
         chart.options.scales.x.time.tooltipFormat = isIntraday ? 'MM/dd/yy HH:mm:ss' : 'MM/dd/yy';
-        chart.options.scales.x.time.displayFormats = isIntraday
+        chart.options.scales.x.time.displayFormats = activeRange === '2D'
           ? { hour: 'MM/dd HH:mm', minute: 'HH:mm:ss', day: 'MMM dd' }
-          : { day: 'MMM dd', month: 'MMM yyyy', year: 'yyyy' };
-        chart.options.scales.x.ticks.minRotation = shouldSlant ? 45 : 0;
-        chart.options.scales.x.ticks.maxRotation = shouldSlant ? 45 : 0;
+          : activeRange === '10D'
+          ? { day: 'MMM dd' }
+          : { month: 'MMM yyyy', year: 'yyyy' };
+        chart.options.scales.x.ticks.minRotation = 0;
+        chart.options.scales.x.ticks.maxRotation = 45;
         updateDynamicTicks(chart, data);
         chart.update('none');
         chart.resetZoom();
