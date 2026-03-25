@@ -340,7 +340,7 @@ function buildUrl(symbol, timeRange) {
   return base + "?" + Object.entries(params).map(([k, v]) => k + "=" + encodeURIComponent(v)).join("&");
 }
 
-const R2_HISTORY_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/yield-history';
+const R2_HISTORY_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/yield-history';
 
 function parseSourceTime(tt) {
   if (!tt) return null;

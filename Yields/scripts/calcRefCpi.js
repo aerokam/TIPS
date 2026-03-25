@@ -6,7 +6,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.join(__dirname, '../../.env') });
 import { uploadToR2 } from './r2.js';
 
-const OBJECT_KEY = "TIPS/RefCpiNsaSa.csv";
+const OBJECT_KEY = "Treasuries/RefCpiNsaSa.csv";
 const CPI_CSV_URL = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/bls/CPI.csv";
 
 async function calcAndUploadRefCpi() {

@@ -2,7 +2,7 @@
 
 A free, browser-based tool for building and rebalancing [TIPS](https://www.treasurydirect.gov/marketable-securities/tips/) (Treasury Inflation-Protected Securities) ladders.
 
-**Live app:** https://aerokam.github.io/TIPS/TipsLadderManager/
+**Live app:** https://aerokam.github.io/Treasuries/TipsLadderManager/
 
 All calculations run locally in your browser — no data is uploaded anywhere.
 

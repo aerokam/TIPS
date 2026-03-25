@@ -9,7 +9,7 @@ A browser-based tool for analyzing **Seasonally Adjusted (SA)** and **SA Outlier
 - **SAO Trend Fitting**: See the institutional view of the yield curve via backwards-anchored linear regression.
 
 ## Getting Started
-- **Live Version**: [https://aerokam.github.io/TIPS/Yields/](https://aerokam.github.io/TIPS/Yields/)
+- **Live Version**: [https://aerokam.github.io/Treasuries/Yields/](https://aerokam.github.io/Treasuries/Yields/)
 - **Local Dev**:
   1. From the monorepo root: `npx serve .`
   2. Open `http://localhost:8080/Yields/` in your browser. (Note: Root serving is required for shared components).

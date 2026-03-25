@@ -28,11 +28,11 @@ To provide a suite of transparent, first-principles tools for managing inflation
   - YieldsMonitor: `http://localhost:8080/YieldsMonitor/`
   - TreasuryAuctions: `http://localhost:8080/TreasuryAuctions/`
 - **Production (GitHub Pages)**:
-  - Portal: `https://aerokam.github.io/TIPS/`
-  - TipsLadderManager: `https://aerokam.github.io/TIPS/TipsLadderManager/`
-  - Yields: `https://aerokam.github.io/TIPS/Yields/`
-  - YieldsMonitor: `https://aerokam.github.io/TIPS/YieldsMonitor/`
-  - TreasuryAuctions: `https://aerokam.github.io/TIPS/TreasuryAuctions/`
+  - Portal: `https://aerokam.github.io/Treasuries/`
+  - TipsLadderManager: `https://aerokam.github.io/Treasuries/TipsLadderManager/`
+  - Yields: `https://aerokam.github.io/Treasuries/Yields/`
+  - YieldsMonitor: `https://aerokam.github.io/Treasuries/YieldsMonitor/`
+  - TreasuryAuctions: `https://aerokam.github.io/Treasuries/TreasuryAuctions/`
 - **E2E Tests**: Configured for port 8080 at `127.0.0.1`.
 - **Shell (Win32)**: Use `;` instead of `&&` as a command separator in PowerShell.
 - **Git Workflow**: All changes should be automatically committed and pushed after implementation.

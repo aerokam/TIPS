@@ -102,7 +102,8 @@ function mergePoints(existing, incoming) {
 
 async function snap() {
   for (const sym of SYMBOLS) {
-    const r2Key = `TIPS/yield-history/${sym}_history.json`;
+    const r2Key = `Treasuries/yield-history/${sym}_history.json`;
+    const r2KeyOld = `TIPS/yield-history/${sym}_history.json`;
     console.log(`Updating ${sym}...`);
 
     // 1. Get Live 2D data (the "tip")
@@ -146,6 +147,7 @@ async function snap() {
       console.log(`  Appended ${newPoints.length} new points for ${sym}.`);
       
       await uploadToR2(r2Key, history);
+      await uploadToR2(r2KeyOld, history);
       fs.writeFileSync(path.join(DATA_DIR, `${sym}_history.json`), JSON.stringify(history, null, 2));
     } else {
       console.log(`  No new data to append.`);

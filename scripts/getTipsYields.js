@@ -279,7 +279,10 @@ async function main() {
   const lines = rows.map(r =>
     `${r.type},${r.cusip},${r.maturity},${r.coupon},${r.datedDateCpi},${r.price},${r.yield}`
   );
-  await uploadToR2('TIPS/Yields.csv', [settleDateStr, header, ...lines].join('\n') + '\n');
+  // Dual-write to both legacy TIPS/ and new Treasuries/ prefixes during migration
+  const content = [settleDateStr, header, ...lines].join('\n') + '\n';
+  await uploadToR2('Treasuries/Yields.csv', content);
+  await uploadToR2('TIPS/Yields.csv', content);
 
   const typeCounts = rows.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {});
   for (const [type, count] of Object.entries(typeCounts)) console.error(`  ${type}: ${count}`);

@@ -1,7 +1,7 @@
 # Treasury Investors Portal — Project Vision
 
 ## The Mission
-To provide the **Bogleheads.org** community with clear, free, and transparent tools for managing TIPS (Treasury Inflation-Protected Securities) portfolios. This is a contribution to the community's tradition of evidence-based investing, intended to replace "black box" financial tools with open, educational infrastructure.
+To provide the **Bogleheads.org** community with clear, free, and transparent tools for managing Treasury (specifically TIPS) portfolios. This is a contribution to the community's tradition of evidence-based investing, intended to replace "black box" financial tools with open, educational infrastructure.
 
 We don't just show results; we show the **work**.
 

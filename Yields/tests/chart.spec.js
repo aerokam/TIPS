@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Yield Curves Chart and UI', () => {
   test.beforeEach(async ({ page }) => {
     // Intercept CSV fetches to use mock data
-    await page.route('**/TIPS/Yields.csv', async route => {
+    await page.route('**/Treasuries/Yields.csv', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'text/csv',
@@ -15,7 +15,7 @@ test.describe('Yield Curves Chart and UI', () => {
       });
     });
 
-    await page.route('**/TIPS/RefCpiNsaSa.csv', async route => {
+    await page.route('**/Treasuries/RefCpiNsaSa.csv', async route => {
       await route.fulfill({
         status: 200,
         contentType: 'text/csv',

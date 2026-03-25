@@ -74,6 +74,7 @@ async function main() {
       `${r.cusip},${r.maturity},${r.datedDate},${r.coupon},${r.baseCpi},${r.term}`
     );
     const body = [header, ...lines].join('\n') + '\n';
+    await uploadToR2('Treasuries/TipsRef.csv', body);
     await uploadToR2('TIPS/TipsRef.csv', body);
   }
 }

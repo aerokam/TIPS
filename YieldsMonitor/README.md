@@ -17,4 +17,4 @@ For personal and educational use only. Data retrieved from public chart services
 - **knowledge/**: Documentation on data sources and calculation methodology.
 
 ## Getting Started
-To run locally, execute `npx serve .` from the root directory of the `TIPS` repository and navigate to the "Yields Monitor" card.
+To run locally, execute `npx serve .` from the root directory of the `Treasuries` repository and navigate to the "Yields Monitor" card.

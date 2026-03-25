@@ -15,7 +15,7 @@ A collection of free, open-source tools for the **Bogleheads** community to mana
 - **scripts/**: Root-level data-fetch scripts shared across projects.
 
 ## Web Interface
-- **Live Version**: [https://aerokam.github.io/TIPS/](https://aerokam.github.io/TIPS/)
+- **Live Version**: [https://aerokam.github.io/Treasuries/](https://aerokam.github.io/Treasuries/)
 
 ## Local Development
 To run the tools locally:

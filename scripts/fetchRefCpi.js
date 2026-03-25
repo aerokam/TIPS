@@ -72,6 +72,7 @@ async function main() {
     const header = 'date,refCpi';
     const lines = rows.map(r => `${r.date},${r.refCpi}`);
     const body = [header, ...lines].join('\n') + '\n';
+    await uploadToR2('Treasuries/RefCPI.csv', body);
     await uploadToR2('TIPS/RefCPI.csv', body);
   } else if (arg) {
     // Find exact match or nearest prior date

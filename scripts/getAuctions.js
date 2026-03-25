@@ -18,11 +18,11 @@ if (existsSync(_envPath)) {
 // Scheduled at 11:05 AM ET and 1:35 PM ET on weekdays.
 
 const FISCALDATA_URL = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query';
-const R2_KEY = 'TIPS/Auctions.csv';
+const R2_KEY = 'Treasuries/Auctions.csv';
 const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 
 // ── R2 upload ─────────────────────────────────────────────────────────────────
-async function uploadToR2(body) {
+async function uploadToR2(key, body) {
   const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
   const { CLOUDFLARE_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET } = process.env;
   if (!CLOUDFLARE_ACCOUNT_ID || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY || !R2_BUCKET)
@@ -34,9 +34,9 @@ async function uploadToR2(body) {
     credentials: { accessKeyId: R2_ACCESS_KEY_ID, secretAccessKey: R2_SECRET_ACCESS_KEY },
   });
 
-  await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: R2_KEY, Body: body, ContentType: 'text/csv' }));
+  await s3.send(new PutObjectCommand({ Bucket: R2_BUCKET, Key: key, Body: body, ContentType: 'text/csv' }));
   const rows = body.trim().split('\n').length - 1;
-  console.error(`Wrote ${rows} rows → R2 bucket "${R2_BUCKET}", key "${R2_KEY}"`);
+  console.error(`Wrote ${rows} rows → R2 bucket "${R2_BUCKET}", key "${key}"`);
 }
 
 // ── CSV parser ────────────────────────────────────────────────────────────────
@@ -135,7 +135,9 @@ async function main() {
 
   const headers = unionHeaders(existingHeaders, newHeaders);
   const merged = mergeRows(existingRows, newRows);
-  await uploadToR2(toCSV(headers, merged));
+  const csvBody = toCSV(headers, merged);
+  await uploadToR2('Treasuries/Auctions.csv', csvBody);
+  await uploadToR2('TIPS/Auctions.csv', csvBody);
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
