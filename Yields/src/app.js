@@ -25,6 +25,7 @@ let fidelityNominalsDate = null;  // download date string extracted from CSV foo
 let nominalsShowStrips = false;
 let chart = null;
 let chartTab = null;
+const savedZoom = { tips: null, treasuries: null };
 
 // CUSIP 6-char prefixes that identify STRIPS instruments
 const STRIPS_PREFIXES = new Set(['912803','912820','912821','912833','912834']);
@@ -744,10 +745,10 @@ function renderNominalsChart(fedBonds, fidBonds) {
   const dataRange = maxY - minY;
   const step = dataRange <= 0.5 ? 0.05 : dataRange <= 1.0 ? 0.1 : 0.25;
 
-  const prevZoom = (chart && chartTab === 'treasuries') ? {
+  if (chart && chartTab) savedZoom[chartTab] = {
     xMin: chart.scales.x.min, xMax: chart.scales.x.max,
     yMin: chart.scales.y.min, yMax: chart.scales.y.max
-  } : null;
+  };
   if (chart) chart.destroy();
   chartTab = 'treasuries';
   chart = new Chart(ctx, {
@@ -807,15 +808,17 @@ function renderNominalsChart(fedBonds, fidBonds) {
     }
   });
 
-  if (prevZoom) {
-    chart.options.scales.x.min = prevZoom.xMin;
-    chart.options.scales.x.max = prevZoom.xMax;
-    chart.options.scales.y.min = prevZoom.yMin;
-    chart.options.scales.y.max = prevZoom.yMax;
+  const z = savedZoom['treasuries'];
+  if (z) {
+    chart.options.scales.x.min = z.xMin;
+    chart.options.scales.x.max = z.xMax;
+    chart.options.scales.y.min = z.yMin;
+    chart.options.scales.y.max = z.yMax;
     chart.update('none');
   }
 
   document.getElementById('resetZoom').onclick = () => {
+    savedZoom['treasuries'] = null;
     chart.options.scales.x.min = minX;
     chart.options.scales.x.max = maxX;
     chart.update('none');
@@ -1021,10 +1024,10 @@ function renderChart(fedBonds, brokerBonds) {
   const minY = Math.floor(Math.min(...allY) * 4) / 4;
   const maxY = Math.ceil(Math.max(...allY) * 4) / 4;
 
-  const prevZoom = (chart && chartTab === 'tips') ? {
+  if (chart && chartTab) savedZoom[chartTab] = {
     xMin: chart.scales.x.min, xMax: chart.scales.x.max,
     yMin: chart.scales.y.min, yMax: chart.scales.y.max
-  } : null;
+  };
   if (chart) chart.destroy();
   chartTab = 'tips';
   chart = new Chart(ctx, {
@@ -1070,15 +1073,17 @@ function renderChart(fedBonds, brokerBonds) {
     }
   });
 
-  if (prevZoom) {
-    chart.options.scales.x.min = prevZoom.xMin;
-    chart.options.scales.x.max = prevZoom.xMax;
-    chart.options.scales.y.min = prevZoom.yMin;
-    chart.options.scales.y.max = prevZoom.yMax;
+  const z = savedZoom['tips'];
+  if (z) {
+    chart.options.scales.x.min = z.xMin;
+    chart.options.scales.x.max = z.xMax;
+    chart.options.scales.y.min = z.yMin;
+    chart.options.scales.y.max = z.yMax;
     chart.update('none');
   }
 
   document.getElementById('resetZoom').onclick = () => {
+    savedZoom['tips'] = null;
     chart.options.scales.x.min = minX;
     chart.options.scales.x.max = maxX;
     chart.update('none');
