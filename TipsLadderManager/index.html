@@ -8,6 +8,8 @@
   *, *::before, *::after { box-sizing: border-box; }
   body { font-family: system-ui, sans-serif; font-size: 13px; margin: 0; padding: 20px; color: #222; background: #fafafa; }
   h1 { font-size: 18px; margin: 0 0 16px; }
+  .portal-link { font-size: 11px; font-weight: 700; color: #475569; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 10px; text-decoration: none; letter-spacing: 0.02em; vertical-align: middle; margin-left: 4px; }
+  .portal-link:hover { background: #1e293b; color: #fff; border-color: #1e293b; }
 
   /* ── Mode toggle ── */
   .mode-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
@@ -109,7 +111,7 @@
         async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
-<h1>TIPS Ladder Manager <button id="help-btn" title="Help" style="font-size:11px;padding:2px 8px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:10px;font-weight:600;cursor:pointer;vertical-align:middle;margin-left:6px;">?</button></h1>
+<h1>TIPS Ladder Manager <a href="../" class="portal-link">&#8592; Portal</a> <button id="help-btn" title="Help" style="font-size:11px;padding:2px 8px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:10px;font-weight:600;cursor:pointer;vertical-align:middle;margin-left:6px;">?</button></h1>
 
 <!-- Help modal -->
 <div id="help-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;overflow-y:auto;">
