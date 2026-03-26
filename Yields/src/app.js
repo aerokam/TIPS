@@ -743,6 +743,10 @@ function renderNominalsChart(fedBonds, fidBonds) {
   const dataRange = maxY - minY;
   const step = dataRange <= 0.5 ? 0.05 : dataRange <= 1.0 ? 0.1 : 0.25;
 
+  const prevZoom = chart ? {
+    xMin: chart.scales.x.min, xMax: chart.scales.x.max,
+    yMin: chart.scales.y.min, yMax: chart.scales.y.max
+  } : null;
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
     type: 'line',
@@ -800,6 +804,14 @@ function renderNominalsChart(fedBonds, fidBonds) {
       }
     }
   });
+
+  if (prevZoom) {
+    chart.options.scales.x.min = prevZoom.xMin;
+    chart.options.scales.x.max = prevZoom.xMax;
+    chart.options.scales.y.min = prevZoom.yMin;
+    chart.options.scales.y.max = prevZoom.yMax;
+    chart.update('none');
+  }
 
   document.getElementById('resetZoom').onclick = () => {
     chart.options.scales.x.min = minX;
@@ -1007,6 +1019,10 @@ function renderChart(fedBonds, brokerBonds) {
   const minY = Math.floor(Math.min(...allY) * 4) / 4;
   const maxY = Math.ceil(Math.max(...allY) * 4) / 4;
 
+  const prevZoom = chart ? {
+    xMin: chart.scales.x.min, xMax: chart.scales.x.max,
+    yMin: chart.scales.y.min, yMax: chart.scales.y.max
+  } : null;
   if (chart) chart.destroy();
   chart = new Chart(ctx, {
     type: 'line',
@@ -1050,6 +1066,14 @@ function renderChart(fedBonds, brokerBonds) {
       }
     }
   });
+
+  if (prevZoom) {
+    chart.options.scales.x.min = prevZoom.xMin;
+    chart.options.scales.x.max = prevZoom.xMax;
+    chart.options.scales.y.min = prevZoom.yMin;
+    chart.options.scales.y.max = prevZoom.yMax;
+    chart.update('none');
+  }
 
   document.getElementById('resetZoom').onclick = () => {
     chart.options.scales.x.min = minX;
