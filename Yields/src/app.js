@@ -845,9 +845,7 @@ function renderNominalsChart(fedBonds, fidBonds) {
 
   document.getElementById('resetZoom').onclick = () => {
     savedZoom['treasuries'] = null;
-    chart.options.scales.x.min = minX;
-    chart.options.scales.x.max = maxX;
-    chart.update('none');
+    chart.resetZoom('none');
     rescaleToVisible(chart);
   };
 }
@@ -1115,9 +1113,7 @@ function renderChart(fedBonds, brokerBonds) {
 
   document.getElementById('resetZoom').onclick = () => {
     savedZoom['tips'] = null;
-    chart.options.scales.x.min = minX;
-    chart.options.scales.x.max = maxX;
-    chart.update('none');
+    chart.resetZoom('none');
     rescaleToVisible(chart);
   };
 }
@@ -1227,8 +1223,11 @@ document.getElementById('nominalsShowNone').onclick = (e) => {
 
 
 // Unified Source Change Handlers
-['chkTipsFed', 'chkTipsBroker', 'chkFedInvest', 'chkFidelity'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => processAndRender());
+['chkTipsFed', 'chkTipsBroker'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => { savedZoom['tips'] = null; processAndRender(); });
+});
+['chkFedInvest', 'chkFidelity'].forEach(id => {
+  document.getElementById(id).addEventListener('change', () => { savedZoom['treasuries'] = null; processAndRender(); });
 });
 
 document.getElementById('tableBody').addEventListener('click', (e) => {
