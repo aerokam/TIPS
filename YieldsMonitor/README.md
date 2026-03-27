@@ -17,4 +17,7 @@ For personal and educational use only. Data retrieved from public chart services
 - **knowledge/**: Documentation on data sources and calculation methodology.
 
 ## Getting Started
-To run locally, execute `npx serve .` from the root directory of the `Treasuries` repository and navigate to the "Yields Monitor" card.
+
+To get started, visit the [Treasury Investors Portal](https://aerokam.github.io/Treasuries/) and select the **Yields Monitor** tool, or go directly to the [Yields Monitor URL](https://aerokam.github.io/Treasuries/YieldsMonitor/).
+
+For local development, execute `npx serve .` from the root directory of the `Treasuries` repository and navigate to `http://localhost:8080/YieldsMonitor/`.
