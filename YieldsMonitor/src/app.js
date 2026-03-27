@@ -45,8 +45,11 @@ const TIME_RANGES = Object.keys(TIME_RANGE_MAP);
 const charts = {}; // symbol -> chartInstance
 const historyCache = {}; // symbol -> points (baseline from R2)
 const liveCache = {}; // symbol -> points (5D real-time tip)
+const rangeData = {}; // symbol -> filtered points for current active range
+const yieldCurveCharts = {}; // 'tips' | 'nominal' -> Chart.js instance
 let activeSymbols = new Set(['US10YTIPS', 'US30YTIPS', 'US10Y', 'US30Y']);
 let activeRange = '2D';
+let activeTab = 'timeseries';
 
 const SYMBOL_LABELS = {
   'US1M': '1-Month', 'US2M': '2-Month', 'US3M': '3-Month', 'US6M': '6-Month',
@@ -56,6 +59,7 @@ const SYMBOL_LABELS = {
 
 async function init() {
   setupUI();
+  setupTabs();
   syncChartContainers();
   updateAllData();
 
@@ -66,6 +70,24 @@ async function init() {
   window.addEventListener('keydown', (e) => {
     Object.values(charts).forEach(chart => {
       handleChartKeydown(e, chart);
+    });
+  });
+}
+
+function setupTabs() {
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      if (tab === activeTab) return;
+      activeTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+      document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${tab}`));
+      if (tab === 'yieldcurves') {
+        updateYieldCurves();
+        setTimeout(() => {
+          Object.values(yieldCurveCharts).forEach(c => c && c.resize());
+        }, 50);
+      }
     });
   });
 }
@@ -158,7 +180,7 @@ function setupUI() {
     });
   });
 
-  document.getElementById('refreshAll').addEventListener('click', updateAllData);
+  document.getElementById('refreshAll').addEventListener('click', () => updateAllData(true));
   document.getElementById('resetAllZoom').addEventListener('click', () => {
     Object.values(charts).forEach(c => c.resetZoom());
   });
@@ -433,19 +455,25 @@ async function fetchWithTimeout(url, options = {}, timeout = 8000) {
   }
 }
 
-async function fetchOne(symbol, range) {
+async function fetchOne(symbol, range, force = false) {
   const isIntraday = range === '2D' || range === '10D';
-  
+
   if (isIntraday) {
+    const providerRange = TIME_RANGE_MAP[range]; // '1D' or '5D'
+    const cacheKey = `${symbol}_${providerRange}`;
+    const cutoff = new Date();
+    if (range === '2D') cutoff.setDate(cutoff.getDate() - 2);
+    else cutoff.setDate(cutoff.getDate() - 10);
+
+    if (!force && liveCache[cacheKey]) {
+      return liveCache[cacheKey].filter(p => p.x >= cutoff);
+    }
+
     console.log(`%c[CNBC] %cFetching real-time ${range} for ${symbol}`, "color: #2563eb; font-weight: bold", "color: inherit");
     const live = await fetchLive(symbol, range);
-    
+
     if (live && live.length > 0) {
-      if (range === '2D' || range === '10D') liveCache[symbol] = live; // Update tip cache
-      
-      const cutoff = new Date();
-      if (range === '2D') cutoff.setDate(cutoff.getDate() - 2);
-      else if (range === '10D') cutoff.setDate(cutoff.getDate() - 10);
+      liveCache[cacheKey] = live;
       return live.filter(p => p.x >= cutoff);
     }
     return live;
@@ -453,13 +481,14 @@ async function fetchOne(symbol, range) {
     // Baseline from R2 + Live Tip from CNBC
     console.log(`%c[R2] %cLoading history for ${symbol}...`, "color: #ea580c; font-weight: bold", "color: inherit");
     const history = await fetchHistory(symbol);
-    
-    // Reuse live tip if available, else fetch once
-    let liveTip = liveCache[symbol];
-    if (!liveTip) {
+
+    // Reuse 1D live tip if cached, else fetch once
+    const tipKey = `${symbol}_1D`;
+    let liveTip = liveCache[tipKey];
+    if (!liveTip || force) {
       console.log(`%c[CNBC] %cFetching tip for ${symbol}...`, "color: #2563eb; font-weight: bold", "color: inherit");
-      liveTip = await fetchLive(symbol, '2D'); 
-      if (liveTip) liveCache[symbol] = liveTip;
+      liveTip = await fetchLive(symbol, '2D');
+      if (liveTip) liveCache[tipKey] = liveTip;
     }
 
     let combined = history || [];
@@ -590,7 +619,7 @@ function updateDynamicTicks(chart, data) {
   }
 }
 
-async function updateAllData() {
+async function updateAllData(force = false) {
   const statusEl = document.getElementById('fetchStatus');
   statusEl.textContent = `Updating data...`;
 
@@ -601,9 +630,11 @@ async function updateAllData() {
   const currentFetchTimestamps = []; // Only use times from this specific update cycle
   
   const promises = allSymbols.map(async sym => {
-    const data = await fetchOne(sym, activeRange);
+    const data = await fetchOne(sym, activeRange, force);
     const chart = charts[sym];
     const card = document.getElementById(`card-${sym}`);
+
+    rangeData[sym] = data;
 
     if (data && data.length > 0) {
       successCount++;
@@ -692,6 +723,8 @@ async function updateAllData() {
 
   await Promise.all(promises);
 
+  if (activeTab === 'yieldcurves') updateYieldCurves();
+
   const now = new Date();
   const formatTZ = (date, tz, label, includeDate = false) => {
     const opts = { timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' };
@@ -715,6 +748,139 @@ async function updateAllData() {
   }
 
   statusEl.innerHTML = statusHtml;
+}
+
+const TIPS_SYMBOLS = Object.keys(AVAILABLE_SYMBOLS).filter(s => s.endsWith('TIPS')).sort((a, b) => MATURITY_ORDER[a] - MATURITY_ORDER[b]);
+const NOMINAL_SYMBOLS = Object.keys(AVAILABLE_SYMBOLS).filter(s => !s.endsWith('TIPS')).sort((a, b) => MATURITY_ORDER[a] - MATURITY_ORDER[b]);
+
+function formatYcTimestamp(d) {
+  if (!d) return '—';
+  return d.toLocaleString('en-US', {
+    timeZone: 'America/New_York', hourCycle: 'h23',
+    month: '2-digit', day: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  }) + ' ET';
+}
+
+function updateYieldCurves() {
+  buildOrUpdateYieldCurveChart('yield-curve-tips', 'tips', TIPS_SYMBOLS);
+  buildOrUpdateYieldCurveChart('yield-curve-nominal', 'nominal', NOMINAL_SYMBOLS);
+}
+
+function buildOrUpdateYieldCurveChart(canvasId, key, syms) {
+  const labels = syms.map(sym => SYMBOL_LABELS[sym]);
+
+  // Collect start (first) and end (last) yield per symbol
+  let startTime = null, endTime = null;
+  const startData = syms.map(sym => {
+    const data = rangeData[sym];
+    if (!data || data.length === 0) return null;
+    const pt = data[0];
+    if (!startTime || pt.x < startTime) startTime = pt.x;
+    return pt.y;
+  });
+  const endData = syms.map(sym => {
+    const data = rangeData[sym];
+    if (!data || data.length === 0) return null;
+    const pt = data[data.length - 1];
+    if (!endTime || pt.x > endTime) endTime = pt.x;
+    return pt.y;
+  });
+
+  const startLabel = formatYcTimestamp(startTime);
+  const endLabel = formatYcTimestamp(endTime);
+
+  if (yieldCurveCharts[key]) {
+    const chart = yieldCurveCharts[key];
+    chart.data.labels = labels;
+    chart.data.datasets[0].data = startData;
+    chart.data.datasets[0].label = startLabel;
+    chart.data.datasets[1].data = endData;
+    chart.data.datasets[1].label = endLabel;
+    chart.update();
+    return;
+  }
+
+  const ctx = document.getElementById(canvasId).getContext('2d');
+  yieldCurveCharts[key] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: startLabel,
+          data: startData,
+          borderColor: '#1a56db',
+          backgroundColor: '#1a56db22',
+          borderWidth: 2,
+          borderDash: [6, 3],
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: false,
+          tension: 0.3,
+          spanGaps: true
+        },
+        {
+          label: endLabel,
+          data: endData,
+          borderColor: '#dc2626',
+          backgroundColor: '#dc262622',
+          borderWidth: 2,
+          borderDash: [],
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          fill: false,
+          tension: 0.3,
+          spanGaps: true
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      scales: {
+        x: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 10, weight: 'bold' }, color: '#000' }
+        },
+        y: {
+          grid: { color: '#f1f5f9' },
+          ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' }
+        }
+      },
+      plugins: {
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { font: { size: 10, weight: 'bold' }, color: '#000', usePointStyle: true, padding: 12 }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.95)',
+          titleColor: '#64748b',
+          titleFont: { size: 11, weight: 'bold' },
+          bodyColor: '#000',
+          borderColor: '#cbd5e1',
+          borderWidth: 1,
+          padding: 8,
+          bodyFont: { size: 12, weight: 'bold' },
+          cornerRadius: 6,
+          callbacks: {
+            title: items => items[0]?.label || '',
+            label: ctx => {
+              const v = ctx.parsed.y;
+              return `${ctx.dataset.label}: ${v != null ? v.toFixed(3) + '%' : 'N/A'}`;
+            }
+          }
+        },
+        zoom: {
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy' },
+          pan: { enabled: true, mode: 'xy' }
+        },
+        annotation: { annotations: {} }
+      }
+    }
+  });
 }
 
 window.addEventListener('DOMContentLoaded', init);

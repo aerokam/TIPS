@@ -25,7 +25,19 @@
   .sidebar { width: 300px; background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
   
   /* Content Area with Row Containers */
-  .content { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; min-width: 0; padding-right: 4px; }
+  .content { flex: 1; display: flex; flex-direction: column; gap: 0; min-width: 0; padding-right: 4px; min-height: 0; }
+
+  .tab-bar { display: flex; gap: 2px; flex-shrink: 0; border-bottom: 2px solid #b6c3d4; padding: 0 2px; align-items: flex-end; }
+  .tab-btn { padding: 5px 20px 6px; font-size: 12px; font-weight: 600; border: 2px solid transparent; border-bottom: none; background: #d1dce9; color: #64748b; cursor: pointer; border-radius: 7px 7px 0 0; position: relative; bottom: -2px; white-space: nowrap; transition: background 0.1s, color 0.1s; }
+  .tab-btn.active { background: #f1f5f9; color: #0f172a; font-weight: 700; border-color: #b6c3d4; border-bottom-color: #f1f5f9; }
+  .tab-btn:hover:not(.active) { background: #c4d1e0; color: #334155; }
+  .tab-panel { display: none; flex: 1; min-height: 0; flex-direction: column; gap: 10px; padding-top: 10px; overflow-y: auto; }
+  .tab-panel.active { display: flex; }
+
+  .yield-curve-section { display: flex; gap: 10px; flex: 1; min-height: 0; min-width: 0; }
+  .yield-curve-card { background: #fff; border: 1px solid #cbd5e1; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; flex: 1; min-height: 0; min-width: 0; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+  .yield-curve-card .yc-title { font-size: 12px; font-weight: 800; color: #000; margin-bottom: 6px; flex-shrink: 0; }
+  .yield-curve-container { flex: 1; position: relative; min-height: 0; min-width: 0; }
   
   .row-section { display: flex; flex-direction: column; gap: 4px; min-height: 0; flex: 1; overflow: hidden; }
   .row-title { font-size: 10px; font-weight: 800; color: #334155; text-transform: uppercase; margin-left: 5px; letter-spacing: 0.05em; flex-shrink: 0; }
@@ -87,13 +99,31 @@
     </div>
     
     <div class="content">
-      <div class="row-section" id="tips-section">
-        <span class="row-title">TIPS Yields</span>
-        <div class="chart-row" id="tips-row"></div>
+      <div class="tab-bar">
+        <button class="tab-btn active" data-tab="timeseries">Time Series</button>
+        <button class="tab-btn" data-tab="yieldcurves">Yield Curves</button>
       </div>
-      <div class="row-section" id="nominals-section">
-        <span class="row-title">Treasury Yields</span>
-        <div class="chart-row" id="nominals-row"></div>
+      <div id="tab-timeseries" class="tab-panel active">
+        <div class="row-section" id="tips-section">
+          <span class="row-title">TIPS Yields</span>
+          <div class="chart-row" id="tips-row"></div>
+        </div>
+        <div class="row-section" id="nominals-section">
+          <span class="row-title">Treasury Yields</span>
+          <div class="chart-row" id="nominals-row"></div>
+        </div>
+      </div>
+      <div id="tab-yieldcurves" class="tab-panel">
+        <div class="yield-curve-section">
+          <div class="yield-curve-card">
+            <div class="yc-title">TIPS Yield Curve</div>
+            <div class="yield-curve-container"><canvas id="yield-curve-tips"></canvas></div>
+          </div>
+          <div class="yield-curve-card">
+            <div class="yc-title">Treasury Yield Curve</div>
+            <div class="yield-curve-container"><canvas id="yield-curve-nominal"></canvas></div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
