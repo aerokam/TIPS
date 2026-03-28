@@ -4,8 +4,7 @@ on:
   push:
     branches: [ main ]
   schedule:
-    - cron: '0 16 * * 1-5'   # primary: noon EDT / 1:00 PM EST  (fires ~1 PM EDT due to GH lag)
-    - cron: '0 17 * * 1-5'   # fallback: 1:00 PM EDT / 2:00 PM EST (fires ~2 PM EDT due to GH lag)
+    - cron: '5 18 * * 1-5'   # 1:05 PM EST / 2:05 PM EDT — after FedInvest ~1 PM ET publish; script skips holidays
   workflow_dispatch:
 
 jobs:

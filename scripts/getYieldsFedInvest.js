@@ -15,9 +15,9 @@ if (existsSync(_envPath)) {
 // Writes Yields.csv to R2: row 1 = settlement date, row 2 = header, rows 3+ = data.
 //
 // Usage: node getYieldsFedInvest.js
-// Prices published once daily at ~1pm ET on FedInvest; scheduled jobs run at noon and 1:00 PM EDT
-// (UTC 16:00 and 17:00). Due to GH Actions lag (~60 min), they fire around 1 PM and 2 PM EDT.
-// If the noon job fires before FedInvest updates, it exits cleanly; the 1 PM fallback catches it.
+// Prices published once daily at ~1pm ET on FedInvest; scheduled job runs at 18:05 UTC
+// (1:05 PM EST / 2:05 PM EDT). Skips cleanly on bond market holidays and when prices
+// are not yet available.
 
 const FEDINVEST_URL = 'https://www.treasurydirect.gov/GA-FI/FedInvest/todaySecurityPriceDetail';
 
@@ -75,6 +75,12 @@ async function fetchPrices() {
   if (!htmlRes.ok) throw new Error(`FedInvest HTML HTTP ${htmlRes.status}`);
   if (!csvRes.ok)  throw new Error(`FedInvest CSV HTTP ${csvRes.status}`);
   const [html, text] = await Promise.all([htmlRes.text(), csvRes.text()]);
+
+  // No "Prices For:" in the page means prices aren't published yet (weekend, holiday, before 1 PM ET)
+  if (!html.includes('Prices For:')) {
+    console.error('FedInvest: prices not available.');
+    return null;
+  }
 
   // Handle both "2026 Mar 23" and "Mar 23, 2026" formats
   const m1 = html.match(/Prices For:\s+(\d{4})\s+(\w{3})\s+(\d+)/);
@@ -227,7 +233,30 @@ function yieldFromPrice(cleanPrice, coupon, settleDateStr, maturityStr) {
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS';
+  const R2_BASE = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
+  const R2_BASE_URL = `${R2_BASE}/TIPS`;
+
+  // Check bond market holidays — skip cleanly on non-trading days
+  const today = todayET();
+  const holidayRes = await fetch(`${R2_BASE}/misc/BondHolidaysSifma.csv`);
+  if (holidayRes.ok) {
+    const holidayText = await holidayRes.text();
+    // CSV format: "Day, Month DD, YYYY",Holiday Name — parse ISO date from full date string
+    const holidays = new Set(
+      holidayText.trim().split('\n')
+        .map(line => {
+          const m = line.match(/"[^,]+,\s+(\w+ \d+, \d{4})"/);
+          if (!m) return null;
+          const d = new Date(m[1]);
+          return isNaN(d) ? null : d.toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+        })
+        .filter(Boolean)
+    );
+    if (holidays.has(today)) {
+      console.error(`Bond market holiday (${today}) — no FedInvest prices today.`);
+      return;
+    }
+  }
 
   // Read TipsRef.csv for TIPS dated-date CPI / coupon / maturity metadata
   console.error('Fetching TipsRef.csv from R2...');
@@ -246,13 +275,13 @@ async function main() {
 
   // Fetch FedInvest prices (today's latest available)
   console.error('Fetching prices from FedInvest...');
-  const { rows: priceRows, settleDateStr } = await fetchPrices();
+  const priceResult = await fetchPrices();
+  if (priceResult === null) return; // weekend/holiday — clean exit
+  const { rows: priceRows, settleDateStr } = priceResult;
   if (priceRows.length === 0) throw new Error('No price data found from FedInvest');
   console.error(`Settlement date: ${settleDateStr}`);
 
   // Guard: if FedInvest hasn't updated yet (still showing yesterday), skip upload.
-  // The fallback cron will retry ~1 hour later when today's prices are available.
-  const today = todayET();
   if (settleDateStr !== today) {
     console.error(`FedInvest still showing ${settleDateStr} (today is ${today} ET) — skipping upload.`);
     return;
