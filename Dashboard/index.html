@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury Admin</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; font-size: 13px; margin: 0; padding: 15px 15px 220px; color: #0f172a; background: #f1f5f9; }
+
+  header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+  header h1 { font-size: 18px; margin: 0; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+  .fetched-at { font-size: 11px; color: #64748b; }
+
+  .section { margin-bottom: 18px; }
+  .section-title { font-size: 10px; font-weight: 800; color: #334155; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+
+  /* ── App Grid ── */
+  .app-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; }
+
+  /* ── App Card ── */
+  .app-card { background: #fff; border: 2px solid #cbd5e1; border-radius: 8px; padding: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .app-card.stale  { border-color: #f59e0b; }
+  .app-card.error  { border-color: #ef4444; }
+  .app-card.fresh  { border-color: #22c55e; }
+
+  .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+  .card-title  { display: flex; align-items: center; gap: 7px; }
+  .card-name   { font-size: 14px; font-weight: 800; }
+  .card-desc   { font-size: 11px; color: #475569; line-height: 1.45; margin: 0 0 12px; }
+
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; flex-shrink: 0; }
+  .status-dot.fresh { background: #22c55e; }
+  .status-dot.stale { background: #f59e0b; }
+  .status-dot.error { background: #ef4444; }
+
+  /* ── Card Sections ── */
+  .card-section { margin-bottom: 10px; padding-top: 10px; border-top: 1px solid #f1f5f9; }
+  .card-section:first-of-type { border-top: none; padding-top: 0; }
+  .card-section-label { font-size: 9px; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 5px; }
+
+  /* ── Sub-labels within a section ── */
+  .subsection-label { font-size: 9px; font-weight: 700; color: #cbd5e1; text-transform: uppercase; letter-spacing: 0.06em; margin: 6px 0 3px; }
+  .subsection-label:first-child { margin-top: 0; }
+
+  /* ── File rows (data sources) ── */
+  .file-row { display: flex; align-items: baseline; gap: 6px; padding: 2px 4px; border-radius: 4px; cursor: pointer; user-select: none; }
+  .file-row:hover { background: #f8fafc; }
+  .file-name { font-size: 11px; color: #334155; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-age  { font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+  .file-age.fresh { color: #16a34a; }
+  .file-age.stale { color: #d97706; }
+  .file-age.old   { color: #dc2626; }
+  .file-age.na    { color: #94a3b8; font-weight: 400; }
+  .file-age.err   { color: #dc2626; }
+  .preview-arrow  { font-size: 10px; color: #94a3b8; flex-shrink: 0; transition: transform 0.1s; width: 10px; text-align: center; }
+  .preview-arrow.open { transform: rotate(90deg); }
+
+  /* ── Inline preview block ── */
+  .preview-block { display: none; background: #0f172a; border-radius: 4px; padding: 7px 10px; margin: 3px 0 4px; overflow-x: auto; }
+  .preview-block.visible { display: block; }
+  .preview-pre { margin: 0; font-family: 'Consolas', 'Menlo', monospace; font-size: 10px; line-height: 1.5; color: #cbd5e1; white-space: pre; width: max-content; }
+  .preview-footer { font-size: 9px; color: #64748b; margin-top: 4px; }
+  .preview-loading { font-size: 10px; color: #64748b; font-style: italic; }
+  .preview-error   { font-size: 10px; color: #fca5a5; }
+
+  /* ── Job rows ── */
+  .job-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f1f5f9; }
+  .job-row:last-child { border-bottom: none; }
+  .job-info { flex: 1; min-width: 0; }
+  .job-label { font-size: 11px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+  .job-meta  { font-size: 10px; color: #94a3b8; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job-controls { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+
+  .shared-badge { display: inline-block; font-size: 9px; color: #7c3aed; background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 3px; padding: 0 4px; margin-left: 4px; white-space: nowrap; }
+
+  .wf-badge { font-size: 10px; font-weight: 600; white-space: nowrap; }
+  .wf-badge.success { color: #16a34a; }
+  .wf-badge.failure { color: #dc2626; }
+  .wf-badge.pending { color: #d97706; }
+  .wf-badge.na      { color: #94a3b8; font-weight: 400; }
+
+  /* ── Placeholder ── */
+  .placeholder-card { background: #fff; border: 1px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center; color: #94a3b8; font-size: 12px; }
+
+  /* ── Buttons ── */
+  .btn { padding: 4px 12px; font-size: 11px; background: #0f172a; color: #fff; border: none; border-radius: 4px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background 0.1s; }
+  .btn:hover:not(:disabled) { background: #334155; }
+  .btn:disabled { background: #94a3b8; cursor: not-allowed; }
+  .btn-sm { padding: 3px 9px; font-size: 10px; }
+  .btn-xs { padding: 2px 7px; font-size: 10px; }
+  .btn-outline { background: #fff; color: #0f172a; border: 1px solid #cbd5e1; }
+  .btn-outline:hover:not(:disabled) { background: #f1f5f9; }
+  .btn-link { background: none; border: none; color: #3b82f6; font-size: 11px; font-weight: 600; cursor: pointer; padding: 0; text-decoration: none; }
+  .btn-link:hover { text-decoration: underline; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spinner { display: inline-block; width: 10px; height: 10px; border: 2px solid #cbd5e1; border-top-color: #0f172a; border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 3px; }
+  .spinner-light { border-color: rgba(255,255,255,0.3); border-top-color: #fff; }
+
+  /* ── Fixed log panel ── */
+  .log-panel { position: fixed; bottom: 0; left: 0; right: 0; height: 200px; background: #0f172a; border-top: 2px solid #334155; display: flex; flex-direction: column; transform: translateY(100%); transition: transform 0.2s ease; z-index: 1000; }
+  .log-panel.visible { transform: translateY(0); }
+  .log-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 6px 14px; border-bottom: 1px solid #1e293b; flex-shrink: 0; }
+  .log-panel-title { font-size: 11px; font-weight: 700; color: #94a3b8; font-family: system-ui, sans-serif; }
+  .log-panel-status { font-size: 10px; color: #64748b; margin-left: 8px; }
+  .log-panel-body { flex: 1; overflow-y: auto; padding: 8px 14px; font-family: 'Consolas', 'Menlo', monospace; font-size: 11px; line-height: 1.55; }
+  .log-panel-close { background: none; border: none; color: #64748b; cursor: pointer; font-size: 14px; padding: 0 2px; }
+  .log-panel-close:hover { color: #e2e8f0; }
+  .log-stdout { color: #e2e8f0; white-space: pre-wrap; display: block; }
+  .log-stderr { color: #fca5a5; white-space: pre-wrap; display: block; }
+  .log-start  { color: #86efac; font-weight: bold; white-space: pre-wrap; display: block; }
+  .log-exit   { color: #86efac; white-space: pre-wrap; display: block; }
+  .log-exit.err { color: #fca5a5; }
+  .log-error  { color: #fca5a5; white-space: pre-wrap; display: block; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Treasury Admin</h1>
+  <div class="header-right">
+    <span class="fetched-at" id="fetchedAt"></span>
+    <button class="btn btn-outline btn-sm" id="refreshBtn">Refresh</button>
+  </div>
+</header>
+
+<div class="section">
+  <div class="section-title">Apps</div>
+  <div class="app-grid" id="appGrid">
+    <div class="app-card"><div class="card-header"><span class="card-name">Loading…</span></div></div>
+    <div class="app-card"><div class="card-header"><span class="card-name"></span></div></div>
+    <div class="app-card"><div class="card-header"><span class="card-name"></span></div></div>
+    <div class="app-card"><div class="card-header"><span class="card-name"></span></div></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Market Quotes</div>
+  <div class="placeholder-card">Coming soon — ETF price and metrics panel</div>
+</div>
+
+<!-- Fixed log panel (slides up when a job runs) -->
+<div class="log-panel" id="logPanel">
+  <div class="log-panel-header">
+    <span>
+      <span class="log-panel-title" id="logPanelTitle"></span>
+      <span class="log-panel-status" id="logPanelStatus"></span>
+    </span>
+    <button class="log-panel-close" onclick="closeLog()">✕</button>
+  </div>
+  <div class="log-panel-body" id="logPanelBody"></div>
+</div>
+
+<script>
+// ── Utilities ──────────────────────────────────────────────────────────────────
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function fmtAge(iso) {
+  if (!iso) return 'N/A';
+  const mins = Math.floor((Date.now() - new Date(iso)) / 60000);
+  if (mins < 1)   return 'just now';
+  if (mins < 60)  return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24)   return `${hrs}h`;
+  return `${Math.floor(hrs / 24)}d`;
+}
+
+function ageClass(iso, stalenessHours) {
+  if (!iso) return 'na';
+  const hrs = (Date.now() - new Date(iso)) / 3600000;
+  if (hrs < stalenessHours * 0.5) return 'fresh';
+  if (hrs < stalenessHours)       return 'stale';
+  return 'old';
+}
+
+function wfIcon(conclusion, status) {
+  if (status === 'in_progress' || status === 'queued') return '◌';
+  if (conclusion === 'success')   return '✓';
+  if (conclusion === 'failure')   return '✗';
+  if (conclusion === 'cancelled') return '—';
+  return '—';
+}
+
+function wfClass(conclusion, status) {
+  if (status === 'in_progress' || status === 'queued') return 'pending';
+  if (conclusion === 'success')  return 'success';
+  if (conclusion === 'failure')  return 'failure';
+  return 'na';
+}
+
+function cardClass(app) {
+  if (app.r2.some(r => r.status === 'error') || app.workflows.some(w => w.conclusion === 'failure')) return 'error';
+  const timestamps = [
+    app.local?.latestMtime,
+    ...app.r2.map(r => r.lastModified),
+  ].filter(Boolean);
+  if (!timestamps.length) return '';
+  const newestHrs = (Date.now() - new Date(Math.max(...timestamps.map(t => new Date(t))))) / 3600000;
+  if (newestHrs > app.stalenessHours) return 'stale';
+  if (newestHrs < app.stalenessHours * 0.5) return 'fresh';
+  return '';
+}
+
+// ── Preview ────────────────────────────────────────────────────────────────────
+async function togglePreview(rowEl, source, pathOrKey) {
+  let block = rowEl.nextElementSibling;
+  if (!block || !block.classList.contains('preview-block')) {
+    block = document.createElement('div');
+    block.className = 'preview-block';
+    rowEl.parentNode.insertBefore(block, rowEl.nextSibling);
+  }
+  const arrow = rowEl.querySelector('.preview-arrow');
+
+  if (block.classList.contains('visible')) {
+    block.classList.remove('visible');
+    if (arrow) arrow.classList.remove('open');
+    return;
+  }
+
+  if (arrow) arrow.classList.add('open');
+  block.classList.add('visible');
+
+  // Only fetch if not already loaded
+  if (block.dataset.loaded) return;
+  block.innerHTML = '<span class="preview-loading">Loading…</span>';
+
+  try {
+    const params = source === 'local'
+      ? `source=local&path=${encodeURIComponent(pathOrKey)}&lines=10`
+      : `source=r2&key=${encodeURIComponent(pathOrKey)}&lines=10`;
+    const res = await fetch(`/api/preview?${params}`);
+    const data = await res.json();
+    if (data.error) {
+      block.innerHTML = `<span class="preview-error">${esc(data.error)}</span>`;
+      return;
+    }
+    block.innerHTML = `<pre class="preview-pre">${esc(data.lines.join('\n'))}</pre>`
+      + (data.total ? `<div class="preview-footer">${data.total} lines total</div>` : '');
+    block.dataset.loaded = '1';
+  } catch (e) {
+    block.innerHTML = `<span class="preview-error">${esc(e.message)}</span>`;
+  }
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────────
+function renderAppCards(apps) {
+  document.getElementById('appGrid').innerHTML = apps.map(app => {
+    const cls = cardClass(app);
+
+    // ── Data — Local ──
+    let localHtml = '';
+    if (app.local && !app.local.error) {
+      const shown = app.local.files.slice(0, 5);
+      localHtml = `
+        <div class="subsection-label">Local</div>
+        ${shown.map(f => {
+          const ac = ageClass(f.mtime, app.stalenessHours);
+          return `<div class="file-row" onclick="togglePreview(this,'local',${JSON.stringify(f.path).replace(/"/g,'&quot;')})">
+            <span class="file-name" title="${esc(f.path)}">${esc(f.label)}</span>
+            <span class="file-age ${ac}">${fmtAge(f.mtime)}</span>
+            <span class="preview-arrow">›</span>
+          </div>`;
+        }).join('')}
+        ${app.local.files.length > 5 ? `<div style="font-size:9px;color:#94a3b8;padding:2px 4px;">+${app.local.files.length - 5} more files</div>` : ''}`;
+    } else if (app.local?.error) {
+      localHtml = `<div class="subsection-label">Local</div><div style="font-size:10px;color:#dc2626;padding:2px 4px;">${esc(app.local.error)}</div>`;
+    }
+
+    // ── Data — R2 ──
+    const r2Html = `
+      <div class="subsection-label">R2</div>
+      ${app.r2.map(r => {
+        const ac = r.status === 'error' ? 'err' : ageClass(r.lastModified, app.stalenessHours);
+        const age = r.status === 'error' ? 'error' : fmtAge(r.lastModified);
+        return `<div class="file-row" onclick="togglePreview(this,'r2',${JSON.stringify(r.key).replace(/"/g,'&quot;')})">
+          <span class="file-name" title="${esc(r.key)}">${esc(r.label)}</span>
+          <span class="file-age ${ac}">${age}</span>
+          <span class="preview-arrow">›</span>
+        </div>`;
+      }).join('')}`;
+
+    // ── Jobs — GH Actions ──
+    const ghHtml = app.workflows.map(wf => {
+      const ic  = wfIcon(wf.conclusion, wf.status);
+      const wc  = wfClass(wf.conclusion, wf.status);
+      const age = wf.runAt ? fmtAge(wf.runAt) : '—';
+      const shared = wf.sharedWith && wf.sharedWith.length
+        ? wf.sharedWith.map(l => `<span class="shared-badge">shared · ${esc(l)}</span>`).join(' ')
+        : '';
+      const nameEl = wf.htmlUrl
+        ? `<a href="${esc(wf.htmlUrl)}" target="_blank" style="color:inherit;text-decoration:none;">${esc(wf.label)}</a>`
+        : esc(wf.label);
+      return `<div class="job-row">
+        <div class="job-info">
+          <span class="job-label">${nameEl}${shared}</span>
+        </div>
+        <div class="job-controls">
+          <span class="wf-badge ${wc}">${ic} ${age}</span>
+          <button class="btn btn-xs" onclick="runGhWorkflow('${esc(wf.workflow)}', this)">Run</button>
+        </div>
+      </div>`;
+    }).join('');
+
+    // ── Jobs — Local Scripts ──
+    let localJobsHtml = '';
+    if (app.localJobs && app.localJobs.length) {
+      localJobsHtml = `
+        <div class="subsection-label">Local Scripts</div>
+        ${app.localJobs.map(j => {
+          const shared = j.apps && j.apps.length > 1
+            ? j.apps.filter(a => a !== app.id).map(a => `<span class="shared-badge">shared · ${esc(a)}</span>`).join(' ')
+            : '';
+          return `<div class="job-row">
+            <div class="job-info">
+              <span class="job-label">${esc(j.label)}${shared}</span>
+              <span class="job-meta">${esc(j.cmd)}</span>
+            </div>
+            <div class="job-controls">
+              <button class="btn btn-xs" onclick="runLocalJob('${esc(j.id)}','${esc(j.label)}',this)">Run</button>
+            </div>
+          </div>`;
+        }).join('')}`;
+    }
+
+    return `<div class="app-card ${cls}" id="card-${app.id}">
+      <div class="card-header">
+        <div class="card-title">
+          <span class="status-dot ${cls || 'fresh'}"></span>
+          <span class="card-name">${esc(app.label)}</span>
+        </div>
+        <a class="btn btn-xs btn-outline" href="${esc(app.url)}" target="_blank">Open ↗</a>
+      </div>
+      <p class="card-desc">${esc(app.description)}</p>
+
+      <div class="card-section">
+        <div class="card-section-label">Data</div>
+        ${localHtml}
+        ${r2Html}
+      </div>
+
+      <div class="card-section">
+        <div class="card-section-label">Jobs</div>
+        <div class="subsection-label">GH Actions</div>
+        ${ghHtml}
+        ${localJobsHtml}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Log panel ──────────────────────────────────────────────────────────────────
+let activeSSE = null;
+
+function openLog(title) {
+  document.getElementById('logPanelTitle').textContent = title;
+  document.getElementById('logPanelStatus').textContent = 'running…';
+  document.getElementById('logPanelBody').innerHTML = '';
+  document.getElementById('logPanel').classList.add('visible');
+}
+
+function appendLog(type, text) {
+  const body = document.getElementById('logPanelBody');
+  const span = document.createElement('span');
+  const isErrExit = type === 'exit' && !text.includes('code 0');
+  span.className = `log-${type}${isErrExit ? ' err' : ''}`;
+  span.textContent = text;
+  body.appendChild(span);
+  body.scrollTop = body.scrollHeight;
+}
+
+function closeLog() {
+  if (activeSSE) { activeSSE.close(); activeSSE = null; }
+  document.getElementById('logPanel').classList.remove('visible');
+}
+
+// ── Run local job ──────────────────────────────────────────────────────────────
+function runLocalJob(jobId, label, btn) {
+  if (activeSSE) activeSSE.close();
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  openLog(label);
+
+  fetch(`/api/run/${jobId}`, { method: 'POST' }).then(res => {
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    function pump() {
+      reader.read().then(({ done, value }) => {
+        if (done) { btn.disabled = false; btn.textContent = 'Run'; return; }
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop();
+        parts.forEach(part => {
+          const line = part.replace(/^data: /, '');
+          if (!line.trim()) return;
+          try {
+            const { type, text } = JSON.parse(line);
+            appendLog(type, text);
+            if (type === 'exit') {
+              btn.disabled = false;
+              btn.textContent = 'Run';
+              const isErr = !text.includes('code 0');
+              document.getElementById('logPanelStatus').textContent = isErr ? 'failed' : 'done';
+            }
+          } catch {}
+        });
+        pump();
+      });
+    }
+    pump();
+  }).catch(e => {
+    appendLog('error', `Failed: ${e.message}\n`);
+    btn.disabled = false;
+    btn.textContent = 'Run';
+    document.getElementById('logPanelStatus').textContent = 'error';
+  });
+}
+
+// ── Run GH workflow ────────────────────────────────────────────────────────────
+async function runGhWorkflow(workflow, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner spinner-light"></span>';
+  try {
+    const res = await fetch(`/api/gh/dispatch/${workflow}`, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) {
+      btn.textContent = 'Error';
+      btn.style.background = '#ef4444';
+      setTimeout(() => { btn.textContent = 'Run'; btn.style.background = ''; btn.disabled = false; }, 3000);
+    } else {
+      btn.textContent = 'Queued ✓';
+      btn.style.background = '#16a34a';
+      setTimeout(() => {
+        btn.textContent = 'Run'; btn.style.background = ''; btn.disabled = false;
+        refreshStatus();
+      }, 4000);
+    }
+  } catch {
+    btn.textContent = 'Error'; btn.style.background = '#ef4444';
+    setTimeout(() => { btn.textContent = 'Run'; btn.style.background = ''; btn.disabled = false; }, 3000);
+  }
+}
+
+// ── Data fetching ──────────────────────────────────────────────────────────────
+async function refreshStatus() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>';
+  try {
+    const res  = await fetch('/api/status');
+    const data = await res.json();
+    renderAppCards(data.apps);
+    const d = new Date(data.fetchedAt);
+    document.getElementById('fetchedAt').textContent =
+      `Updated ${d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+  } catch {
+    document.getElementById('fetchedAt').textContent = 'Fetch failed';
+  }
+  btn.disabled = false;
+  btn.textContent = 'Refresh';
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────────
+document.getElementById('refreshBtn').addEventListener('click', refreshStatus);
+setInterval(refreshStatus, 60000);
+refreshStatus();
+</script>
+</body>
+</html>

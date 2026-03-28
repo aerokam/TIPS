@@ -314,6 +314,7 @@ function renderTable() {
         const cls = sortCol === f ? (sortAsc ? 'sort-asc' : 'sort-desc') : '';
         const width = colWidths[f] ? `style="width:${colWidths[f]}px;min-width:${colWidths[f]}px;"` : '';
         return `<th class="${cls}" data-field="${f}" ${width}>
+          <span class="col-delete" title="Remove column">✕</span>
           ${fieldLabel(f)}
           <div class="resizer"></div>
         </th>`;
@@ -372,6 +373,13 @@ function renderTable() {
 
     th.addEventListener('click', e => {
       if (e.target.classList.contains('resizer')) return;
+      if (e.target.classList.contains('col-delete')) {
+        const f = th.dataset.field;
+        viewCols[activeView].delete(f);
+        renderTable();
+        renderColList();
+        return;
+      }
       const f = th.dataset.field;
       if (sortCol === f) sortAsc = !sortAsc;
       else { sortCol = f; sortAsc = true; }
@@ -532,6 +540,20 @@ function init() {
 
   // Column search
   document.getElementById('colSearch').addEventListener('input', renderColList);
+
+  // Sort Selected
+  document.getElementById('sortSelectedBtn').addEventListener('click', () => {
+    const visible = viewCols[activeView];
+    orderedColumns[activeView].sort((a, b) => {
+      const aVis = visible.has(a);
+      const bVis = visible.has(b);
+      if (aVis && !bVis) return -1;
+      if (!aVis && bVis) return 1;
+      return 0;
+    });
+    renderColList();
+    renderTable();
+  });
 
   // Reset defaults
   document.getElementById('resetColsBtn').addEventListener('click', () => {

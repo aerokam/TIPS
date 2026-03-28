@@ -2,6 +2,7 @@ node_modules/
 test-results/
 .DS_Store
 .env
+Dashboard/server.log
 .idea/
 .vscode/
 npm-debug.log*

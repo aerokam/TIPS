@@ -78,14 +78,20 @@ export function handleChartKeydown(e, chart, options = {}) {
  * - Shift + scroll → zoom Y axis only
  * Plain scroll is left to the chartjs-plugin-zoom wheel handler.
  */
-export function setupAxisWheelZoom(canvas, chart) {
+export function setupAxisWheelZoom(canvas) {
+  if (canvas._axisWheelZoomSetup) return;
+  canvas._axisWheelZoomSetup = true;
+
   canvas.addEventListener('wheel', (e) => {
     if (!e.ctrlKey && !e.shiftKey) return; // let plugin handle plain scroll
+
+    const chart = Chart.getChart(canvas);
+    if (!chart) return;
 
     e.preventDefault();
     e.stopImmediatePropagation();
 
-    const factor = e.deltaY > 0 ? 1.1 : 0.9;
+    const factor = e.deltaY > 0 ? 0.9 : 1.1;
 
     if (e.ctrlKey) {
       chart.zoom({ x: factor });

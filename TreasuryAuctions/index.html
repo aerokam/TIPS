@@ -74,7 +74,7 @@
   .col-item.drag-over { border-top: 2px solid #1a56db; }
   .col-item label { cursor: pointer; color: #334155; user-select: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-  /* ── Column Resizing ── */
+  /* ── Column Resizing & Deleting ── */
   thead th { position: relative; }
   .resizer {
     position: absolute;
@@ -87,6 +87,26 @@
     z-index: 21;
   }
   .resizer:hover { background: rgba(255, 255, 255, 0.3); }
+
+  .col-delete {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 13px;
+    height: 13px;
+    line-height: 11px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 2px;
+    font-size: 9px;
+    cursor: pointer;
+    display: none;
+    z-index: 22;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+  }
+  thead th:hover .col-delete { display: block; }
+  .col-delete:hover { background: #dc2626; border-color: #dc2626; }
 
   /* ── Header Drag and Drop ── */
   thead th { cursor: move; }
@@ -122,7 +142,10 @@
         <button class="view-btn" data-view="tips">TIPS</button>
       </div>
       <div class="sidebar-section">
-        <div class="sidebar-label">Columns</div>
+        <div class="sidebar-label" style="display:flex; justify-content:space-between; align-items:center;">
+          Columns
+          <span id="sortSelectedBtn" style="cursor:pointer; color:#1a56db; font-size:9px; text-transform:none; font-weight:600;">Sort Selected</span>
+        </div>
         <input type="text" class="col-search" id="colSearch" placeholder="Search columns...">
       </div>
       <div class="col-list" id="colList"></div>

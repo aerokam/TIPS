@@ -1,0 +1,23 @@
+[
+  {
+    "id": "fidelity-download",
+    "label": "Fidelity Download",
+    "cmd": "YieldCurves\\scripts\\run-fidelity.cmd",
+    "cwd": ".",
+    "apps": ["yieldcurves"]
+  },
+  {
+    "id": "fedinvest-download",
+    "label": "FedInvest Download",
+    "cmd": "YieldCurves\\scripts\\run-fedinvest.cmd",
+    "cwd": ".",
+    "apps": ["yieldcurves"]
+  },
+  {
+    "id": "upload-fidelity",
+    "label": "Upload Fidelity to R2",
+    "cmd": "node YieldCurves/scripts/uploadFidelityDownload.js",
+    "cwd": ".",
+    "apps": ["yieldcurves"]
+  }
+]
