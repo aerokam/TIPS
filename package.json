@@ -9,6 +9,7 @@
   "scripts": {
     "dashboard": "node Dashboard/server.js",
     "test": "npm test -w TipsLadderManager",
+    "test:knowledge": "playwright test tests/e2e/knowledge.spec.js",
     "test:e2e": "npm run test:e2e -w TipsLadderManager"
   },
   "dependencies": {

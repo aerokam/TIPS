@@ -43,29 +43,45 @@ li{margin:.2em 0}
 
 <script>
 async function loadMarkdown() {
-  const params = new URLSearchParams(window.location.search);
-  const file = params.get('file');
-  const contentEl = document.getElementById('content');
-  const pathEl = document.getElementById('file-path');
-
-  if (!file) {
-    contentEl.innerHTML = '<div class="error">No file specified.</div>';
+  // Use hash-based routing: viewer.html#/md/path/to.md#anchor
+  const hashStr = window.location.hash || '';
+  if (!hashStr || hashStr === '#') {
+    // Check for legacy ?file= parameter
+    const params = new URLSearchParams(window.location.search);
+    const fileParam = params.get('file');
+    if (fileParam) {
+      window.location.hash = fileParam;
+      return;
+    }
+    document.getElementById('content').innerHTML = `<div class="error">
+      <h2>No file specified</h2>
+      <p>Usage: <code>viewer.html#/md/path/to.md</code></p>
+    </div>`;
     return;
   }
+
+  // Split file path and internal anchor: #/md/file.md#anchor
+  // Parts after # are: /md/file.md#anchor
+  const parts = hashStr.substring(1).split('#');
+  const file = parts[0];
+  const internalAnchor = parts[1];
+
+  const contentEl = document.getElementById('content');
+  const pathEl = document.getElementById('file-path');
 
   pathEl.textContent = file;
   document.title = file.split('/').pop() + ' - Knowledge Viewer';
 
   try {
     // Determine the base path based on whether it's absolute or relative to repo root
-    // For end users on GitHub Pages, we fetch relative to the current location or root
     let fetchPath = file;
-    if (file.startsWith('/')) {
-        // If it starts with /md/, we strip it and fetch from root
-        if (file.startsWith('/md/')) {
-            fetchPath = '../' + file.substring(4);
+    if (file.startsWith('/md/')) {
+        const repoRelativePath = file.substring(4);
+        const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        if (isLocal) {
+            fetchPath = '/' + repoRelativePath;
         } else {
-            fetchPath = '..' + file;
+            fetchPath = '../' + repoRelativePath;
         }
     }
 
@@ -74,7 +90,47 @@ async function loadMarkdown() {
     
     const markdown = await response.text();
     contentEl.innerHTML = marked.parse(markdown);
+
+    // Intercept all links in the rendered content
+    contentEl.querySelectorAll('a').forEach(a => {
+      const href = a.getAttribute('href');
+      if (href && !href.startsWith('http')) {
+        let [targetFile, hash] = href.split('#');
+        
+        if (!targetFile || targetFile === '.') {
+          // Internal anchor to the same file
+          // Keep it as #anchor, but update href to include the current file hash
+          a.href = `${window.location.pathname}${window.location.hash.split('#')[0]}#${hash || ''}`;
+          return;
+        }
+
+        // Convert relative or absolute links to viewer.html#/md/ format
+        if (targetFile.startsWith('./')) {
+            const currentDir = file.substring(0, file.lastIndexOf('/'));
+            targetFile = currentDir + '/' + targetFile.substring(2);
+        } else if (!targetFile.startsWith('/')) {
+            const currentDir = file.substring(0, file.lastIndexOf('/'));
+            targetFile = currentDir + '/' + targetFile;
+        }
+
+        if (!targetFile.startsWith('/md/')) {
+            if (targetFile.startsWith('knowledge/')) targetFile = '/md/' + targetFile;
+            else if (!targetFile.startsWith('/')) targetFile = '/md/' + targetFile;
+        }
+
+        a.href = `viewer.html#${targetFile}${hash ? '#' + hash : ''}`;
+      }
+    });
+
     contentEl.classList.add('loaded');
+
+    // Handle hash scrolling
+    if (internalAnchor) {
+      setTimeout(() => {
+        const target = document.getElementById(internalAnchor) || document.getElementsByName(internalAnchor)[0];
+        if (target) target.scrollIntoView();
+      }, 100);
+    }
   } catch (err) {
     contentEl.innerHTML = `<div class="error">
       <h2>Error loading document</h2>
@@ -86,6 +142,7 @@ async function loadMarkdown() {
 }
 
 window.addEventListener('DOMContentLoaded', loadMarkdown);
+window.addEventListener('hashchange', loadMarkdown);
 </script>
 </body>
 </html>
