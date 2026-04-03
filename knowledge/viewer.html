@@ -159,6 +159,9 @@ document.addEventListener('click', async (e) => {
     const hrefAttr = a.getAttribute('href') || a.getAttribute('xlink:href');
     if (!hrefAttr) return;
 
+    // Nav links (e.g. ← KNOWLEDGE MAP) must navigate away — never intercept
+    if (a.closest('nav')) return;
+
     console.log(`[Viewer] Intercepted: ${hrefAttr}`);
 
     // 1. External Links

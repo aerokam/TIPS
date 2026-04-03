@@ -40,6 +40,20 @@ The dashboard should feel like it was written by someone who knows the system. T
 - Polls `/api/status` on load and every 60s
 - UI conventions follow the rest of the repo
 
+### Knowledge Map & Viewer (`knowledge/`)
+
+The knowledge base is a set of static files served by `npx serve . -p 8080` (the same static server used for Playwright tests). There are two entry points:
+
+- **`/knowledge/KNOWLEDGE_MAP`** — the visual DFD context diagram (`knowledge/KNOWLEDGE_MAP.html`). This is the top-level navigation hub; all app overviews and spec docs link out from here.
+- **`/knowledge/viewer#/md/<path>`** — the markdown viewer (`knowledge/viewer.html`). Fetches any `.md` file in the repo and renders it with syntax highlighting, Mermaid diagrams, and CSV preview inline.
+
+**Routing rules inside the viewer:**
+- Only `.md` files should be targeted as viewer hash paths. The viewer guards against `.html` targets: if the hash ever resolves to a `.html` file, it immediately redirects to that file's direct URL instead of trying to render its HTML source as markdown.
+- The `← KNOWLEDGE MAP` nav link uses the absolute path `/knowledge/KNOWLEDGE_MAP` (not a relative `.html` reference) to ensure it always navigates out of the viewer regardless of the current hash state.
+
+**URL conventions:**
+- `npx serve` strips `.html` extensions and serves clean URLs. Always reference these files by their clean URL (`/knowledge/KNOWLEDGE_MAP`, `/knowledge/viewer`), not by the `.html` filename. Source `href` attributes may still contain `.html` but the browser will be redirected to the clean URL.
+
 ---
 
 ## App Pipelines
