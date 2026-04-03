@@ -799,7 +799,7 @@ function renderNominalsChart(fedBonds, fidBonds) {
     if (notesYPos.length >= 4) {
       const bounds = iqrClipBounds(notesYPos);
       if (bounds) {
-        const clipped = allY.filter(y => y >= bounds.lo);
+        const clipped = allY.filter(y => y >= bounds.lo && y <= bounds.hi);
         if (clipped.length > 0) scaleY = clipped;
       }
     }
@@ -1199,7 +1199,7 @@ function rescaleToVisible(chart) {
     if (notesVisibleYPos.length >= 4) {
       const bounds = iqrClipBounds(notesVisibleYPos);
       if (bounds) {
-        const clipped = allVisibleY.filter(y => y >= bounds.lo);
+        const clipped = allVisibleY.filter(y => y >= bounds.lo && y <= bounds.hi);
         if (clipped.length > 0) allVisibleY = clipped;
       }
     }
@@ -1269,23 +1269,25 @@ document.getElementById('nominalsShowNone').onclick = (e) => {
 
 // Unified Source Change Handlers
 ['chkTipsFed', 'chkTipsBroker'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => { 
-    savedZoom['tips'] = null; 
-    document.getElementById('startMaturity').value = '';
-    document.getElementById('endMaturity').value = '';
-    document.getElementById('startMaturityCal').value = '';
-    document.getElementById('endMaturityCal').value = '';
-    processAndRender(); 
+  document.getElementById(id).addEventListener('change', () => {
+    if (chart && chartTab === 'tips') {
+      savedZoom['tips'] = {
+        xMin: chart.scales.x.min, xMax: chart.scales.x.max,
+        yMin: chart.scales.y.min, yMax: chart.scales.y.max
+      };
+    }
+    processAndRender();
   });
 });
 ['chkFedInvest', 'chkFidelity'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => { 
-    savedZoom['treasuries'] = null; 
-    document.getElementById('startMaturity').value = '';
-    document.getElementById('endMaturity').value = '';
-    document.getElementById('startMaturityCal').value = '';
-    document.getElementById('endMaturityCal').value = '';
-    processAndRender(); 
+  document.getElementById(id).addEventListener('change', () => {
+    if (chart && chartTab === 'treasuries') {
+      savedZoom['treasuries'] = {
+        xMin: chart.scales.x.min, xMax: chart.scales.x.max,
+        yMin: chart.scales.y.min, yMax: chart.scales.y.max
+      };
+    }
+    processAndRender();
   });
 });
 
