@@ -80,7 +80,11 @@
 
   /* ── Info strip ── */
   #info-strip { font-size: 15px; color: #1e293b; margin-top: 0; line-height: 1.6; }
-  .info-row { white-space: nowrap; }
+  .info-row { white-space: nowrap; padding-left: 10px; border-left: 3px solid transparent; margin-bottom: 3px; }
+  .info-row--data { border-left-color: #cbd5e1; }
+  .info-row--cfg  { border-left-color: #a5b4fc; }
+  .info-row--run  { border-left-color: #7dd3fc; margin-top: 6px; }
+  .info-const { color: #64748b; }
   .info-link { color: #1a56db; text-decoration: none; cursor: pointer; border-bottom: 1px dotted #1a56db; }
   .info-link:hover { color: #1748c0; }
   .info-link-btn { display:inline-block; background:#1e293b; color:#fff !important; padding:1px 8px; border-radius:4px; border-bottom:none !important; font-weight:700; font-size:11px; letter-spacing:.02em; }
@@ -392,10 +396,11 @@ async function loadData() {
       ? ', none for ' + _gaps[0] + '–' + _gaps[_gaps.length - 1] + ' (gap years)'
       : '';
     
-    _staticInfoPrefix = 'FedInvest prices · ' + _fmtMDY(settleDateStr);
-    _staticInfoSuffix = ' · ' + yieldsRows.length + ' TIPS: <a class="info-link tips-ref-link">Ref</a> <a class="info-link tips-mkt-link">Mkt</a>' + _gapSuffix;
-    _staticInfo = _buildStaticInfo();
-    dataInfo.innerHTML = '<div class="info-row">' + _staticInfo + '</div>';
+    _staticInfoPrefix = '<span class="info-const">FedInvest prices · ' + _fmtMDY(settleDateStr) + '</span>';
+    _staticInfoSuffix = '<span class="info-const"> · ' + yieldsRows.length + ' TIPS: </span><a class="info-link tips-ref-link">Ref</a> <a class="info-link tips-mkt-link">Mkt</a>'
+      + (_gapSuffix ? '<span class="info-const">' + _gapSuffix + '</span>' : '');
+    _buildRows();
+    _renderInfoStrip('');
     
     console.log('Enabling run-btn');
     document.getElementById('run-btn').disabled = false;
@@ -445,7 +450,7 @@ async function loadData() {
   } catch (err) {
     console.error('loadData fatal error:', err);
     dataInfo.textContent = '';
-    _staticInfo = '';
+    _dataRowHTML = ''; _cfgRowHTML = '';
     setStatus('Failed to load market data: ' + err.message, true);
   }
 }
@@ -477,7 +482,7 @@ let buildDetails = null;
 let rebalDetails = null;
 let rebalSummary = null;
 let buildSummary = null;
-let _staticInfo = '', _rebalRunInfo = '', _buildRunInfo = '';
+let _dataRowHTML = '', _cfgRowHTML = '', _rebalRunInfo = '', _buildRunInfo = '';
 let _staticInfoPrefix = '', _staticInfoSuffix = '';
 let activeRefCpiDateStr = null;
 let _defaultRefCpiDateStr = null; // T+1 of FedInvest price date (settlement date for Ref CPI lookups)
@@ -521,7 +526,7 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     _nci.style.display = (isRebalance ? rebalanceRendered : buildRendered) ? '' : 'none';
     document.getElementById('nc-label').textContent = isRebalance ? 'Net Cash' : 'Total Cost';
     const _runInfo = isRebalance ? _rebalRunInfo : _buildRunInfo;
-    document.getElementById('info-strip').innerHTML = '<div class="info-row">' + _staticInfo + '</div>' + (_runInfo ? '<div class="info-row">' + _runInfo + '</div>' : '');
+    _renderInfoStrip(_runInfo || '');
     _infoPopups.duration = isRebalance ? _rebalDurationRows : _buildDurationRows;
     _infoPopups.futureDuration = isRebalance ? _rebalFutureDurationRows : _buildFutureDurationRows;
 
@@ -568,15 +573,14 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
       : '';
     const _ncColor = costDeltaSum >= 0 ? '#16a34a' : '#dc2626';
     const _ncStrip = '<span style="margin-left:auto;padding-left:16px;font-weight:700;white-space:nowrap;color:' + _ncColor + '">Net Cash ' + sign(costDeltaSum) + '</span>';
-    _rebalRunInfo = ' · DARA <b><span class="copy-dara" data-val="' + Math.round(DARA) + '" title="Click to copy">' + esc(Math.round(DARA).toLocaleString()) + '</span></b>'
+    _rebalRunInfo = 'DARA <b><span class="copy-dara" data-val="' + Math.round(DARA) + '" title="Click to copy">' + esc(Math.round(DARA).toLocaleString()) + '</span></b>'
       + (daraIsInferred ? ' <span style="color:#888;font-weight:400">(inferred)</span>' : '')
       + ' · FY ' + firstYear + '–' + lastYear + ', ' + rungCount + ' rungs'
       + _bracketInfo
       + ' <a class="info-link" data-popup="range">ⓘ</a>'
       + ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>'
       + (summary.futureYears?.length > 0 ? ' · <a class="info-link info-link-btn" data-popup="futureDuration">Future Duration calcs</a>' : '');
-    document.getElementById('info-strip').innerHTML = '<div class="info-row">' + _staticInfo + '</div>'
-      + '<div class="info-row" style="display:flex;align-items:baseline"><span>' + _rebalRunInfo + '</span>' + _ncStrip + '</div>';
+    _renderInfoStrip(_rebalRunInfo, _ncStrip);
   
   rebalDetails = details;
   rebalSummary = summary;
@@ -623,13 +627,12 @@ function renderBuildOutput({ results, HDR, summary, details }) {
       ? ' · <span style="color:#854d0e">Pre-ladder: ' + zeroedFundedYears.length + ' yr' + (zeroedFundedYears.length > 1 ? 's' : '') + ' zeroed (' + zeroedFundedYears.join(', ') + ')</span>'
       : '';
     const _bncStrip = '<span style="margin-left:auto;padding-left:16px;font-weight:700;white-space:nowrap">Total Cost $' + Math.round(totalBuyCost).toLocaleString() + '</span>';
-    _buildRunInfo = ' · DARA <b>' + esc(Math.round(dara).toLocaleString()) + '</b>'
+    _buildRunInfo = 'DARA <b>' + esc(Math.round(dara).toLocaleString()) + '</b>'
       + ' · FY ' + firstYear + '–' + lastYear
       + _plNote
       + (_hasGaps ? ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>' : '')
       + (_hasFuture ? ' · <a class="info-link info-link-btn" data-popup="futureDuration">Future Duration calcs</a>' : '');
-    document.getElementById('info-strip').innerHTML = '<div class="info-row">' + _staticInfo + '</div>'
-      + '<div class="info-row" style="display:flex;align-items:baseline"><span>' + _buildRunInfo + '</span>' + _bncStrip + '</div>';
+    _renderInfoStrip(_buildRunInfo, _bncStrip);
     buildDetails = details;
   buildSummary  = summary;
 
@@ -1315,14 +1318,24 @@ function _parseMDY(s) {
   if (dt.getFullYear() !== yyyy || dt.getMonth() + 1 !== mm || dt.getDate() !== dd) return null;
   return yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
 }
-function _buildStaticInfo() {
+function _buildRows() {
+  _dataRowHTML = _staticInfoPrefix + _staticInfoSuffix;
   const _date = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
-  if (!_date || !refCpiRows) return _staticInfoPrefix + _staticInfoSuffix;
+  if (!_date || !refCpiRows) { _cfgRowHTML = ''; return; }
   const _dateStyle = activeRefCpiDateStr ? ' style="color:#7c3aed"' : '';
-  return _staticInfoPrefix
-    + ' · Ref CPI date: <span id="refcpi-link" class="info-link" title="Click to set inflation reference date"' + _dateStyle + '>'
-    + _fmtMDY(_date) + '</span>'
-    + _staticInfoSuffix;
+  _cfgRowHTML = '<span class="info-const">Ref CPI date: </span><span id="refcpi-link" class="info-link" title="Click to set inflation reference date"' + _dateStyle + '>'
+    + _fmtMDY(_date) + '</span>';
+}
+function _renderInfoStrip(runHTML, runRight) {
+  const runRow = runHTML
+    ? '<div class="info-row info-row--run"' + (runRight ? ' style="display:flex;align-items:baseline"' : '') + '>'
+      + (runRight ? '<span>' + runHTML + '</span>' + runRight : runHTML)
+      + '</div>'
+    : '';
+  document.getElementById('info-strip').innerHTML =
+    '<div class="info-row info-row--data">' + _dataRowHTML + '</div>'
+    + (_cfgRowHTML ? '<div class="info-row info-row--cfg">' + _cfgRowHTML + '</div>' : '')
+    + runRow;
 }
 function _clearAutoDara() {
   if (_daraAutoInferred) {
@@ -1346,11 +1359,9 @@ function _clearOutput() {
   _clearAutoDara();
 }
 function _refreshInfoStrip() {
-  _staticInfo = _buildStaticInfo();
+  _buildRows();
   const _runInfo = currentMode === 'rebalance' ? _rebalRunInfo : _buildRunInfo;
-  document.getElementById('info-strip').innerHTML =
-    '<div class="info-row">' + _staticInfo + '</div>' +
-    (_runInfo ? '<div class="info-row">' + _runInfo + '</div>' : '');
+  _renderInfoStrip(_runInfo || '');
 }
 function _showRefCpiPicker(anchorEl) {
   const picker = document.getElementById('refcpi-picker');
