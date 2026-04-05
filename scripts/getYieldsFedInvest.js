@@ -12,7 +12,7 @@ if (existsSync(_envPath)) {
 
 // Fetch Treasury prices from FedInvest, merge TIPS with TipsRef.csv metadata, calculate yields.
 // Types written: TIPS, MARKET BASED BILL, MARKET BASED NOTE, MARKET BASED BOND (excludes FRN).
-// Writes Yields.csv to R2: row 1 = settlement date, row 2 = header, rows 3+ = data.
+// Writes YieldsDerivedFromFedInvestPrices.csv to R2: row 1 = settlement date, row 2 = header, rows 3+ = data.
 //
 // Usage: node getYieldsFedInvest.js
 // Prices published once daily at ~1pm ET on FedInvest; scheduled job runs at 18:05 UTC
@@ -318,15 +318,15 @@ async function main() {
     });
   }
 
-  // Write Yields.csv to R2: row 1 = settlement date, row 2 = header, rows 3+ = data
+  // Write YieldsDerivedFromFedInvestPrices.csv to R2: row 1 = settlement date, row 2 = header, rows 3+ = data
   const header = 'type,cusip,maturity,coupon,datedDateCpi,price,yield';
   const lines = rows.map(r =>
     `${r.type},${r.cusip},${r.maturity},${r.coupon},${r.datedDateCpi},${r.price},${r.yield}`
   );
   // Dual-write to both legacy TIPS/ and new Treasuries/ prefixes during migration
   const content = [settleDateStr, header, ...lines].join('\n') + '\n';
-  await uploadToR2('Treasuries/Yields.csv', content);
-  await uploadToR2('TIPS/Yields.csv', content);
+  await uploadToR2('Treasuries/YieldsDerivedFromFedInvestPrices.csv', content);
+  await uploadToR2('TIPS/YieldsDerivedFromFedInvestPrices.csv', content);
 
   const typeCounts = rows.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {});
   for (const [type, count] of Object.entries(typeCounts)) console.error(`  ${type}: ${count}`);

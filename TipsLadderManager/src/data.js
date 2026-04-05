@@ -45,7 +45,7 @@ export function parseCsv(text) {
   });
 }
 
-// Fetches Yields.csv and RefCPI.csv from R2, parses and types the rows.
+// Fetches YieldsDerivedFromFedInvestPrices.csv and RefCPI.csv from R2, parses and types the rows.
 // Returns: { yieldsRows, refCpiRows }
 // Throws on HTTP errors.
 
@@ -59,11 +59,11 @@ export function lookupRefCpi(refCpiRows, dateStr) {
 
 export async function fetchTipsData() {
   const [yieldsRes, refCpiRes, tipsRefRes] = await Promise.all([
-    fetch(BASE_URL + '/Yields.csv'),
+    fetch(BASE_URL + '/YieldsDerivedFromFedInvestPrices.csv'),
     fetch(BASE_URL + '/RefCPI.csv'),
     fetch(BASE_URL + '/TipsRef.csv'),
   ]);
-  if (!yieldsRes.ok) throw new Error('Yields.csv: HTTP ' + yieldsRes.status);
+  if (!yieldsRes.ok) throw new Error('YieldsDerivedFromFedInvestPrices.csv: HTTP ' + yieldsRes.status);
   if (!refCpiRes.ok) throw new Error('RefCPI.csv: HTTP ' + refCpiRes.status);
   if (!tipsRefRes.ok) throw new Error('TipsRef.csv: HTTP ' + tipsRefRes.status);
 
@@ -77,7 +77,7 @@ export async function fetchTipsData() {
     if (holidayRes.ok) bondHolidays = parseBondHolidays(await holidayRes.text());
   } catch (_) { /* unavailable — T+1 falls back to weekend-skip only */ }
 
-  // Yields.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
+  // YieldsDerivedFromFedInvestPrices.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
   const yieldsText = await yieldsRes.text();
   const yieldsLines = yieldsText.trim().split('\n');
   const settlementDate = yieldsLines[0].trim();

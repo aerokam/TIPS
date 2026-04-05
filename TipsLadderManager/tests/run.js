@@ -42,11 +42,11 @@ function lookupRefCpi(refCpiRows, dateStr) {
 }
 
 // ── Load shared data ──────────────────────────────────────────────────────────
-const yieldsPath = path.resolve('tests/e2e/Yields.csv');
+const yieldsPath = path.resolve('tests/e2e/YieldsDerivedFromFedInvestPrices.csv');
 const refCpiPath = path.resolve('tests/e2e/RefCPI.csv');
 
 console.log(`[Test Setup] Market Data:   ${yieldsPath}`);
-// Yields.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
+// YieldsDerivedFromFedInvestPrices.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
 const yieldsText = readFileSync(yieldsPath, 'utf8');
 const yieldsLines = yieldsText.trim().split('\n');
 const yieldsCsvSettleDate = yieldsLines[0].trim();

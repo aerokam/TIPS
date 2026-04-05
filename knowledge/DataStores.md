@@ -4,7 +4,7 @@ This document provides the technical schemas and field-level specifications for 
 
 ---
 
-## <a id="s1"></a>S1: Yields.csv
+## <a id="s1"></a>S1: YieldsDerivedFromFedInvestPrices.csv
 **Description**: Daily Treasury settlement prices and derived Yield-to-Maturity (YTM).
 **Update Frequency**: Weekdays ~1:05 PM ET.
 
@@ -19,7 +19,7 @@ This document provides the technical schemas and field-level specifications for 
 | `Price` | Number | The raw price provided by the source. |
 | `Yield` | Number | The computed real YTM (Excel YIELD convention). |
 
-**Live Data**: [View Preview (Toggles Table)](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/Yields.csv)
+**Live Data**: [View Preview (Toggles Table)](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/YieldsDerivedFromFedInvestPrices.csv)
 
 ---
 

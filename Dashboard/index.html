@@ -224,8 +224,8 @@ const NODES = [
    reads:['E7'],writes:['S8']},
 
   // Data stores
-  {id:'S1',type:'store',label:'Yields.csv',      sub:'S1',cx:468,cy:65,
-   r2Key:'Treasuries/Yields.csv',
+  {id:'S1',type:'store',label:'YieldsDerivedFromFedInvestPrices.csv',sub:'S1',cx:468,cy:65,
+   r2Key:'Treasuries/YieldsDerivedFromFedInvestPrices.csv',
    schema:'Settlement_Date + {CUSIP + Type + Maturity + Coupon + DatedDateCPI + Price + Yield}'},
   {id:'S3',type:'store',label:'RefCPI.csv',      sub:'S3',cx:468,cy:175,
    r2Key:'Treasuries/RefCPI.csv',
@@ -286,7 +286,7 @@ const EDGES = [
   {id:'eS2P1',from:'S2',to:'P1',style:'dashed', desc:'TipsRef lookup — P1 reads TIPS coupon + maturity from S2 (FedInvest omits these fields for TIPS)'},
   {id:'eS6P6',from:'S6',to:'P6',style:'dashed', desc:'Existing history — P6 reads prior snapshots before appending new data point'},
   // P → S storage (solid)
-  {id:'eP1S1',from:'P1',to:'S1',style:'solid',  desc:'Writes Yields.csv'},
+  {id:'eP1S1',from:'P1',to:'S1',style:'solid',  desc:'Writes YieldsDerivedFromFedInvestPrices.csv'},
   {id:'eP2S3',from:'P2',to:'S3',style:'solid',  desc:'Writes RefCPI.csv'},
   {id:'eP3S2',from:'P3',to:'S2',style:'solid',  desc:'Writes TipsRef.csv'},
   {id:'eP4S4',from:'P4',to:'S4',style:'solid',  desc:'Writes RefCpiNsaSa.csv'},
@@ -296,8 +296,8 @@ const EDGES = [
   {id:'eP7S7b',from:'P7',to:'S7b',style:'solid', desc:'Writes FidelityTips.csv'},
   {id:'eP8S8', from:'P8',to:'S8', style:'solid', desc:'Writes BondHolidaysSifma.csv'},
   // S → A consumption (solid)
-  {id:'eS1A1',from:'S1',to:'A1',style:'solid',  desc:'Yields.csv → all yield curves'},
-  {id:'eS1A2',from:'S1',to:'A2',style:'solid',  desc:'Yields.csv → ladder pricing'},
+  {id:'eS1A1',from:'S1',to:'A1',style:'solid',  desc:'YieldsDerivedFromFedInvestPrices.csv → all yield curves'},
+  {id:'eS1A2',from:'S1',to:'A2',style:'solid',  desc:'YieldsDerivedFromFedInvestPrices.csv → ladder pricing'},
   {id:'eS2A2',from:'S2',to:'A2',style:'solid',  desc:'TipsRef.csv → coupon + dated-date lookups'},
   {id:'eS3A2',from:'S3',to:'A2',style:'solid',  desc:'RefCPI.csv → index ratio calculations'},
   {id:'eS4A1',from:'S4',to:'A1',style:'solid',  desc:'RefCpiNsaSa.csv → CPI seasonal adjustment overlay'},
@@ -313,7 +313,7 @@ const EDGES = [
 
 // ── Mappings for status overlay ──
 const WF_TO_NODE  = {'get-yields-fedinvest.yml':'P1','fetch-ref-cpi.yml':'P2','fetch-tips-ref.yml':'P3','update-ref-cpi-nsa-sa.yml':'P4','get-auctions.yml':'P5','update-yield-history.yml':'P6'};
-const R2_TO_NODE  = {'Treasuries/Yields.csv':'S1','Treasuries/RefCPI.csv':'S3','Treasuries/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yield-history/US10Y_history.json':'S6','Treasuries/FidelityTreasuries.csv':'S7a','Treasuries/FidelityTips.csv':'S7b','misc/BondHolidaysSifma.csv':'S8'};
+const R2_TO_NODE  = {'Treasuries/YieldsDerivedFromFedInvestPrices.csv':'S1','Treasuries/RefCPI.csv':'S3','Treasuries/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yield-history/US10Y_history.json':'S6','Treasuries/FidelityTreasuries.csv':'S7a','Treasuries/FidelityTips.csv':'S7b','misc/BondHolidaysSifma.csv':'S8'};
 const APPID_TO_NODE = {'yieldcurves':'A1','tipsladder':'A2','auctions':'A4','yieldsmonitor':'A3'};
 
 const nodeMap = Object.fromEntries(NODES.map(n=>[n.id,n]));

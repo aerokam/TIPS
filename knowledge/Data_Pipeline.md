@@ -28,7 +28,7 @@ These jobs are the primary ingestion engine. They run on the owner's machine via
 
 | Task Name | Schedule | Script | Primary Output |
 |---|---|---|---|
-| **FedInvest Download** | Weekdays 1:05pm ET | `scripts/getYieldsFedInvest.js` | `Yields.csv` |
+| **FedInvest Download** | Weekdays 1:05pm ET | `scripts/getYieldsFedInvest.js` | `YieldsDerivedFromFedInvestPrices.csv` |
 | **Fidelity Quotes** | 3× Daily | *(Windows Task)* | `FidelityTreasuries.csv` |
 | **CPI Refresh** | Monthly (Release Day) | `scripts/fetchRefCpi.js` | `RefCPI.csv` |
 | **SA Factor Update** | Daily 6:35am | `YieldCurves/scripts/updateRefCpi.js` | `RefCpiNsaSa.csv` |

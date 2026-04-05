@@ -5,7 +5,7 @@ import { handleChartKeydown, setupAxisWheelZoom, snapYBounds, snapYAfterZoom } f
 console.log("YieldCurves app.js loading...");
 
 const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
-const YIELDS_CSV_URL = `${R2_BASE_URL}/Treasuries/Yields.csv`;
+const YIELDS_CSV_URL = `${R2_BASE_URL}/Treasuries/YieldsDerivedFromFedInvestPrices.csv`;
 const REF_CPI_CSV_URL = `${R2_BASE_URL}/Treasuries/RefCpiNsaSa.csv`;
 const HOLIDAYS_CSV_URL = `${R2_BASE_URL}/misc/BondHolidaysSifma.csv`;
 const FIDELITY_TREASURIES_URL = `${R2_BASE_URL}/Treasuries/FidelityTreasuries.csv`;
@@ -368,7 +368,7 @@ async function init() {
     ]);
 
     console.log("Parsing CSVs...");
-    // Yields.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
+    // YieldsDerivedFromFedInvestPrices.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
     const yieldsLines = yieldsText.split(/\r?\n/).filter(l => l.trim());
     const yieldsSettleDate = yieldsLines[0].trim();
     const allYieldsRows = parseCsv(yieldsLines.slice(1).join('\n'))

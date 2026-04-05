@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REF_CPI_PATH = path.join(__dirname, '../data/RefCpiNsaSa.csv');
-const YIELDS_PATH = path.join(__dirname, '../data/Yields.csv');
+const YIELDS_PATH = path.join(__dirname, '../data/YieldsDerivedFromFedInvestPrices.csv');
 
 // --- Helpers ---
 function loadRefCpi() {

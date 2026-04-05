@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '../../');
 
-const TIPS_REF_PATH = path.join(ROOT, 'tests/e2e/Yields.csv');
+const TIPS_REF_PATH = path.join(ROOT, 'tests/e2e/YieldsDerivedFromFedInvestPrices.csv');
 const TARGET_FILES = [
   'tests/dev/FidelityAllAccounts.csv',
   'tests/dev/Schwab all accounts.csv'

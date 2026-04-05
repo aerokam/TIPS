@@ -9,7 +9,7 @@
 ```mermaid
 graph LR
     %% Data Stores (S)
-    S1[(S1 Yields.csv)]
+    S1[("S1 YieldsDerivedFromFedInvestPrices.csv")]
     S4[(S4 RefCpiNsaSa.csv)]
     S7[(S7 FidelityQuotes)]
 

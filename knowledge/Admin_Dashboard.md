@@ -64,7 +64,7 @@ Each app has a set of named pipelines. The server's `APP_CONFIGS` is the authori
 
 | Pipeline label | R2 file | GH workflow | Local job | Feeds |
 |---|---|---|---|---|
-| FedInvest daily prices | `Yields.csv` | `get-yields-fedinvest.yml` | FedInvest Download | All yield curves |
+| FedInvest daily prices | `YieldsDerivedFromFedInvestPrices.csv` | `get-yields-fedinvest.yml` | FedInvest Download | All yield curves |
 | Broker quotes — Treasuries | `FidelityTreasuries.csv` | — | Fidelity Download + Upload to R2 | Market tab (nominals) |
 | Broker quotes — TIPS | `FidelityTips.csv` | — | Fidelity Download + Upload to R2 | Market tab (TIPS) |
 | CPI seasonal adjustment factors | `RefCpiNsaSa.csv` | `fetch-ref-cpi.yml`, `update-ref-cpi-nsa-sa.yml` | — | CPI overlay |
@@ -77,13 +77,13 @@ Each app has a set of named pipelines. The server's `APP_CONFIGS` is the authori
 | Daily yield history snapshots | `yield-history/US10Y_history.json` *(representative)* | `update-yield-history.yml` | — | History charts — 14 symbols |
 | Live Treasury yields | *(none — live browser fetch)* | — | — | Live yield display + intraday charts |
 
-Note: YieldsMonitor does **not** read `Yields.csv`. Its only R2 dependency is the 14 `yield-history/*.json` files. Live data comes from CNBC GraphQL fetched directly in the browser.
+Note: YieldsMonitor does **not** read `YieldsDerivedFromFedInvestPrices.csv`. Its only R2 dependency is the 14 `yield-history/*.json` files. Live data comes from CNBC GraphQL fetched directly in the browser.
 
 ### TipsLadderManager
 
 | Pipeline label | R2 file | GH workflow | Local job | Feeds |
 |---|---|---|---|---|
-| FedInvest daily prices | `Yields.csv` | `get-yields-fedinvest.yml` | — | Ladder pricing — all TIPS |
+| FedInvest daily prices | `YieldsDerivedFromFedInvestPrices.csv` | `get-yields-fedinvest.yml` | — | Ladder pricing — all TIPS |
 | TIPS reference metadata | `TipsRef.csv` | `fetch-tips-ref.yml` | — | Coupon + dated-date lookups |
 | Reference CPI index | `RefCPI.csv` | `fetch-ref-cpi.yml` | — | Index ratio calculations |
 
@@ -95,7 +95,7 @@ Note: YieldsMonitor does **not** read `Yields.csv`. Its only R2 dependency is th
 | Upcoming auctions | *(none — live fetch)* | — | — | Calendar view |
 
 **Shared files:**
-- `Yields.csv` is shared by YieldCurves, YieldsMonitor, and TipsLadderManager. All three read the same R2 key (`Treasuries/Yields.csv`) written by `get-yields-fedinvest.yml`. Running the workflow or the local FedInvest Download refreshes all three.
+- `YieldsDerivedFromFedInvestPrices.csv` is shared by YieldCurves and TipsLadderManager. Both read the same R2 key (`Treasuries/YieldsDerivedFromFedInvestPrices.csv`) written by `get-yields-fedinvest.yml`. Running the workflow or the local FedInvest Download refreshes both.
 - `fetch-ref-cpi.yml` is shared: used by YieldCurves (indirectly, triggers `update-ref-cpi-nsa-sa.yml` chain) and TipsLadderManager (writes `RefCPI.csv` directly).
 
 ---
@@ -211,6 +211,6 @@ Treasuries/
 
 ## Deferred / Known Issues
 
-- **`Yields.csv` rename** — the filename is not descriptive. Candidate: `yieldsFromFedInvestPrices.csv`. Currently referenced in 18 files (tests, scripts, knowledge docs across YieldCurves + TipsLadderManager). Defer to a dedicated rename PR.
+- **`Yields.csv` rename** — completed. Renamed to `YieldsDerivedFromFedInvestPrices.csv` across all code, tests, knowledge docs, and Dashboard. R2 key updated; old `Treasuries/Yields.csv` object can be deleted from R2 after next pipeline run confirms the new key.
 - **YieldsMonitor yield history** — 14 symbol files; dashboard checks US10Y as a representative sample for freshness. Could expand to check all 14 and show min/max age.
 - **Deployment** — local-only; blocked by local script execution requirement.

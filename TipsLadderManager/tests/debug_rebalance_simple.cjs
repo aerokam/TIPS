@@ -4,7 +4,7 @@ function localDate(str) {
   const [y, m, d] = str.split('-').map(Number);
   return new Date(y, m - 1, d);
 }
-const yieldsText = fs.readFileSync('tests/e2e/Yields.csv', 'utf8');
+const yieldsText = fs.readFileSync('tests/e2e/YieldsDerivedFromFedInvestPrices.csv', 'utf8');
 const yieldsRows = yieldsText.trim().split('\n').slice(1).map(line => {
     const p = line.split(',');
     return { settlementDate: p[0], cusip: p[1], maturity: p[2], coupon: parseFloat(p[3]), baseCpi: parseFloat(p[4]), price: parseFloat(p[5]), yield: parseFloat(p[6]) };

@@ -36,7 +36,7 @@ graph LR
     click P2 "#/md/YieldsMonitor/knowledge/1.0_Operation.md#20-yield-change-logic" "View Change Logic"
     click P3 "#/md/YieldsMonitor/knowledge/1.0_Operation.md#30-interactive-visualization" "View UI Specs"
     click S6 "#/md/knowledge/DataStores.md#s6" "View Schema"
-    ```
+```
 
 
 ---

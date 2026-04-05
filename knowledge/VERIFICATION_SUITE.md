@@ -23,7 +23,7 @@ Follow these steps to verify that the navigation, rendering, and drill-down feat
 
 ## 3. Data Inspection (CSV Previews)
 - [ ] Open **Data Stores** from the top header of the Map.
-- [ ] **Preview Toggle**: Click **"View"** next to `Yields.csv`.
+- [ ] **Preview Toggle**: Click **"View"** next to `YieldsDerivedFromFedInvestPrices.csv`.
     - *Expected*: A table with the first 10 rows appears.
 - [ ] **Toggle Off**: Click the **"View"** link again.
     - *Expected*: The table disappears.

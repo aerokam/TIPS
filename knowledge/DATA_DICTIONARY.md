@@ -42,7 +42,7 @@
 ## 2.0 Data Stores (S)
 *Internal R2 data files. Schemas are normalized from External Entities.*
 
-- <a id="s1"></a>**S1: Yields.csv** = `Settlement_Date + { @CUSIP + Type + Maturity + Coupon + DatedDateCPI + Price + Yield }`
+- <a id="s1"></a>**S1: YieldsDerivedFromFedInvestPrices.csv** = `Settlement_Date + { @CUSIP + Type + Maturity + Coupon + DatedDateCPI + Price + Yield }`
 - <a id="s2"></a>**S2: TipsRef.csv** = `{ @CUSIP + Maturity + DatedDate + Coupon + BaseCPI + Term }`
 - <a id="s3"></a>**S3: RefCPI.csv** = `{ @Date + Ref_CPI }`
 - <a id="s4"></a>**S4: RefCpiNsaSa.csv** = `{ @Date + CPI_NSA + CPI_SA + SA_Factor }`

@@ -9,7 +9,7 @@
 ```mermaid
 graph LR
     %% Data Stores (S)
-    S1[(S1 Yields.csv)]
+    S1[("S1 YieldsDerivedFromFedInvestPrices.csv")]
     S3[(S3 RefCPI.csv)]
     LS[(Local Storage)]
 
@@ -83,6 +83,6 @@ These documents contain the "bottom-level" technical specifications required to 
 
 TipsLadderManager fetches its market context from Cloudflare R2 on every page load.
 - **[TIPS Data Pipeline (3.1)](../TipsLadderManager/knowledge/3.1_Data_Pipeline.md)**: Detailed specs for the ingestion of prices and metadata.
-- **Source**: `Yields.csv` (updated daily ~1 PM ET).
+- **Source**: `YieldsDerivedFromFedInvestPrices.csv` (updated daily ~1 PM ET).
 - **Source**: `RefCPI.csv` (updated monthly on BLS release).
 - **Persistence**: User holdings are stored in browser `localStorage`.

@@ -2,8 +2,8 @@
 import { buildTipsMapFromYields, runRebalance, localDate } from './src/rebalance-lib.js';
 import { readFileSync } from 'fs';
 
-// Yields.csv: row 1 = settlement date, row 2 = header (type,cusip,...,datedDateCpi,...), rows 3+ = data
-const yieldsText = readFileSync('tests/e2e/Yields.csv', 'utf8');
+// YieldsDerivedFromFedInvestPrices.csv: row 1 = settlement date, row 2 = header (type,cusip,...,datedDateCpi,...), rows 3+ = data
+const yieldsText = readFileSync('tests/e2e/YieldsDerivedFromFedInvestPrices.csv', 'utf8');
 const yieldsAllLines = yieldsText.trim().split('\n');
 const yieldsCsvSettle = yieldsAllLines[0].trim();
 const yieldsRows = yieldsAllLines.slice(2).map(line => {
