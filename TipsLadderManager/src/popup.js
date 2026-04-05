@@ -14,7 +14,8 @@ function _build() {
   _el.id = 'shared-popup';
   _el.style.cssText =
     'position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:6px;' +
-    'padding:0;width:max-content;max-width:min(520px,92vw);' +
+    'padding:0;width:max-content;max-width:min(560px,92vw);' +
+    'max-height:90vh;flex-direction:column;' +
     'box-shadow:0 4px 18px rgba(0,0,0,.14);z-index:400;font-size:12px;display:none;';
   document.body.appendChild(_el);
 
@@ -120,7 +121,7 @@ export function showPopup(anchorEl, title, rowsOrBuilder, breadcrumb, initialTog
               'line-height:1;padding:0 0 0 12px;flex-shrink:0" ' +
               'id="sp-close" style="cursor:pointer;background:none;border:none;font-size:18px;color:#94a3b8;padding:0 0 0 12px">×</button>' +
     '</div>' +
-    '<div style="padding:10px 14px">' + table + '</div>';
+    '<div style="padding:10px 14px;overflow-y:auto;flex:1;">' + table + '</div>';
 
   _el.querySelector('#sp-close').addEventListener('click', hidePopup);
   _el.querySelectorAll('.sp-toggle-btn').forEach(btn => {
@@ -131,7 +132,7 @@ export function showPopup(anchorEl, title, rowsOrBuilder, breadcrumb, initialTog
       }
     });
   });
-  _el.style.display = 'block';
+  _el.style.display = 'flex';
 
   // Position: below anchor, clamped to viewport
   const ar = anchorEl.getBoundingClientRect();
