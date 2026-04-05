@@ -21,26 +21,32 @@
 
 <a id="1.0-external-entities-e"></a>
 ## 1.0 External Entities (E)
-*External sources providing data to the system.*
+*External sources providing data to the system. Click these in the Context Diagram to see their data structures.*
 
-- <a id="e1"></a>**E1: FedInvest** = *US Treasury price source for bills, notes, bonds, TIPS (no STRIPS)*
-- <a id="e2"></a>**E2: TreasuryDirect SecIndex** = *Source for daily interpolated RefCPI values*
-- <a id="e3"></a>**E3: FiscalData API** = *Source for auction results and TIPS metadata*
-- <a id="e4"></a>**E4: BLS Public API** = *Source for monthly NSA and SA CPI-U time series*
-- <a id="e5"></a>**E5: CNBC GraphQL** = *Source for market mid-price yields*
-- <a id="e6"></a>**E6: Fidelity Fixed Income** = *Broker source for real-time ask/bid quotes including STRIPS*
+- <a id="e1"></a>**E1: FedInvest** = `CUSIP + Security_Type + Maturity_Date + Rate + Price`
+  *US Treasury price source. Price represents the **midpoint of market bid and ask prices** (mid-market reference). Because it is a midpoint, it is consistently lower than commercial market Ask prices, resulting in calculated FedInvest yields that are slightly higher than broker Ask yields. This is particularly noticeable for short-dated Bills. Note: FedInvest does not specify a settlement date; our system infers T=0 (Price Date = Settlement Date) based on empirical yield matching. We calculate the Yield (YTM) based on this price.*
+- <a id="e2"></a>**E2: TreasuryDirect SecIndex** = `CUSIP + Index_Date + Ref_CPI`
+  *Authority for daily interpolated RefCPI. Provides values for every day of the month.*
+- <a id="e3"></a>**E3: FiscalData API** = `CUSIP + Auction_Date + Security_Type + High_Yield + Bid_to_Cover + ...`
+  *U.S. Treasury official auction results and immutable security metadata (Coupons, Dated Dates).*
+- <a id="e4"></a>**E4: BLS Public API** = `Year + Month + Value + Seasonal_Adjustment_Flag`
+  *Consumer Price Index (CPI-U) monthly data. Used to derive SA factors by comparing NSA vs. SA values.*
+- <a id="e5"></a>**E5: CNBC GraphQL** = `Symbol + Timestamp + Price + Change + Yield`
+  *Market mid-price feed for live monitoring. Symbols include US10Y, US30Y, etc.*
+- <a id="e6"></a>**E6: Fidelity Fixed Income** = `CUSIP + Maturity + Coupon + Ask_Price + Bid_Price + Ask_Yield + Bid_Yield + Quantity`
+  *Broker-specific quotes. Used for "Market Price" comparisons.*
 
 ---
 
 <a id="2.0-data-stores-s"></a>
 ## 2.0 Data Stores (S)
-*Internal R2 data files and their schemas.*
+*Internal R2 data files. Schemas are normalized from External Entities.*
 
 - <a id="s1"></a>**S1: Yields.csv** = `Settlement_Date + { @CUSIP + Type + Maturity + Coupon + DatedDateCPI + Price + Yield }`
 - <a id="s2"></a>**S2: TipsRef.csv** = `{ @CUSIP + Maturity + DatedDate + Coupon + BaseCPI + Term }`
-- <a id="s3"></a>**S3: RefCPI.csv** = `{ @Date + RefCPI }`
+- <a id="s3"></a>**S3: RefCPI.csv** = `{ @Date + Ref_CPI }`
 - <a id="s4"></a>**S4: RefCpiNsaSa.csv** = `{ @Date + CPI_NSA + CPI_SA + SA_Factor }`
-- <a id="s5"></a>**S5: Auctions.csv** = `{ @CUSIP + @Auction_Date + Security_Type + ... + High_Yield + ... }`
+- <a id="s5"></a>**S5: Auctions.csv** = `{ @CUSIP + @Auction_Date + Security_Type + High_Yield + Bid_to_Cover + Primary_Dealer_Accepted + ... }`
 - <a id="s6"></a>**S6: YieldHistory** = `{ @Symbol + { [ Timestamp + Yield_Value ] } }`
 - <a id="s7"></a>**S7: FidelityQuotes** = `{ @CUSIP + Maturity + Coupon + Ask_Price + Bid_Price + Ask_Yield + Bid_Yield }`
 
@@ -76,7 +82,7 @@
 
 <a id="settlement-date"></a>
 ### Settlement Date
-`Settlement_Date` = *[ Trade_Date + 1 Business Day | Manual_Override ]*
+`Settlement_Date` = *The date on which a bond trade is settled. Standard system logic: [ Trade_Date + 1 Bond Trading Day (T+1) | Manual_Override ]. T+1 excludes weekends and US bond market holidays (source: BondHolidaysSifma.csv). Exception: For FedInvest price ingestion, yield calculations use T=0 (Price Date = Settlement Date) to match FedInvest reported yields empirically. However, the default Ref CPI date is still set to T+1 bond trading day of the FedInvest price date, to match broker convention (where the Ref CPI used is that of the actual settlement date).*
 
 <a id="maturity-date"></a>
 ### Maturity Date

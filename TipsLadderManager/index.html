@@ -79,9 +79,9 @@
 
 
   /* ── Info strip ── */
-  #info-strip { font-size: 13px; color: #1e293b; margin-top: 0; line-height: 1.6; }
+  #info-strip { font-size: 15px; color: #1e293b; margin-top: 0; line-height: 1.6; }
   .info-row { white-space: nowrap; }
-  .info-link { color: #1a56db; text-decoration: none; cursor: pointer; border-bottom: 1px dotted #1a56db; font-size: 12px; }
+  .info-link { color: #1a56db; text-decoration: none; cursor: pointer; border-bottom: 1px dotted #1a56db; }
   .info-link:hover { color: #1748c0; }
   .info-link-btn { display:inline-block; background:#1e293b; color:#fff !important; padding:1px 8px; border-radius:4px; border-bottom:none !important; font-weight:700; font-size:11px; letter-spacing:.02em; }
   .info-link-btn:hover { background:#334155; }
@@ -298,9 +298,10 @@ import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFutureDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
-import { fetchTipsData, lookupRefCpi } from './src/data.js';
+import { fetchTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
+import { calculateMDuration } from '../shared/src/bond-math.js';
 
 const toIso = d => d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') : '';
 
@@ -326,7 +327,7 @@ async function loadData() {
   const dataInfo = document.getElementById('info-strip');
   try {
     console.log('Fetching market data from R2...');
-    const { yieldsRows, refCpiRows: rows, tipsRefRows } = await fetchTipsData();
+    const { yieldsRows, refCpiRows: rows, tipsRefRows, bondHolidays } = await fetchTipsData();
     console.log('Market data fetched. yields:', yieldsRows.length, 'refCpi:', rows.length, 'tipsRef:', tipsRefRows.length);
     
     refCpiRows = rows;
@@ -339,7 +340,10 @@ async function loadData() {
     
     settlementDate = localDate(settleDateStr);
     console.log('Parsed settlement date:', settlementDate);
-    
+    // Ref CPI date default = T+1 bond trading day of FedInvest price date
+    // (mirrors broker T+1 settlement convention; excludes weekends + bond market holidays)
+    _defaultRefCpiDateStr = nextBondTradingDay(settleDateStr, bondHolidays);
+
     tipsMap = buildTipsMapFromYields(yieldsRows);
     console.log('TipsMap built with', tipsMap.size, 'entries');
 
@@ -388,8 +392,8 @@ async function loadData() {
       ? ', none for ' + _gaps[0] + '–' + _gaps[_gaps.length - 1] + ' (gap years)'
       : '';
     
-    _staticInfoPrefix = 'Market data as of ' + settleDateStr;
-    _staticInfoSuffix = ' · <a class="info-link tips-ref-link">' + yieldsRows.length + ' TIPS</a>' + _gapSuffix;
+    _staticInfoPrefix = 'FedInvest prices · ' + _fmtMDY(settleDateStr);
+    _staticInfoSuffix = ' · ' + yieldsRows.length + ' TIPS: <a class="info-link tips-ref-link">Ref</a> <a class="info-link tips-mkt-link">Mkt</a>' + _gapSuffix;
     _staticInfo = _buildStaticInfo();
     dataInfo.innerHTML = '<div class="info-row">' + _staticInfo + '</div>';
     
@@ -476,6 +480,7 @@ let buildSummary = null;
 let _staticInfo = '', _rebalRunInfo = '', _buildRunInfo = '';
 let _staticInfoPrefix = '', _staticInfoSuffix = '';
 let activeRefCpiDateStr = null;
+let _defaultRefCpiDateStr = null; // T+1 of FedInvest price date (settlement date for Ref CPI lookups)
 let _maxRefCpiDate = null;
 let _daraRebal = '', _daraBuild = '40000';
 const _infoPopups = {};
@@ -1016,8 +1021,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
   setStatus('');
 
   try {
-    const settleDateStr = toIso(settlementDate);
-    const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? settleDateStr);
+    const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
 
     if (currentMode === 'build') {
       // ── Build from Scratch ──
@@ -1238,8 +1242,9 @@ document.addEventListener('click', e => {
   // RefCPI picker trigger (also has class info-link — handle before generic info-link)
   const rl = e.target.closest('#refcpi-link');
   if (rl) { _showRefCpiPicker(rl); return; }
-  // TIPS ref popup
-  if (e.target.closest('.tips-ref-link')) { _showTipsRefPopup(); return; }
+  // TIPS popup
+  if (e.target.closest('.tips-ref-link')) { _showTipsPopup('ref'); return; }
+  if (e.target.closest('.tips-mkt-link')) { _showTipsPopup('mkt'); return; }
   const link = e.target.closest('.info-link');
   if (link) {
     const key  = link.dataset.popup;
@@ -1311,14 +1316,11 @@ function _parseMDY(s) {
   return yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
 }
 function _buildStaticInfo() {
-  const _date = activeRefCpiDateStr ?? (settlementDate ? toIso(settlementDate) : null);
+  const _date = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
   if (!_date || !refCpiRows) return _staticInfoPrefix + _staticInfoSuffix;
-  let _val;
-  try { _val = lookupRefCpi(refCpiRows, _date); } catch(e) { return _staticInfoPrefix + _staticInfoSuffix; }
   const _dateStyle = activeRefCpiDateStr ? ' style="color:#7c3aed"' : '';
   return _staticInfoPrefix
-    + ' · Ref CPI ' + _val.toFixed(5)
-    + ' as of <span id="refcpi-link" class="info-link" title="Click to change reference CPI date"' + _dateStyle + '>'
+    + ' · Ref CPI date: <span id="refcpi-link" class="info-link" title="Click to set inflation reference date"' + _dateStyle + '>'
     + _fmtMDY(_date) + '</span>'
     + _staticInfoSuffix;
 }
@@ -1442,53 +1444,101 @@ document.getElementById('refcpi-reset-btn').addEventListener('click', () => {
   document.getElementById('refcpi-picker').style.display = 'none';
 });
 
-// ─── TIPS Ref popup ───────────────────────────────────────────────────────────
-function _showTipsRefPopup() {
-  if (!tipsMap || !refCpiRows) return;
-  const dateStr = activeRefCpiDateStr ?? toIso(settlementDate);
-  const activeRefCPI = lookupRefCpi(refCpiRows, dateStr);
-  const activeLabel = _fmtMDY(dateStr);
+// ─── TIPS popup (Ref / Mkt) ───────────────────────────────────────────────────
+let _tipsPopupMode = 'ref';
 
-  // Bonds sorted by maturity (active/future only)
+function _showTipsPopup(mode) {
+  if (!tipsMap || !refCpiRows) return;
+  _tipsPopupMode = mode;
+  _renderTipsModal();
+  document.getElementById('tipsref-overlay').style.display = 'block';
+}
+
+function _renderTipsModal() {
+  const mode = _tipsPopupMode;
+  const dateStr = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  const activeRefCPI = lookupRefCpi(refCpiRows, dateStr);
+
   const bonds = [...tipsMap.values()]
     .filter(b => b.maturity && b.maturity > settlementDate)
     .sort((a, b) => a.maturity - b.maturity);
 
-  const ov = document.getElementById('tipsref-overlay');
-  document.getElementById('tipsref-title').textContent =
-    'Outstanding TIPS (' + bonds.length + ') · RefCPI as of ' + activeLabel + ' = ' + activeRefCPI.toFixed(5);
+  document.getElementById('tipsref-mode-ref').classList.toggle('active', mode === 'ref');
+  document.getElementById('tipsref-mode-mkt').classList.toggle('active', mode === 'mkt');
   document.getElementById('tipsref-warn').style.display = 'none';
 
   const fd = (n, d) => (typeof n === 'number' && !isNaN(n)) ? n.toFixed(d) : '—';
-  const fmtDate = s => s ? _fmtMDY(s) : '—';
+  const fmtD = s => s ? _fmtMDY(s) : '—';
 
-  let rows = '';
-  for (const b of bonds) {
-    const ref = tipsRefMap?.get(b.cusip);
-    const ir = activeRefCPI / b.baseCpi;
-    let termY = ref?.term ?? '—';
-    if (termY.includes('30-Year 6-Month')) termY = '30.5';
-    else if (termY.includes('5-Year')) termY = '5';
-    else if (termY.includes('10-Year')) termY = '10';
-    else if (termY.includes('20-Year')) termY = '20';
-    else if (termY.includes('30-Year')) termY = '30';
+  let thead = '', rows = '';
 
-    rows +=
+  if (mode === 'ref') {
+    document.getElementById('tipsref-title').textContent = 'TIPS Reference (' + bonds.length + ' bonds)';
+    thead =
+      '<thead><tr>' +
+      '<th style="text-align:left">CUSIP</th>' +
+      '<th style="text-align:left">Maturity</th>' +
+      '<th style="text-align:left">Dated Date</th>' +
+      '<th style="text-align:right">Coupon</th>' +
+      '<th style="text-align:right">Dated Ref CPI</th>' +
+      '<th style="text-align:center">Term (y)</th>' +
+      '</tr></thead>';
+
+    for (const b of bonds) {
+      const ref = tipsRefMap?.get(b.cusip);
+      let termY = ref?.term ?? '—';
+      if (termY.includes('30-Year 6-Month')) termY = '30.5';
+      else if (termY.includes('5-Year')) termY = '5';
+      else if (termY.includes('10-Year')) termY = '10';
+      else if (termY.includes('20-Year')) termY = '20';
+      else if (termY.includes('30-Year')) termY = '30';
+
+      rows +=
+        '<tr>' +
+        '<td style="text-align:left">' + b.cusip + '</td>' +
+        '<td style="text-align:left">' + fmtD(toIso(b.maturity)) + '</td>' +
+        '<td style="text-align:left">' + fmtD(ref?.datedDate) + '</td>' +
+        '<td style="text-align:right">' + fd(b.coupon * 100, 3) + '%</td>' +
+        '<td style="text-align:right">' + fd(b.baseCpi, 5) + '</td>' +
+        '<td style="text-align:center">' + termY + '</td>' +
+        '</tr>';
+    }
+  } else {
+    document.getElementById('tipsref-title').textContent =
+      'FedInvest Prices · ' + _fmtMDY(toIso(settlementDate));
+    const refDateLabel = _fmtMDY(dateStr);
+    thead =
+      '<thead>' +
+      '<tr><td colspan="6" style="text-align:left;font-size:11px;color:#64748b;padding:4px 0 6px;border-bottom:1px solid #e2e8f0;font-style:italic">' +
+      'FedInvest mid-market prices; yields slightly above broker ask. ' +
+      'Index ratio relative to Ref CPI date: ' + refDateLabel + '.' +
+      '</td></tr>' +
       '<tr>' +
-      '<td>' + b.cusip + '</td>' +
-      '<td style="text-align:right">' + fd(b.baseCpi, 5) + '</td>' +
-      '<td>' + fmtDate(ref?.datedDate) + '</td>' +
-      '<td>' + fmtDate(toIso(b.maturity)) + '</td>' +
-      '<td style="text-align:right">' + fd(b.coupon * 100, 3) + '%</td>' +
-      '<td style="text-align:right">' + fd(b.yield * 100, 3) + '%</td>' +
-      '<td style="text-align:right">' + fd(b.price, 4) + '</td>' +
-      '<td style="text-align:right">' + fd(ir, 5) + '</td>' +
-      '<td style="text-align:center">' + termY + '</td>' +
-      '</tr>';
+      '<th style="text-align:left">CUSIP</th>' +
+      '<th style="text-align:left">Maturity</th>' +
+      '<th style="text-align:right">Yield</th>' +
+      '<th style="text-align:right">Price</th>' +
+      '<th style="text-align:right">Duration</th>' +
+      '<th style="text-align:right">Index Ratio</th>' +
+      '</tr></thead>';
+
+    for (const b of bonds) {
+      const ir = activeRefCPI / b.baseCpi;
+      const dur = b.yield != null ? calculateMDuration(settlementDate, b.maturity, b.coupon, b.yield) : NaN;
+
+      rows +=
+        '<tr>' +
+        '<td style="text-align:left">' + b.cusip + '</td>' +
+        '<td style="text-align:left">' + fmtD(toIso(b.maturity)) + '</td>' +
+        '<td style="text-align:right">' + fd(b.yield * 100, 3) + '%</td>' +
+        '<td style="text-align:right">' + fd(b.price, 4) + '</td>' +
+        '<td style="text-align:right">' + fd(dur, 2) + '</td>' +
+        '<td style="text-align:right">' + fd(ir, 5) + '</td>' +
+        '</tr>';
+    }
   }
 
-  document.getElementById('tipsref-tbody').innerHTML = rows;
-  ov.style.display = 'block';
+  document.getElementById('tipsref-table').innerHTML = thead + '<tbody>' + rows + '</tbody>';
 }
 
 document.getElementById('tipsref-close').addEventListener('click', () => {
@@ -1498,6 +1548,8 @@ document.getElementById('tipsref-overlay').addEventListener('click', e => {
   if (window._tipsRefInteracting) return;
   if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
 });
+document.getElementById('tipsref-mode-ref').addEventListener('click', () => { _tipsPopupMode = 'ref'; _renderTipsModal(); });
+document.getElementById('tipsref-mode-mkt').addEventListener('click', () => { _tipsPopupMode = 'mkt'; _renderTipsModal(); });
 
 // ─── Draggable & Sizable TIPS ref modal ────────────────────────────────────────────────────────────────────────────
 {
@@ -1568,10 +1620,11 @@ loadData();
 <!-- RefCPI date picker -->
 <div id="refcpi-picker" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:0;width:230px;box-shadow:0 4px 18px rgba(0,0,0,.14);z-index:400;font-size:12px;">
   <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px 7px 14px;border-bottom:1px solid #e2e8f0;">
-    <span style="font-size:12px;font-weight:700;color:#1e293b">Reference CPI Date</span>
+    <span style="font-size:12px;font-weight:700;color:#1e293b">Ref CPI Date</span>
     <button id="refcpi-picker-close" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;padding:0 0 0 12px;">×</button>
   </div>
   <div style="padding:10px 14px;">
+    <div style="font-size:11px;color:#64748b;margin-bottom:8px;line-height:1.4">Default is T+1 of the FedInvest price date (settlement date). Change to a past date (e.g., purchase date) to measure inflation-adjusted values relative to that point. Affects ladder calculations.</div>
     <input type="text" id="refcpi-date-input" placeholder="MM/DD/YYYY" maxlength="10"
       style="width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:13px;font-variant-numeric:tabular-nums;box-sizing:border-box;">
     <div id="refcpi-date-preview" style="margin-top:6px;font-size:12px;color:#555;min-height:16px;"></div>
@@ -1582,31 +1635,20 @@ loadData();
   </div>
 </div>
 
-<!-- TIPS Ref popup -->
+<!-- TIPS popup (Ref / Mkt) -->
 <div id="tipsref-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;overflow:hidden;">
-  <div id="tipsref-modal" style="background:#fff;width:720px;min-width:400px;min-height:200px;border-radius:8px;padding:20px 24px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;">
+  <div id="tipsref-modal" style="background:#fff;width:680px;min-width:400px;min-height:200px;border-radius:8px;padding:20px 24px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;">
     <div class="resize-handle n"></div><div class="resize-handle s"></div><div class="resize-handle e"></div><div class="resize-handle w"></div>
     <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
     <button id="tipsref-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">×</button>
-    <div id="tipsref-title" style="font-size:13px;font-weight:700;color:#1e293b;margin-bottom:8px;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;"></div>
+    <div id="tipsref-title" style="font-size:13px;font-weight:700;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;"></div>
+    <div style="display:flex;gap:6px;margin-top:8px;margin-bottom:6px;">
+      <button id="tipsref-mode-ref" class="mode-btn active">Ref</button>
+      <button id="tipsref-mode-mkt" class="mode-btn">Mkt</button>
+    </div>
     <div id="tipsref-warn" style="display:none;margin-bottom:8px;padding:6px 10px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;font-size:12px;color:#991b1b;font-weight:600;"></div>
     <div style="overflow:auto;flex:1;">
-      <table class="simple" style="width:100%;">
-        <thead>
-          <tr>
-            <th style="text-align:left">CUSIP</th>
-            <th>Dated Ref CPI</th>
-            <th style="text-align:left">Dated Date</th>
-            <th style="text-align:left">Maturity</th>
-            <th>Coupon</th>
-            <th>Yield</th>
-            <th>Price</th>
-            <th>Index Ratio</th>
-            <th style="text-align:center">Term (y)</th>
-          </tr>
-        </thead>
-        <tbody id="tipsref-tbody"></tbody>
-      </table>
+      <table id="tipsref-table" class="simple" style="width:100%;"></table>
     </div>
   </div>
 </div>
