@@ -34,7 +34,8 @@ function calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim) 
     const synYld = interpolateYield(anchorBefore, anchorAfter, synMat);
     const synCpn = _synCoupon(synYld);
 
-    totalDuration += calculateMDuration(settlementDate, synMat, synCpn, synYld);
+    const dur = calculateMDuration(settlementDate, synMat, synCpn, synYld);
+    totalDuration += dur;
 
     let laterMatInt = 0;
     for (const [y, p] of Object.entries(prelim)) {
@@ -44,7 +45,8 @@ function calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim) 
     const piPerBond = 1000 + 1000 * synCpn * 0.5;
     const qty = Math.round((dara - laterMatInt) / piPerBond);
     totalCost += qty * 1000;
-    breakdown.push({ year, qty, piPerBond, laterMatInt });
+    breakdown.push({ year, qty, piPerBond, laterMatInt, dur });
+    count++;
     count++;
   }
 

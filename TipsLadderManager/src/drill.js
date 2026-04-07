@@ -554,18 +554,29 @@ export function buildDurationPopupRows(summary, mode) {
                 + ' = ' + gapParams.avgDuration.toFixed(2);
     rows = [
       { label: 'Gap avg duration', value: gapParams.avgDuration.toFixed(2) + ' yr' },
-      { label: 'Gap years',        value: (summary.gapYears || []).join(', ') || '—' },
       { sep: true },
+    ];
+
+    if (gapParams.breakdown?.length) {
+      rows.push({ heading: 'Hypothetical TIPS Durations' });
+      const durSum = gapParams.breakdown.reduce((s, b) => s + (b.dur ?? 0), 0);
+      gapParams.breakdown.forEach(b => {
+        rows.push({ label: b.year + ' (Jan 15)', note: 'mod. duration', value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '—' });
+      });
+      rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' ÷ ' + gapParams.breakdown.length + ')', value: gapParams.avgDuration.toFixed(2) + ' yr', total: true });
+      rows.push({ sep: true });
+    }
+
+    rows.push(
       { label: 'Lower bracket (' + lowerLabel + ')', note: 'mod. duration', value: lowerDuration.toFixed(2) + ' yr' },
       { label: 'Upper bracket (' + upperLabel + ')', note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
       { sep: true },
       { label: 'Lower weight', note: wFml, value: lowerWeight.toFixed(4) },
-      { label: 'Upper weight', note: '1 \u2212 lower weight', value: upperWeight.toFixed(4) },
+      { label: 'Upper weight', note: '1 − lower weight', value: upperWeight.toFixed(4) },
       { sep: true },
       { label: 'Duration match', note: match, total: true },
       { html: renderDurationBeam(lowerDuration, upperDuration, gapParams.avgDuration, lowerWeight, upperWeight, lowerLabel, upperLabel) },
-      ];
-
+    );
   }
 
   // Excess Balance Check (Rebalance only)

@@ -102,6 +102,7 @@
       <div class="tab-bar">
         <button class="tab-btn active" data-tab="timeseries">Time Series</button>
         <button class="tab-btn" data-tab="yieldcurves">Yield Curves</button>
+        <button class="tab-btn" data-tab="breakeven">Breakeven Inflation</button>
       </div>
       <div id="tab-timeseries" class="tab-panel active">
         <div class="row-section" id="tips-section">
@@ -122,6 +123,14 @@
           <div class="yield-curve-card">
             <div class="yc-title">Treasury Yield Curve</div>
             <div class="yield-curve-container"><canvas id="yield-curve-nominal"></canvas></div>
+          </div>
+        </div>
+      </div>
+      <div id="tab-breakeven" class="tab-panel">
+        <div class="yield-curve-section">
+          <div class="yield-curve-card">
+            <div class="yc-title">Breakeven Inflation Curve (BEI)</div>
+            <div class="yield-curve-container"><canvas id="yield-curve-breakeven"></canvas></div>
           </div>
         </div>
       </div>

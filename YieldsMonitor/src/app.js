@@ -75,7 +75,7 @@ function setupTabs() {
       activeTab = tab;
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
       document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === `tab-${tab}`));
-      if (tab === 'yieldcurves') {
+      if (tab === 'yieldcurves' || tab === 'breakeven') {
         updateYieldCurves();
         setTimeout(() => Object.values(yieldCurveCharts).forEach(c => c && c.resize()), 50);
       }
@@ -315,7 +315,7 @@ async function updateAllData(force = false) {
       if (!card.querySelector('.no-data-overlay')) { const overlay = document.createElement('div'); overlay.className = 'no-data-overlay'; overlay.textContent = 'No data available for this range'; card.querySelector('.chart-container').appendChild(overlay); }
     }
   }));
-  if (activeTab === 'yieldcurves') updateYieldCurves();
+  if (activeTab === 'yieldcurves' || activeTab === 'breakeven') updateYieldCurves();
   const now = new Date(), fmt = (d, tz, l, id = false) => d.toLocaleString('en-US', { timeZone: tz, hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit', ...(id?{month:'short',day:'numeric'}:{}) }) + ' ' + l;
   const latestDataT = tsList.length > 0 ? new Date(Math.max(...tsList)) : null;
   let statusHtml = `<div>Fetch: ${fmt(now, 'America/Los_Angeles', 'PT')} / ${fmt(now, 'America/New_York', 'ET')}</div>`;
@@ -326,9 +326,16 @@ async function updateAllData(force = false) {
 
 const TIPS_SYMBOLS = Object.keys(AVAILABLE_SYMBOLS).filter(s => s.endsWith('TIPS')).sort((a, b) => MATURITY_ORDER[a] - MATURITY_ORDER[b]);
 const NOMINAL_SYMBOLS = Object.keys(AVAILABLE_SYMBOLS).filter(s => !s.endsWith('TIPS')).sort((a, b) => MATURITY_ORDER[a] - MATURITY_ORDER[b]);
+const BEI_PAIRS = [
+  { n: 'US1Y', t: 'US1YTIPS', label: '1Y' },
+  { n: 'US2Y', t: 'US2YTIPS', label: '2Y' },
+  { n: 'US5Y', t: 'US5YTIPS', label: '5Y' },
+  { n: 'US10Y', t: 'US10YTIPS', label: '10Y' },
+  { n: 'US30Y', t: 'US30YTIPS', label: '30Y' }
+];
 
 function updateYieldCurves() {
-  const build = (id, key, syms) => {
+  const buildYield = (id, key, syms) => {
     let sT = null, eT = null;
     const sD = syms.map(s => { const d = rangeData[s]; if (!d || d.length === 0) return null; if (!sT || d[0].x < sT) sT = d[0].x; return d[0].y; });
     const eD = syms.map(s => { const d = rangeData[s]; if (!d || d.length === 0) return null; if (!eT || d[d.length-1].x > eT) eT = d[d.length-1].x; return d[d.length-1].y; });
@@ -341,7 +348,57 @@ function updateYieldCurves() {
       options: { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } } }, plugins: { legend: { display: true, labels: { font: { size: 10, weight: 'bold' } } }, zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } } }
     });
   };
-  build('yield-curve-tips', 'tips', TIPS_SYMBOLS); build('yield-curve-nominal', 'nominal', NOMINAL_SYMBOLS);
+
+  const buildBei = (id, key, pairs) => {
+    let sT = null, eT = null;
+    const sD = pairs.map(p => {
+      const n = rangeData[p.n], t = rangeData[p.t];
+      if (!n || n.length === 0 || !t || t.length === 0) return null;
+      if (!sT || n[0].x < sT) sT = n[0].x;
+      return n[0].y - t[0].y;
+    });
+    const eD = pairs.map(p => {
+      const n = rangeData[p.n], t = rangeData[p.t];
+      if (!n || n.length === 0 || !t || t.length === 0) return null;
+      if (!eT || n[n.length-1].x > eT) eT = n[n.length-1].x;
+      return n[n.length-1].y - t[t.length-1].y;
+    });
+    const sL = sT ? ET_HM_FMT.format(sT) + ' ET' : '—', eL = eT ? ET_HM_FMT.format(eT) + ' ET' : '—';
+    if (yieldCurveCharts[key]) {
+      const c = yieldCurveCharts[key];
+      c.data.datasets[0].data = sD; c.data.datasets[0].label = sL;
+      c.data.datasets[1].data = eD; c.data.datasets[1].label = eL;
+      c.update();
+      return;
+    }
+    const ctx = document.getElementById(id).getContext('2d');
+    yieldCurveCharts[key] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: pairs.map(p => p.label),
+        datasets: [
+          { label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: true },
+          { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: true }
+        ]
+      },
+      options: {
+        animation: false, responsive: true, maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        scales: {
+          x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } },
+          y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } }
+        },
+        plugins: {
+          legend: { display: true, labels: { font: { size: 10, weight: 'bold' } } },
+          zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } }
+        }
+      }
+    });
+  };
+
+  buildYield('yield-curve-tips', 'tips', TIPS_SYMBOLS);
+  buildYield('yield-curve-nominal', 'nominal', NOMINAL_SYMBOLS);
+  buildBei('yield-curve-breakeven', 'breakeven', BEI_PAIRS);
 }
 
 window.addEventListener('DOMContentLoaded', init);
