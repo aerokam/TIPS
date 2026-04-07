@@ -1,4 +1,4 @@
-// rebalance-lib.js -- Core logic for TIPS ladder rebalancing (3.0_TIPS_Ladder_Rebalancing.md)
+// rebalance-lib.js -- Core logic for TIPS ladder rebalancing (4.0_TIPS_Ladder_Rebalancing.md)
 // Exports: buildTipsMapFromYields, runRebalance, localDate, inferDARAFromCash
 
 import { bondCalcs, calculateMDuration, yieldFromPrice } from '../../shared/src/bond-math.js';
@@ -217,12 +217,11 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
   let totalDuration = 0, totalCost = 0, count = 0;
   const breakdown = [];
   for (const year of [...gapYears].sort((a, b) => b - a)) {
-    const syntheticMat = new Date(year, 0, 15); // Jan 15 (10-year TIPS issued in Jan/Jul)
+    const syntheticMat = new Date(year, 1, 15);
     const syntheticYield = interpolateYield(anchorBefore, { maturity: anchorAfter.maturity, yield: anchorAfter.yield }, syntheticMat);
     const synCpn = syntheticCoupon(syntheticYield);
 
-    const dur = calculateMDuration(settlementDate, syntheticMat, synCpn, syntheticYield);
-    totalDuration += dur;
+    totalDuration += calculateMDuration(settlementDate, syntheticMat, synCpn, syntheticYield);
 
     let sumLaterMaturityInterest = 0;
     for (const futYear in gapLaterMaturityInterest) {
@@ -235,7 +234,7 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
     // Gap total cost is the sum of market costs of all gap years.
     // For synthetic TIPS, price is 100 since we're interpolating yields.
     totalCost += qty * 1000; 
-    breakdown.push({ year, qty, piPerBond, laterMatInt: sumLaterMaturityInterest, dur });
+    breakdown.push({ year, qty, piPerBond, laterMatInt: sumLaterMaturityInterest });
     count++;
   }
 
@@ -304,19 +303,12 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
   if (lastYearOverride != null) lastYear = lastYearOverride;
 
   const tipsMapYears = new Set();
-  let maxRealYear = 0;
   for (const bond of tipsMap.values()) {
-    if (bond.maturity) {
-      tipsMapYears.add(bond.maturity.getFullYear());
-      maxRealYear = Math.max(maxRealYear, bond.maturity.getFullYear());
-    }
+    if (bond.maturity) tipsMapYears.add(bond.maturity.getFullYear());
   }
-  const gapYears = [], futureYears = [];
+  const gapYears = [];
   for (let year = firstYear; year <= lastYear; year++) {
-    if (!tipsMapYears.has(year) && !yearInfo[year]) {
-      if (year > maxRealYear) futureYears.push(year);
-      else gapYears.push(year);
-    }
+    if (!tipsMapYears.has(year) && !yearInfo[year]) gapYears.push(year);
   }
 
   const araLaterMaturityInterestByYear = {};
@@ -384,75 +376,9 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
     newLowerDuration = calculateMDuration(settlementDate, newLowerMaturity, _nlBond?.coupon ?? 0, _nlBond?.yield ?? 0);
   }
 
-  // ── Phase 3.1: Future cover pair identification ─────────────────────────────
-  let futureLowerYear = null, futureUpperYear = null;
-  let futureLowerCoverBond = null, futureUpperCoverBond = null;
-  let futureParams = null;
-  let futureLowerDuration = 0, futureUpperDuration = 0;
-  let futureUpperWeight = 0, futureLowerWeight = 0;
-  let futureUpperExQty = 0, futureLowerExQty = 0;
-  let futureFellBack = false;
-
-  if (futureYears.length > 0) {
-    for (const bond of tipsMap.values()) {
-      if (!bond.maturity) continue;
-      if (bond.maturity.getFullYear() === 2056) {
-        if (!futureLowerCoverBond || bond.maturity > futureLowerCoverBond.maturity)
-          futureLowerCoverBond = bond;
-      }
-    }
-    if (!futureLowerCoverBond) throw new Error('No 2056 TIPS found for future lower cover');
-    futureLowerYear = 2056;
-
-    let maxMDur = -Infinity;
-    for (const bond of tipsMap.values()) {
-      if (!bond.maturity || bond.maturity.getFullYear() === 2056) continue;
-      if (bond.coupon == null || bond.yield == null) continue;
-      const d = calculateMDuration(settlementDate, bond.maturity, bond.coupon, bond.yield);
-      if (d > maxMDur) { maxMDur = d; futureUpperCoverBond = bond; }
-    }
-    if (!futureUpperCoverBond) throw new Error('No TIPS found for future upper cover');
-    futureUpperYear = futureUpperCoverBond.maturity.getFullYear();
-
-    // Phase 2.1: compute future hypothetical TIPS params (use scalar DARA)
-    const coupon2056 = futureLowerCoverBond.coupon ?? 0;
-    const yield2056  = futureLowerCoverBond.yield  ?? 0;
-    const piPerFutureTips = 1000 + 1000 * coupon2056 * 0.5;
-    let totalFutureDur = 0, futureTotalCost = 0, runningLMI = 0;
-    const futureBreakdown = [];
-    for (const year of [...futureYears].sort((a, b) => b - a)) {
-      const futureMat = new Date(year, 1, 15);
-      const dur = calculateMDuration(settlementDate, futureMat, coupon2056, yield2056);
-      totalFutureDur += dur;
-      const qty = Math.max(0, Math.round((DARA - runningLMI) / piPerFutureTips));
-      futureBreakdown.push({ year, qty, piPerBond: piPerFutureTips, laterMatInt: runningLMI, dur });
-      runningLMI      += qty * 1000 * coupon2056;
-      futureTotalCost += qty * 1000;
-    }
-    futureParams = { avgDuration: totalFutureDur / futureYears.length, futureTotalCost, breakdown: futureBreakdown };
-
-    futureLowerDuration = calculateMDuration(settlementDate, futureLowerCoverBond.maturity, futureLowerCoverBond.coupon ?? 0, futureLowerCoverBond.yield ?? 0);
-    futureUpperDuration = calculateMDuration(settlementDate, futureUpperCoverBond.maturity, futureUpperCoverBond.coupon ?? 0, futureUpperCoverBond.yield ?? 0);
-
-    if (futureParams.avgDuration > futureUpperDuration) {
-      futureUpperWeight = 1.0; futureLowerWeight = 0.0; futureFellBack = true;
-    } else {
-      futureUpperWeight = (futureParams.avgDuration - futureLowerDuration) / (futureUpperDuration - futureLowerDuration);
-      futureLowerWeight = 1.0 - futureUpperWeight;
-    }
-
-    const futureUpperCPBReal = (futureUpperCoverBond.price ?? 0) / 100 * 1000;
-    const futureLowerCPBReal = (futureLowerCoverBond.price ?? 0) / 100 * 1000;
-    futureUpperExQty = futureUpperCPBReal > 0 ? Math.round(futureParams.futureTotalCost * futureUpperWeight / futureUpperCPBReal) : 0;
-    futureLowerExQty = futureLowerCPBReal > 0 ? Math.round(futureParams.futureTotalCost * futureLowerWeight / futureLowerCPBReal) : 0;
-  }
-
-  const futureCoverYearSet = futureYears.length > 0 ? new Set([futureLowerYear, futureUpperYear]) : new Set();
   const bracketYearSet = gapYears.length === 0 ? new Set()
     : is3Bracket ? new Set([brackets.lowerYear, brackets.upperYear, newLowerYear]) : new Set([brackets.lowerYear, brackets.upperYear]);
-  for (const y of futureCoverYearSet) bracketYearSet.add(y);
-  const gapYearSet    = new Set(gapYears);
-  const futureYearSet = new Set(futureYears);
+  const gapYearSet = new Set(gapYears);
 
   const bracketTargetFundedYearQtyBefore = {};
   const _triplets = gapYears.length === 0 ? []
@@ -470,26 +396,6 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
     for (const h of yh) { if (h.cusip !== bCUSIP) nonPI += h.qty * calculatePIPerBond(h.cusip, h.maturity, refCPI, tipsMap); }
     const bDara = bYear > lastYear ? 0 : (daraByYear?.get(bYear) ?? DARA);
     bracketTargetFundedYearQtyBefore[bYear] = Math.max(0, Math.round((bDara - laterMatIntBefore - nonPI) / piB));
-  }
-
-  // Future cover pair: compute bracketTargetFundedYearQtyBefore
-  if (futureYears.length > 0) {
-    for (const [fcBond] of [[futureLowerCoverBond], [futureUpperCoverBond]]) {
-      const bYear = fcBond.maturity.getFullYear();
-      const bCUSIP = fcBond.cusip;
-      const bMat = fcBond.maturity;
-      if (!yearInfo[bYear]) yearInfo[bYear] = { holdings: [] };
-      let laterMatIntBefore = 0;
-      for (const y in araLaterMaturityInterestByYear) {
-        if (parseInt(y) > bYear) laterMatIntBefore += araLaterMaturityInterestByYear[y];
-      }
-      const yh = yearInfo[bYear].holdings;
-      const piB = calculatePIPerBond(bCUSIP, bMat, refCPI, tipsMap);
-      let nonPI = 0;
-      for (const h of yh) { if (h.cusip !== bCUSIP) nonPI += h.qty * calculatePIPerBond(h.cusip, h.maturity, refCPI, tipsMap); }
-      const bDara = daraByYear?.get(bYear) ?? DARA;
-      bracketTargetFundedYearQtyBefore[bYear] = Math.max(0, Math.round((bDara - laterMatIntBefore - nonPI) / piB));
-    }
   }
 
   let lowerWeight = 0, upperWeight = 0, origLowerWeight = null, newLowerWeight3 = null, upperWeight3 = null;
@@ -549,12 +455,6 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
     }
   }
 
-  // Future cover excess target costs (additive in case cover year also has gap bracket role)
-  if (futureYears.length > 0) {
-    bracketExcessTargetCost[futureLowerYear] = (bracketExcessTargetCost[futureLowerYear] || 0) + futureParams.futureTotalCost * futureLowerWeight;
-    bracketExcessTargetCost[futureUpperYear] = (bracketExcessTargetCost[futureUpperYear] || 0) + futureParams.futureTotalCost * futureUpperWeight;
-  }
-
   const buySellTargets = {};
   const nonTargetSells = {};
   const postRebalQtyMap = {};
@@ -566,7 +466,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
 
   for (const year of sortedToProcess) {
     yearLaterMatIntSnapshot[year] = rebuildLaterMatInt;
-    if (gapYearSet.has(year) || futureYearSet.has(year)) continue;
+    if (gapYearSet.has(year)) continue;
 
     const yi = yearInfo[year] || { holdings: [] };
     const isBracket = bracketYearSet.has(year);
@@ -577,11 +477,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
     for (const h of yi.holdings) piMap[h.cusip] = calculatePIPerBond(h.cusip, h.maturity, refCPI, tipsMap);
 
     if (isBracket) {
-      if (gapYears.length > 0 && year === brackets.lowerYear) targetCUSIP = brackets.lowerCUSIP;
-      else if (gapYears.length > 0 && year === brackets.upperYear) targetCUSIP = brackets.upperCUSIP;
-      else if (is3Bracket && year === newLowerYear) targetCUSIP = newLowerCUSIP;
-      else if (futureYears.length > 0 && year === futureLowerYear) targetCUSIP = futureLowerCoverBond.cusip;
-      else if (futureYears.length > 0 && year === futureUpperYear) targetCUSIP = futureUpperCoverBond.cusip;
+      targetCUSIP = (year === brackets.lowerYear) ? brackets.lowerCUSIP : (year === brackets.upperYear ? brackets.upperCUSIP : newLowerCUSIP);
     } else {
       const sortedH = [...yi.holdings].sort((a, b) => b.maturity - a.maturity);
       targetCUSIP = sortedH[0]?.cusip;
@@ -834,7 +730,6 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
       fundedYearQtyBefore: isBT ? Math.min(bracketTargetFundedYearQtyBefore[h.year] ?? 0, h.qty) : h.qty,
       fundedYearQtyAfter: tFundedYearQty,
       isBracketTarget: isBT,
-      isFutureCover: isBT && futureCoverYearSet.has(h.year),
       excessQtyBefore: exB, excessQtyAfter: exA,
       araBeforeTotal:    isLast ? aB : null, araAfterTotal:    isLast ? aA : null,
       araBeforePrincipal:   isLast ? (beforeARABreakdown[h.year]?.principal   ?? 0) : null,
@@ -874,8 +769,7 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
       principalPerBond: 1000 * ir, costPerBond: cpb, DARA: rowDARA,
       qtyBefore: 0, qtyAfter: bst.targetQty,
       fundedYearQtyBefore: 0, fundedYearQtyAfter: bst.targetFundedYearQty,
-      isBracketTarget: bst.isBracket, isFutureCover: bst.isBracket && futureCoverYearSet.has(bYear),
-      excessQtyBefore: 0, excessQtyAfter: exA,
+      isBracketTarget: bst.isBracket, excessQtyBefore: 0, excessQtyAfter: exA,
       araBeforeTotal: araB, araAfterTotal: araA,
       araBeforePrincipal: 0, araBeforeOwnCoupon: 0, araBeforeLaterMatInt: lmiBefore,
       araAfterPrincipal: bst.targetFundedYearQty * 1000 * ir,
@@ -900,5 +794,5 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
 
   const HDR = ['CUSIP','Qty','Maturity','FY','Principal','Interest','ARA','Cost','Target Qty','Qty Delta','Target Cost','Cost Delta','ARA (Before)','ARA-DARA Before','ARA (After)','ARA-DARA After','Excess ARA Before','Excess ARA After'];
   
-  return { results, HDR, summary: { settleDateDisp, refCPI, DARA, inferredDARA, daraIsInferred: dara === null, method, firstYear, lastYear, rungCount, gapYears, futureYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, newLowerWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalCurrentExcess: totalCurrentExcessReal, totalExcessCost, totalExcessCostReal, araByYear, futureLowerYear, futureUpperYear, futureLowerCoverCUSIP: futureLowerCoverBond?.cusip, futureUpperCoverCUSIP: futureUpperCoverBond?.cusip, futureParams, futureLowerDuration, futureUpperDuration, futureUpperWeight, futureLowerWeight, futureUpperExQty, futureLowerExQty, futureFellBack }, details };
+  return { results, HDR, summary: { settleDateDisp, refCPI, DARA, inferredDARA, daraIsInferred: dara === null, method, firstYear, lastYear, rungCount, gapYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, newLowerWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalCurrentExcess: totalCurrentExcessReal, totalExcessCost, totalExcessCostReal, araByYear }, details };
 }

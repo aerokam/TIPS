@@ -84,7 +84,7 @@
   .info-row--data { border-left-color: #cbd5e1; }
   .info-row--cfg  { border-left-color: #a5b4fc; }
   .info-row--run  { border-left-color: #7dd3fc; margin-top: 6px; }
-  .info-const { color: #111827; }
+  .info-const { color: #64748b; }
   .info-link { color: #1a56db; text-decoration: none; cursor: pointer; border-bottom: 1px dotted #1a56db; }
   .info-link:hover { color: #1748c0; }
   .info-link-btn { display:inline-block; background:#1e293b; color:#fff !important; padding:1px 8px; border-radius:4px; border-bottom:none !important; font-weight:700; font-size:11px; letter-spacing:.02em; }
@@ -93,7 +93,7 @@
   .copy-dara:hover { border-bottom-color: #1e293b; }
   .copy-dara.copied { color: #16a34a; border-bottom-color: #16a34a; }
   #net-cash-inline { display:none; align-self:flex-end; padding-bottom:4px; white-space:nowrap; margin-left:auto; }
-  #net-cash-inline .nc-label { font-size:10px; font-weight:600; color:#1f2937; text-transform:uppercase; letter-spacing:.04em; display:block; }
+  #net-cash-inline .nc-label { font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:.04em; display:block; }
   #net-cash-inline .nc-val { font-size:15px; font-weight:700; line-height:1; }
 
 
@@ -298,9 +298,9 @@
 
 <script type="module">
 import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash, yieldFromPrice } from './src/rebalance-lib.js';
-import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
+import { runBuild } from './src/build-lib.js';
 import { renderTable } from './src/render.js';
-import { buildDrillHTML, buildDurationPopupRows, buildFutureDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill } from './src/drill.js';
+import { buildDrillHTML, buildDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { fetchTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
@@ -340,7 +340,7 @@ async function loadData() {
     
     const settleDateStr = yieldsRows[0]?.settlementDate;
     console.log('Settlement date from CSV:', settleDateStr);
-    if (!settleDateStr) throw new Error('YieldsDerivedFromFedInvestPrices.csv has no settlementDate');
+    if (!settleDateStr) throw new Error('Yields.csv has no settlementDate');
     
     settlementDate = localDate(settleDateStr);
     console.log('Parsed settlement date:', settlementDate);
@@ -369,10 +369,10 @@ async function loadData() {
     // Populate last-year dropdown
     const lastYearSel = document.getElementById('last-year');
     while (lastYearSel.options.length > 1) lastYearSel.remove(1);
-    for (let y = _bfsMinY; y <= MAX_LAST_YEAR; y++) {
+    for (let y = _bfsMinY; y <= _bfsMaxY; y++) {
       const opt = document.createElement('option');
       opt.value = y;
-      opt.textContent = _bfsGapYears.has(y) ? `${y} (gap)` : y > _bfsMaxY ? `${y} (future)` : String(y);
+      opt.textContent = _bfsGapYears.has(y) ? `${y} (gap)` : String(y);
       lastYearSel.appendChild(opt);
     }
     if (_bfsYearSet.has(2047)) lastYearSel.value = 2047;
@@ -490,7 +490,6 @@ let _maxRefCpiDate = null;
 let _daraRebal = '', _daraBuild = '40000';
 const _infoPopups = {};
 let _rebalDurationRows = null, _buildDurationRows = null;
-let _rebalFutureDurationRows = null, _buildFutureDurationRows = null;
 
 document.querySelectorAll('.mode-btn').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -528,8 +527,6 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     const _runInfo = isRebalance ? _rebalRunInfo : _buildRunInfo;
     _renderInfoStrip(_runInfo || '');
     _infoPopups.duration = isRebalance ? _rebalDurationRows : _buildDurationRows;
-    _infoPopups.futureDuration = isRebalance ? _rebalFutureDurationRows : _buildFutureDurationRows;
-
     setStatus('');
   });
 });
@@ -561,25 +558,18 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
   ];
     _rebalDurationRows = buildDurationPopupRows(summary, 'rebal');
     _infoPopups.duration = _rebalDurationRows;
-    if (summary.futureYears?.length > 0) {
-      _rebalFutureDurationRows = buildFutureDurationPopupRows(summary);
-      _infoPopups.futureDuration = _rebalFutureDurationRows;
-    } else {
-      _rebalFutureDurationRows = null;
-      _infoPopups.futureDuration = null;
-    }
     const _bracketInfo = summary.bracketMode === '3bracket' && summary.newLowerCUSIP
       ? ' · New lower: ' + summary.newLowerCUSIP + ' (' + summary.newLowerYear + ')'
       : '';
     const _ncColor = costDeltaSum >= 0 ? '#16a34a' : '#dc2626';
     const _ncStrip = '<span style="margin-left:auto;padding-left:16px;font-weight:700;white-space:nowrap;color:' + _ncColor + '">Net Cash ' + sign(costDeltaSum) + '</span>';
     _rebalRunInfo = 'DARA <b><span class="copy-dara" data-val="' + Math.round(DARA) + '" title="Click to copy">' + esc(Math.round(DARA).toLocaleString()) + '</span></b>'
-      + (daraIsInferred ? ' <span style="color:#1f2937;font-weight:400">(inferred)</span>' : '')
+      + (daraIsInferred ? ' <span style="color:#888;font-weight:400">(inferred)</span>' : '')
       + ' · FY ' + firstYear + '–' + lastYear + ', ' + rungCount + ' rungs'
       + _bracketInfo
       + ' <a class="info-link" data-popup="range">ⓘ</a>'
       + ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>'
-      + (summary.futureYears?.length > 0 ? ' · <a class="info-link info-link-btn" data-popup="futureDuration">Future Duration calcs</a>' : '');
+;
     _renderInfoStrip(_rebalRunInfo, _ncStrip);
   
   rebalDetails = details;
@@ -615,14 +605,6 @@ function renderBuildOutput({ results, HDR, summary, details }) {
     } else {
       _infoPopups.duration = null;
     }
-    const _hasFuture = summary.futureYears?.length > 0;
-    if (_hasFuture) {
-      _buildFutureDurationRows = buildFutureDurationPopupRows(summary);
-      _infoPopups.futureDuration = _buildFutureDurationRows;
-    } else {
-      _buildFutureDurationRows = null;
-      _infoPopups.futureDuration = null;
-    }
     const _plNote = (preLadderYears > 0 && zeroedFundedYears && zeroedFundedYears.length)
       ? ' · <span style="color:#854d0e">Pre-ladder: ' + zeroedFundedYears.length + ' yr' + (zeroedFundedYears.length > 1 ? 's' : '') + ' zeroed (' + zeroedFundedYears.join(', ') + ')</span>'
       : '';
@@ -631,7 +613,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
       + ' · FY ' + firstYear + '–' + lastYear
       + _plNote
       + (_hasGaps ? ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>' : '')
-      + (_hasFuture ? ' · <a class="info-link info-link-btn" data-popup="futureDuration">Future Duration calcs</a>' : '');
+;
     _renderInfoStrip(_buildRunInfo, _bncStrip);
     buildDetails = details;
   buildSummary  = summary;
@@ -699,13 +681,12 @@ function updateRebalLastYearDropdown() {
 
   // Preserve current selection if valid, else use inferred default
   const _curVal = sel.value ? parseInt(sel.value, 10) : NaN;
-  const _maxDropY = Math.max(_maxTipsY, MAX_LAST_YEAR);
-  const _selVal = (!isNaN(_curVal) && _curVal >= _firstY && _curVal <= _maxDropY) ? _curVal : _defaultLY;
+  const _selVal = (!isNaN(_curVal) && _curVal >= _firstY && _curVal <= _maxTipsY) ? _curVal : _defaultLY;
 
-  for (let y = _firstY; y <= _maxDropY; y++) {
+  for (let y = _firstY; y <= _maxTipsY; y++) {
     const opt = document.createElement('option');
     opt.value = y;
-    opt.textContent = _gapSet.has(y) ? `${y} (gap)` : y > _maxTipsY ? `${y} (future)` : String(y);
+    opt.textContent = _gapSet.has(y) ? `${y} (gap)` : String(y);
     if (y === _selVal) opt.selected = true;
     sel.appendChild(opt);
   }
@@ -1108,9 +1089,8 @@ document.getElementById('build-table').addEventListener('click', e => {
   const d   = buildDetails[ri];
   if (!d) return;
   currentDrillData = d; currentDrillColKey = key;
-  const colNames = { amount: 'Amount', cost: 'Cost', gapAmount: 'Gap Amount', gapCost: 'Gap Cost',
-    futureAmt: 'Future Amount', futureCost: 'Future Cost' };
-  const suffix   = (key === 'gapAmount' || key === 'gapCost') ? ' (bracket)' : (key === 'futureAmt' || key === 'futureCost') ? ' (future)' : '';
+  const colNames = { amount: 'Amount', cost: 'Cost', gapAmount: 'Gap Amount', gapCost: 'Gap Cost' };
+  const suffix   = (key === 'gapAmount' || key === 'gapCost') ? ' (bracket)' : '';
   document.getElementById('drill-title').textContent =
     colNames[key] + ' — Funded Year ' + d.fundedYear + suffix + ' · ' + d.cusip + ' · ' + d.maturityStr;
   document.getElementById('drill-content').innerHTML = buildDrillHTML(d, key, buildSummary);
@@ -1135,9 +1115,7 @@ document.getElementById('simple-table').addEventListener('click', e => {
     costBefore: 'Cost Before', costAfter: 'Cost After',
     gapAmtBefore: 'Gap Amount Before', gapAmtAfter: 'Gap Amount After',
     gapCostBefore: 'Gap Cost Before', gapCostAfter: 'Gap Cost After',
-    gapCashDelta: 'Gap Cash Δ',
-    futureAmtBefore: 'Future Amt Before', futureAmtAfter: 'Future Amt After',
-    futureCostBefore: 'Future Cost Before', futureCostAfter: 'Future Cost After' };
+    gapCashDelta: 'Gap Cash Δ' };
   document.getElementById('drill-title').textContent =
     colNames[key] + ' — FY ' + d.fundedYear + ' · ' + d.cusip + ' · ' + d.maturityStr;
   document.getElementById('drill-content').innerHTML = buildDrillHTML(d, key, rebalSummary);
@@ -1207,7 +1185,7 @@ document.addEventListener('keydown', e => {
 
 
 // ─── Info-link + header click handler ──────────────────────────────
-const POPUP_TITLES = { range: 'Rebalance Range', duration: 'Duration Calculations', futureDuration: 'Future Duration Calculations' };
+const POPUP_TITLES = { range: 'Rebalance Range', duration: 'Duration Calculations' };
 const COL_HELP = {
   cusip:      [{ label: '9-character CUSIP identifier' }],
   maturity:   [{ label: 'TIPS maturity date' }],
