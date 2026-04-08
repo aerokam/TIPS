@@ -7,6 +7,8 @@ import { fmtDate } from './rebalance-lib.js';
 import { bondCalcs, calculateMDuration, rungAmount } from '../../shared/src/bond-math.js';
 import { interpolateYield, syntheticCoupon as _synCoupon, bracketWeights, bracketExcessQtys, fyQty as _fyQty } from './gap-math.js';
 
+export const MAX_LAST_YEAR = 2066;
+
 // ─── Gap parameters for build-from-scratch ─────────────────────────────────────
 // prelim: { [year]: { targetFYQty, annualInterest } }
 function calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim) {
@@ -54,6 +56,30 @@ function calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim) 
   return { avgDuration: totalDuration / count, totalCost, breakdown };
 }
 
+// ─── Future parameters for build-from-scratch ──────────────────────────────────
+// Uses 2056 coupon/yield as flat-curve anchor for all hypothetical future TIPS.
+// Processes longest-to-shortest with a running LMI accumulator (same pattern as calcGapParams).
+// No real bonds exist above future years, so inter-future synthetic LMI is the only source.
+function calcFutureParams(futureYears, bond2056, settlementDate, dara) {
+  if (!futureYears.length || !bond2056) return { avgDuration: 0, futureTotalCost: 0, breakdown: [] };
+  const coupon2056 = bond2056.coupon ?? 0;
+  const yield2056  = bond2056.yield  ?? 0;
+  // Feb maturity (30-year TIPS issued in Feb) → halfOrFull = 0.5; IR = 1.0 (par assumption)
+  const piPerFutureTips = 1000 + 1000 * coupon2056 * 0.5;
+  let totalDuration = 0, futureTotalCost = 0, runningLMI = 0;
+  const breakdown = [];
+  for (const year of [...futureYears].sort((a, b) => b - a)) {
+    const futureMat = new Date(year, 1, 15); // Feb 15
+    const dur = calculateMDuration(settlementDate, futureMat, coupon2056, yield2056);
+    totalDuration += dur;
+    const qty = Math.max(0, Math.round((dara - runningLMI) / piPerFutureTips));
+    breakdown.push({ year, qty, piPerBond: piPerFutureTips, laterMatInt: runningLMI, dur });
+    runningLMI      += qty * 1000 * coupon2056;
+    futureTotalCost += qty * 1000;
+  }
+  return { avgDuration: totalDuration / futureYears.length, futureTotalCost, breakdown, futureSeedLMI: runningLMI };
+}
+
 // ─── Main entry point ──────────────────────────────────────────────────────────
 // Inputs:
 //   dara           — number (required)
@@ -87,10 +113,20 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   let rangeYears = Object.keys(yearBondMap).map(Number).sort((a, b) => a - b);
   if (!rangeYears.length) throw new Error('No TIPS bonds found in the specified year range');
 
-  // Gap years: years in [firstYear, lastYear] with no available TIPS
-  const gapYears = [];
+  // Find the maximum year with real TIPS data
+  let maxRealYear = 0;
+  for (const bond of tipsMap.values()) {
+    if (bond.maturity) maxRealYear = Math.max(maxRealYear, bond.maturity.getFullYear());
+  }
+
+  // Gap years: within real TIPS range but no TIPS issued.
+  // Future years: beyond maxRealYear (hypothetical, covered by future cover pair).
+  const gapYears = [], futureYears = [];
   for (let y = firstYear; y <= lastYear; y++) {
-    if (!yearBondMap[y]) gapYears.push(y);
+    if (!yearBondMap[y]) {
+      if (y > maxRealYear) futureYears.push(y);
+      else gapYears.push(y);
+    }
   }
 
   // If gap years exist and lastYear < 2040, add the 2040 bond now (before prelim sweep)
@@ -105,6 +141,26 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     if (!yearBondMap[2040])
       throw new Error('No TIPS available in 2040 for upper bracket');
     rangeYears = [...rangeYears, 2040].sort((a, b) => a - b);
+  }
+
+  // ── Future cover pair identification ─────────────────────────────────────────
+  // futureLower = 2056 (shorter duration due to higher coupon on recently-issued 30y TIPS)
+  // futureUpper = 2052 (longer duration: near-zero coupon from 2022 issuance ≈ zero-coupon bond)
+  let futureLowerYear = null, futureUpperYear = null;
+  let futureLowerCoverBond = null, futureUpperCoverBond = null;
+  if (futureYears.length > 0) {
+    for (const bond of tipsMap.values()) {
+      if (!bond.maturity) continue;
+      const yr = bond.maturity.getFullYear();
+      if (yr === 2056 && (!futureLowerCoverBond || bond.maturity > futureLowerCoverBond.maturity))
+        futureLowerCoverBond = bond;
+      if (yr === 2052 && (!futureUpperCoverBond || bond.maturity > futureUpperCoverBond.maturity))
+        futureUpperCoverBond = bond;
+    }
+    if (!futureLowerCoverBond) throw new Error('No 2056 TIPS found for future lower cover');
+    if (!futureUpperCoverBond) throw new Error('No 2052 TIPS found for future upper cover');
+    futureLowerYear = 2056;
+    futureUpperYear = 2052;
   }
 
   // 2. Identify brackets (only needed when there are gap years)
@@ -161,7 +217,40 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     }
   }
 
-  // 4. Gap parameters → duration matching → bracket weights (only when gap years exist)
+  const BL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+  // 4a. Future parameters → duration matching → cover excess quantities (MUST run before gap params
+  //     so future cover excess LMI at 2056/2052 can be included in the gap cost calculation).
+  let futureParams = null;
+  let futureLowerDuration = 0, futureUpperDuration = 0;
+  let futureUpperWeight = 0, futureLowerWeight = 0;
+  let futureUpperExQty = 0, futureLowerExQty = 0;
+  let futureFellBack = false;
+  let futureTotalExcessCost = 0;
+  let futureLowerMonth = null, futureUpperMonth = null;
+
+  if (futureYears.length > 0) {
+    futureParams = calcFutureParams(futureYears, futureLowerCoverBond, settlementDate, dara);
+    futureLowerDuration = calculateMDuration(settlementDate, futureLowerCoverBond.maturity, futureLowerCoverBond.coupon ?? 0, futureLowerCoverBond.yield ?? 0);
+    futureUpperDuration = calculateMDuration(settlementDate, futureUpperCoverBond.maturity, futureUpperCoverBond.coupon ?? 0, futureUpperCoverBond.yield ?? 0);
+
+    ({ lowerWeight: futureLowerWeight, upperWeight: futureUpperWeight } = bracketWeights(futureLowerDuration, futureUpperDuration, futureParams.avgDuration));
+    if (futureParams.avgDuration > futureUpperDuration) futureFellBack = true;
+
+    const futureLowerCPBReal = (futureLowerCoverBond.price ?? 0) / 100 * 1000;
+    const futureUpperCPBReal = (futureUpperCoverBond.price ?? 0) / 100 * 1000;
+    ({ lowerExQty: futureLowerExQty, upperExQty: futureUpperExQty } = bracketExcessQtys(futureParams.futureTotalCost, futureLowerWeight, futureUpperWeight, futureLowerCPBReal, futureUpperCPBReal));
+
+    const futureLowerCPB = (futureLowerCoverBond.price ?? 0) / 100 * (refCPI / (futureLowerCoverBond.baseCpi ?? refCPI)) * 1000;
+    const futureUpperCPB = (futureUpperCoverBond.price ?? 0) / 100 * (refCPI / (futureUpperCoverBond.baseCpi ?? refCPI)) * 1000;
+    futureTotalExcessCost = futureLowerExQty * futureLowerCPB + futureUpperExQty * futureUpperCPB;
+    futureLowerMonth = BL_MONTHS[futureLowerCoverBond.maturity.getMonth()];
+    futureUpperMonth = BL_MONTHS[futureUpperCoverBond.maturity.getMonth()];
+  }
+
+  // 4b. Gap parameters → duration matching → bracket weights (only when gap years exist).
+  //     Augment prelim with future cover excess LMI before calling calcGapParams so that
+  //     the gap cost correctly reflects interest from additional 2056/2052 excess bonds.
   let gapParams = null;
   let lowerDuration = null, upperDuration = null, lowerWeight = null, upperWeight = null;
   let lowerMonth = null, upperMonth = null;
@@ -175,7 +264,23 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     if (!yearsBeforeGap.length) throw new Error('No TIPS bonds available before the gap');
     lowerYear = Math.max(...yearsBeforeGap);
 
-    gapParams = calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, prelim);
+    // Augment prelim with future cover excess interest (2052 and 2056 are above gap years)
+    let augmentedPrelim = prelim;
+    if (futureYears.length > 0) {
+      augmentedPrelim = { ...prelim };
+      if (futureUpperExQty > 0) {
+        const { indexRatio: irU } = bondCalcs(futureUpperCoverBond, refCPI);
+        const extraU = futureUpperExQty * 1000 * irU * (futureUpperCoverBond.coupon ?? 0);
+        augmentedPrelim[futureUpperYear] = { ...prelim[futureUpperYear], annualInterestReal: (prelim[futureUpperYear]?.annualInterestReal ?? 0) + extraU };
+      }
+      if (futureLowerExQty > 0) {
+        const { indexRatio: irL } = bondCalcs(futureLowerCoverBond, refCPI);
+        const extraL = futureLowerExQty * 1000 * irL * (futureLowerCoverBond.coupon ?? 0);
+        augmentedPrelim[futureLowerYear] = { ...prelim[futureLowerYear], annualInterestReal: (prelim[futureLowerYear]?.annualInterestReal ?? 0) + extraL };
+      }
+    }
+
+    gapParams = calcGapParams(gapYears, tipsMap, settlementDate, refCPI, dara, augmentedPrelim);
 
     const lowerBond = yearBondMap[lowerYear];
     const upperBond = yearBondMap[upperYear];
@@ -183,7 +288,6 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     upperDuration = calculateMDuration(settlementDate, upperBond.maturity, upperBond.coupon ?? 0, upperBond.yield ?? 0);
     ({ lowerWeight, upperWeight } = bracketWeights(lowerDuration, upperDuration, gapParams.avgDuration));
 
-    const BL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     lowerMonth = BL_MONTHS[lowerBond.maturity.getMonth()];
     upperMonth = BL_MONTHS[upperBond.maturity.getMonth()];
     const lowerCPB = (lowerBond.price ?? 0) / 100 * (refCPI / (lowerBond.baseCpi ?? refCPI)) * 1000;
@@ -197,12 +301,14 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   // 5. Corrected long→short sweep over actual funded years only.
   //    Recomputes fundedYearQty using an LMI pool that includes actual excess bracket bond interest.
   //    Gap year slots are skipped — no actual bonds exist there; the bracket excess covers them.
-  //    Spec: 2.0 TIPS Ladders §Algorithm step 4.
+  //    Spec: 2.0 TIPS Ladders §Algorithm.
   const corrFYQty = {};
   const corrLMI   = {};
   {
     const exByYear = {};
-    if (lowerYear != null) exByYear[lowerYear] = lowerExQty;
+    if (futureUpperYear != null) exByYear[futureUpperYear] = (exByYear[futureUpperYear] ?? 0) + futureUpperExQty;
+    if (futureLowerYear != null) exByYear[futureLowerYear] = (exByYear[futureLowerYear] ?? 0) + futureLowerExQty;
+    if (lowerYear != null) exByYear[lowerYear] = (exByYear[lowerYear] ?? 0) + lowerExQty;
     if (upperYear != null) exByYear[upperYear] = (exByYear[upperYear] ?? 0) + upperExQty;
 
     let runningLMI = 0;
@@ -213,12 +319,16 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
       const pi      = prelim[year].pi;
       const yearDara = daraByYear?.get(year) ?? dara;
       const isZrd   = zeroedFundedYears.has(year);
+      
+      const exQty = exByYear[year] ?? 0;
+      const excessLMI = exQty * 1000 * ir * (bond.coupon ?? 0);
+
       const fyQty   = isZrd ? 0
         : year === partialCreditYear
-          ? Math.max(0, Math.round((yearDara - runningLMI - partialCredit) / pi))
-          : Math.max(0, Math.round((yearDara - runningLMI) / pi));
+          ? Math.max(0, Math.round((yearDara - runningLMI - excessLMI - partialCredit) / pi))
+          : Math.max(0, Math.round((yearDara - runningLMI - excessLMI) / pi));
+      
       corrFYQty[year] = fyQty;
-      const exQty = exByYear[year] ?? 0;
       runningLMI += (fyQty + exQty) * 1000 * ir * (bond.coupon ?? 0);
     }
   }
@@ -234,18 +344,24 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     const corr_lmi  = corrLMI[year] ?? prelim[year].laterMatInt;
     const yearDara = daraByYear?.get(year) ?? dara;
     const fundedYearQty = corrFYQty[year] ?? prelim[year].targetFundedYearQty;
-    const excessQty  = year === lowerYear ? lowerExQty : year === upperYear ? upperExQty : 0;
-    const totQty     = fundedYearQty + excessQty;
+    const gapExQty    = year === lowerYear ? lowerExQty : year === upperYear ? upperExQty : 0;
+    const futureExQty = year === futureLowerYear ? futureLowerExQty : year === futureUpperYear ? futureUpperExQty : 0;
+    const excessQty   = gapExQty + futureExQty;
+    const totQty      = fundedYearQty + excessQty;
     const { indexRatio: ir, costPerBond: cpb } = bondCalcs(bond, refCPI);
-    const isBracket = excessQty > 0;
+    const excessLMI   = excessQty * 1000 * ir * (bond.coupon ?? 0);
+    
+    const isBracket    = excessQty > 0;
+    const isFutureCover = futureExQty > 0;
     const monthF    = bond.maturity.getMonth() + 1;
     const halfOrFull = monthF < 7 ? 0.5 : 1.0;
     const principalPerBond     = 1000 * ir;
     const ownRungCouponPerBond = principalPerBond * (bond.coupon ?? 0) * halfOrFull;
+    
     const preLadderCreditForYear = isZeroed
-      ? Math.max(0, dara - corr_lmi)
+      ? Math.max(0, yearDara - (corr_lmi + excessLMI))
       : year === partialCreditYear ? partialCredit : 0;
-    const fundedYearAmt = fundedYearQty * prelim_pi + corr_lmi + preLadderCreditForYear;
+    const fundedYearAmt = fundedYearQty * prelim_pi + corr_lmi + excessLMI + preLadderCreditForYear;
     const exAmt  = isBracket ? excessQty * prelim_pi : '';
     const fundedYearCost = fundedYearQty * cpb;
     const exCost = isBracket ? excessQty * cpb : '';
@@ -275,7 +391,8 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
       halfOrFull,
       dara: yearDara,
       fundedYearQty: fundedYearQty,
-      fundedYearLaterMatInt: corr_lmi,
+      longerDatedLMI: corr_lmi,
+      excessLMI_After: excessLMI,
       preLadderCreditForYear,
       fundedYearPi: prelim[year].pi,
       fundedYearPrincipalTotal: fundedYearQty * principalPerBond,
@@ -283,6 +400,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
       fundedYearAmt: fundedYearAmt,
       costPerBond: cpb,
       fundedYearCost: fundedYearCost,
+      isFutureCover,
       excessQty: excessQty,
       excessPrincipalTotal: excessQty * principalPerBond,
       excessOwnRungInt: excessQty * ownRungCouponPerBond,
@@ -295,10 +413,15 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
 
   const summary = {
     settleDateDisp, refCPI, dara,
-    firstYear, lastYear, gapYears,
+    firstYear, lastYear, gapYears, futureYears,
     gapParams, lowerYear, upperYear,
     lowerDuration, upperDuration, lowerWeight, upperWeight, lowerMonth, upperMonth,
     lowerExQty, upperExQty, totalExcessCost,
+    futureLowerYear, futureUpperYear,
+    futureLowerDuration, futureUpperDuration, futureUpperWeight, futureLowerWeight,
+    futureLowerExQty, futureUpperExQty, futureFellBack, futureTotalExcessCost,
+    futureLowerMonth, futureUpperMonth,
+    futureParams,
     totalBuyCost,
     preLadderInterest, preLadderYears, preLadderPool,
     zeroedFundedYears: [...zeroedFundedYears].sort((a, b) => a - b),

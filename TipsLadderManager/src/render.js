@@ -34,34 +34,34 @@ export const COLS = [
     value: d => d.yield },
   { label: 'Funded Year', headerHTML: 'Funded<br>Year', key: 'fundedYear',  fmt: 'fy',
     value: (d, ri, details) => (ri === details.length - 1 || details[ri+1].fundedYear !== d.fundedYear) ? d.fundedYear : '',
-    subValue: () => 'Gap' },
+    subValue: d => d.isFutureCover ? 'Future' : 'Gap' },
 
   // Rebalance-only
   { label: 'Amount Before', headerHTML: 'Amt<br>Before', key: 'amtBefore', fmt: 'amt', rebalOnly: true,
-    value:       d => d.araBeforeTotal,
-    subValue:    d => d.excessQtyBefore * pi(d),
-    subDrillKey: 'gapAmtBefore',
+    value:          d => d.araBeforeTotal,
+    subValue:       d => d.excessQtyBefore * pi(d),
+    subDrillKeyFn:  d => d.isFutureCover ? 'futureAmtBefore' : 'gapAmtBefore',
     total: true, totalFn: d => (d.araBeforeTotal ?? 0) + (d.excessQtyBefore * pi(d) || 0),
     drill: true, drillCond: (_v, d) => d.araBeforeTotal !== null },
 
   { label: 'Amount After',  headerHTML: 'Amt<br>After',  key: 'amtAfter',  fmt: 'amt', rebalOnly: true,
-    value:       d => d.araAfterTotal,
-    subValue:    d => d.excessQtyAfter * pi(d),
-    subDrillKey: 'gapAmtAfter',
+    value:          d => d.araAfterTotal,
+    subValue:       d => d.excessQtyAfter * pi(d),
+    subDrillKeyFn:  d => d.isFutureCover ? 'futureAmtAfter' : 'gapAmtAfter',
     total: true, totalFn: d => (d.araAfterTotal ?? 0) + (d.excessQtyAfter * pi(d) || 0),
     drill: true, drillCond: (_v, d) => d.araAfterTotal !== null },
 
   { label: 'Cost Before',   headerHTML: 'Cost<br>Before', key: 'costBefore', fmt: 'amt', rebalOnly: true,
-    value:       d => d.fundedYearQtyBefore * d.costPerBond,
-    subValue:    d => d.excessQtyBefore * d.costPerBond,
-    subDrillKey: 'gapCostBefore',
+    value:          d => d.fundedYearQtyBefore * d.costPerBond,
+    subValue:       d => d.excessQtyBefore * d.costPerBond,
+    subDrillKeyFn:  d => d.isFutureCover ? 'futureCostBefore' : 'gapCostBefore',
     total: true, totalFn: d => (d.fundedYearQtyBefore * d.costPerBond) + (d.excessQtyBefore * d.costPerBond || 0),
     drill: true, drillCond: v => typeof v === 'number' && v > 0 },
 
   { label: 'Cost After',    headerHTML: 'Cost<br>After', key: 'costAfter',  fmt: 'amt', rebalOnly: true,
-    value:       d => d.fundedYearQtyAfter * d.costPerBond,
-    subValue:    d => d.excessQtyAfter * d.costPerBond,
-    subDrillKey: 'gapCostAfter',
+    value:          d => d.fundedYearQtyAfter * d.costPerBond,
+    subValue:       d => d.excessQtyAfter * d.costPerBond,
+    subDrillKeyFn:  d => d.isFutureCover ? 'futureCostAfter' : 'gapCostAfter',
     total: true, totalFn: d => (d.fundedYearQtyAfter * d.costPerBond) + (d.excessQtyAfter * d.costPerBond || 0),
     drill: true, drillCond: v => typeof v === 'number' && v > 0 },
 
@@ -91,18 +91,18 @@ export const COLS = [
 
   // Build-only
   { label: 'Amount', key: 'amount', fmt: 'amt', buildOnly: true,
-    value:       d => d.fundedYearAmt,
-    subValue:    d => d.excessAmt,
-    subDrillKey: 'gapAmount',
+    value:          d => d.fundedYearAmt,
+    subValue:       d => d.excessAmt,
+    subDrillKeyFn:  d => d.isFutureCover ? 'futureAmt' : 'gapAmount',
     total: true, totalFn: d => (d.fundedYearAmt ?? 0) + (d.excessAmt ?? 0),
-    drill: true },
+    drill: true, drillCond: () => true },
 
   { label: 'Cost',   key: 'cost',   fmt: 'amt', buildOnly: true,
-    value:       d => d.fundedYearCost,
-    subValue:    d => d.excessCost,
-    subDrillKey: 'gapCost',
+    value:          d => d.fundedYearCost,
+    subValue:       d => d.excessCost,
+    subDrillKeyFn:  d => d.isFutureCover ? 'futureCost' : 'gapCost',
     total: true, totalFn: d => (d.fundedYearCost ?? 0) + (d.excessCost ?? 0),
-    drill: true },
+    drill: true, drillCond: () => true },
 
   { label: 'Quantity',    key: 'qty',    fmt: 'qty', buildOnly: true,
     value:    d => d.fundedYearQty,
@@ -159,7 +159,8 @@ export function renderTable({ details, mode, summary }) {
     if (bt) {
       const subCells = cols.map(col => {
         const sv = col.subValue ? col.subValue(d, ri, details) : null;
-        return cellHtml(col, sv, ri, col.subDrillKey ?? null);
+        const sdk = col.subDrillKeyFn ? col.subDrillKeyFn(d) : (col.subDrillKey ?? null);
+        return cellHtml(col, sv, ri, sdk);
       }).join('');
       const subRow = '<tr class="excess-subrow bracket">' + subCells + '</tr>';
       html = upper ? subRow + html : html + subRow;

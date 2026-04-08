@@ -318,13 +318,14 @@ async function main() {
     });
   }
 
-  // Write YieldsDerivedFromFedInvestPrices.csv to R2: row 1 = settlement date, row 2 = header, rows 3+ = data
+  // Write standardized and legacy keys to R2
   const header = 'type,cusip,maturity,coupon,datedDateCpi,price,yield';
   const lines = rows.map(r =>
     `${r.type},${r.cusip},${r.maturity},${r.coupon},${r.datedDateCpi},${r.price},${r.yield}`
   );
-  // Dual-write to both legacy TIPS/ and new Treasuries/ prefixes during migration
   const content = [settleDateStr, header, ...lines].join('\n') + '\n';
+  
+  await uploadToR2('Treasuries/Yields.csv', content);
   await uploadToR2('Treasuries/YieldsDerivedFromFedInvestPrices.csv', content);
   await uploadToR2('TIPS/YieldsDerivedFromFedInvestPrices.csv', content);
 
