@@ -32,9 +32,13 @@ This tool is designed for **transparency first**. Every number in the UI is trac
 
 **DARA (Desired Annual Real Amount)** — Your desired annual real amount from the ladder. Each rung is sized to produce this amount.
 
-**Gap Years** — Years where Treasury has not issued TIPS (currently 2037, 2038, 2039). The ladder holds excess bonds in TIPS maturing in *bracket* years, bracketing the gap, to match the average duration of hypothetical TIPS that represent the missing maturities.
+**Gap Years** — Years within the current TIPS timeline (e.g. 2037–2039) where Treasury has not issued securities. These are covered by holding excess bonds in surrounding *bracket* years to match the average duration of the missing maturities.
 
-**Bracket Years** — Maturity years bracketing the gap years. *Upper bracket*: always the Feb 2040 TIPS. *Lower bracket*: TIPS maturing in a year before the first gap year; the typical use case is a maturity of 2035 or lower as of the initial development of this project. In **3-bracket mode**, a second "new lower" bracket (the most recently issued 10-year TIPS) is used alongside the original lower bracket for more efficient duration matching.
+**Future Years** — Years beyond the currently issued TIPS (e.g. 2057–2066). Like gap years, these are handled via duration-matched excess in existing long-dated cover pairs (currently the 2052 and 2056 TIPS).
+
+**Bracket Years** — Maturity years used to cover gaps or future years. *Upper bracket*: always the Feb 2040 TIPS. *Lower bracket*: usually the latest 10-year TIPS before the gap. In **3-bracket mode**, the tool uses both your original lower holdings and a second "new lower" bracket for more efficient matching.
+
+**Role Playing (LMI)** — When actual bonds substitute for missing maturities, they "role play" as the future rungs by contributing their annual coupon interest to the current year's budget. This prevents "funding holes" when maturities don't perfectly align.
 
 ---
 

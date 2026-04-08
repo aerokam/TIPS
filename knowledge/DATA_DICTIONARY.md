@@ -42,7 +42,8 @@
 ## 2.0 Data Stores (S)
 *Internal R2 data files. Schemas are normalized from External Entities.*
 
-- <a id="s1"></a>**S1: YieldsDerivedFromFedInvestPrices.csv** = `Settlement_Date + { @CUSIP + Type + Maturity + Coupon + DatedDateCPI + Price + Yield }`
+- <a id="s1"></a>**S1: Yields.csv** = `Settlement_Date + { @CUSIP + Type + Maturity + Coupon + DatedDateCPI + Price + Yield }`
+  *Primary R2 key for daily FedInvest prices and yields. Legacy alias: `YieldsDerivedFromFedInvestPrices.csv`.*
 - <a id="s2"></a>**S2: TipsRef.csv** = `{ @CUSIP + Maturity + DatedDate + Coupon + BaseCPI + Term }`
 - <a id="s3"></a>**S3: RefCPI.csv** = `{ @Date + Ref_CPI }`
 - <a id="s4"></a>**S4: RefCpiNsaSa.csv** = `{ @Date + CPI_NSA + CPI_SA + SA_Factor }`
@@ -181,11 +182,16 @@
 
 <a id="ara"></a>
 ### ARA
-`ARA` = `P+I_per_TIPS + LMI` *(Actual Real Amount: total real cash flow produced for a Funded Year)*
+`ARA` = `Funded_PI + LMI + Role_Playing_LMI` *(Actual Real Amount: total real cash flow produced for a Funded Year)*
 
 <a id="lmi"></a>
 ### LMI
 `LMI` = `Σ Annual_Interest_Real for TIPS maturing in years > Current_Year` *(Later Maturity Interest: interest contributions to the current funded year from bonds maturing in future years)*
+
+<a id="role-playing-lmi"></a>
+### Role Playing LMI
+`Role_Playing_LMI` = `Σ Annual_Interest_Real for bracket excess bonds maturing in Current_Year`
+*Interest from additional bonds held in the current year to cover future rungs (gaps or future years). In the sizing phase, these bonds 'role play' as the future rungs they replace, contributing their full annual coupon to the current year's ARA.*
 
 <a id="gap-years"></a>
 ### Gap Years
