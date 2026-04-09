@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CPI Explorer - Treasury Investors Portal</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; font-size: 13px; margin: 0; padding: 0; color: #222; background: #f1f5f9; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* ── Header ── */
+  header { padding: 9px 14px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+  header h1 { font-size: 17px; margin: 0; }
+  .back-link { font-size: 12px; color: #1a56db; text-decoration: none; }
+  .back-link:hover { text-decoration: underline; }
+  #status { font-size: 11px; color: #64748b; font-style: italic; margin-left: auto; }
+  #status.error { color: #dc2626; font-style: normal; font-weight: 600; }
+
+  /* ── Layout ── */
+  .layout { flex: 1; display: flex; min-height: 0; padding: 10px; gap: 10px; overflow: hidden; }
+
+  /* ── Sidebar ── */
+  .sidebar { width: 210px; flex-shrink: 0; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; flex-direction: column; overflow-y: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 10px; gap: 14px; }
+  .sidebar-section { display: flex; flex-direction: column; gap: 5px; }
+  .sidebar-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #64748b; margin-bottom: 2px; }
+
+  /* Radio + checkbox rows */
+  .radio-row { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; padding: 2px 0; }
+  .radio-row input { margin: 0; cursor: pointer; accent-color: #1a56db; }
+
+  /* Rolling presets */
+  .preset-row { display: flex; gap: 4px; flex-wrap: wrap; }
+  .rolling-preset { padding: 3px 7px; font-size: 11px; font-weight: 600; border: 1px solid #e2e8f0; border-radius: 4px; background: #fff; color: #475569; cursor: pointer; }
+  .rolling-preset:hover { background: #f8fafc; }
+  .rolling-preset.active { background: #1e293b; color: #fff; border-color: #1e293b; }
+  .custom-row { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
+  .custom-row input[type="number"] { width: 58px; padding: 3px 5px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; }
+  .custom-row span { font-size: 11px; color: #64748b; }
+
+  /* Date range inputs */
+  .date-row { display: flex; flex-direction: column; gap: 4px; }
+  .date-row label { font-size: 11px; color: #64748b; }
+  .date-inputs { display: flex; gap: 4px; width: 100%; }
+  .month-select { flex: 1; padding: 3px 2px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; background: #fff; cursor: pointer; }
+  .year-input { width: 52px; padding: 3px 5px; font-size: 11px; border: 1px solid #cbd5e1; border-radius: 4px; outline: none; }
+  .month-select:focus, .year-input:focus { border-color: #1a56db; }
+  .btn-link { background: none; border: none; color: #1a56db; font-size: 11px; cursor: pointer; padding: 0; text-align: left; }
+  .btn-link:hover { text-decoration: underline; }
+
+  /* P2P result */
+  #p2pResult { font-size: 12px; color: #1e293b; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 7px 9px; line-height: 1.6; display: none; }
+  .p2p-val { font-weight: 700; color: #1a56db; }
+  .p2p-sep { color: #94a3b8; }
+  .p2p-annualized { color: #475569; }
+
+  /* ── Main panel ── */
+  .main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+
+  .chart-panel { flex: 1; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; display: flex; flex-direction: column; min-height: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); overflow: hidden; }
+  .chart-panel-header { padding: 7px 12px; border-bottom: 1px solid #e2e8f0; background: #f8fafc; flex-shrink: 0; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1e293b; }
+  .chart-wrap { flex: 1; min-height: 0; padding: 10px; position: relative; }
+  canvas { display: block; width: 100% !important; height: 100% !important; }
+
+  /* ── Stats strip ── */
+  #statsStrip { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 14px; display: flex; gap: 24px; flex-wrap: wrap; flex-shrink: 0; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+  .stat { display: flex; flex-direction: column; gap: 1px; }
+  .stat-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #94a3b8; }
+  .stat-val { font-size: 13px; font-weight: 600; color: #1e293b; font-variant-numeric: tabular-nums; }
+  .stat-date { font-size: 11px; font-weight: 400; color: #64748b; }
+</style>
+</head>
+<body>
+
+<header>
+  <a href="../" class="back-link">← Portal</a>
+  <h1>CPI Explorer</h1>
+  <span id="status">Loading…</span>
+  <button id="btnResetZoom" style="margin-left:8px; padding:3px 10px; font-size:11px; background:#fff; color:#1e293b; border:1px solid #e2e8f0; border-radius:4px; font-weight:600; cursor:pointer;">Reset Zoom</button>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Data Source</div>
+      <label class="radio-row"><input type="checkbox" name="dataSource" value="cpi-nsa" checked> Monthly CPI-U NSA</label>
+      <label class="radio-row"><input type="checkbox" name="dataSource" value="cpi-sa"> Monthly CPI-U SA</label>
+      <label class="radio-row"><input type="checkbox" name="dataSource" value="ref-cpi"> Daily Ref CPI (1998+)</label>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Display Mode</div>
+      <label class="radio-row"><input type="radio" name="displayMode" value="index" checked> Index Level</label>
+      <label class="radio-row"><input type="radio" name="displayMode" value="yoy"> Year-over-Year %</label>
+      <label class="radio-row"><input type="radio" name="displayMode" value="mom"> Month-over-Month %</label>
+      <label class="radio-row"><input type="radio" name="displayMode" value="rolling"> Rolling Window %</label>
+      <label class="radio-row"><input type="radio" name="displayMode" value="p2p"> Point-to-Point %</label>
+      <label class="radio-row" id="logScaleOption"><input type="checkbox" id="logScale"> Logarithmic Scale</label>
+    </div>
+
+    <!-- Rolling window (shown only in rolling mode) -->
+    <div class="sidebar-section" id="rollingSection" style="display:none">
+      <div class="sidebar-label">Rolling Window</div>
+      <div class="preset-row">
+        <button class="rolling-preset active" data-months="12">1Y</button>
+        <button class="rolling-preset" data-months="24">2Y</button>
+        <button class="rolling-preset" data-months="60">5Y</button>
+        <button class="rolling-preset" data-months="120">10Y</button>
+        <button class="rolling-preset" data-months="240">20Y</button>
+      </div>
+      <div class="custom-row">
+        <input type="number" id="rollingCustom" min="1" max="1200" value="12">
+        <span>months</span>
+      </div>
+    </div>
+
+    <!-- Date range (hidden in p2p mode) -->
+    <div class="sidebar-section" id="dateRangeSection">
+      <div class="sidebar-label">Date Range</div>
+      <div class="date-row">
+        <label>Start</label>
+        <div class="date-inputs">
+          <select id="startMonth" class="month-select"></select>
+          <input id="startYear" class="year-input" type="text" maxlength="4" placeholder="YYYY" list="yearList" inputmode="numeric" pattern="[0-9]*">
+        </div>
+      </div>
+      <div class="date-row">
+        <label>End</label>
+        <div class="date-inputs">
+          <select id="endMonth" class="month-select"></select>
+          <input id="endYear" class="year-input" type="text" maxlength="4" placeholder="YYYY" list="yearList" inputmode="numeric" pattern="[0-9]*">
+        </div>
+      </div>
+      <button class="btn-link" id="btnFullHistory">Full History</button>
+    </div>
+
+    <!-- Point-to-point inputs (shown only in p2p mode) -->
+    <div class="sidebar-section" id="p2pSection" style="display:none">
+      <div class="sidebar-label">Point-to-Point</div>
+      <div class="date-row">
+        <label>Start</label>
+        <div class="date-inputs">
+          <select id="p2pStartMonth" class="month-select"></select>
+          <input id="p2pStartYear" class="year-input" type="text" maxlength="4" placeholder="YYYY" list="yearList" inputmode="numeric" pattern="[0-9]*">
+        </div>
+      </div>
+      <div class="date-row">
+        <label>End</label>
+        <div class="date-inputs">
+          <select id="p2pEndMonth" class="month-select"></select>
+          <input id="p2pEndYear" class="year-input" type="text" maxlength="4" placeholder="YYYY" list="yearList" inputmode="numeric" pattern="[0-9]*">
+        </div>
+      </div>
+      <div id="p2pResult"></div>
+    </div>
+
+    <datalist id="yearList"></datalist>
+
+  </aside>
+
+  <!-- ── Main ── -->
+  <main class="main">
+    <div class="chart-panel">
+      <div class="chart-panel-header">CPI Index</div>
+      <div class="chart-wrap">
+        <canvas id="cpiChart"></canvas>
+      </div>
+    </div>
+    <div id="statsStrip" style="display:none"></div>
+  </main>
+
+</div>
+
+<!-- CDN: Chart.js, date-fns adapter, Hammer.js, zoom plugin (same versions as YieldsMonitor) -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+<script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+
+<script type="module" src="./src/app.js"></script>
+</body>
+</html>
