@@ -50,8 +50,8 @@ function future30yBreakdownRows(future30yParams) {
     const id = 'fut' + i;
     const fmla = 'round((DARA \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>) \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
     rows += row(g.year + ' quantity', fmla, g.qty, false, undefined, id + 'qty')
-          + row('\u21b3 P+I per hypothetical', '', fm2(g.piPerBond), false, undefined, id + 'pi')
-          + row('\u21b3 Later mat int (LMI)', 'Coupon interest from longer hypothetical rungs', fm(g.laterMatInt), false, undefined, id + 'lmi')
+          + row('\u21b3 P+I per hypothetical TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi')
+          + row('\u21b3 Later mat int (LMI)', 'Coupon interest from longer hypothetical TIPS rungs', fm(g.laterMatInt), false, undefined, id + 'lmi')
           + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000', fm(g.qty * 1000));
   });
   return rows;
@@ -64,8 +64,8 @@ function gapBreakdownRows(gapParams, dara) {
     const id = 'gap' + i;
     const fmla = 'round((DARA \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>) \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
     rows += row(g.year + ' quantity', fmla, g.qty, false, undefined, id + 'qty')
-          + row('\u21b3 P+I per synthetic', '', fm2(g.piPerBond), false, undefined, id + 'pi')
-          + row('\u21b3 Later mat int (Real)', 'Total real coupon interest from Future 30Y rungs', fm(g.laterMatInt), false, undefined, id + 'lmi')
+          + row('\u21b3 P+I per synthetic TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi')
+          + row('\u21b3 Later mat int', 'Total coupon interest from Future 30Y TIPS rungs', fm(g.laterMatInt), false, undefined, id + 'lmi')
           + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000', fm(g.qty * 1000));
   });
   return rows;
@@ -79,7 +79,7 @@ export function buildDrillHTML(d, colKey, summary) {
 
   let rows = '';
 
-  // \u2500\u2500 Build: Amount \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Build: Amount ─────────────────────────────────────────────────────────────
   if (colKey === 'amount') {
     const _plCredit  = d.preLadderCreditForYear || 0;
     const sameYearExInt = d.excessLMI_After || 0;
@@ -96,8 +96,8 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Principal', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearPrincipalTotal)) +
       row(couponLabel, '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearOwnRungInt)) +
-      row('Interest from longer-dated bonds', 'from bonds maturing after ' + d.fundedYear, fm(longerDatedInt), false, undefined, 'lmi') +
-      (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess bonds maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
+      row('Interest from longer-dated TIPS', 'from TIPS maturing after ' + d.fundedYear, fm(longerDatedInt), false, undefined, 'lmi') +
+      (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
       (_plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit)) : '') +
       sep() +
       row('Funded Year Amount', totalFmla, fm(d.fundedYearAmt), true) +
@@ -105,19 +105,20 @@ export function buildDrillHTML(d, colKey, summary) {
       row('DARA', '', fm(d.dara), false, undefined, 'dara') +
       row('Surplus / Deficit', '<span class="formula-var" data-source="total">FY Amount</span> \u2212 <span class="formula-var" data-source="dara">DARA</span>', (d.fundedYearAmt - d.dara >= 0 ? '+' : '') + Math.round(d.fundedYearAmt - d.dara).toLocaleString('en-US'));
 
-  // \u2500\u2500 Build: Cost \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Build: Cost ───────────────────────────────────────────────────────────────
   } else if (colKey === 'cost') {
     rows =
       row('Quantity', '', d.fundedYearQty, false, undefined, 'qty') +
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +      row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
+      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
+      row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
       row('Funded Year Cost', '<span class="formula-var" data-source="cpb">Cost per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearCost), true);
 
-  // \u2500\u2500 Build: Gap Amount / Gap Cost \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Build: Gap Amount / Gap Cost ──────────────────────────────────────────────
   } else if (colKey === 'gapAmount' || colKey === 'gapCost') {
     const s = summary;
     const isAmt = colKey === 'gapAmount';
@@ -129,7 +130,7 @@ export function buildDrillHTML(d, colKey, summary) {
       rows = row('Bracket weights', 'see Duration Calcs \u2197', fd(weight, 4))
         + sep()
         + gapBreakdownRows(s.gapParams, s.DARA)
-        + row('Gap total cost (Real)', 'Sum of gap year theoretical costs', fm(s.gapParams.totalCost), true, undefined, 'gtc')
+        + row('Gap total cost', 'Sum of gap year theoretical costs', fm(s.gapParams.totalCost), true, undefined, 'gtc')
         + row('Target excess cost', '<span class="formula-var" data-source="gtc">total cost</span> \xd7 ' + wLabel.toLowerCase(), fm(exCost), false, undefined, 'tec')
         + sep()
         + row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb')
@@ -142,12 +143,11 @@ export function buildDrillHTML(d, colKey, summary) {
           + sep()
           + row('Gap Amount', '<span class="formula-var" data-source="pipb">P+I/TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(d.excessAmt), true);
       } else {
-        rows += sep()
-          + row('Gap Cost', '<span class="formula-var" data-source="cpb">Cost per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(d.excessCost), true);
+        rows += row('Gap Cost', '<span class="formula-var" data-source="cpb">Cost per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(d.excessCost), true);
       }
     }
 
-  // ── Build: Future 30Y Amount / Future 30Y Cost ───────────────────────────────────────
+  // ── Build: Future 30Y Amount / Future 30Y Cost ────────────────────────────────
   } else if (colKey === 'future30yAmt' || colKey === 'future30yCost') {
     const s = summary;
     const isAmt = colKey === 'future30yAmt';
@@ -159,7 +159,7 @@ export function buildDrillHTML(d, colKey, summary) {
       rows = row('Cover weights', 'see Future 30Y Duration Calcs \u2197', fd(weight, 4))
         + sep()
         + future30yBreakdownRows(s.future30yParams)
-        + row('Future 30Y total cost (Real)', 'Sum of hypothetical Future 30Y year costs', fm(s.future30yParams?.future30yTotalCost ?? 0), true, undefined, 'ftc')
+        + row('Future 30Y total cost', 'Sum of hypothetical Future 30Y year costs', fm(s.future30yParams?.future30yTotalCost ?? 0), true, undefined, 'ftc')
         + row('Target excess cost', '<span class="formula-var" data-source="ftc">total cost</span> \xd7 ' + wLabel.toLowerCase(), fm(exCost), false, undefined, 'tec')
         + sep()
         + row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb')
@@ -190,14 +190,14 @@ export function buildDrillHTML(d, colKey, summary) {
       ownSum += hTotal;
       const mo = MONTHS[h.maturityMonth];
       const yr = String(h.maturityYear).slice(2);
-      rows += row(mo + ' \u2019' + yr + ' \xd7 ' + h.qty, '<span class="drill-l3" data-l3="pipb-' + i + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + fm2(piPB) + '/bond</span>', fm(hTotal));
+      rows += row(mo + ' \u2019' + yr + ' \xd7 ' + h.qty, '<span class="drill-l3" data-l3="pipb-' + i + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + fm2(piPB) + '/TIPS</span>', fm(hTotal));
     });
     rows += sep()
       + row('Funded year TIPS subtotal', '', fm(ownSum))
-      + row('Interest from longer-dated bonds', 'from bonds maturing after ' + d.fundedYear, fm(laterMatInt), false, undefined, 'lmi');
+      + row('Interest from longer-dated TIPS', 'from TIPS maturing after ' + d.fundedYear, fm(laterMatInt), false, undefined, 'lmi');
     const excessLMI = isBef ? d.excessLMI_Before : d.excessLMI_After;
     if (excessLMI > 0) {
-    rows += row('Interest from same-year excess (bracket)', 'from additional ' + d.fundedYear + ' bonds held to cover Future 30Y rungs', fm(excessLMI), false, undefined, 'exlmi');
+    rows += row('Interest from same-year excess (bracket)', 'from additional ' + d.fundedYear + ' TIPS held to cover Future 30Y rungs', fm(excessLMI), false, undefined, 'exlmi');
     }
     const totalFmla = excessLMI > 0
       ? 'Funded year TIPS + <span class="formula-var" data-source="lmi">Longer-dated int</span> + <span class="formula-var" data-source="exlmi">Same-year excess int</span>'
@@ -209,13 +209,12 @@ export function buildDrillHTML(d, colKey, summary) {
       + row('Surplus / Deficit', (isBef ? 'Amount Before' : 'Amount After') + ' \u2212 <span class="formula-var" data-source="dara">DARA</span>',
             (araTotal - DARA >= 0 ? '+' : '') + Math.round(araTotal - DARA).toLocaleString('en-US'));
 
-  // \u2500\u2500 Rebalance: Qty Before / After \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Rebalance: Qty Before / After ─────────────────────────────────────────────
   } else if (colKey === 'qtyAfter' || colKey === 'qtyBefore' || colKey === 'qty') {
     const isBef = colKey === 'qtyBefore';
     const totalQty = isBef ? d.qtyBefore : (d.qtyAfter ?? d.qty);
     const fyQty    = isBef ? d.fundedYearQtyBefore : (d.fundedYearQtyAfter ?? d.fundedYearQty);
     const exQty    = isBef ? d.excessQtyBefore : (d.excessQtyAfter ?? d.excessQty);
-    const cpbReal  = (d.price / 100) * 1000;
 
     rows = row('Funded year portion', 'Units needed for this year\'s DARA target', fyQty)
          + row('Excess portion', d.isBracketTarget ? 'Units held for gap duration matching' : 'No excess held', exQty);
@@ -230,10 +229,10 @@ export function buildDrillHTML(d, colKey, summary) {
 
       rows += sep()
         + gapBreakdownRows(summary.gapParams, summary.DARA)
-        + row('Gap total cost (Real)', 'Sum of gap year theoretical costs', fm(summary.gapParams?.totalCost ?? 0), true, undefined, 'gtc')
+        + row('Gap total cost', 'Sum of gap year theoretical costs', fm(summary.gapParams?.totalCost ?? 0), true, undefined, 'gtc')
         + row('Bracket weight', 'from <a class="info-link" data-popup="duration" style="border-bottom:1px dotted #94a3b8;color:inherit;text-decoration:none;">Duration Calcs</a>', (weight ?? 0).toFixed(4), false, undefined, 'bw')
         + row('Target excess cost', '<span class="formula-var" data-source="gtc">Gap total cost</span> \xd7 <span class="formula-var" data-source="bw">Bracket weight</span>', fm(targetExCost), false, undefined, 'tec')
-        + row('Cost per TIPS (Nominal)', 'price/100 \xd7 index ratio \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpbn')
+        + row('Cost per TIPS', 'price/100 \xd7 index ratio \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpbn')
         + row('Excess portion', 'round(<span class="formula-var" data-source="tec">Target cost</span> \u00f7 <span class="formula-var" data-source="cpbn">Cost per TIPS</span>)', exQty, true)
         + sep()
         + bondVarRows(d, nPeriods, principalPerBond, couponPct)
@@ -245,7 +244,7 @@ export function buildDrillHTML(d, colKey, summary) {
     rows += sep()
       + row(isBef ? 'Quantity Before' : 'Quantity After', 'Funded year portion + Excess portion', totalQty, true);
 
-  // \u2500\u2500 Rebalance: Cash Delta \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Rebalance: Cash Delta ─────────────────────────────────────────────────────
   } else if (colKey === 'cashDelta') {
     const qtyDelta  = d.qtyAfter - d.qtyBefore;
     const cashDelta = -(qtyDelta * d.costPerBond);
@@ -256,12 +255,13 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +      row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
+      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
+      row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
       row('Cash \u0394', '\u2212(<span class="formula-var" data-source="qty">Quantity delta</span> \xd7 <span class="formula-var" data-source="cpb">Cost per TIPS</span>)', cdSign + fm(Math.abs(cashDelta)), true);
 
-  // \u2500\u2500 Rebalance: Cost Before / After \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Rebalance: Cost Before / After ────────────────────────────────────────────
   } else if (colKey === 'costBefore' || colKey === 'costAfter') {
     const isBef    = colKey === 'costBefore';
     const isBT     = d.isBracketTarget;
@@ -273,13 +273,13 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +      
+      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
       row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
       row(isBef ? 'Cost Before' : 'Cost After', '<span class="formula-var" data-source="qty">Quantity</span> \xd7 <span class="formula-var" data-source="cpb">Cost per TIPS</span>', fm(cost), true);
 
-  // \u2500\u2500 Rebalance: Gap Amt/Cost Before/After \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
+  // ── Rebalance: Gap Amt/Cost Before/After ──────────────────────────────────────
   } else if (colKey === 'gapAmtBefore' || colKey === 'gapAmtAfter' || colKey === 'gapCostBefore' || colKey === 'gapCostAfter') {
     const s       = summary;
     const isAfter = colKey === 'gapAmtAfter' || colKey === 'gapCostAfter';
@@ -326,7 +326,7 @@ export function buildDrillHTML(d, colKey, summary) {
         rows += row('Excess Cost After', '<span class="formula-var" data-source="cpb">Cost per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(exQty * d.costPerBond), true);
       }
     }
-  // ── Rebalance: Future 30Y Amt/Cost Before/After ─────────────────────────────────────────
+  // ── Rebalance: Future 30Y Amt/Cost Before/After ───────────────────────────────
   } else if (colKey === 'future30yAmtBefore' || colKey === 'future30yAmtAfter' || colKey === 'future30yCostBefore' || colKey === 'future30yCostAfter') {
     const s       = summary;
     const isAfter = colKey === 'future30yAmtAfter' || colKey === 'future30yCostAfter';
@@ -372,7 +372,7 @@ export function buildDrillHTML(d, colKey, summary) {
       }
     }
 
-  // ── Rebalance: Gap Cash Delta ─────────────────────────────────────────────────────
+  // ── Rebalance: Gap Cash Delta ─────────────────────────────────────────────────
   } else if (colKey === 'gapCashDelta') {
     const exQtyBef  = d.excessQtyBefore;
     const exQtyAft  = d.excessQtyAfter;
@@ -387,7 +387,7 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +      
+      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
       row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       sep() +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
@@ -602,9 +602,9 @@ export function buildDurationPopupRows(summary, mode) {
       rows.push({ label: g.year + ' qty', note: 'round((DARA \u2212 ' + Math.round(g.laterMatInt) + ') \u00f7 ' + g.piPerBond.toFixed(2) + ')', value: String(g.qty) });
     });
     rows.push({ label: 'Theoretical gap cost (Total)', note: 'Sum of individual gap theoretical costs', value: '$' + Math.round(gapParams.totalCost).toLocaleString(), total: true });
-    const totalEx = summary.totalExcessCostReal || summary.totalExcessCost;
-    if (totalEx) {
-      rows.push({ label: 'Total excess cost', note: 'real cost of excess bonds now held in brackets', value: '$' + Math.round(totalEx).toLocaleString() });
+    const totalExcess = summary.totalExcessCost;
+    if (totalExcess) {
+      rows.push({ label: 'Total excess cost', note: 'Cost of excess TIPS now held in brackets', value: '$' + Math.round(totalExcess).toLocaleString() });
       rows.push({ label: 'Coverage status',   note: 'Gap is fully funded by the new bracket excess', value: 'Fully Funded', total: true });
     }
   }

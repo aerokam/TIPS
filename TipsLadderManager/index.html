@@ -11,36 +11,46 @@
   .portal-link { font-size: 11px; font-weight: 700; color: #475569; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 10px; text-decoration: none; letter-spacing: 0.02em; vertical-align: middle; margin-left: 4px; }
   .portal-link:hover { background: #1e293b; color: #fff; border-color: #1e293b; }
 
+  /* ── Layout ── */
+  .app-container { display: table; width: auto; margin: 0; }
+
   /* ── Mode toggle ── */
-  .mode-toggle { display: flex; gap: 4px; margin-bottom: 8px; }
-  .mode-btn { padding: 4px 12px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 4px;
-              font-size: 12px; color: #64748b; cursor: pointer; font-weight: 600; }
-  .mode-btn.active { background: #1e293b; color: #fff; border-color: #1e293b; }
-  .mode-btn:hover:not(.active) { background: #e2e8f0; }
+  .mode-toggle { display: flex; gap: 6px; align-items: center; flex-shrink: 0; }
+  .mode-btn { padding: 4px 12px; background: #334155; border: 1px solid #475569; border-radius: 4px;
+              font-size: 12px; color: #f8fafc; cursor: pointer; font-weight: 600; }
+  .mode-btn.active { background: #2563eb; color: #fff; border-color: #2563eb; }
+  .mode-btn:hover:not(.active) { background: #475569; }
+
+  .header-layout { display: flex; gap: 32px; align-items: center; margin-bottom: 12px; width: 100%; }
+  .info-stack { display: flex; flex-direction: column; gap: 4px; border-left: 1px solid #475569; padding-left: 16px; align-items: flex-start; min-width: 0; }
+  #top-data-info { color: #cbd5e1; font-size: 11px; display: flex; flex-direction: row; gap: 8px; line-height: 1.2; align-items: center; white-space: nowrap; }
+  #duration-links { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
 
   /* ── Top row (form + net cash) ── */
   #top-row { display: flex; gap: 12px; align-items: stretch; margin-bottom: 16px; position: sticky; top: 0; z-index: 20; background: #fafafa; padding-bottom: 4px; }
 
   /* ── Form ── */
-  .form-card { background: #d8e3f0; border: 1px solid #ddd; border-radius: 8px; padding: 8px 12px; }
-  .fields { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end; }
-  .field { display: flex; flex-direction: column; gap: 3px; }
-  .field label { font-size: 11px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .04em; }
-  .field input, .field select { padding: 4px 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 13px; }
-  .field input[type="file"] { padding: 3px; }
-  button { padding: 5px 14px; background: #1a56db; color: #fff; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 600; }
-  button:disabled { background: #aaa; cursor: default; }
-  button:hover:not(:disabled) { background: #1748c0; }
+  .form-card { width: 100%; min-height: 240px; background: #1B4242; border: 1px solid #2D5A5A; border-radius: 8px; padding: 14px 18px; color: #fff; box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
+  .fields { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; }
+  .break { flex-basis: 100%; height: 0; }
+  .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .val-display { font-size: 18px; font-weight: 800; line-height: 1.2; color: #fff; padding-bottom: 4px; }
+  .field label { font-size: 10px; font-weight: 800; color: #9CCBCB; text-transform: uppercase; letter-spacing: .08em; white-space: normal; line-height: 1.1; height: 2.2em; display: flex; align-items: flex-end; }
+  .field input, .field select { padding: 7px 10px; background: #092626; border: 1px solid #2D5A5A; border-radius: 4px; font-size: 13px; color: #fff; width: 100%; }
+  .field input::placeholder { color: rgba(255,255,255,0.4); }
+  .field input:focus, .field select:focus { outline: none; border-color: #5BA4A4; box-shadow: 0 0 0 2px rgba(91, 164, 164, 0.4); }
+  .field input[type="file"] { padding: 4px; font-size: 11px; }
+  button { padding: 7px 18px; background: #5BA4A4; color: #fff; border: none; border-radius: 4px; font-size: 13px; cursor: pointer; font-weight: 700; transition: all 0.15s; white-space: nowrap; }
+  button:disabled { background: #2D5A5A; color: #5BA4A4; opacity: 0.5; cursor: default; }
+  button:hover:not(:disabled) { background: #76B9B9; transform: translateY(-1px); box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2); }
 
   /* ── Status ── */
-  #status { margin: 0; font-size: 12px; color: #555; }
-  #status.error { color: #c0392b; font-weight: 600; }
-
-
+  #status { margin: 10px 0 0; font-size: 12px; color: #fff; min-height: 1.2em; font-weight: 500; }
+  #status.error { color: #f87171; font-weight: 700; }
 
   /* ── Main table ── */
-  .table-wrap { padding: 12px 16px; }
-  .table-scroll-wrap { overflow: auto; border: 1px solid #e2e8f0; border-radius: 6px; }
+  .table-wrap { padding: 12px 16px; width: fit-content; }
+  .table-scroll-wrap { overflow: auto; border: 1px solid #e2e8f0; border-radius: 6px; width: fit-content; max-width: 100%; }
   table.main { border-collapse: collapse; width: 100%; background: #fff; font-size: 12px; }
   table.main th { background: #1e293b; color: #fff; padding: 5px 8px; text-align: right; font-weight: 600; white-space: nowrap; position: sticky; top: 0; }
   table.main th:first-child, table.main th:nth-child(3), table.main th:nth-child(4) { text-align: left; }
@@ -79,23 +89,15 @@
 
 
   /* ── Info strip ── */
-  #info-strip { font-size: 15px; color: #1e293b; margin-top: 0; line-height: 1.6; }
-  .info-row { white-space: nowrap; padding-left: 10px; border-left: 3px solid transparent; margin-bottom: 3px; }
-  .info-row--data { border-left-color: #cbd5e1; }
-  .info-row--cfg  { border-left-color: #a5b4fc; }
-  .info-row--run  { border-left-color: #7dd3fc; margin-top: 6px; }
-  .info-const { color: #64748b; }
-  .info-link { color: #1a56db; text-decoration: none; cursor: pointer; border-bottom: 1px dotted #1a56db; }
-  .info-link:hover { color: #1748c0; }
+  .info-const { color: #cbd5e1; }
+  .info-link { color: #93c5fd; text-decoration: none; cursor: pointer; border-bottom: 1px dotted #93c5fd; font-weight: 600; }
+  .info-link:hover { color: #fff; border-bottom-style: solid; }
   .info-link-btn { display:inline-block; background:#1e293b; color:#fff !important; padding:1px 8px; border-radius:4px; border-bottom:none !important; font-weight:700; font-size:11px; letter-spacing:.02em; }
   .info-link-btn:hover { background:#334155; }
-  .copy-dara { cursor: pointer; border-bottom: 1px dotted #64748b; }
-  .copy-dara:hover { border-bottom-color: #1e293b; }
-  .copy-dara.copied { color: #16a34a; border-bottom-color: #16a34a; }
-  #net-cash-inline { display:none; align-self:flex-end; padding-bottom:4px; white-space:nowrap; margin-left:auto; }
-  #net-cash-inline .nc-label { font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:.04em; display:block; }
-  #net-cash-inline .nc-val { font-size:15px; font-weight:700; line-height:1; }
-
+  
+  #net-cash-inline { display:none; align-self:flex-end; padding-bottom:4px; white-space:nowrap; }
+  #net-cash-inline .nc-label { font-size:10px; font-weight:600; color:#9CCBCB; text-transform:uppercase; letter-spacing:.04em; display:block; height: 2.2em; display: flex; align-items: flex-end; }
+  #net-cash-inline .nc-val { font-size:18px; font-weight:800; line-height:1.2; color: #fff; }
 
   #output     { display: none; }
   #build-output { display: none; }
@@ -115,6 +117,7 @@
         async src="//gc.zgo.at/count.js"></script>
 </head>
 <body>
+<div class="app-container">
 <h1>TIPS Ladder Manager <a href="../" class="portal-link">&#8592; Portal</a> <button id="help-btn" title="Help" style="font-size:11px;padding:2px 8px;background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;border-radius:10px;font-weight:600;cursor:pointer;vertical-align:middle;margin-left:6px;">?</button></h1>
 
 <!-- Help modal -->
@@ -199,18 +202,29 @@
 
 <div id="top-row">
   <div class="form-card">
-    <div class="mode-toggle">
-      <button class="mode-btn active" data-mode="rebalance">Rebalance</button>
-      <button class="mode-btn" data-mode="build">Build</button>
-      <button id="run-btn" disabled style="margin-left:8px;">Run Rebalance</button>
-      <button id="export-csv-btn" style="display:none;background:#1e293b;" title="Export table to CSV">Export CSV</button>
+    <div class="header-layout">
+      <div class="mode-toggle">
+        <button class="mode-btn active" data-mode="rebalance">Rebalance</button>
+        <button class="mode-btn" data-mode="build">Build</button>
+        <button id="run-btn" disabled style="margin-left:8px;">Run Rebalance</button>
+      </div>
+      <div class="info-stack">
+        <div id="top-data-info"></div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;background:#334155;border:1px solid #475569;" title="Export table to CSV">Export CSV</button>
+          <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;background:#334155;border:1px solid #475569;" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
+          <div id="duration-links"></div>
+        </div>
+      </div>
     </div>
+    <!-- Ladder parameters -->
     <div class="fields">
+      <!-- Row 2: Primaries & Range -->
       <div class="field" id="field-holdings">
         <label>Holdings CSV</label>
         <input type="file" id="holdings-file" accept=".csv">
       </div>
-      <div class="field">
+      <div class="field" id="field-dara">
         <label>DARA ($)</label>
         <div style="display:flex;align-items:center;gap:2px">
           <input type="text" id="dara" placeholder="auto-infer" style="width:90px">
@@ -220,6 +234,26 @@
           </div>
         </div>
       </div>
+      <div class="field" id="field-rebal-first-year" style="display:none">
+        <label>First Year</label>
+        <select id="rebal-first-year"></select>
+      </div>
+      <div class="field" id="field-first-year" style="display:none">
+        <label for="first-year">First Year</label>
+        <select id="first-year"><option value="">—</option></select>
+      </div>
+      <div class="field" id="field-rebal-last-year" style="display:none">
+        <label>Last Year</label>
+        <select id="rebal-last-year"></select>
+      </div>
+      <div class="field" id="field-last-year" style="display:none">
+        <label>Last Year</label>
+        <select id="last-year"><option value="">—</option></select>
+      </div>
+
+      <div class="break" id="break-1"></div>
+
+      <!-- Row 3: Config -->
       <div class="field" id="field-method">
         <label>Method</label>
         <select id="method">
@@ -234,17 +268,12 @@
           <option value="3bracket" selected>3-bracket (orig + new lower + upper)</option>
         </select>
       </div>
-      <div class="field" id="field-rebal-last-year" style="display:none">
-        <label>Last Year</label>
-        <select id="rebal-last-year"></select>
-      </div>
-      <div class="field" id="field-first-year" style="display:none">
-        <label for="first-year">First Year</label>
-        <select id="first-year"><option value="">—</option></select>
-      </div>
-      <div class="field" id="field-last-year" style="display:none">
-        <label>Last Year</label>
-        <select id="last-year"><option value="">—</option></select>
+      <div class="field" id="field-pre-ladder">
+        <label style="white-space:nowrap" title="Include coupon payments received before the ladder starts, reducing early rung quantities">Pre-ladder int.</label>
+        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
+          <input type="checkbox" id="pre-ladder-interest" style="width:auto;margin:0">
+          <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.08em">Include</span>
+        </label>
       </div>
       <div class="field" id="field-build-maturity" style="display:none">
         <label>Maturity pick</label>
@@ -253,12 +282,17 @@
           <option value="first">First to mature</option>
         </select>
       </div>
-      <div class="field" id="field-pre-ladder" style="display:none">
-        <label style="white-space:nowrap" title="Include coupon payments received before the ladder starts, reducing early rung quantities">Pre-ladder int.</label>
-        <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
-          <input type="checkbox" id="pre-ladder-interest" style="width:auto;margin:0">
-          <span style="font-size:11px;color:#475569">Include</span>
-        </label>
+
+      <div class="break"></div>
+
+      <!-- Row 4: Summary -->
+      <div class="field" id="field-term-display">
+        <label>Ladder Term</label>
+        <div id="val-term" class="val-display">—</div>
+      </div>
+      <div class="field" id="field-range-display">
+        <label>Ladder Range</label>
+        <div id="val-range" class="val-display">—</div>
       </div>
       <div id="net-cash-inline">
         <span class="nc-label" id="nc-label">Net Cash</span>
@@ -266,8 +300,6 @@
       </div>
     </div>
     <div id="status"></div>
-    <hr style="margin:5px 0 4px;border:none;border-top:1px solid #c0cad8">
-    <div id="info-strip">Loading market data…</div>
   </div>
 </div>
 
@@ -291,7 +323,7 @@
 
 <!-- Build from Scratch output -->
 <div id="build-output">
-  <div style="border:1px solid #ddd; border-radius:6px; background:#fff; padding:12px 16px;">
+  <div class="table-wrap">
     <div class="table-scroll-wrap" id="build-scroll">
       <table class="simple" id="build-table"></table>
     </div>
@@ -330,50 +362,27 @@ let tipsMap = null, refCpiRows = null, settlementDate = null, tipsRefMap = null;
 
 async function loadData() {
   console.log('loadData() started');
-  const dataInfo = document.getElementById('info-strip');
   try {
-    console.log('Fetching market data from R2...');
     const { yieldsRows, refCpiRows: rows, tipsRefRows, bondHolidays } = await fetchTipsData();
-    console.log('Market data fetched. yields:', yieldsRows.length, 'refCpi:', rows.length, 'tipsRef:', tipsRefRows.length);
-    
     refCpiRows = rows;
     _maxRefCpiDate = rows.length ? rows[rows.length - 1].date : null;
     tipsRefMap = new Map(tipsRefRows.map(r => [r.cusip, r]));
-    
     const settleDateStr = yieldsRows[0]?.settlementDate;
-    console.log('Settlement date from CSV:', settleDateStr);
     if (!settleDateStr) throw new Error('YieldsFromFedInvestPrices.csv has no settlementDate');
-    
     settlementDate = localDate(settleDateStr);
-    console.log('Parsed settlement date:', settlementDate);
-    // Ref CPI date default = T+1 bond trading day of FedInvest price date
-    // (mirrors broker T+1 settlement convention; excludes weekends + bond market holidays)
     _defaultRefCpiDateStr = nextBondTradingDay(settleDateStr, bondHolidays);
-
     tipsMap = buildTipsMapFromYields(yieldsRows);
-    console.log('TipsMap built with', tipsMap.size, 'entries');
 
-    // Compute TIPS years and gap years within the TIPS timeline
-    const bfsYears = [...new Set(
-      [...tipsMap.values()]
-        .filter(b => b.maturity && b.maturity > settlementDate)
-        .map(b => b.maturity.getFullYear())
-    )].sort((a, b) => a - b);
-    console.log('BFS Years:', bfsYears);
-    
+    const bfsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity && b.maturity > settlementDate).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
     const _bfsYearSet = new Set(bfsYears);
     const _bfsMinY = bfsYears[0], _bfsMaxY = bfsYears[bfsYears.length - 1];
     const _bfsGapYears = new Set();
-    for (let y = _bfsMinY; y <= _bfsMaxY; y++) {
-      if (!_bfsYearSet.has(y)) _bfsGapYears.add(y);
-    }
+    for (let y = _bfsMinY; y <= _bfsMaxY; y++) if (!_bfsYearSet.has(y)) _bfsGapYears.add(y);
 
-    // Populate last-year dropdown
     const lastYearSel = document.getElementById('last-year');
     while (lastYearSel.options.length > 1) lastYearSel.remove(1);
     for (let y = _bfsMinY; y <= MAX_LAST_YEAR; y++) {
-      const opt = document.createElement('option');
-      opt.value = y;
+      const opt = document.createElement('option'); opt.value = y;
       opt.textContent = _bfsGapYears.has(y) ? `${y} (gap)` : y > _bfsMaxY ? `${y} (Future 30Y)` : String(y);
       lastYearSel.appendChild(opt);
     }
@@ -382,86 +391,48 @@ async function loadData() {
     const firstYearSel = document.getElementById('first-year');
     while (firstYearSel.options.length > 1) firstYearSel.remove(1);
     bfsYears.forEach(y => {
-      const opt = document.createElement('option');
-      opt.value = y; opt.textContent = y;
+      const opt = document.createElement('option'); opt.value = y; opt.textContent = y;
       firstYearSel.appendChild(opt);
     });
     firstYearSel.value = bfsYears[0] || '';
 
-    const _matYears = new Set([...tipsMap.values()]
-      .filter(b => b.maturity > settlementDate).map(b => b.maturity.getFullYear()));
-    const _sortedYrs = [..._matYears].sort((a, b) => a - b);
-    const _gaps = [];
-    for (let y = _sortedYrs[0]; y <= _sortedYrs[_sortedYrs.length - 1]; y++)
-      if (!_matYears.has(y)) _gaps.push(y);
-    const _gapSuffix = _gaps.length
-      ? ', none for ' + _gaps[0] + '–' + _gaps[_gaps.length - 1] + ' (gap years)'
-      : '';
-    
-    _staticInfoPrefix = '<span class="info-const">FedInvest prices · ' + _fmtMDY(settleDateStr) + '</span>';
-    _staticInfoSuffix = '<span class="info-const"> · ' + yieldsRows.length + ' TIPS: </span><a class="info-link tips-ref-link">Ref</a> <a class="info-link tips-mkt-link">Mkt</a>'
-      + (_gapSuffix ? '<span class="info-const">' + _gapSuffix + '</span>' : '');
+    _staticInfoPrefix = 'FedInvest prices · ' + _fmtMDY(settleDateStr);
+    _staticInfoSuffix = yieldsRows.length + ' TIPS: <a class="info-link tips-ref-link">Ref</a> <a class="info-link tips-mkt-link">Mkt</a>';
     _buildRows();
-    _renderInfoStrip('');
     
-    console.log('Enabling run-btn');
     document.getElementById('run-btn').disabled = false;
 
-    // Pre-populate sample holdings if no file already selected
     const fileInput = document.getElementById('holdings-file');
     if (!fileInput.files.length) {
       try {
-        console.log('Attempting to load sample CSV...');
         let samplePath = './tests/CusipQtyTestLumpy.csv';
         let sampleRes = await fetch(samplePath);
-        if (!sampleRes.ok) {
-          console.log('Primary sample path failed, trying fallback...');
-          samplePath = 'tests/CusipQtyTestLumpy.csv';
-          sampleRes = await fetch(samplePath);
-        }
+        if (!sampleRes.ok) { samplePath = 'tests/CusipQtyTestLumpy.csv'; sampleRes = await fetch(samplePath); }
         if (sampleRes.ok) {
-          console.log('Sample CSV fetched successfully from:', samplePath);
           const blob = await sampleRes.blob();
           const file = new File([blob], 'CusipQtyTestLumpy.csv', { type: 'text/csv' });
-          const dt = new DataTransfer();
-          dt.items.add(file);
+          const dt = new DataTransfer(); dt.items.add(file);
           fileInput.files = dt.files;
-          
-          // Use manual filename update since we reverted to native input
-          const nameSpan = document.getElementById('holdings-filename');
-          if (nameSpan) nameSpan.textContent = file.name;
-          
-          console.log('Dispatching change event for sample file');
           fileInput.dispatchEvent(new Event('change'));
-          
-          // Auto-run once data is settled
           let autoRunRetries = 0;
           const autoRun = () => {
-            if (!document.getElementById('run-btn').disabled) {
-              console.log('Auto-running initial rebalance');
-              document.getElementById('run-btn').click();
-            } else if (autoRunRetries < 50) { // Cap at 5s
-              autoRunRetries++;
-              setTimeout(autoRun, 100);
-            }
+            const btn = document.getElementById('run-btn');
+            const isRebalance = currentMode === 'rebalance';
+            const ready = isRebalance ? (currentHoldingsArray !== null && !btn.disabled) : !btn.disabled;
+            if (ready) { btn.click(); }
+            else if (autoRunRetries < 50) { autoRunRetries++; setTimeout(autoRun, 100); }
           };
           autoRun();
         }
-      } catch (e) { console.warn('Sample load failed:', e); }
+      } catch (e) {}
     }
-  } catch (err) {
-    console.error('loadData fatal error:', err);
-    dataInfo.textContent = '';
-    _dataRowHTML = ''; _cfgRowHTML = '';
-    setStatus('Failed to load market data: ' + err.message, true);
-  }
+  } catch (err) { setStatus('Failed to load market data: ' + err.message, true); }
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function setStatus(msg, isError = false) {
   const el = document.getElementById('status');
-  el.textContent = msg;
-  el.className = isError ? 'error' : '';
+  el.textContent = msg; el.className = isError ? 'error' : '';
 }
 
 
@@ -485,10 +456,9 @@ let rebalDetails = null;
 let rebalSummary = null;
 let buildSummary = null;
 let lastHDR = null, lastResults = null;
-let _dataRowHTML = '', _cfgRowHTML = '', _rebalRunInfo = '', _buildRunInfo = '';
 let _staticInfoPrefix = '', _staticInfoSuffix = '';
 let activeRefCpiDateStr = null;
-let _defaultRefCpiDateStr = null; // T+1 of FedInvest price date (settlement date for Ref CPI lookups)
+let _defaultRefCpiDateStr = null;
 let _maxRefCpiDate = null;
 let _daraRebal = '', _daraBuild = '40000';
 const _infoPopups = {};
@@ -510,31 +480,89 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     daraEl.placeholder = isRebalance ? 'auto-infer' : '';
     if (isRebalance) { _daraBuild = daraEl.value; daraEl.value = _daraRebal; }
     else             { _daraRebal = daraEl.value; daraEl.value = _daraBuild || '10000'; }
-    document.getElementById('field-holdings').style.display  = isRebalance ? '' : 'none';
-    document.getElementById('field-method').style.display        = isRebalance ? '' : 'none';
-    document.getElementById('field-bracket-mode').style.display   = isRebalance ? '' : 'none';
-    const _rrlySel = document.getElementById('rebal-last-year');
-    document.getElementById('field-rebal-last-year').style.display = isRebalance && _rrlySel.options.length > 0 ? '' : 'none';
-    document.getElementById('field-last-year').style.display  = isRebalance ? 'none' : '';
-    document.getElementById('field-first-year').style.display = isRebalance ? 'none' : '';
+    
+    // Toggle field visibility
+    document.getElementById('field-holdings').style.display = isRebalance ? '' : 'none';
+    document.getElementById('field-method').style.display = isRebalance ? '' : 'none';
+    document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
     document.getElementById('field-build-maturity').style.display = isRebalance ? 'none' : '';
-    document.getElementById('field-pre-ladder').style.display = isRebalance ? 'none' : '';
-    if (!isRebalance) document.getElementById('dara').closest('.field').style.display = '';
+    
+    document.getElementById('field-rebal-first-year').style.display = isRebalance && currentHoldingsArray ? '' : 'none';
+    document.getElementById('field-first-year').style.display = isRebalance ? 'none' : '';
+    document.getElementById('field-rebal-last-year').style.display = isRebalance ? '' : 'none';
+    document.getElementById('field-last-year').style.display = isRebalance ? 'none' : '';
+    document.getElementById('field-pre-ladder').style.display = '';
+
+    // Build-specific: move all selection boxes to Row 2 by hiding the first break
+    const break1 = document.getElementById('break-1');
+    if (break1) break1.style.display = isRebalance ? 'block' : 'none';
+
     document.getElementById('run-btn').textContent = isRebalance ? 'Run Rebalance' : 'Build Ladder';
 
     document.getElementById('output').style.display     = isRebalance && rebalanceRendered ? 'block' : 'none';
     document.getElementById('build-output').style.display = !isRebalance && buildRendered     ? 'block' : 'none';
-    document.getElementById('export-csv-btn').style.display = 'none';
+    document.getElementById('export-csv-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
+    document.getElementById('export-cusip-qty-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
+    
     const _nci = document.getElementById('net-cash-inline');
-    _nci.style.display = (isRebalance ? rebalanceRendered : buildRendered) ? '' : 'none';
+    _nci.style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
     document.getElementById('nc-label').textContent = isRebalance ? 'Net Cash' : 'Total Cost';
-    const _runInfo = isRebalance ? _rebalRunInfo : _buildRunInfo;
-    _renderInfoStrip(_runInfo || '');
+    
     _infoPopups.duration = isRebalance ? _rebalDurationRows : _buildDurationRows;
     _infoPopups.future30yDuration = isRebalance ? _rebalFuture30yDurationRows : _buildFuture30yDurationRows;
+    _renderDurationLinks();
 
     setStatus('');
   });
+});
+
+// ─── Export table CSV ────────────────────────────────────────────────────────
+document.getElementById('export-csv-btn').addEventListener('click', () => {
+  const filename = `tips-ladder-${currentMode}-${new Date().toISOString().split('T')[0]}.csv`;
+  let csvData = [];
+  if (lastHDR && lastResults) {
+    csvData.push(lastHDR.join(','));
+    for (const row of lastResults) {
+      csvData.push(row.map(v => {
+        if (typeof v === 'number') return v.toFixed(5).replace(/\.?0+$/, '');
+        return '"' + String(v).replace(/"/g, '""') + '"';
+      }).join(','));
+    }
+  } else {
+    const tableId = currentMode === 'rebalance' ? 'simple-table' : 'build-table';
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    for (const row of table.querySelectorAll('tr')) {
+      const cols = row.querySelectorAll('td, th');
+      csvData.push([...cols].map(c => '"' + c.textContent.trim().replace(/"/g, '""') + '"').join(','));
+    }
+  }
+  const blob = new Blob([csvData.join('\n')], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+});
+
+// ─── Export CUSIP/Qty (for Rebalance import) ─────────────────────────────────
+document.getElementById('export-cusip-qty-btn').addEventListener('click', () => {
+  const details = currentMode === 'build' ? buildDetails : rebalDetails;
+  if (!details) return;
+  const rows = ['cusip,qty'];
+  for (const d of details) {
+    const totalQty = currentMode === 'build' ? (d.fundedYearQty + d.excessQty) : d.qtyAfter;
+    if (totalQty > 0) rows.push(d.cusip + ',' + totalQty);
+  }
+  const filename = `cusip-qty-${new Date().toISOString().split('T')[0]}.csv`;
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
 });
 
 // ─── Render rebalance output ──────────────────────────────────────────────────
@@ -548,13 +576,12 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
     bracketMode: _bracketMode, newLowerYear, newLowerCUSIP,
     beforeLowerWeight, beforeUpperWeight, afterLowerWeight, afterUpperWeight,
     totalCurrentExcess, totalExcessCost,
-    costDeltaSum,
+    costDeltaSum, preLadderYears, zeroedFundedYears,
   } = summary;
 
   document.getElementById('net-cash-val').textContent = sign(costDeltaSum);
-    document.getElementById('net-cash-val').className = 'nc-val ' + (costDeltaSum >= 0 ? 'pos' : 'neg');
     document.getElementById('nc-label').textContent = 'Net Cash';
-    document.getElementById('net-cash-inline').style.display = '';
+    document.getElementById('net-cash-inline').style.display = 'block';
     _infoPopups.range = [
     { label: 'Range', value: firstYear + '–' + lastYear + ' (' + rungCount + ' rungs)' },
     { label: 'Method', value: method },
@@ -572,19 +599,8 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
       _rebalFuture30yDurationRows = null;
       _infoPopups.future30yDuration = null;
     }
-    const _bracketInfo = summary.bracketMode === '3bracket' && summary.newLowerCUSIP
-      ? ' · New lower: ' + summary.newLowerCUSIP + ' (' + summary.newLowerYear + ')'
-      : '';
     const _ncColor = costDeltaSum >= 0 ? '#16a34a' : '#dc2626';
-    const _ncStrip = '<span style="margin-left:auto;padding-left:16px;font-weight:700;white-space:nowrap;color:' + _ncColor + '">Net Cash ' + sign(costDeltaSum) + '</span>';
-    _rebalRunInfo = 'DARA <b><span class="copy-dara" data-val="' + Math.round(DARA) + '" title="Click to copy">' + esc(Math.round(DARA).toLocaleString()) + '</span></b>'
-      + (daraIsInferred ? ' <span style="color:#888;font-weight:400">(inferred)</span>' : '')
-      + ' · FY ' + firstYear + '–' + lastYear + ', ' + rungCount + ' rungs'
-      + _bracketInfo
-      + ' <a class="info-link" data-popup="range">ⓘ</a>'
-      + ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>'
-      + (summary.future30yYears?.length > 0 ? ' · <a class="info-link info-link-btn" data-popup="future30yDuration">Future 30Y Duration calcs</a>' : '');
-    _renderInfoStrip(_rebalRunInfo, _ncStrip);
+    _renderDurationLinks();
   
   rebalDetails = details;
   rebalSummary = summary;
@@ -595,6 +611,7 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
     rebalanceRendered = true;
   document.getElementById('output').style.display = 'block';
   document.getElementById('export-csv-btn').style.display = 'block';
+  document.getElementById('export-cusip-qty-btn').style.display = 'block';
 }
 
 // ─── Render Build from Scratch output ────────────────────────────────────────
@@ -610,16 +627,15 @@ function renderBuildOutput({ results, HDR, summary, details }) {
   } = summary;
 
   document.getElementById('net-cash-val').textContent = '$' + Math.round(totalBuyCost).toLocaleString();
-    document.getElementById('net-cash-val').className = 'nc-val';
     document.getElementById('nc-label').textContent = 'Total Cost';
-    document.getElementById('net-cash-inline').style.display = '';
+    document.getElementById('net-cash-inline').style.display = 'block';
     const _hasGaps   = gapYears && gapYears.length > 0;
     const _hasFuture = summary.future30yYears?.length > 0;
     if (_hasGaps) {
       _buildDurationRows = buildDurationPopupRows(summary, 'build');
       _infoPopups.duration = _buildDurationRows;
     } else {
-      _infoPopups.duration = null;
+      _buildDurationRows = null;
     }
     if (_hasFuture) {
       _buildFuture30yDurationRows = buildFuture30yDurationPopupRows(summary);
@@ -628,16 +644,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
       _buildFuture30yDurationRows = null;
       _infoPopups.future30yDuration = null;
     }
-    const _plNote = (preLadderYears > 0 && zeroedFundedYears && zeroedFundedYears.length)
-      ? ' · <span style="color:#854d0e">Pre-ladder: ' + zeroedFundedYears.length + ' yr' + (zeroedFundedYears.length > 1 ? 's' : '') + ' zeroed (' + zeroedFundedYears.join(', ') + ')</span>'
-      : '';
-    const _bncStrip = '<span style="margin-left:auto;padding-left:16px;font-weight:700;white-space:nowrap">Total Cost $' + Math.round(totalBuyCost).toLocaleString() + '</span>';
-    _buildRunInfo = 'DARA <b>' + esc(Math.round(dara).toLocaleString()) + '</b>'
-      + ' · FY ' + firstYear + '–' + lastYear
-      + _plNote
-      + (_hasGaps   ? ' · <a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>' : '')
-      + (_hasFuture ? ' · <a class="info-link info-link-btn" data-popup="future30yDuration">Future 30Y Duration calcs</a>' : '');
-    _renderInfoStrip(_buildRunInfo, _bncStrip);
+    _renderDurationLinks();
     buildDetails = details;
   buildSummary  = summary;
 
@@ -647,20 +654,78 @@ function renderBuildOutput({ results, HDR, summary, details }) {
     buildRendered = true;
   document.getElementById('build-output').style.display = 'block';
   document.getElementById('export-csv-btn').style.display = 'block';
+  document.getElementById('export-cusip-qty-btn').style.display = 'block';
+}
+
+function _renderDurationLinks() {
+  const el = document.getElementById('duration-links');
+  let html = '';
+  if (currentMode === 'rebalance' ? _rebalDurationRows : _buildDurationRows) {
+    html += '<a class="info-link info-link-btn" data-popup="duration">Duration calcs</a>';
+  }
+  if (currentMode === 'rebalance' ? _rebalFuture30yDurationRows : _buildFuture30yDurationRows) {
+    html += '<a class="info-link info-link-btn" data-popup="future30yDuration">Future 30Y Dur</a>';
+  }
+  el.innerHTML = html;
 }
 
 // ─── Sticky header helper ─────────────────────────────────────────────────────────
 // ─── Sticky scroll height — ResizeObserver keeps it live ──────
 {
   function _setSH() {
-    const used = document.getElementById('top-row').offsetHeight + 32;
+    const topRow = document.getElementById('top-row');
+    if (!topRow) return;
+    const used = topRow.offsetHeight + 32;
     ['simple-scroll', 'build-scroll', 'dara-by-year-scroll'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.maxHeight = (window.innerHeight - used) + 'px';
     });
   }
-  new ResizeObserver(_setSH).observe(document.getElementById('top-row'));
+  const tr = document.getElementById('top-row');
+  if (tr) new ResizeObserver(_setSH).observe(tr);
   window.addEventListener('resize', _setSH);
+}
+
+// ─── Rebalance First Year dropdown ───────────────────────────────────────────
+function updateRebalFirstYearDropdown() {
+  const sel      = document.getElementById('rebal-first-year');
+  const fieldDiv = document.getElementById('field-rebal-first-year');
+  sel.innerHTML  = '';
+
+  if (!currentHoldingsArray || !tipsMap || currentMode !== 'rebalance') {
+    fieldDiv.style.display = 'none'; return;
+  }
+
+  const _hYears = [...new Set(currentHoldingsArray
+    .map(h => { const b = tipsMap.get(h.cusip); return b?.maturity?.getFullYear(); })
+    .filter(y => y != null)
+  )].sort((a, b) => a - b);
+  if (!_hYears.length) { fieldDiv.style.display = 'none'; return; }
+
+  const _firstY = _hYears[0];
+  let _derivedLY = _firstY;
+  for (let i = 0; i < _hYears.length; i++) {
+    const y = _hYears[i];
+    if (y <= 2040) { _derivedLY = y; continue; }
+    if (_hYears[i + 1] === y + 1) { _derivedLY = _hYears[i + 1]; }
+    else { _derivedLY = y; break; }
+  }
+
+  const _tipsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
+  const _minTipsY  = _tipsYears[0] ?? _firstY;
+
+  const _curVal = sel.value ? parseInt(sel.value, 10) : NaN;
+  const _selVal = (!isNaN(_curVal) && _curVal >= _minTipsY && _curVal <= _derivedLY) ? _curVal : _firstY;
+
+  for (let y = _minTipsY; y <= _derivedLY; y++) {
+    if (!_tipsYears.includes(y)) continue;
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = String(y);
+    if (y === _selVal) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  fieldDiv.style.display = '';
 }
 
 // ─── Rebalance Last Year dropdown ────────────────────────────────────────────
@@ -722,9 +787,6 @@ let currentHoldingsArray = null;
 
 document.getElementById('holdings-file').addEventListener('change', async (e) => {
   const file = e.target.files[0];
-  const nameSpan = document.getElementById('holdings-filename');
-  if (nameSpan) nameSpan.textContent = file ? file.name : '';
-
   currentHoldingsArray = null;
   setStatus('');
   _clearAutoDara();
@@ -735,36 +797,10 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     const rawLines = text.trim().split('\n').filter(l => l.trim());
     if (rawLines.length === 0) { setStatus('Holdings CSV is empty.', true); return; }
 
-    const firstFewLines = rawLines.slice(0, 20).join('\n').toLowerCase();
-    const isBrokerCSV = firstFewLines.includes('account number') ||
-                        firstFewLines.includes('account name') ||
-                        firstFewLines.includes('positions for') ||
-                        (firstFewLines.includes('symbol') && firstFewLines.includes('quantity'));
-
-    if (isBrokerCSV) {
-      const parsedAccounts = parseBrokerCSV(text, tipsMap);
-      const acctNames = Object.keys(parsedAccounts);
-      if (acctNames.length === 0) { setStatus('No TIPS found in broker export.', true); return; }
-
-      if (acctNames.length === 1) {
-        currentHoldingsArray = parsedAccounts[acctNames[0]];
-        setStatus(`Loaded 1 account: ${acctNames[0]} (${currentHoldingsArray.length} TIPS).`);
-        updateRebalLastYearDropdown();
-        renderDaraByYearPanel();
-      } else {
-        window._pendingBrokerAccounts = parsedAccounts;
-        const listEl = document.getElementById('account-list');
-        listEl.innerHTML = acctNames.map(name => {
-          const pos = parsedAccounts[name].length;
-          const count = parsedAccounts[name].reduce((s, p) => s + p.qty, 0);
-          return `<label style="display:flex;align-items:center;margin-bottom:8px;cursor:pointer;font-size:13px;">
-            <input type="checkbox" value="${esc(name)}" checked style="margin-right:8px;width:16px;height:16px;">
-            <b>${esc(name)}</b> <span style="color:#64748b;margin-left:6px;font-size:12px;">(${pos} positions, ${count} TIPS)</span>
-          </label>`;
-        }).join('');
-        document.getElementById('account-overlay').style.display = 'block';
-      }
-    } else {
+    const parsedAccounts = parseBrokerCSV(text, tipsMap);
+    const acctNames = Object.keys(parsedAccounts);
+    if (acctNames.length === 0) {
+      // Try simple CUSIP,QTY format
       const CUSIP_RE = /^[A-Z0-9]{9}$/i;
       const startIdx = CUSIP_RE.test(rawLines[0].split(',')[0].trim()) ? 0 : 1;
       const arr = [];
@@ -778,10 +814,26 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
       }
       if (arr.length === 0) { setStatus('Holdings CSV has no valid data rows.', true); return; }
       currentHoldingsArray = arr;
-      setStatus(`Loaded standard CSV (${arr.length} TIPS).`);
-      updateRebalLastYearDropdown();
-      renderDaraByYearPanel();
+    } else if (acctNames.length === 1) {
+      currentHoldingsArray = parsedAccounts[acctNames[0]];
+    } else {
+      window._pendingBrokerAccounts = parsedAccounts;
+      const listEl = document.getElementById('account-list');
+      listEl.innerHTML = acctNames.map(name => {
+        const pos = parsedAccounts[name].length;
+        const count = parsedAccounts[name].reduce((s, p) => s + p.qty, 0);
+        return `<label style="display:flex;align-items:center;margin-bottom:8px;cursor:pointer;font-size:13px;">
+          <input type="checkbox" value="${esc(name)}" checked style="margin-right:8px;width:16px;height:16px;">
+          <b>${esc(name)}</b> <span style="color:#64748b;margin-left:6px;font-size:12px;">(${pos} positions, ${count} TIPS)</span>
+        </label>`;
+      }).join('');
+      document.getElementById('account-overlay').style.display = 'block';
+      return;
     }
+    
+    updateRebalLastYearDropdown();
+    updateRebalFirstYearDropdown();
+    renderDaraByYearPanel();
   } catch (err) {
     setStatus('Error reading file: ' + err.message, true);
   }
@@ -797,21 +849,18 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     let combined = [];
     for (const name of selected) combined = combined.concat(window._pendingBrokerAccounts[name]);
     currentHoldingsArray = combined;
-    setStatus(`Loaded ${selected.length} account(s) (${combined.length} TIPS total).`);
     updateRebalLastYearDropdown();
+    updateRebalFirstYearDropdown();
     renderDaraByYearPanel();
   });
   document.getElementById('account-cancel').addEventListener('click', () => {
     document.getElementById('account-overlay').style.display = 'none';
-    setStatus('Account selection cancelled. No file loaded.', true);
+    setStatus('Account selection cancelled.', true);
     currentHoldingsArray = null;
     document.getElementById('holdings-file').value = '';
   });
-  document.getElementById('account-overlay').addEventListener('click', e => {
-    if (e.target === e.currentTarget) document.getElementById('account-cancel').click();
-  });
 
-// ─── Draggable drill modal ──────────────────────────────────────────────────────────────────────────────────────
+// ─── Draggable drill modal ───────────────────────────────────────────────────
 let _drillDragging = false;
 {
   const _modal = document.getElementById('drill-modal');
@@ -884,26 +933,19 @@ function renderDaraByYearPanel() {
 
   let years = [];
   if (currentMode === 'rebalance') {
-    if (!currentHoldingsArray) { panel.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return; }
-    const _rebalLY = parseInt(document.getElementById('rebal-last-year').value);
-    if (!_rebalLY) { panel.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return; }
-    // Derive firstYear from holdings
-    let _rebalFY = Infinity;
+    if (!currentHoldingsArray) { panel.style.display = 'none'; return; }
+    const ly = parseInt(document.getElementById('rebal-last-year').value);
+    let fy = Infinity;
     for (const h of currentHoldingsArray) {
       const b = tipsMap.get(h.cusip);
-      if (b?.maturity) _rebalFY = Math.min(_rebalFY, b.maturity.getFullYear());
+      if (b?.maturity) fy = Math.min(fy, b.maturity.getFullYear());
     }
-    if (!isFinite(_rebalFY)) { panel.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return; }
-    // Show all years from firstYear through selectedLastYear (including gap years)
-    const yearSet = new Set();
-    for (let y = _rebalFY; y <= _rebalLY; y++) yearSet.add(y);
-    years = [...yearSet].sort((a, b) => a - b);
+    if (!isFinite(fy) || !ly) return;
+    for (let y = fy; y <= ly; y++) years.push(y);
   } else {
-    const firstYearVal = document.getElementById('first-year').value;
-    const lastYearVal  = document.getElementById('last-year').value;
-    if (!lastYearVal) { panel.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return; }
-    const fy = firstYearVal ? parseInt(firstYearVal, 10) : settlementDate.getFullYear();
-    const ly = parseInt(lastYearVal, 10);
+    const fy = parseInt(document.getElementById('first-year').value) || settlementDate.getFullYear();
+    const ly = parseInt(document.getElementById('last-year').value);
+    if (!ly) return;
     const yearSet = new Set();
     for (const bond of tipsMap.values()) {
       if (bond.maturity && bond.maturity > settlementDate) {
@@ -913,42 +955,15 @@ function renderDaraByYearPanel() {
     }
     years = [...yearSet].sort((a, b) => a - b);
   }
-  if (!years.length) { panel.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return; }
+  if (!years.length) return;
 
   const tableEl = document.getElementById('dara-by-year-table');
-
-  if (panel.style.display !== 'none' && _daraByYearPanelDefault !== null) {
-    // Panel already visible: sync store — entries at prev default → new default
-    const prevDefault = _daraByYearPanelDefault;
-    if (prevDefault !== defaultDara) {
-      for (const [yr, v] of _daraByYearStore) {
-        if (v === prevDefault) _daraByYearStore.set(yr, defaultDara);
-      }
-    }
-    _daraByYearPanelDefault = defaultDara;
-    tableEl.querySelector('tbody').innerHTML = years.map(y =>
-      _daraByYearRow(y, _daraByYearStore.get(y) ?? defaultDara)
-    ).join('');
-    updateDaraInput();
-    return;
-  }
-
-  // Fresh render
-  tableEl.innerHTML =
-    '<thead><tr>'
-    + '<th style="text-align:left;cursor:default;white-space:nowrap">Funded<br>Year</th>'
-    + '<th style="cursor:default">DARA ($)</th>'
-    + '</tr></thead>'
-    + '<tbody>'
+  tableEl.innerHTML = '<thead><tr><th>Funded Year</th><th>DARA ($)</th></tr></thead><tbody>'
     + years.map(y => _daraByYearRow(y, _daraByYearStore.get(y) ?? defaultDara)).join('')
     + '</tbody>';
 
   _daraByYearPanelDefault = defaultDara;
   panel.style.display = 'block';
-  document.getElementById('output').style.display = 'none';
-  document.getElementById('build-output').style.display = 'none';
-  document.getElementById('export-csv-btn').style.display = 'none';
-  document.getElementById('net-cash-inline').style.display = 'none';
   updateDaraInput();
 }
 
@@ -968,9 +983,7 @@ function getDaraByYear() {
 document.getElementById('dara-by-year-table').addEventListener('input', e => {
   const inp = e.target.closest('input[data-year]');
   if (!inp) return;
-  const yr = parseInt(inp.dataset.year, 10);
-  const v  = parseFloat(inp.value);
-  if (!isNaN(v) && v >= 0) _daraByYearStore.set(yr, v);
+  _daraByYearStore.set(parseInt(inp.dataset.year, 10), parseFloat(inp.value));
   updateDaraInput();
 });
 
@@ -978,7 +991,7 @@ document.getElementById('dara-by-year-table').addEventListener('input', e => {
 document.getElementById('dara').addEventListener('focus', () => {
   const inp = document.getElementById('dara');
   if (inp.value === 'by year') {
-    renderDaraByYearPanel();  // keep panel open using stored default before clearing text
+    renderDaraByYearPanel();
     inp.value = '';
   } else {
     if (!inp.value.trim()) inp.value = _lastKnownDara ? String(_lastKnownDara) : '10000';
@@ -993,32 +1006,14 @@ document.getElementById('dara').addEventListener('blur', updateDaraInput);
 // Shared step logic for ▲/▼ buttons and ArrowUp/Down keys
 function _daraStep(delta) {
   const inp = document.getElementById('dara');
-  // Seed _daraByYearPanelDefault from current input if not yet set
-  if (_daraByYearPanelDefault == null) {
-    const cur = parseFloat(inp.value);
-    if (isNaN(cur)) return;
-    _daraByYearPanelDefault = cur;
-  }
-  const oldDefault = _daraByYearPanelDefault;
-  const newDara    = Math.max(1000, oldDefault + delta);
-  for (const [yr, v] of _daraByYearStore) {
-    if (v === oldDefault) _daraByYearStore.set(yr, newDara);
-  }
-  _daraByYearPanelDefault = newDara;
-  const panel = document.getElementById('dara-by-year');
-  if (panel.style.display !== 'none') {
-    for (const i of document.querySelectorAll('#dara-by-year-table input[data-year]')) {
-      i.value = _daraByYearStore.get(parseInt(i.dataset.year, 10)) ?? newDara;
-    }
-  }
-  inp.value = String(newDara);
+  const cur = _getDefaultDara() || 10000;
+  const newVal = Math.max(1000, cur + delta);
+  inp.value = newVal;
+  _daraByYearPanelDefault = newVal;
+  for (const [yr] of _daraByYearStore) _daraByYearStore.set(yr, newVal);
+  renderDaraByYearPanel();
 }
 
-document.getElementById('dara').addEventListener('keydown', e => {
-  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return;
-  e.preventDefault();
-  _daraStep(e.key === 'ArrowUp' ? 1000 : -1000);
-});
 document.getElementById('dara-inc').addEventListener('click', () => { _daraStep(1000);  document.getElementById('dara').focus(); });
 document.getElementById('dara-dec').addEventListener('click', () => { _daraStep(-1000); document.getElementById('dara').focus(); });
 
@@ -1032,617 +1027,248 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
 
     if (currentMode === 'build') {
-      // ── Build from Scratch ──
       const dara = _getDefaultDara();
-      if (!dara || isNaN(dara) || dara <= 0) { setStatus('DARA is required for Build from Scratch.', true); return; }
+      const lastYear = parseInt(document.getElementById('last-year').value);
+      if (!dara || !lastYear) { setStatus('DARA and Last Year required.', true); return; }
       if (dara < 1000) { setStatus('DARA must be at least $1,000.', true); return; }
 
-      const lastYearVal = document.getElementById('last-year').value;
-      if (!lastYearVal) { setStatus('Please select a Last Year.', true); return; }
-      const lastYear = parseInt(lastYearVal, 10);
-      if (isNaN(lastYear)) { setStatus('Invalid Last Year selection.', true); return; }
-
-      setStatus('Building ladder…');
-      const firstYearVal = document.getElementById('first-year').value;
-      const firstYear = firstYearVal ? parseInt(firstYearVal, 10) : undefined;
-      const maturityPref = document.getElementById('build-maturity').value;
-      const preLadderInterest = document.getElementById('pre-ladder-interest').checked;
-      const daraByYear = getDaraByYear();
-      const result = runBuild({ dara, firstYear, lastYear, tipsMap, refCPI, settlementDate, maturityPref, preLadderInterest, daraByYear });
+      const result = runBuild({
+        dara,
+        firstYear: parseInt(document.getElementById('first-year').value) || undefined,
+        lastYear,
+        tipsMap,
+        refCPI,
+        settlementDate,
+        maturityPref: document.getElementById('build-maturity').value,
+        preLadderInterest: document.getElementById('pre-ladder-interest').checked,
+        daraByYear: getDaraByYear()
+      });
       _lastKnownDara = dara;
-      document.getElementById('dara-by-year').style.display = 'none';
-      updateDaraInput();
       renderBuildOutput(result);
-      setStatus('');
+      
+      document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
+      document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
 
     } else {
-      // ── Rebalance ──
-      if (!currentHoldingsArray) { setStatus('Please select a valid holdings CSV file.', true); return; }
+      if (!currentHoldingsArray) { setStatus('Holdings required.', true); return; }
 
-      const _daraRaw = _getDefaultDara();
-      const dara     = isNaN(_daraRaw) ? null : _daraRaw;
-      if (dara !== null && dara < 1000) { setStatus('DARA must be at least $1,000.', true); return; }
-      const method       = document.getElementById('method').value;
-      const bracketMode  = document.getElementById('bracket-mode').value;
-      const _rebalLYEl   = document.getElementById('rebal-last-year');
-      const lastYearOverride = _rebalLYEl.value ? parseInt(_rebalLYEl.value, 10) : null;
-
-      const holdingsRaw = new Map();
-      for (const h of currentHoldingsArray) {
-        holdingsRaw.set(h.cusip, (holdingsRaw.get(h.cusip) ?? 0) + h.qty);
-      }
-      const holdings = Array.from(holdingsRaw, ([cusip, qty]) => ({ cusip, qty }));
-
-      let finalDara = dara;
-      let portfolioCash = null;
-      let _daraWasInferred = false;
-      if (method === 'Full' && dara === null) {
-        setStatus('Inferring DARA from portfolio cash…');
-        ({ dara: finalDara, portfolioCash } = inferDARAFromCash({ bracketMode, holdings, tipsMap, refCPI, settlementDate, lastYearOverride }));
-        finalDara = Math.floor(finalDara);
-        document.getElementById('dara').value = String(finalDara);
-        _daraByYearPanelDefault = finalDara;
-        for (const [yr] of _daraByYearStore) _daraByYearStore.set(yr, finalDara);
+      let finalDara = _getDefaultDara();
+      if (!isNaN(finalDara) && finalDara < 1000) { setStatus('DARA must be at least $1,000.', true); return; }
+      if (document.getElementById('method').value === 'Full' && isNaN(finalDara)) {
+        const inferred = inferDARAFromCash({
+          bracketMode: document.getElementById('bracket-mode').value,
+          holdings: currentHoldingsArray,
+          tipsMap,
+          refCPI,
+          settlementDate,
+          lastYearOverride: parseInt(document.getElementById('rebal-last-year').value),
+          preLadderInterest: document.getElementById('pre-ladder-interest').checked,
+          firstYearOverride: parseInt(document.getElementById('rebal-first-year').value)
+        });
+        finalDara = Math.floor(inferred.dara);
+        document.getElementById('dara').value = finalDara;
         _daraAutoInferred = true;
-        _daraWasInferred = true;
       }
+      const result = runRebalance({
+        dara: finalDara,
+        method: document.getElementById('method').value,
+        bracketMode: document.getElementById('bracket-mode').value,
+        holdings: currentHoldingsArray,
+        tipsMap,
+        refCPI,
+        settlementDate,
+        daraByYear: getDaraByYear(),
+        lastYearOverride: parseInt(document.getElementById('rebal-last-year').value),
+        preLadderInterest: document.getElementById('pre-ladder-interest').checked,
+        firstYearOverride: parseInt(document.getElementById('rebal-first-year').value)
+      });
       _lastKnownDara = finalDara;
-      setStatus('Running rebalance…');
-      // When DARA was just inferred (exact value), skip per-year panel to avoid rounding mismatch
-      const daraByYear = _daraWasInferred ? null : getDaraByYear();
-      const result = runRebalance({ dara: finalDara, method, bracketMode, holdings, tipsMap, refCPI, settlementDate, daraByYear, lastYearOverride });
-      document.getElementById('dara-by-year').style.display = 'none';
-      updateDaraInput();
-      renderOutput(result, portfolioCash);
-      setStatus('');
+      renderOutput(result);
+
+      document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
+      document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
     }
+    document.getElementById('dara-by-year').style.display = 'none';
+    updateDaraInput();
   } catch (err) {
-    setStatus('Error: ' + err.message, true);
-    console.error(err);
+    setStatus(err.message, true);
   }
 });
 
-// ─── Drill-down event wiring ────────────────────────────────────────────────────────────
-let currentDrillData = null, currentDrillColKey = null;
+function _fmtMDY(iso) { if (!iso) return ''; const [y,m,d] = iso.split('-'); return `${m}/${d}/${y}`; }
+function _buildRows() {
+  const date = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  const refCpiHTML = `<span class="info-const">Ref CPI date: </span><span id="refcpi-link" class="info-link">${_fmtMDY(date)}</span>`;
+  document.getElementById('top-data-info').innerHTML = `<span>${_staticInfoPrefix}</span><span>${refCpiHTML} · ${_staticInfoSuffix}</span>`;
+}
 
-document.getElementById('build-table').addEventListener('click', e => {
-  const td = e.target.closest('td.drillable');
-  if (!td || !buildDetails) return;
-  const ri  = parseInt(td.dataset.row, 10);
-  const key = td.dataset.col;
-  const d   = buildDetails[ri];
-  if (!d) return;
-  currentDrillData = d; currentDrillColKey = key;
-  const colNames = { amount: 'Amount', cost: 'Cost', gapAmount: 'Gap Amount', gapCost: 'Gap Cost', future30yAmt: 'Future 30Y Amount', future30yCost: 'Future 30Y Cost' };
-  const suffix   = (key === 'gapAmount' || key === 'gapCost') ? ' (bracket)' : (key === 'future30yAmt' || key === 'future30yCost') ? ' (Future 30Y)' : '';
-  document.getElementById('drill-title').textContent =
-    colNames[key] + ' — Funded Year ' + d.fundedYear + suffix + ' · ' + d.cusip + ' · ' + d.maturityStr;
-  document.getElementById('drill-content').innerHTML = buildDrillHTML(d, key, buildSummary);
-  const _ov = document.getElementById('drill-overlay');
-  const _dm = document.getElementById('drill-modal');
-  _dm.style.left = '50%'; _dm.style.top = '60px'; _dm.style.transform = 'translateX(-50%)';
-  _ov.style.display = 'block';
-});
+function _clearAutoDara() { if (_daraAutoInferred) { document.getElementById('dara').value = ''; _daraAutoInferred = false; } }
 
-document.getElementById('simple-table').addEventListener('click', e => {
-  const td = e.target.closest('td.drillable');
-  if (!td || !rebalDetails) return;
-  const ri  = parseInt(td.dataset.row, 10);
-  const key = td.dataset.col;
-  const d   = rebalDetails[ri];
-  if (!d) return;
-  currentDrillData = d; currentDrillColKey = key;
-  const colNames = { amtBefore: 'Amount Before', amtAfter: 'Amount After',
-    excessBefore: 'Excess Before', excessAfter: 'Excess After',
-    qtyBefore: 'Quantity Before', qtyAfter: 'Quantity After', qty: 'Quantity',
-    cashDelta: 'Cash Δ',
-    costBefore: 'Cost Before', costAfter: 'Cost After',
-    gapAmtBefore: 'Gap Amount Before', gapAmtAfter: 'Gap Amount After',
-    gapCostBefore: 'Gap Cost Before', gapCostAfter: 'Gap Cost After',
-    gapCashDelta: 'Gap Cash Δ',
-    future30yAmtBefore: 'Future 30Y Amount Before', future30yAmtAfter: 'Future 30Y Amount After',
-    future30yCostBefore: 'Future 30Y Cost Before', future30yCostAfter: 'Future 30Y Cost After' };
-  document.getElementById('drill-title').textContent =
-    colNames[key] + ' — FY ' + d.fundedYear + ' · ' + d.cusip + ' · ' + d.maturityStr;
-  document.getElementById('drill-content').innerHTML = buildDrillHTML(d, key, rebalSummary);
-  const _ov = document.getElementById('drill-overlay');
-  const _dm = document.getElementById('drill-modal');
-  _dm.style.left = '50%'; _dm.style.top = '60px'; _dm.style.transform = 'translateX(-50%)';
-  _ov.style.display = 'block';
-});
-
-document.getElementById('drill-content').addEventListener('click', e => {
-  const target = e.target.closest('.drill-l3');
-  if (!target || !currentDrillData) return;
-  const key = target.dataset.l3;
-  let rows = [];
-  let title = '';
-  let bc = 'Ladder \u203a FY ' + currentDrillData.fundedYear + ' \u203a ' + currentDrillData.cusip;
-  if (key === 'refCPI') {
-    const builder = (comp) => buildRefCpiDrill(currentDrillData, comp, refCpiRows);
-    showPopup(target, 'Ref CPI Interpolation', builder, bc + ' \u203a Ref CPI', 'quant');
-  } else if (key === 'indexRatio') {
-    const rows = buildIndexRatioDrill(currentDrillData);
-    showPopup(target, 'Index Ratio Calculation', rows, bc + ' \u203a Index Ratio');
-  } else if (key.startsWith('pipb-')) {
-    const idx = parseInt(key.slice(5), 10);
-    const hArr = currentDrillColKey === 'amtBefore' ? currentDrillData.araBeforeHoldings : currentDrillData.araAfterHoldings;
-    const h = hArr?.[idx];
-    if (!h) return;
-    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][h.maturityMonth];
-    const rows = buildPIPerBondDrill(h);
-    showPopup(target, 'P+I per bond \u00b7 ' + mo + ' \u2019' + String(h.maturityYear).slice(2), rows, bc + ' \u203a P+I/bond');
-  }
-});
-
-document.getElementById('drill-content').addEventListener('mouseover', e => {
-  const target = e.target.closest('.formula-var');
-  if (!target) return;
-  const sourceId = target.dataset.source;
-  if (!sourceId) return;
-  const sourceEl = document.querySelector('#drill-content [data-row-id="' + sourceId + '"]');
-  if (sourceEl) sourceEl.closest('tr').classList.add('source-highlight');
-});
-document.getElementById('drill-content').addEventListener('mouseout', e => {
-  const target = e.target.closest('.formula-var');
-  if (!target) return;
-  document.querySelectorAll('#drill-content .source-highlight').forEach(el => el.classList.remove('source-highlight'));
-});
-
+/* --- DRILL-DOWN MODAL LISTENERS --- */
 document.getElementById('drill-close').addEventListener('click', () => {
   document.getElementById('drill-overlay').style.display = 'none';
 });
 document.getElementById('drill-overlay').addEventListener('click', e => {
-  if (_drillDragging) return;
-  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+  if (e.target.id === 'drill-overlay') e.target.style.display = 'none';
 });
+
+let _currentDrillData = null, _currentDrillColKey = null;
+
+document.addEventListener('click', e => {
+  const drill = e.target.closest('td.drillable');
+  if (drill) {
+    const ri = parseInt(drill.dataset.row, 10);
+    const colKey = drill.dataset.col;
+    const details = currentMode === 'build' ? buildDetails : rebalDetails;
+    const summary = currentMode === 'build' ? buildSummary : rebalSummary;
+    const d = details[ri];
+    _currentDrillData = d; _currentDrillColKey = colKey;
+    const html = buildDrillHTML(d, colKey, summary);
+    document.getElementById('drill-title').textContent = (d.maturityStr || d.fundedYear) + ' — ' + colKey;
+    document.getElementById('drill-content').innerHTML = html;
+    document.getElementById('drill-overlay').style.display = 'block';
+    return;
+  }
+
+  const drillL3 = e.target.closest('.drill-l3');
+  if (drillL3) {
+    e.stopPropagation();
+    const key = drillL3.dataset.l3;
+    const d = _currentDrillData;
+
+    if (key === 'refCPI') {
+      showPopup(drillL3, 'Ref CPI Interpolation', (c) => buildRefCpiDrill(d || {refCPI: settlementDate}, c, refCpiRows), 'Ref CPI', 'quant');
+    } else if (key === 'indexRatio') {
+      showPopup(drillL3, 'Index Ratio Calculation', (c) => buildIndexRatioDrill(d), 'Index Ratio');
+    } else if (key.startsWith('pipb-')) {
+      const idx = parseInt(key.slice(5), 10);
+      const hArr = _currentDrillColKey === 'amtBefore' ? d?.araBeforeHoldings : d?.araAfterHoldings;
+      const h = hArr?.[idx];
+      if (!h) return;
+      const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][h.maturityMonth];
+      const rows = buildPIPerBondDrill(h);
+      showPopup(drillL3, 'P+I per TIPS · ' + mo + ' \'' + String(h.maturityYear).slice(2), rows);
+    }
+    return;
+  }
+  
+  const info = e.target.closest('.info-link');
+  if (info) {
+    if (info.classList.contains('tips-ref-link')) {
+      _showTipsRefModal('Ref');
+    } else if (info.classList.contains('tips-mkt-link')) {
+      _showTipsRefModal('Mkt');
+    } else if (info.id === 'refcpi-link') {
+      _showRefCpiPicker(info);
+    } else if (info.dataset.popup) {
+      showPopup(info, info.textContent, _infoPopups[info.dataset.popup]);
+    }
+  }
+});
+
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
     document.getElementById('drill-overlay').style.display = 'none';
-    document.getElementById('refcpi-picker').style.display = 'none';
+    hidePopup();
   }
   if (e.key === 'Enter') {
-    const noOverlay = ['drill-overlay','account-overlay','help-overlay','refcpi-picker']
-      .every(id => document.getElementById(id).style.display === 'none');
+    const overlayIds = ['drill-overlay', 'help-overlay'];
+    const noOverlay = overlayIds.every(id => {
+      const el = document.getElementById(id);
+      return !el || el.style.display === 'none';
+    });
     const btn = document.getElementById('run-btn');
     if (noOverlay && !btn.disabled) btn.click();
   }
 });
 
-
-// ─── Info-link + header click handler ──────────────────────────────
-const POPUP_TITLES = { range: 'Rebalance Range', duration: 'Duration Calculations', future30yDuration: 'Future 30Y Duration Calculations' };
-
-const COL_HELP = {
-  cusip:      [{ label: '9-character CUSIP identifier' }],
-  maturity:   [{ label: 'TIPS maturity date' }],
-  fundedYear: [{ label: 'Calendar year this TIPS’s cash flows are designated to fund' }],
-  amtBefore:  [{ label: 'Annual Real Amount (ARA) — inflation-adjusted funded-year income', note: 'Quantity × (Par Value + own coupon) + coupon amount from longer-maturity TIPS' }],
-  amtAfter:   [{ label: 'Annual Real Amount (ARA) after rebalance', note: 'Quantity × (Par Value + own coupon) + coupon amount from longer-maturity TIPS' }],
-  costBefore: [{ label: 'Total purchase cost of current holdings', note: 'Quantity × cost per TIPS' }],
-  costAfter:  [{ label: 'Total purchase cost after rebalance', note: 'Quantity × cost per TIPS' }],
-  qtyBefore:  [{ label: 'Quantity currently held (units of $1,000)' }],
-  qtyAfter:   [{ label: 'Quantity after rebalance (units of $1,000)' }],
-  qtyDelta:   [{ label: 'Change in quantity (after − before)', note: 'Negative = sell, positive = buy' }],
-  cashDelta:  [{ label: 'Net cash flow from this rung', note: '−(qtyΔ × cost per TIPS). Negative = cash out.' }],
-  amount:     [{ label: 'Annual Real Amount (ARA) — inflation-adjusted funded-year income', note: 'Quantity × (Par Value + own coupon) + coupon amount from longer-maturity TIPS' }],
-  cost:       [{ label: 'Total purchase cost for this rung', note: 'Quantity × cost per TIPS' }],
-  qty:        [{ label: 'Quantity to buy (units of $1,000)' }],
-};
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') {
-    const ids = ['help-overlay', 'tipsref-overlay', 'refcpi-picker'];
-    ids.forEach(id => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = 'none';
-    });
-    // popup.js has its own listener, but redundant call here is safe
-  }
-});
-document.addEventListener('click', e => {
-  // Close RefCPI picker on outside click
-  const _rp = document.getElementById('refcpi-picker');
-  if (_rp.style.display !== 'none' && !_rp.contains(e.target) && !e.target.closest('#refcpi-link')) {
-    _rp.style.display = 'none';
-  }
-  const cd = e.target.closest('.copy-dara');
-  if (cd) { navigator.clipboard.writeText(cd.dataset.val); cd.classList.add('copied'); setTimeout(() => cd.classList.remove('copied'), 1200); return; }
-  // RefCPI picker trigger (also has class info-link — handle before generic info-link)
-  const rl = e.target.closest('#refcpi-link');
-  if (rl) { _showRefCpiPicker(rl); return; }
-  // TIPS popup
-  if (e.target.closest('.tips-ref-link')) { _showTipsPopup('ref'); return; }
-  if (e.target.closest('.tips-mkt-link')) { _showTipsPopup('mkt'); return; }
-  const link = e.target.closest('.info-link');
-  if (link) {
-    const key  = link.dataset.popup;
-    const rows = _infoPopups[key];
-    const bc   = 'Ladder \u203a ' + (POPUP_TITLES[key] || key);
-    if (rows) showPopup(link, POPUP_TITLES[key] || key, rows, bc);
-    return;
-  }
-  const th = e.target.closest('th[data-col]');
-  if (th) {
-    const rows = COL_HELP[th.dataset.col];
-    const bc   = 'Ladder \u203a Table Header';
-    if (rows) showPopup(th, th.textContent.trim(), rows, bc);
-    return;
-  }
-});
-
-document.getElementById('export-csv-btn').addEventListener('click', () => {
-  const filename = `tips-ladder-${currentMode}-${new Date().toISOString().split('T')[0]}.csv`;
+/* --- TIPS REF / MKT MODAL --- */
+async function _showTipsRefModal(type) {
+  const overlay = document.getElementById('tipsref-overlay');
+  const table = document.getElementById('tipsref-table');
+  const title = document.getElementById('tipsref-title');
+  const warn = document.getElementById('tipsref-warn');
   
-  let csvData = [];
-  if (lastHDR && lastResults) {
-    // Generate traceability CSV from library results
-    csvData.push(lastHDR.join(','));
-    for (const row of lastResults) {
-      csvData.push(row.map(v => {
-        if (typeof v === 'number') return v.toFixed(5).replace(/\.?0+$/, '');
-        return '"' + String(v).replace(/"/g, '""') + '"';
-      }).join(','));
-    }
-  } else {
-    // Fallback to table scraping
-    const tableId = currentMode === 'rebalance' ? 'simple-table' : 'build-table';
-    const table = document.getElementById(tableId);
-    if (!table) return;
-    const rows = table.querySelectorAll('tr');
-    for (const row of rows) {
-      const rowData = [];
-      const cols = row.querySelectorAll('td, th');
-      for (const col of cols) {
-        let data = col.textContent.trim().replace(/,/g, '').replace(/"/g, '""');
-        rowData.push('"' + data + '"');
-      }
-      csvData.push(rowData.join(','));
-    }
+  title.textContent = 'TIPS ' + type + ' Data';
+  overlay.style.display = 'block';
+  
+  document.getElementById('tipsref-mode-ref').classList.toggle('active', type === 'Ref');
+  document.getElementById('tipsref-mode-mkt').classList.toggle('active', type === 'Mkt');
+  
+  const rows = type === 'Ref' ? Array.from(tipsRefMap.values()) : Array.from(tipsMap.values());
+  if (type === 'Mkt') rows.sort((a,b) => a.maturity - b.maturity);
+  
+  let html = '<thead><tr><th>CUSIP</th><th>Maturity</th><th>Coupon</th>';
+  if (type === 'Ref') html += '<th>Issue Date</th><th>Dated Date</th>';
+  else html += '<th>Price</th><th>Yield</th>';
+  html += '</tr></thead><tbody>';
+  
+  for (const r of rows) {
+    html += '<tr><td>' + r.cusip + '</td><td>' + (r.maturityStr || _fmtMDY(toIso(r.maturity))) + '</td><td>' + (r.coupon * 100).toFixed(3) + '%</td>';
+    if (type === 'Ref') html += '<td>' + r.issueDate + '</td><td>' + r.datedDate + '</td>';
+    else html += '<td>' + r.price.toFixed(3) + '</td><td>' + (r.yield * 100).toFixed(3) + '%</td>';
+    html += '</tr>';
   }
-
-  const blob = new Blob([csvData.join('\n')], { type: 'text/csv' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.setAttribute('href', url);
-  a.setAttribute('download', filename);
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  window.URL.revokeObjectURL(url);
-});
-
-// ─── Init ─────────────────────────────────────────────────────────────────────
-// ─── Method toggle: hide DARA for Full rebalance ───────────────────────────────────────
-
-document.getElementById('first-year').addEventListener('change', renderDaraByYearPanel);
-document.getElementById('rebal-last-year').addEventListener('change', () => {
-  _clearAutoDara();
-  renderDaraByYearPanel();
-});
-document.getElementById('last-year').addEventListener('change', renderDaraByYearPanel);
-document.getElementById('bracket-mode').addEventListener('change', _clearAutoDara);
-document.getElementById('method').addEventListener('change', _clearAutoDara);
-
-// ─── RefCPI date picker ───────────────────────────────────────────────────────
-function _fmtMDY(isoStr) {
-  const [y, m, d] = isoStr.split('-');
-  return m + '/' + d + '/' + y;
-}
-function _parseMDY(s) {
-  const p = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (!p) return null;
-  const mm = +p[1], dd = +p[2], yyyy = +p[3];
-  const dt = new Date(yyyy, mm - 1, dd);
-  if (dt.getFullYear() !== yyyy || dt.getMonth() + 1 !== mm || dt.getDate() !== dd) return null;
-  return yyyy + '-' + String(mm).padStart(2, '0') + '-' + String(dd).padStart(2, '0');
-}
-function _buildRows() {
-  _dataRowHTML = _staticInfoPrefix + _staticInfoSuffix;
-  const _date = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
-  if (!_date || !refCpiRows) { _cfgRowHTML = ''; return; }
-  const _dateStyle = activeRefCpiDateStr ? ' style="color:#7c3aed"' : '';
-  _cfgRowHTML = '<span class="info-const">Ref CPI date: </span><span id="refcpi-link" class="info-link" title="Click to set inflation reference date"' + _dateStyle + '>'
-    + _fmtMDY(_date) + '</span>';
-}
-function _renderInfoStrip(runHTML, runRight) {
-  const runRow = runHTML
-    ? '<div class="info-row info-row--run"' + (runRight ? ' style="display:flex;align-items:baseline"' : '') + '>'
-      + (runRight ? '<span>' + runHTML + '</span>' + runRight : runHTML)
-      + '</div>'
-    : '';
-  document.getElementById('info-strip').innerHTML =
-    '<div class="info-row info-row--data">' + _dataRowHTML + '</div>'
-    + (_cfgRowHTML ? '<div class="info-row info-row--cfg">' + _cfgRowHTML + '</div>' : '')
-    + runRow;
-}
-function _clearAutoDara() {
-  if (_daraAutoInferred) {
-    document.getElementById('dara').value = '';
-    _daraAutoInferred = false;
-    _lastKnownDara = null;
-    _daraByYearPanelDefault = null;
-    _daraByYearStore.clear();
-  }
-}
-
-function _clearOutput() {
-  rebalanceRendered = false; buildRendered = false;
-  rebalDetails = null; rebalSummary = null; buildDetails = null; buildSummary = null;
-  _rebalRunInfo = ''; _buildRunInfo = '';
-  document.getElementById('output').style.display = 'none';
-  document.getElementById('build-output').style.display = 'none';
-  document.getElementById('export-csv-btn').style.display = 'none';
-  document.getElementById('net-cash-inline').style.display = 'none';
-  document.getElementById('dara-by-year').style.display = 'none';
-  _clearAutoDara();
-}
-function _refreshInfoStrip() {
-  _buildRows();
-  const _runInfo = currentMode === 'rebalance' ? _rebalRunInfo : _buildRunInfo;
-  _renderInfoStrip(_runInfo || '');
-}
-function _showRefCpiPicker(anchorEl) {
-  const picker = document.getElementById('refcpi-picker');
-  const inp    = document.getElementById('refcpi-date-input');
-  inp.value = activeRefCpiDateStr ? _fmtMDY(activeRefCpiDateStr) : '';
-  const prev = document.getElementById('refcpi-date-preview');
-  prev.textContent = ''; prev.style.color = '#555';
-  picker.style.display = 'block';
-  const ar = anchorEl.getBoundingClientRect();
-  const pw = picker.offsetWidth;
-  let left = ar.left, top = ar.bottom + 6;
-  left = Math.min(left, window.innerWidth - pw - 8);
-  left = Math.max(8, left);
-  picker.style.left = left + 'px';
-  picker.style.top  = top  + 'px';
-  inp.focus(); inp.select();
-}
-document.getElementById('refcpi-date-input').addEventListener('input', () => {
-  const inp = document.getElementById('refcpi-date-input');
-  const raw = inp.value;
-  const digits = raw.replace(/\D/g, '').slice(0, 8);
-  let fmt = digits;
-  if (digits.length >= 3) fmt = digits.slice(0,2) + '/' + digits.slice(2);
-  if (digits.length >= 5) fmt = digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
-  if (raw !== fmt) {
-    // Allow "/" typed at natural separator positions — don't strip a trailing slash
-    // the user just typed at the expected MM/ or MM/DD/ boundary
-    const isNaturalSlash = (raw === digits.slice(0,2) + '/') ||
-                           (raw === digits.slice(0,2) + '/' + digits.slice(2,4) + '/');
-    if (!isNaturalSlash) inp.value = fmt;
-  }
-  const prev = document.getElementById('refcpi-date-preview');
-  const dateStr = _parseMDY(fmt);
-  if (!dateStr) { prev.textContent = ''; return; }
-  if (_maxRefCpiDate && dateStr > _maxRefCpiDate) {
-    prev.textContent = 'Date exceeds latest RefCPI data (' + _fmtMDY(_maxRefCpiDate) + ')';
-    prev.style.color = '#c0392b';
-    return;
-  }
-  try {
-    const val = lookupRefCpi(refCpiRows, dateStr);
-    prev.textContent = 'RefCPI: ' + val.toFixed(5);
-    prev.style.color = '#555';
-  } catch(e) {
-    prev.textContent = e.message;
-    prev.style.color = '#c0392b';
-  }
-});
-document.getElementById('refcpi-date-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.stopPropagation(); document.getElementById('refcpi-apply-btn').click(); }
-});
-document.getElementById('refcpi-apply-btn').addEventListener('click', () => {
-  const s    = document.getElementById('refcpi-date-input').value.trim();
-  const prev = document.getElementById('refcpi-date-preview');
-  if (!s) {
-    activeRefCpiDateStr = null;
-    _clearOutput();
-    _refreshInfoStrip();
-    document.getElementById('refcpi-picker').style.display = 'none';
-    return;
-  }
-  const dateStr = _parseMDY(s);
-  if (!dateStr) {
-    prev.textContent = 'Enter date as MM/DD/YYYY';
-    prev.style.color = '#c0392b';
-    return;
-  }
-  if (_maxRefCpiDate && dateStr > _maxRefCpiDate) {
-    prev.textContent = 'Date exceeds latest RefCPI data (' + _fmtMDY(_maxRefCpiDate) + ')';
-    prev.style.color = '#c0392b';
-    return;
-  }
-  try {
-    lookupRefCpi(refCpiRows, dateStr);
-    activeRefCpiDateStr = dateStr;
-    _clearOutput();
-    _refreshInfoStrip();
-    document.getElementById('refcpi-picker').style.display = 'none';
-  } catch(e) {
-    prev.textContent = e.message;
-    prev.style.color = '#c0392b';
-  }
-});
-document.getElementById('refcpi-picker-close').addEventListener('click', () => {
-  document.getElementById('refcpi-picker').style.display = 'none';
-});
-document.getElementById('refcpi-reset-btn').addEventListener('click', () => {
-  activeRefCpiDateStr = null;
-  _clearOutput();
-  _refreshInfoStrip();
-  document.getElementById('refcpi-picker').style.display = 'none';
-});
-
-// ─── TIPS popup (Ref / Mkt) ───────────────────────────────────────────────────
-let _tipsPopupMode = 'ref';
-
-function _showTipsPopup(mode) {
-  if (!tipsMap || !refCpiRows) return;
-  _tipsPopupMode = mode;
-  _renderTipsModal();
-  document.getElementById('tipsref-overlay').style.display = 'block';
-}
-
-function _renderTipsModal() {
-  const mode = _tipsPopupMode;
-  const dateStr = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
-  const activeRefCPI = lookupRefCpi(refCpiRows, dateStr);
-
-  const bonds = [...tipsMap.values()]
-    .filter(b => b.maturity && b.maturity > settlementDate)
-    .sort((a, b) => a.maturity - b.maturity);
-
-  document.getElementById('tipsref-mode-ref').classList.toggle('active', mode === 'ref');
-  document.getElementById('tipsref-mode-mkt').classList.toggle('active', mode === 'mkt');
-  document.getElementById('tipsref-warn').style.display = 'none';
-
-  const fd = (n, d) => (typeof n === 'number' && !isNaN(n)) ? n.toFixed(d) : '—';
-  const fmtD = s => s ? _fmtMDY(s) : '—';
-
-  let thead = '', rows = '';
-
-  if (mode === 'ref') {
-    document.getElementById('tipsref-title').textContent = 'TIPS Reference (' + bonds.length + ' bonds)';
-    thead =
-      '<thead><tr>' +
-      '<th style="text-align:left">CUSIP</th>' +
-      '<th style="text-align:left">Maturity</th>' +
-      '<th style="text-align:left">Dated Date</th>' +
-      '<th style="text-align:right">Coupon</th>' +
-      '<th style="text-align:right">Dated Ref CPI</th>' +
-      '<th style="text-align:center">Term (y)</th>' +
-      '</tr></thead>';
-
-    for (const b of bonds) {
-      const ref = tipsRefMap?.get(b.cusip);
-      let termY = ref?.term ?? '—';
-      if (termY.includes('30-Year 6-Month')) termY = '30.5';
-      else if (termY.includes('5-Year')) termY = '5';
-      else if (termY.includes('10-Year')) termY = '10';
-      else if (termY.includes('20-Year')) termY = '20';
-      else if (termY.includes('30-Year')) termY = '30';
-
-      rows +=
-        '<tr>' +
-        '<td style="text-align:left">' + b.cusip + '</td>' +
-        '<td style="text-align:left">' + fmtD(toIso(b.maturity)) + '</td>' +
-        '<td style="text-align:left">' + fmtD(ref?.datedDate) + '</td>' +
-        '<td style="text-align:right">' + fd(b.coupon * 100, 3) + '%</td>' +
-        '<td style="text-align:right">' + fd(b.baseCpi, 5) + '</td>' +
-        '<td style="text-align:center">' + termY + '</td>' +
-        '</tr>';
-    }
-  } else {
-    document.getElementById('tipsref-title').textContent =
-      'FedInvest Prices · ' + _fmtMDY(toIso(settlementDate));
-    const refDateLabel = _fmtMDY(dateStr);
-    thead =
-      '<thead>' +
-      '<tr><td colspan="6" style="text-align:left;font-size:11px;color:#64748b;padding:4px 0 6px;border-bottom:1px solid #e2e8f0;font-style:italic">' +
-      'FedInvest mid-market prices; yields slightly above broker ask. ' +
-      'Index ratio relative to Ref CPI date: ' + refDateLabel + '.' +
-      '</td></tr>' +
-      '<tr>' +
-      '<th style="text-align:left">CUSIP</th>' +
-      '<th style="text-align:left">Maturity</th>' +
-      '<th style="text-align:right">Yield</th>' +
-      '<th style="text-align:right">Price</th>' +
-      '<th style="text-align:right">Duration</th>' +
-      '<th style="text-align:right">Index Ratio</th>' +
-      '</tr></thead>';
-
-    for (const b of bonds) {
-      const ir = activeRefCPI / b.baseCpi;
-      const dur = b.yield != null ? calculateMDuration(settlementDate, b.maturity, b.coupon, b.yield) : NaN;
-
-      rows +=
-        '<tr>' +
-        '<td style="text-align:left">' + b.cusip + '</td>' +
-        '<td style="text-align:left">' + fmtD(toIso(b.maturity)) + '</td>' +
-        '<td style="text-align:right">' + fd(b.yield * 100, 3) + '%</td>' +
-        '<td style="text-align:right">' + fd(b.price, 4) + '</td>' +
-        '<td style="text-align:right">' + fd(dur, 2) + '</td>' +
-        '<td style="text-align:right">' + fd(ir, 5) + '</td>' +
-        '</tr>';
-    }
-  }
-
-  document.getElementById('tipsref-table').innerHTML = thead + '<tbody>' + rows + '</tbody>';
+  html += '</tbody>';
+  table.innerHTML = html;
 }
 
 document.getElementById('tipsref-close').addEventListener('click', () => {
   document.getElementById('tipsref-overlay').style.display = 'none';
 });
-document.getElementById('tipsref-overlay').addEventListener('click', e => {
-  if (window._tipsRefInteracting) return;
-  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
-});
-document.getElementById('tipsref-mode-ref').addEventListener('click', () => { _tipsPopupMode = 'ref'; _renderTipsModal(); });
-document.getElementById('tipsref-mode-mkt').addEventListener('click', () => { _tipsPopupMode = 'mkt'; _renderTipsModal(); });
+document.getElementById('tipsref-mode-ref').addEventListener('click', () => _showTipsRefModal('Ref'));
+document.getElementById('tipsref-mode-mkt').addEventListener('click', () => _showTipsRefModal('Mkt'));
 
-// ─── Draggable & Sizable TIPS ref modal ────────────────────────────────────────────────────────────────────────────
-{
-  const _modal = document.getElementById('tipsref-modal');
-  const _title = document.getElementById('tipsref-title');
-  let _active = false, _mode = null, _offX = 0, _offY = 0, _startW = 0, _startH = 0, _startX = 0, _startY = 0, _startL = 0, _startT = 0;
-
-  const onDown = (e, mode) => {
-    _active = true; _mode = mode;
-    window._tipsRefInteracting = true;
-    const r = _modal.getBoundingClientRect();
-    _modal.style.transform = 'none';
-    _modal.style.maxHeight = 'none';
-    _modal.style.maxWidth  = 'none';
-    _modal.style.left = r.left + 'px';
-    _modal.style.top  = r.top  + 'px';
-    _modal.style.width  = r.width  + 'px';
-    _modal.style.height = r.height + 'px';
-    _startL = r.left; _startT = r.top;
-    _startW = r.width; _startH = r.height;
-    _startX = e.clientX; _startY = e.clientY;
-    _offX = e.clientX - r.left; _offY = e.clientY - r.top;
-    e.preventDefault(); e.stopPropagation();
-  };
-
-  _title.addEventListener('mousedown', e => onDown(e, 'move'));
-  _modal.querySelectorAll('.resize-handle').forEach(h => {
-    const cls = h.className.split(' ').find(c => c.length <= 2);
-    h.addEventListener('mousedown', e => onDown(e, cls));
-  });
-
-  _modal.addEventListener('click', e => e.stopPropagation());
-
-  document.addEventListener('mousemove', e => {
-    if (!_active) return;
-    const dx = e.clientX - _startX, dy = e.clientY - _startY;
-    if (_mode === 'move') {
-      _modal.style.left = (e.clientX - _offX) + 'px';
-      _modal.style.top  = Math.max(0, e.clientY - _offY) + 'px';
-    } else {
-      if (_mode.includes('e')) _modal.style.width  = Math.max(400, _startW + dx) + 'px';
-      if (_mode.includes('s')) _modal.style.height = Math.max(200, _startH + dy) + 'px';
-      if (_mode.includes('w')) {
-        const w = Math.max(400, _startW - dx);
-        _modal.style.left = (_startL + (_startW - w)) + 'px';
-        _modal.style.width = w + 'px';
-      }
-      if (_mode.includes('n')) {
-        const h = Math.max(200, _startH - dy);
-        const top = _startT + (_startH - h);
-        if (top >= 0) {
-          _modal.style.top = top + 'px';
-          _modal.style.height = h + 'px';
-        }
-      }
-    }
-  });
-  document.addEventListener('mouseup', () => {
-    if (_active) {
-      _active = false;
-      setTimeout(() => { window._tipsRefInteracting = false; }, 50);
-    }
-  });
+/* --- REFCPI PICKER --- */
+function _showRefCpiPicker(anchor) {
+  const picker = document.getElementById('refcpi-picker');
+  const input = document.getElementById('refcpi-date-input');
+  picker.style.display = 'block';
+  input.value = _fmtMDY(activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  input.focus();
+  input.select();
+  
+  const ar = anchor.getBoundingClientRect();
+  picker.style.left = ar.left + 'px';
+  picker.style.top = (ar.bottom + 4) + 'px';
 }
+
+document.getElementById('refcpi-picker-close').addEventListener('click', () => {
+  document.getElementById('refcpi-picker').style.display = 'none';
+});
+
+function _clearOutput() {
+  rebalanceRendered = false; buildRendered = false;
+  rebalDetails = null; rebalSummary = null; buildDetails = null; buildSummary = null;
+  document.getElementById('output').style.display = 'none';
+  document.getElementById('build-output').style.display = 'none';
+  document.getElementById('export-csv-btn').style.display = 'none';
+  document.getElementById('export-cusip-qty-btn').style.display = 'none';
+  document.getElementById('net-cash-inline').style.display = 'none';
+  _clearAutoDara();
+}
+
+document.getElementById('refcpi-date-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.stopPropagation(); document.getElementById('refcpi-apply-btn').click(); }
+});
+
+document.getElementById('refcpi-apply-btn').addEventListener('click', () => {
+  const v = document.getElementById('refcpi-date-input').value;
+  const [m,d,y] = v.split('/');
+  if (m && d && y) {
+    activeRefCpiDateStr = `${y}-${m.padStart(2,'0')}-${d.padStart(2,'0')}`;
+    _clearOutput();
+    _buildRows();
+    document.getElementById('refcpi-picker').style.display = 'none';
+  }
+});
+
+document.getElementById('refcpi-reset-btn').addEventListener('click', () => {
+  activeRefCpiDateStr = null;
+  _clearOutput();
+  _buildRows();
+  document.getElementById('refcpi-picker').style.display = 'none';
+});
 
 loadData();
 </script>

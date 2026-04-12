@@ -52,6 +52,8 @@ Combines historical daily closes from R2 with real-time high-resolution feeds fr
 Calculates the difference between the latest yield and the previous market close (17:00 ET).
 - **Goal**: Provide a consistent "Day Change" metric across all views.
 - **Timezone**: All logic is anchored to `America/New_York` wall-clock time.
+- **Reference point**: The last bar at exactly **17:00 ET** on the previous trading day. This is the official end-of-trading-day close.
+- **Deviation from CNBC**: CNBC's displayed yield change uses an earlier reference (their `previous_day_closing` field from the Tradeweb quote service), which appears to reflect a **mid-afternoon settlement quote** (~3:00 PM ET) rather than the 5 PM close. On 2026-04-08 for US1Y, our 17:00 close = 3.693% vs. CNBC's reference = 3.685% — a 0.008% discrepancy. This is expected and intentional.
 
 ### [3.0 Interactive Visualization](../YieldsMonitor/knowledge/1.0_Operation.md#uiux-standards)
 Intraday and historical charts featuring market-state annotations.

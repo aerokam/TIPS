@@ -28,8 +28,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 // ── 1. Data load ──────────────────────────────────────────────────────────────
-test('data loads: info-strip shows FedInvest prices, run button enabled', async ({ page }) => {
-  const strip = page.locator('#info-strip');
+test('data loads: top-data-info shows FedInvest prices and Ref CPI date, run button enabled', async ({ page }) => {
+  const strip = page.locator('#top-data-info');
   await expect(strip).toContainText('FedInvest prices');
   await expect(strip).toContainText('Ref CPI date:');
   await expect(page.locator('#run-btn')).not.toBeDisabled();
@@ -68,12 +68,14 @@ test('rebalance: uploading holdings and clicking Run renders table with rows', a
   expect(await rows.count()).toBeGreaterThan(0);
 });
 
-test('rebalance: info-strip shows DARA and rung range after run', async ({ page }) => {
+test('rebalance: net-cash-inline visible and DARA populated after run', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await page.locator('#run-btn').click();
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 15_000 });
-  await expect(page.locator('#info-strip')).toContainText('DARA');
-  await expect(page.locator('#info-strip')).toContainText('rungs');
+  await expect(page.locator('#net-cash-inline')).toBeVisible();
+  // DARA was auto-inferred and written back to the input
+  const daraVal = await page.locator('#dara').inputValue();
+  expect(Number(daraVal.replace(/,/g, ''))).toBeGreaterThan(0);
 });
 
 test('rebalance: net cash value populated after run', async ({ page }) => {
@@ -122,12 +124,13 @@ test('build: first-to-mature preference runs successfully', async ({ page }) => 
   expect(await page.locator('#build-table tbody tr').count()).toBeGreaterThan(0);
 });
 
-test('build: pre-ladder interest checkbox visible in Build, hidden in Rebalance', async ({ page }) => {
-  await expect(page.locator('#field-pre-ladder')).not.toBeVisible();
+test('pre-ladder interest checkbox visible in both Build and Rebalance', async ({ page }) => {
+  // PLI is shown in Rebalance (default mode) — allows Build→Rebalance symmetry testing
+  await expect(page.locator('#field-pre-ladder')).toBeVisible();
   await page.locator('.mode-btn[data-mode="build"]').click();
   await expect(page.locator('#field-pre-ladder')).toBeVisible();
   await page.locator('.mode-btn[data-mode="rebalance"]').click();
-  await expect(page.locator('#field-pre-ladder')).not.toBeVisible();
+  await expect(page.locator('#field-pre-ladder')).toBeVisible();
 });
 
 test('build: pre-ladder interest zeroes early years and all row amounts stay near DARA', async ({ page }) => {
@@ -150,9 +153,6 @@ test('build: pre-ladder interest zeroes early years and all row amounts stay nea
   await page.locator('#pre-ladder-interest').check();
   await page.locator('#run-btn').click();
   await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 15_000 });
-
-  // Info strip must mention zeroed years (confirms pre-ladder path ran with zeroing)
-  await expect(page.locator('#info-strip')).toContainText(/zeroed/i);
 
   // All main-row Amount cells must be ≥ DARA×0.4.
   // Before fix: zeroed rows showed only laterMatInt (~24k) — far below 40k threshold.

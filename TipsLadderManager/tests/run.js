@@ -223,6 +223,62 @@ console.log('\nBuild — firstYear=2036, lastYear=2056, preLadderInterest=true')
   console.log(`        gapTotalCost: ${Math.round(summary.gapParams?.totalCost ?? 0).toLocaleString()}`);
 }
 
+// ── Test: Build→Rebalance symmetry ───────────────────────────────────────────
+// Build(firstYear=2036, lastYear=2065, PLI, explicit DARA) → export CUSIP/qty
+// → Rebalance with identical params → expect zero qty changes on every rung.
+//
+// Requires explicit DARA. Inferred DARA cannot guarantee symmetry: bracket
+// excess P+I at 2036 inflates the inferred average above Build's DARA, and gap
+// years 2037-2039 (no bonds) have ARA < DARA. The inferred value is diagnostic.
+//
+// Uses 2-bracket mode to expose any remaining algorithm differences. 3-bracket
+// "freeze orig lower" would mask mismatches by pinning 2036 excess at its
+// current holdings value regardless of gap-params accuracy.
+console.log('\nBuild→Rebalance symmetry — firstYear=2036, lastYear=2065, PLI=true, DARA=40000');
+{
+  const DARA = 40000, firstYear = 2036, lastYear = 2065;
+
+  // 1. Build
+  const { details: buildDetails, summary: buildSummary } = runBuild({
+    dara: DARA, firstYear, lastYear, tipsMap, refCPI, settlementDate,
+    preLadderInterest: true,
+  });
+
+  // 2. Construct holdings (mirrors "Export CUSIP/Qty" button: fundedYearQty + excessQty)
+  const holdings = buildDetails
+    .map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty }))
+    .filter(h => h.qty > 0);
+
+  // 3. Rebalance with identical params
+  const { summary: rebalSummary, results: rebalResults } = runRebalance({
+    dara: DARA,
+    method: 'Gap',
+    bracketMode: '2bracket',
+    holdings,
+    tipsMap,
+    refCPI,
+    settlementDate,
+    preLadderInterest: true,
+    firstYearOverride: firstYear,
+    lastYearOverride: lastYear,
+  });
+
+  // 4. Assert: no qty changes on any rung
+  const totalAbsQtyDelta = rebalResults.reduce((s, r) => s + Math.abs(r[9] ?? 0), 0);
+  assert('Build→Rebalance: zero total |qtyDelta|', totalAbsQtyDelta, 0);
+  assert('Build→Rebalance: zero net cash', Math.round(rebalSummary.costDeltaSum), 0);
+
+  if (totalAbsQtyDelta > 0) {
+    const changed = rebalResults.filter(r => (r[9] ?? 0) !== 0);
+    for (const r of changed) {
+      console.error(`        FY ${r[3]}  CUSIP ${r[0]}  before=${r[1]}  after=${r[8]}  delta=${r[9]}`);
+    }
+  }
+  console.log(`        Build total cost:  ${Math.round(buildSummary.totalBuyCost).toLocaleString()}`);
+  console.log(`        Rebal net cash:    ${Math.round(rebalSummary.costDeltaSum).toLocaleString()}`);
+  console.log(`        Total |qtyDelta|:  ${totalAbsQtyDelta}`);
+}
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
