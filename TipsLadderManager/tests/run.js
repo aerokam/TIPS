@@ -279,6 +279,54 @@ console.log('\nBuild→Rebalance symmetry — firstYear=2036, lastYear=2065, PLI
   console.log(`        Total |qtyDelta|:  ${totalAbsQtyDelta}`);
 }
 
+// ── Test: Build→Rebalance symmetry — Full method, default bracket mode ───────
+// Same scenario as the Gap-method test above, but with method='Full'.
+// 3-bracket is equivalent to 2-bracket here (firstYear=2036 = anchorBefore),
+// but this test covers the Full-mode estimation path in calculateGapParameters.
+console.log('\nBuild→Rebalance symmetry — firstYear=2036, lastYear=2065, PLI=true, DARA=40000, method=Full');
+{
+  const DARA = 40000, firstYear = 2036, lastYear = 2065;
+
+  // 1. Build
+  const { details: buildDetailsFull, summary: buildSummaryFull } = runBuild({
+    dara: DARA, firstYear, lastYear, tipsMap, refCPI, settlementDate,
+    preLadderInterest: true,
+  });
+
+  // 2. Holdings from build export
+  const holdingsFull = buildDetailsFull
+    .map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty }))
+    .filter(h => h.qty > 0);
+
+  // 3. Rebalance with Full method
+  const { summary: rebalSummaryFull, results: rebalResultsFull } = runRebalance({
+    dara: DARA,
+    method: 'Full',
+    bracketMode: '3bracket',
+    holdings: holdingsFull,
+    tipsMap,
+    refCPI,
+    settlementDate,
+    preLadderInterest: true,
+    firstYearOverride: firstYear,
+    lastYearOverride: lastYear,
+  });
+
+  const totalAbsQtyDeltaFull = rebalResultsFull.reduce((s, r) => s + Math.abs(r[9] ?? 0), 0);
+  assert('Build→Rebalance Full: zero total |qtyDelta|', totalAbsQtyDeltaFull, 0);
+  assert('Build→Rebalance Full: zero net cash', Math.round(rebalSummaryFull.costDeltaSum), 0);
+
+  if (totalAbsQtyDeltaFull > 0) {
+    const changed = rebalResultsFull.filter(r => (r[9] ?? 0) !== 0);
+    for (const r of changed) {
+      console.error(`        FY ${r[3]}  CUSIP ${r[0]}  before=${r[1]}  after=${r[8]}  delta=${r[9]}`);
+    }
+  }
+  console.log(`        Build total cost:  ${Math.round(buildSummaryFull.totalBuyCost).toLocaleString()}`);
+  console.log(`        Rebal net cash:    ${Math.round(rebalSummaryFull.costDeltaSum).toLocaleString()}`);
+  console.log(`        Total |qtyDelta|:  ${totalAbsQtyDeltaFull}`);
+}
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

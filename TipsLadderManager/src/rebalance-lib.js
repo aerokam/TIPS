@@ -141,6 +141,29 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
     }
   }
 
+  // Full mode: pre-compute a long→short running-LMI estimate for all 2041+ rungs.
+  // Matches build-lib's preliminary sweep (calcPrelimFundedYearAmounts) so that
+  // gapParams.totalCost / targetQty2040 agree with build-lib despite not using
+  // actual holdings. Gap mode can skip this — it uses actual holdings instead.
+  const fullModePrelimAnnInt = {};
+  if (isFullMode) {
+    let runningFullLMI = 0;
+    for (let year = (lastYear || 2040); year >= 2041; year--) {
+      const yearBonds = [...tipsMap.values()].filter(b => b.maturity && b.maturity.getFullYear() === year);
+      if (yearBonds.length > 0) {
+        yearBonds.sort((a, b) => a.maturity - b.maturity);
+        const b = yearBonds[yearBonds.length - 1];
+        const coupon = b.coupon ?? 0;
+        const ir = refCPI / (b.baseCpi || refCPI);
+        const piPB = 1000 * ir + (b.maturity.getMonth() + 1 < 7 ? 0.5 : 1.0) * 1000 * ir * coupon;
+        const qty = Math.max(0, Math.round((DARA - runningFullLMI) / piPB));
+        const annInt = qty * 1000 * ir * coupon;
+        fullModePrelimAnnInt[year] = annInt;
+        runningFullLMI += annInt;
+      }
+    }
+  }
+
   let laterMaturityFrom2041Plus = 0;
   // Estimate interest from rungs > 2040
   for (let year = 2041; year <= (lastYear || 2040); year++) {
@@ -155,11 +178,13 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
         laterMaturityFrom2041Plus += h.qty * 1000 * indexRatio * coupon;
       }
     } else if (isFullMode || yi.length > 0 || skipActualHoldingsYears.has(year)) {
-      if (skipActualHoldingsYears.has(year) && skipYearFundedAnnInt[year] !== undefined) {
-        // Use pre-pass running-LMI estimate for skip years (matches build-lib prelim)
+      if (isFullMode) {
+        laterMaturityFrom2041Plus += fullModePrelimAnnInt[year] ?? 0;
+      } else if (skipActualHoldingsYears.has(year) && skipYearFundedAnnInt[year] !== undefined) {
+        // Gap mode skip year: use inter-skip running-LMI estimate
         laterMaturityFrom2041Plus += skipYearFundedAnnInt[year];
       } else {
-        // Estimate target rung interest (full mode or year present in holdings without skip)
+        // Gap mode, year present in holdings but not a skip year — shouldn't reach here normally
         const yearBonds = [...tipsMap.values()].filter(b => b.maturity && b.maturity.getFullYear() === year);
         if (yearBonds.length > 0) {
           yearBonds.sort((a, b) => a.maturity - b.maturity);
@@ -203,8 +228,10 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
         gapLaterMaturityInterest[year] += h.qty * 1000 * indexRatio * coupon;
       }
     } else if (isFullMode || yi.length > 0 || skipActualHoldingsYears.has(year)) {
-      if (skipActualHoldingsYears.has(year) && skipYearFundedAnnInt[year] !== undefined) {
-        // Use pre-pass running-LMI estimate (matches build-lib prelim)
+      if (isFullMode) {
+        gapLaterMaturityInterest[year] = fullModePrelimAnnInt[year] ?? 0;
+      } else if (skipActualHoldingsYears.has(year) && skipYearFundedAnnInt[year] !== undefined) {
+        // Gap mode skip year
         gapLaterMaturityInterest[year] = skipYearFundedAnnInt[year];
       } else {
         const yearBonds = [...tipsMap.values()].filter(b => b.maturity && b.maturity.getFullYear() === year);
