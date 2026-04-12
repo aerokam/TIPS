@@ -507,6 +507,11 @@ document.querySelectorAll('.mode-btn').forEach(btn => {
     const _nci = document.getElementById('net-cash-inline');
     _nci.style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
     document.getElementById('nc-label').textContent = isRebalance ? 'Net Cash' : 'Total Cost';
+    if (!isRebalance && buildRendered && buildSummary) {
+      document.getElementById('net-cash-val').textContent = '$' + Math.round(buildSummary.totalBuyCost).toLocaleString();
+    } else if (isRebalance && rebalanceRendered && rebalSummary) {
+      document.getElementById('net-cash-val').textContent = sign(rebalSummary.costDeltaSum);
+    }
     
     _infoPopups.duration = isRebalance ? _rebalDurationRows : _buildDurationRows;
     _infoPopups.future30yDuration = isRebalance ? _rebalFuture30yDurationRows : _buildFuture30yDurationRows;
