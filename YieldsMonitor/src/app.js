@@ -45,6 +45,8 @@ const yieldCurveCharts = {};
 let activeSymbols = new Set(['US10YTIPS', 'US30YTIPS', 'US10Y', 'US30Y']);
 let activeRange = '2D';
 let activeTab = 'timeseries';
+let syncXAxis = true;
+let isSyncing = false;
 
 const ET_YMD_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit' });
 const ET_FULL_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
@@ -64,7 +66,17 @@ async function init() {
   syncChartContainers();
   updateAllData();
   window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
-  window.addEventListener('keydown', (e) => Object.values(charts).forEach(chart => handleChartKeydown(e, chart)));
+  window.addEventListener('keydown', (e) => {
+    Object.values(charts).forEach(chart => handleChartKeydown(e, chart, {
+      onAction: ({chart}) => {
+        if (syncXAxis) syncAllChartsX(chart);
+        else {
+          const sym = Object.keys(charts).find(k => charts[k] === chart);
+          if (sym) rescaleYToVisible(chart, sym);
+        }
+      }
+    }));
+  });
 }
 
 function setupTabs() {
@@ -83,6 +95,21 @@ function setupTabs() {
   });
 }
 
+function syncAllChartsX(sourceChart) {
+  if (!syncXAxis || isSyncing) return;
+  isSyncing = true;
+  const xMin = sourceChart.scales.x.min;
+  const xMax = sourceChart.scales.x.max;
+  Object.entries(charts).forEach(([sym, chart]) => {
+    if (chart === sourceChart) return;
+    chart.options.scales.x.min = xMin;
+    chart.options.scales.x.max = xMax;
+    chart.update('none');
+    rescaleYToVisible(chart, sym);
+  });
+  isSyncing = false;
+}
+
 function setupUI() {
   const root = document.getElementById('controls-root');
   const rangeHtml = TIME_RANGES.map(r => `<button class="range-btn ${r === activeRange ? 'active' : ''}" data-range="${r}">${r}</button>`).join('');
@@ -94,7 +121,15 @@ function setupUI() {
     return `<label class="sym-item-check" id="label-${sym}"><input type="checkbox" value="${sym}" ${activeSymbols.has(sym) ? 'checked' : ''}><span class="color-dot" style="background:${color}"></span><span class="sym-code">${SYMBOL_LABELS[sym] || sym}</span><span class="sym-yield" id="yield-${sym}">---</span><span class="sym-change" id="change-${sym}"></span></label>`;
   }).join('');
 
-  root.innerHTML = `<style>.range-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; } .range-btn { flex: 1; min-width: 45px; padding: 6px 0; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 11px; color: #000; } .range-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; } .sym-group h4 { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px; font-size: 11px; text-transform: uppercase; color: #000; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; } .clear-btn { font-size: 9px; color: #64748b; cursor: pointer; text-transform: none; font-weight: 600; } .sym-item-check { display: flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 13px; cursor: pointer; color: #000; } .color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; } .sym-code { font-weight: 600; color: #000; width: 60px; flex-shrink: 0; } .sym-yield { font-family: monospace; font-weight: 700; font-size: 13px; color: #000; margin-left: auto; padding-right: 4px; } .sym-change { font-family: monospace; font-weight: 700; font-size: 12px; min-width: 60px; text-align: right; } .sym-change.up { color: #16a34a; } .sym-change.down { color: #dc2626; } #fetchStatus { font-size: 11px; color: #000; margin-top: 20px; font-weight: 700; } .no-data-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #000; background: rgba(255,255,255,0.9); pointer-events: none; z-index: 10; }</style><div class="range-picker">${rangeHtml}</div><div class="sym-group"><h4>TIPS <span class="clear-btn" data-type="TIPS">Clear All</span></h4>${createGrid(tips)}<h4>Treasuries <span class="clear-btn" data-type="Nominal">Clear All</span></h4>${createGrid(nominals)}</div><div id="fetchStatus">Ready</div>`;
+  root.innerHTML = `<style>.range-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; } .range-btn { flex: 1; min-width: 45px; padding: 6px 0; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 11px; color: #000; } .range-btn.active { background: #0f172a; color: #fff; border-color: #0f172a; } .sym-group h4 { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px; font-size: 11px; text-transform: uppercase; color: #000; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; } .clear-btn { font-size: 9px; color: #64748b; cursor: pointer; text-transform: none; font-weight: 600; } .sym-item-check { display: flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 13px; cursor: pointer; color: #000; } .color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; } .sym-code { font-weight: 600; color: #000; width: 60px; flex-shrink: 0; } .sym-yield { font-family: monospace; font-weight: 700; font-size: 13px; color: #000; margin-left: auto; padding-right: 4px; } .sym-change { font-family: monospace; font-weight: 700; font-size: 12px; min-width: 60px; text-align: right; } .sym-change.up { color: #16a34a; } .sym-change.down { color: #dc2626; } #fetchStatus { font-size: 11px; color: #000; margin-top: 20px; font-weight: 700; } .no-data-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #000; background: rgba(255,255,255,0.9); pointer-events: none; z-index: 10; } .sync-zoom-label { display: flex; align-items: center; gap: 6px; margin-top: 15px; font-size: 12px; font-weight: 700; color: #334155; cursor: pointer; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; }</style><div class="range-picker">${rangeHtml}</div><div class="sym-group"><h4>TIPS <span class="clear-btn" data-type="TIPS">Clear All</span></h4>${createGrid(tips)}<h4>Treasuries <span class="clear-btn" data-type="Nominal">Clear All</span></h4>${createGrid(nominals)}</div><label class="sync-zoom-label"><input type="checkbox" id="syncXAxis" ${syncXAxis ? 'checked' : ''}> Sync Zoom & Pan</label><div id="fetchStatus">Ready</div>`;
+
+  document.getElementById('syncXAxis').addEventListener('change', (e) => {
+    syncXAxis = e.target.checked;
+    if (syncXAxis) {
+      const first = Object.values(charts)[0];
+      if (first) syncAllChartsX(first);
+    }
+  });
 
   document.querySelectorAll('.clear-btn').forEach(btn => btn.addEventListener('click', (e) => {
     const isTips = e.target.dataset.type === 'TIPS';
@@ -146,10 +181,13 @@ function createChartInstance(sym) {
         x: { type: 'time', time: { tooltipFormat: 'MM/dd/yy HH:mm:ss', displayFormats: { hour: 'MM/dd HH:mm', day: 'MMM dd' } }, grid: { color: '#f1f5f9' }, ticks: { autoSkip: true, font: { size: 9, weight: 'bold' }, color: '#000', callback: function(value, index, ticks) { const ts = ticks[index]?.value ?? value; if (typeof ts !== 'number') return value; const date = new Date(ts); if (activeRange === '2D') return date.toLocaleString('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }); if (activeRange === '10D') return date.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' }); return date.toLocaleDateString('en-US', { timeZone: 'America/New_York', month: 'short', year: 'numeric' }); } } },
         y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } }
       },
-      plugins: { legend: { display: false }, zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy', onZoomComplete: ({chart}) => rescaleYToVisible(chart, sym) }, pan: { enabled: true, mode: 'xy' } }, annotation: { annotations: {} }, tooltip: { backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#64748b', titleFont: { size: 11, weight: 'bold' }, bodyColor: '#000', borderColor: '#cbd5e1', borderWidth: 1, padding: 8, bodyFont: { size: 12, weight: 'bold' }, cornerRadius: 6, displayColors: false, callbacks: { title: (items) => { if (!items.length) return ''; const date = new Date(items[0].parsed.x); return date.toLocaleString('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', month: '2-digit', day: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ET'; }, label: ctx => `Yield: ${ctx.parsed.y.toFixed(3)}%` } } }
+      plugins: { legend: { display: false }, zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy', onZoom: ({chart}) => { if (syncXAxis) syncAllChartsX(chart); }, onZoomComplete: ({chart}) => { if (!syncXAxis) rescaleYToVisible(chart, sym); else syncAllChartsX(chart); } }, pan: { enabled: true, mode: 'xy', onPan: ({chart}) => { if (syncXAxis) syncAllChartsX(chart); }, onPanComplete: ({chart}) => { if (!syncXAxis) rescaleYToVisible(chart, sym); else syncAllChartsX(chart); } } }, annotation: { annotations: {} }, tooltip: { backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#64748b', titleFont: { size: 11, weight: 'bold' }, bodyColor: '#000', borderColor: '#cbd5e1', borderWidth: 1, padding: 8, bodyFont: { size: 12, weight: 'bold' }, cornerRadius: 6, displayColors: false, callbacks: { title: (items) => { if (!items.length) return ''; const date = new Date(items[0].parsed.x); return date.toLocaleString('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', month: '2-digit', day: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ET'; }, label: ctx => `Yield: ${ctx.parsed.y.toFixed(3)}%` } } }
     }
   });
-  setupAxisWheelZoom(ctx.canvas, ({chart}) => rescaleYToVisible(chart, sym), ({chart, factor}) => { const yMin = chart.scales.y.min, yMax = chart.scales.y.max, b = snapYBounds(yMin, yMax), step = b.step; let min, max; if (factor > 1) { min = Math.ceil(Math.round(yMin / step * 1e9) / 1e9) * step; max = Math.floor(Math.round(yMax / step * 1e9) / 1e9) * step; if (min >= max) { min = b.min; max = b.max; } } else { min = b.min; max = b.max; } chart.options.scales.y.min = min; chart.options.scales.y.max = max; chart.options.scales.y.ticks.stepSize = step; chart.update('none'); });
+  setupAxisWheelZoom(ctx.canvas, ({chart}) => {
+    if (syncXAxis) syncAllChartsX(chart);
+    else rescaleYToVisible(chart, sym);
+  }, ({chart, factor}) => { const yMin = chart.scales.y.min, yMax = chart.scales.y.max, b = snapYBounds(yMin, yMax), step = b.step; let min, max; if (factor > 1) { min = Math.ceil(Math.round(yMin / step * 1e9) / 1e9) * step; max = Math.floor(Math.round(yMax / step * 1e9) / 1e9) * step; if (min >= max) { min = b.min; max = b.max; } } else { min = b.min; max = b.max; } chart.options.scales.y.min = min; chart.options.scales.y.max = max; chart.options.scales.y.ticks.stepSize = step; chart.update('none'); });
   new ResizeObserver(() => { if (charts[sym]) charts[sym].resize(); }).observe(document.getElementById(`card-${sym}`));
 }
 
@@ -198,22 +236,29 @@ async function fetchOne(symbol, range, force = false) {
   const is2D = range === '2D', is10D = range === '10D';
   if (is2D || is10D) {
     const providerRange = is2D ? '1D' : '5D', cacheKey = `${symbol}_${providerRange}`;
+    const tipKey = `${symbol}_5D`;
+    
+    // In 2D mode, also trigger a parallel fetch for the 5D tip if missing for metrics
+    const fetchTasks = [];
     if (!force && liveCache[cacheKey]) {
-      const cutoff = new Date(); if (is2D) cutoff.setDate(cutoff.getDate() - 2); else cutoff.setDate(cutoff.getDate() - 10);
-      const filtered = liveCache[cacheKey].filter(p => p.x >= cutoff);
-      console.log(`[fetchOne] ${symbol} ${range} using cache ${cacheKey}, points: ${liveCache[cacheKey].length} -> ${filtered.length}`);
-      return filtered;
+      // Use cache
+    } else {
+      console.log(`%c[CNBC] %cFetching real-time ${providerRange} for ${symbol}`, "color: #2563eb; font-weight: bold", "color: inherit");
+      fetchTasks.push(fetchLive(symbol, providerRange).then(live => { if (live) liveCache[cacheKey] = live; }));
     }
-    console.log(`%c[CNBC] %cFetching real-time ${providerRange} for ${symbol}`, "color: #2563eb; font-weight: bold", "color: inherit");
-    const live = await fetchLive(symbol, providerRange);
-    if (live && live.length > 0) {
-      liveCache[cacheKey] = live;
-      const cutoff = new Date(); if (is2D) cutoff.setDate(cutoff.getDate() - 2); else cutoff.setDate(cutoff.getDate() - 10);
-      const filtered = live.filter(p => p.x >= cutoff);
-      console.log(`[fetchOne] ${symbol} ${range} fetched ${providerRange}, points: ${live.length} -> ${filtered.length}, start: ${live[0].x.toISOString()}`);
-      return filtered;
+    
+    if (is2D && (force || !liveCache[tipKey])) {
+      console.log(`%c[CNBC] %cFetching 5D tip for metrics: ${symbol}`, "color: #2563eb; font-weight: bold", "color: inherit");
+      fetchTasks.push(fetchLive(symbol, '5D').then(live => { if (live) liveCache[tipKey] = live; }));
     }
-    return live || [];
+    
+    if (fetchTasks.length > 0) await Promise.all(fetchTasks);
+
+    const data = liveCache[cacheKey] || [];
+    const cutoff = new Date(); if (is2D) cutoff.setDate(cutoff.getDate() - 2); else cutoff.setDate(cutoff.getDate() - 10);
+    const filtered = data.filter(p => p.x >= cutoff);
+    console.log(`[fetchOne] ${symbol} ${range} points: ${data.length} -> ${filtered.length}`);
+    return filtered;
   } else {
     console.log(`%c[R2] %cLoading history for ${symbol}...`, "color: #ea580c; font-weight: bold", "color: inherit");
     const history = await fetchHistory(symbol);
