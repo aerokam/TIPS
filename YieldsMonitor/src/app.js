@@ -315,9 +315,19 @@ async function updateAllData(force = false) {
       if (card) { const ov = card.querySelector('.no-data-overlay'); if (ov) ov.remove(); }
       if (chart) {
         chart.data.datasets[0].data = data;
-        chart.options.scales.x.time.unit = activeRange === '2D' ? 'hour' : activeRange === '10D' ? 'day' : 'month';
-        chart.options.scales.x.time.tooltipFormat = (activeRange==='2D'||activeRange==='10D') ? 'MM/dd/yy HH:mm:ss' : 'MM/dd/yy';
-        chart.options.scales.x.time.displayFormats = activeRange === '2D' ? { hour: 'MM/dd HH:mm', minute: 'HH:mm:ss', day: 'MMM dd' } : activeRange === '10D' ? { day: 'MMM dd' } : { month: 'MMM yyyy', year: 'yyyy' };
+        if (activeRange === '2D') {
+          chart.options.scales.x.time.unit = 'hour';
+          chart.options.scales.x.time.tooltipFormat = 'MM/dd/yy HH:mm:ss';
+          chart.options.scales.x.time.displayFormats = { hour: 'MM/dd HH:mm', minute: 'HH:mm:ss', day: 'MMM dd' };
+        } else if (activeRange === '10D') {
+          chart.options.scales.x.time.unit = 'day';
+          chart.options.scales.x.time.tooltipFormat = 'MM/dd/yy HH:mm:ss';
+          chart.options.scales.x.time.displayFormats = { day: 'MMM dd' };
+        } else {
+          chart.options.scales.x.time.unit = undefined;
+          chart.options.scales.x.time.tooltipFormat = 'MM/dd/yy';
+          chart.options.scales.x.time.displayFormats = { month: 'MMM yyyy', year: 'yyyy' };
+        }
         updateDynamicTicks(chart, data); 
         chart.resetZoom();
         if (activeRange === '2D') {
