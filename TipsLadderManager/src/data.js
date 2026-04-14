@@ -4,6 +4,8 @@
 const R2_ROOT = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const BASE_URL = R2_ROOT + '/Treasuries';
 
+const TIPS_URL = R2_ROOT + '/TIPS';
+
 // Parse BondHolidaysSifma.csv into a Set of YYYY-MM-DD ISO strings.
 // CSV rows look like: "Thursday, April 03, 2025","Good Friday"
 function parseBondHolidays(text) {
@@ -60,7 +62,7 @@ export function lookupRefCpi(refCpiRows, dateStr) {
 export async function fetchTipsData() {
   const [yieldsRes, refCpiRes, tipsRefRes] = await Promise.all([
     fetch(BASE_URL + '/YieldsFromFedInvestPrices.csv', { cache: 'no-cache' }),
-    fetch(BASE_URL + '/RefCPI.csv', { cache: 'no-cache' }),
+    fetch(TIPS_URL + '/RefCPI.csv', { cache: 'no-cache' }),
     fetch(BASE_URL + '/TipsRef.csv', { cache: 'no-cache' }),
   ]);
   if (!yieldsRes.ok) throw new Error('YieldsFromFedInvestPrices.csv: HTTP ' + yieldsRes.status);

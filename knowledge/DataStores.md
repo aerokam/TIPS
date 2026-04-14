@@ -49,7 +49,7 @@ This document provides the technical schemas and field-level specifications for 
 | `Date` | Date | The specific date for the RefCPI value. |
 | `RefCPI` | Number | The daily interpolated CPI-U value. |
 
-**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/RefCPI.csv)
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/RefCPI.csv)
 
 ---
 

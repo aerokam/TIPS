@@ -153,7 +153,7 @@ const APP_CONFIGS = [
         id: 'cpi-index',
         label: 'Reference CPI index',
         feeds: 'Index ratio calculations',
-        r2Key: 'Treasuries/RefCPI.csv',
+        r2Key: 'TIPS/RefCPI.csv',
         localJobIds: ['fetch-ref-cpi'],
         stalenessHours: 720,
       },

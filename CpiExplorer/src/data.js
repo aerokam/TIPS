@@ -3,7 +3,7 @@
 
 const R2_BASE = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const CPI_HISTORY_URL = `${R2_BASE}/bls/CPI_history.csv`;
-const REF_CPI_URL     = `${R2_BASE}/Treasuries/RefCPI.csv`;
+const REF_CPI_URL     = `${R2_BASE}/TIPS/RefCPI.csv`;
 
 /**
  * @typedef {{ year: number, month: number, date: Date, nsa: number|null, sa: number|null }} CpiRow
