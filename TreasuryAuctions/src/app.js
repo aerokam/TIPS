@@ -492,7 +492,7 @@ async function loadData() {
   const [csvResult, upcomingResult, tentativeResult] = await Promise.allSettled([
     fetch(R2_CSV_URL, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`R2 HTTP ${r.status}`); return r.text(); }),
     fetch(upcomingUrl(), { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`Upcoming HTTP ${r.status}`); return r.text(); }),
-    fetch('data/tentative_tips.json', { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`Tentative JSON HTTP ${r.status}`); return r.json(); }),
+    fetch(TENTATIVE_TIPS_URL, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`Tentative JSON HTTP ${r.status}`); return r.json(); }),
   ]);
 
   if (tentativeResult.status === 'fulfilled') {
