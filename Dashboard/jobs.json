@@ -34,5 +34,12 @@
     "cmd": "node BondHolidays/updateHolidaysSifma.js",
     "cwd": ".",
     "apps": []
+  },
+  {
+    "id": "update-tentative-schedule",
+    "label": "Update Tentative TIPS Schedule",
+    "cmd": "node scripts/updateTentativeSchedule.js",
+    "cwd": ".",
+    "apps": ["auctions"]
   }
 ]

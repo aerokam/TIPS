@@ -16,7 +16,15 @@
 ### Upcoming Auctions
 - **Source:** FiscalData upcoming auctions endpoint — `api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/upcoming_auctions`
 - **Fetched live** by the browser on page load (no R2, no caching)
+- **TIPS Identification:** Cross-referenced with `tentative_tips.json` (see below) and checked for "TIPS" in `security_type`.
 - Filtered to `auction_date >= today`
+
+### Tentative TIPS Schedule (`tentative_tips.json`)
+- **Source:** Treasury.gov Tentative Auction Schedule XML — `home.treasury.gov/system/files/221/Tentative-Auction-Schedule.xml`
+- **Script:** `scripts/updateTentativeSchedule.js`
+- **R2 key:** `TIPS/tentative_tips.json`
+- **Public URL:** `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json`
+- **Logic:** Extracts all auctions where `<TIPS>Y</TIPS>` is present. Used by the UI to accurately label TIPS in the upcoming auctions table (since the FiscalData upcoming endpoint lacks the `inflation_index_security` field).
 
 ---
 

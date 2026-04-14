@@ -114,3 +114,16 @@ This document provides the technical schemas and field-level specifications for 
 **Sort order**: Ascending by Year, then Period (oldest row first).
 
 **Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/bls/CPI_history.csv)
+
+---
+
+## <a id="s9"></a>S9: tentative_tips.json
+**Description**: Upcoming TIPS auctions extracted from the Treasury's Tentative Auction Schedule.
+**Update Frequency**: Periodic (Local Windows Task).
+**R2 Key**: `TIPS/tentative_tips.json`
+
+**Format**: `[ { "auction_date": "2026-04-23", "security_term": "5-Year", "reopening": "No" }, ... ]`
+
+**Logic**: Used by the TreasuryAuctions app to identify TIPS in the upcoming auctions feed, which lacks a native TIPS flag.
+
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json)
