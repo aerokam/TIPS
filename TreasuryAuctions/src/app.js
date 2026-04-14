@@ -1,6 +1,7 @@
 // Treasury Auctions - app.js
 
 const R2_CSV_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/Auctions.csv';
+const TENTATIVE_TIPS_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/tentative_tips.json';
 
 const UPCOMING_BASE_URL =
   'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/upcoming_auctions' +
