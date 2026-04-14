@@ -26,6 +26,7 @@ lerna-debug.log*
 YieldsMonitor/data/yield-history/
 # Yield Curves project folder
 YieldCurves/data/
+YieldCurves/tests/fixtures/*.csv
 YieldCurves/.browser-profile/
 YieldCurves/.chrome-profile/
 YieldCurves/.browser-profile-patch/
