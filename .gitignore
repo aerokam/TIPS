@@ -37,8 +37,9 @@ YieldCurves/scripts/fidelityDownload.js
 YieldCurves/scripts/uploadFidelityDownload.js
 YieldCurves/scripts/testLogin.js
 YieldCurves/scripts/testCdpLogin.js
-scripts/run-yields-fedinvest.cmd
-scripts/setup-yields-fedinvest-task.ps1
-YieldCurves/scripts/run-fidelity.cmd
-YieldCurves/scripts/setup-tasks.ps1
+scripts/*.cmd
+scripts/*.ps1
+YieldCurves/scripts/*.cmd
+YieldCurves/scripts/*.ps1
+Dashboard/*.cmd
 
