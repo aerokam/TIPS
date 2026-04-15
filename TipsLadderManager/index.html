@@ -11,7 +11,6 @@
   .app-container { display: table; width: auto; margin: 0; }
   /* ── Card rows ── */
   .card-inputs { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: flex-end; }
-  .card-info + .card-info { border-top: 1px solid rgba(255,255,255,0.06); margin-top: 3px; padding-top: 3px; }
   .card-info { display: flex; gap: 12px; align-items: center; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.12); flex-wrap: nowrap; }
   #duration-links { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
   /* ── Info strip ── */
@@ -26,7 +25,7 @@
   #top-row { display: flex; flex-direction: column; margin-bottom: 16px; position: sticky; top: 0; z-index: 20; background: var(--portal-bg); padding-bottom: 4px; width: fit-content; }
 
   /* ── Form card ── */
-  .form-card { width: fit-content; min-width: 640px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 0 0 8px 8px; padding: 10px 24px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
+  .form-card { width: fit-content; min-width: 845px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 0 0 8px 8px; padding: 10px 24px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
   /* .fields/.break removed — replaced by .card-inputs */
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   /* .val-display removed — term/range now in .card-info as .info-stat-val */
@@ -207,40 +206,37 @@
   <div class="form-card">
     <!-- Row 1: CSV, DARA, Years -->
     <div class="card-inputs">
-      <div class="field" id="field-holdings">
+      <div class="field" id="field-holdings" style="width:180px">
         <label>Holdings CSV</label>
         <input type="file" id="holdings-file" accept=".csv">
       </div>
       <div class="field" id="field-dara">
         <label>DARA ($)</label>
         <div style="display:flex;align-items:center;gap:2px">
-          <input type="text" id="dara" placeholder="auto-infer" style="width:120px">
+          <input type="text" id="dara" placeholder="auto-infer" style="width:80px">
           <div style="display:flex;flex-direction:column;gap:1px">
             <button type="button" id="dara-inc" title="+$1,000" style="font-size:9px;padding:0 5px;height:13px;line-height:1;border:1px solid #ccc;border-radius:2px 2px 0 0;background:#f8fafc;cursor:pointer;color:#475569">▲</button>
             <button type="button" id="dara-dec" title="-$1,000" style="font-size:9px;padding:0 5px;height:13px;line-height:1;border:1px solid #ccc;border-radius:0 0 2px 2px;background:#f8fafc;cursor:pointer;color:#475569">▼</button>
           </div>
         </div>
       </div>
-      <div class="field" id="field-rebal-first-year" style="display:none">
+      <div class="field" id="field-rebal-first-year" style="display:none;width:72px">
         <label>First Year</label>
         <select id="rebal-first-year"></select>
       </div>
-      <div class="field" id="field-first-year" style="display:none">
+      <div class="field" id="field-first-year" style="display:none;width:72px">
         <label for="first-year">First Year</label>
         <select id="first-year"><option value="">—</option></select>
       </div>
-      <div class="field" id="field-rebal-last-year" style="display:none">
+      <div class="field" id="field-rebal-last-year" style="display:none;width:72px">
         <label>Last Year</label>
         <select id="rebal-last-year"></select>
       </div>
-      <div class="field" id="field-last-year" style="display:none">
+      <div class="field" id="field-last-year" style="display:none;width:72px">
         <label>Last Year</label>
         <select id="last-year"><option value="">—</option></select>
       </div>
-    </div>
-    <!-- Row 2: Config + Run (primary action at end) -->
-    <div class="card-inputs">
-      <div class="field" id="field-method">
+      <div class="field" id="field-method" style="width:72px">
         <label>Method</label>
         <select id="method">
           <option value="Gap">Gap</option>
@@ -251,7 +247,7 @@
         <label>Brackets</label>
         <select id="bracket-mode">
           <option value="2bracket">2-bracket</option>
-          <option value="3bracket" selected>3-bracket (orig + new lower + upper)</option>
+          <option value="3bracket" selected>3-bracket</option>
         </select>
       </div>
       <div class="field" id="field-pre-ladder">
@@ -261,6 +257,9 @@
           <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.08em">Include</span>
         </label>
       </div>
+    </div>
+    <!-- Row 2: Run + post-run actions -->
+    <div class="card-inputs">
       <div class="field" id="field-build-maturity" style="display:none">
         <label>Maturity pick</label>
         <select id="build-maturity">
@@ -268,26 +267,24 @@
           <option value="first">First to mature</option>
         </select>
       </div>
-      <button id="run-btn" disabled style="align-self:flex-end;margin-left:auto">Run Rebalance</button>
+      <button id="run-btn" disabled style="align-self:flex-end">Run Rebalance</button>
+      <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
+      <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
+      <div id="duration-links" style="align-self:flex-end"></div>
     </div>
-    <!-- Info row A: fixed display values -->
+    <!-- Info row -->
     <div class="card-info">
       <span id="info-source" class="info-muted"></span>
       <span class="info-stat"><span class="info-stat-label">Term</span> <span id="val-term" class="info-stat-val">—</span></span>
       <span class="info-stat"><span class="info-stat-label">Range</span> <span id="val-range" class="info-stat-val">—</span></span>
       <span class="info-sep">·</span>
       <span id="info-tips-count"></span>
-      <div id="net-cash-inline" style="margin-left:auto">
+      <span class="info-sep">·</span>
+      <span id="info-refcpi" class="info-muted"></span>
+      <div id="net-cash-inline">
         <span class="nc-label" id="nc-label">Net Cash</span>
         <span class="nc-val" id="net-cash-val"></span>
       </div>
-    </div>
-    <!-- Info row B: entry / interactive -->
-    <div class="card-info">
-      <span id="info-refcpi" class="info-muted"></span>
-      <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;" title="Export table to CSV">Export CSV</button>
-      <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
-      <div id="duration-links"></div>
     </div>
     <div id="status"></div>
   </div>
@@ -1207,15 +1204,16 @@ async function _showTipsRefModal(type) {
   
   const rows = type === 'Ref' ? Array.from(tipsRefMap.values()) : Array.from(tipsMap.values());
   if (type === 'Mkt') rows.sort((a,b) => a.maturity - b.maturity);
-  
+
   let html = '<thead><tr><th>CUSIP</th><th>Maturity</th><th>Coupon</th>';
-  if (type === 'Ref') html += '<th>Issue Date</th><th>Dated Date</th>';
+  if (type === 'Ref') html += '<th>Dated Date</th><th>Base CPI</th>';
   else html += '<th>Price</th><th>Yield</th>';
   html += '</tr></thead><tbody>';
-  
+
   for (const r of rows) {
-    html += '<tr><td>' + r.cusip + '</td><td>' + (r.maturityStr || _fmtMDY(toIso(r.maturity))) + '</td><td>' + (r.coupon * 100).toFixed(3) + '%</td>';
-    if (type === 'Ref') html += '<td>' + r.issueDate + '</td><td>' + r.datedDate + '</td>';
+    const matStr = type === 'Ref' ? r.maturity : _fmtMDY(toIso(r.maturity));
+    html += '<tr><td>' + r.cusip + '</td><td>' + matStr + '</td><td>' + (r.coupon * 100).toFixed(3) + '%</td>';
+    if (type === 'Ref') html += '<td>' + (r.datedDate || '') + '</td><td>' + (r.baseCpi != null ? r.baseCpi.toFixed(5) : '') + '</td>';
     else html += '<td>' + r.price.toFixed(3) + '</td><td>' + (r.yield * 100).toFixed(3) + '%</td>';
     html += '</tr>';
   }
