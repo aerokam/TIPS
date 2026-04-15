@@ -380,11 +380,20 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
       maxTipsYear = Math.max(maxTipsYear, bond.maturity.getFullYear());
     }
   }
+  // Structural gap: consecutive years immediately before 2040 where no TIPS have been issued.
+  // Walk backward from 2039 until hitting a year that has TIPS in market data.
+  const UPPER_BRACKET_YEAR = 2040;
+  const structuralGapSet = new Set();
+  for (let y = UPPER_BRACKET_YEAR - 1; y >= firstYear; y--) {
+    if (!tipsMapYears.has(y)) structuralGapSet.add(y);
+    else break;
+  }
   const gapYears = [], future30yYears = [];
   for (let year = firstYear; year <= lastYear; year++) {
-    if (!tipsMapYears.has(year) && !yearInfo[year]) {
-      if (year > maxTipsYear) future30yYears.push(year);
-      else gapYears.push(year);
+    if (structuralGapSet.has(year) && !yearInfo[year]) {
+      gapYears.push(year);
+    } else if (!tipsMapYears.has(year) && !yearInfo[year] && year > maxTipsYear) {
+      future30yYears.push(year);
     }
   }
 
@@ -765,8 +774,14 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
       let excessQtyTarget = 0;
       if (isBracket) {
         if (is3Bracket && year === brackets.lowerYear) {
-          // Special for 3-bracket orig lower: preserve current excess relative to BEFORE state FY target
-          excessQtyTarget = Math.max(0, targetCurrentQty - (bracketTargetFundedYearQtyBefore[year] ?? 0));
+          // Special for 3-bracket orig lower: preserve current excess relative to BEFORE state FY target.
+          // If DARA has grown such that bracketTargetFundedYearQtyBefore >= current holdings, there is no
+          // "preserved" excess — fall through to the standard bracketExcessTargetCost formula so that the
+          // new-lower bracket allocation (w2 × totalCost) is correctly applied rather than returning 0.
+          const _preservedExcess = Math.max(0, targetCurrentQty - (bracketTargetFundedYearQtyBefore[year] ?? 0));
+          excessQtyTarget = _preservedExcess > 0
+            ? _preservedExcess
+            : costPerBond > 0 ? Math.max(0, Math.round((bracketExcessTargetCost[year] || 0) / costPerBond)) : 0;
         } else if (future30yYears.length > 0 && year === future30yUpperYear) {
           // Use precomputed UNADJ-based excess qty directly (matches build-lib)
           excessQtyTarget = future30yUpperExQty;
@@ -1008,7 +1023,12 @@ export function runRebalance({ dara, method, bracketMode = '2bracket', holdings:
 
     const isBT = !!(bst_loop?.isBracket && h.cusip === bst_loop.targetCUSIP);
     const cpbHere = (b.price ?? 0) / 100 * ir * 1000;
-    const exB = isBT && cpbHere > 0 ? Math.round((bracketExcessTargetCost[h.year] || 0) / cpbHere) : 0;
+    // exB: prior excess at this bracket year. Use cost-based formula for future30y cover years
+    // (which had excess allocated in the prior build) and for pure bracket years above lastYear.
+    // Gap bracket years ≤ lastYear were plain funded-year rungs before the rebalance — no prior excess.
+    const exB = isBT && cpbHere > 0 && (h.year > lastYear || future30yCoverYearSet.has(h.year))
+      ? Math.round((bracketExcessTargetCost[h.year] || 0) / cpbHere)
+      : 0;
     const exA = isBT ? tQ - tFundedYearQty : 0;
     
     const bForLMI = tipsMap.get(h.cusip);
