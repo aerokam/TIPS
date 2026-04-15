@@ -250,6 +250,13 @@
           <option value="3bracket" selected>3-bracket</option>
         </select>
       </div>
+      <div class="field" id="field-build-maturity" style="display:none">
+        <label>Maturity pick</label>
+        <select id="build-maturity">
+          <option value="last">Last to mature</option>
+          <option value="first">First to mature</option>
+        </select>
+      </div>
       <div class="field" id="field-pre-ladder">
         <label style="white-space:nowrap" title="Include coupon payments received before the ladder starts, reducing early rung quantities">Pre-ladder int.</label>
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
@@ -260,13 +267,6 @@
     </div>
     <!-- Row 2: Run + post-run actions -->
     <div class="card-inputs">
-      <div class="field" id="field-build-maturity" style="display:none">
-        <label>Maturity pick</label>
-        <select id="build-maturity">
-          <option value="last">Last to mature</option>
-          <option value="first">First to mature</option>
-        </select>
-      </div>
       <button id="run-btn" disabled style="align-self:flex-end">Run Rebalance</button>
       <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
       <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
