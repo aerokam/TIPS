@@ -11,7 +11,7 @@
 <link rel="stylesheet" href="../shared/src/portal-theme.css">
 <style>
   /* App-specific overrides — base, vars, tabs, buttons, portal-link: portal-theme.css */
-  body { font-size: 13px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+  body { font-size: 14px; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
   header { padding: 16px 20px 8px; flex-shrink: 0; }
   h1 { font-size: 18px; margin: 0 0 12px; display: flex; justify-content: space-between; align-items: center; }
@@ -38,7 +38,7 @@
 
   /* ── Main table ── */
   .table-scroll-wrap { overflow: auto; flex: 1; min-height: 0; }
-  table.main { border-collapse: collapse; width: 100%; background: #fff; font-size: 12px; }
+  table.main { border-collapse: collapse; width: 100%; background: #fff; font-size: 13px; }
   table.main th { background: #1e293b; color: #fff; padding: 8px 12px; text-align: right; font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 10; }
   table.main th:first-child, table.main th:nth-child(2) { text-align: left; }
   table.main td { padding: 6px 12px; border-bottom: 1px solid #eee; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -58,13 +58,14 @@
   
   footer { font-size: 11px; color: #94a3b8; padding: 8px 0; display: flex; justify-content: center; gap: 20px; flex-shrink: 0; }
 
-  /* ── Source Row ── */
-  #sourceRow { display:flex; gap:12px; align-items:center; margin-bottom:8px; flex-wrap: wrap; }
-  .source-card { background:#fff; border:1px solid #ddd; border-radius:6px; padding: 4px 10px; display:flex; align-items:center; gap:8px; }
-  .source-label { font-size:10px; font-weight:700; color:#64748b; text-transform:uppercase; }
-  .source-checkboxes { display:flex; align-items:center; gap:12px; font-size:12px; border:1px solid #ddd; background:#fff; padding:4px 10px; border-radius:6px; }
-  .source-checkboxes label { display:flex; align-items:center; gap:4px; cursor:pointer; }
-  .source-date { font-size:11px; color:#1e293b; margin-left:2px; }
+  /* ── Source info in tab-bar (left side, next to tabs) ── */
+  #tab-bar > .tab-group { flex: 0 0 auto; }
+  #tab-bar .tab-btn { font-size: 14px; }
+  #src-info { display:flex; align-items:center; padding-bottom:5px; padding-left:20px; }
+  #src-info label { display:flex; align-items:center; gap:5px; cursor:pointer; font-size:14px; color:var(--portal-card-text); white-space:nowrap; }
+  #src-info label:has(input:disabled) { opacity:0.45; cursor:not-allowed; }
+  .src-date { font-size:13px; color:var(--portal-card-text); opacity:0.75; }
+  .src-count { font-size:13px; font-weight:700; color:#5eead4; margin-left:1px; }
 
   /* ── Date Input Styles ── */
   .date-inp-wrap { display: flex; align-items: center; background: #fff; border: 1px solid #cbd5e1; border-radius: 4px; padding: 0 4px; position: relative; }
@@ -78,12 +79,8 @@
   .reset-btn { padding: 4px 10px; font-size: 11px; background:#f1f5f9; color:#475569; border:1px solid #cbd5e1; border-radius:4px; font-weight:600; cursor:pointer; transform: none; }
   .reset-btn:hover:not(:disabled) { background: #e2e8f0; color: #1e293b; transform: none; box-shadow: none; }
 
-  /* ── Chart Mode Toggle ── */
-  #chartModeToggle { display:flex; background:#f1f5f9; border:1px solid #cbd5e1; border-radius:5px; overflow:hidden; }
-  .mode-btn { padding: 4px 12px; font-size: 11px; font-weight: 600; border: none; background: transparent; color: #64748b; cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap; transform: none; box-shadow: none; }
-  .mode-btn.active { background: #1e293b; color: #fff; }
-  .mode-btn:not(.active):not(:disabled):hover { background: #e2e8f0; color: #1e293b; transform: none; box-shadow: none; }
-  .mode-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  /* chart-mode tab-bar attaches to card below — disabled state */
+  #chart-mode-tabs .tab-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
   /* ── Spread Charts ── */
   #spreadChartWrap { height: 100%; gap: 1px; background: #e2e8f0; }
@@ -100,57 +97,46 @@
         <button class="tab-btn active" data-tab="tips">TIPS</button>
         <button class="tab-btn" data-tab="treasuries">Treasuries</button>
       </div>
+      <div id="src-info">
+        <!-- TIPS Source UI -->
+        <div id="tipsSourceUI" style="display:flex; gap:16px; align-items:center;">
+          <label><input type="checkbox" id="chkTipsFed" checked> FedInvest <span id="tipsFedMeta" class="src-date"></span> <span id="tipsFedCount" class="src-count"></span></label>
+          <label><input type="checkbox" id="chkTipsBroker" disabled> Market <span id="tipsMktMeta" class="src-date"></span> <span id="tipsBrokerCount" class="src-count"></span></label>
+        </div>
+        <!-- Treasuries Source UI -->
+        <div id="treasuriesSourceUI" style="display:none; gap:16px; align-items:center;">
+          <label><input type="checkbox" id="chkFedInvest" checked> FedInvest <span id="treaFedMeta" class="src-date"></span> <span id="treaFedCount" class="src-count"></span></label>
+          <label><input type="checkbox" id="chkFidelity" disabled> Market <span id="treaMktMeta" class="src-date"></span> <span id="treaMktCount" class="src-count"></span></label>
+        </div>
+      </div>
     </div>
     <div id="status">Loading data...</div>
-    
-    <div id="sourceRow">
-      <!-- TIPS Source UI -->
-      <div id="tipsSourceUI" style="display:flex; gap:12px; align-items:center;">
-        <div id="tipsCheckboxes" class="source-checkboxes">
-          <label><input type="checkbox" id="chkTipsFed" checked> FedInvest<span id="tipsFedDateLabel" class="source-date"></span></label>
-          <label><input type="checkbox" id="chkTipsBroker" disabled> Market<span id="tipsBrokerDateLabel" class="source-date"></span></label>
-        </div>
-      </div>
-
-      <!-- Treasuries Source UI -->
-      <div id="treasuriesSourceUI" style="display:none; gap:12px; align-items:center;">
-        <div class="source-checkboxes">
-          <label><input type="checkbox" id="chkFedInvest" checked> FedInvest<span id="fedInvestDateLabel" class="source-date"></span></label>
-          <label><input type="checkbox" id="chkFidelity" disabled> Market<span id="fidelityDateLabel" class="source-date"></span></label>
-        </div>
-      </div>
-
-      <div id="info-strip" style="margin-bottom:0; margin-left: auto; font-size: 13px; color: #1e293b;"></div>
-    </div>
   </header>
 
   <div id="main-container">
     <div id="pane-top">
-      <div class="card">
-        <div class="card-header">
-          <h3 id="chartTitle" style="margin:0; font-size:13px; color:#1e293b;">Yield Curve</h3>
-          <div id="chartModeToggle">
-            <button class="mode-btn active" data-mode="yield">Yield Curves</button>
-            <button class="mode-btn" data-mode="spread" disabled title="Requires Market data">Spreads</button>
-          </div>
-          <div style="display:flex; align-items:center; gap:12px;">
-            <div style="display:flex; align-items:center; gap:6px;">
-              <label style="font-size:10px; font-weight:700; color:#475569;">RANGE:</label>
-              <div class="date-inp-wrap">
-                <input type="text" id="startMaturity" placeholder="MM/DD/YYYY" maxlength="10">
-                <input type="date" id="startMaturityCal">
-                <button class="cal-btn" onclick="document.getElementById('startMaturityCal').showPicker()">&#x1F4C5;</button>
-              </div>
-              <span style="font-size:10px; color:#64748b;">to</span>
-              <div class="date-inp-wrap">
-                <input type="text" id="endMaturity" placeholder="MM/DD/YYYY" maxlength="10">
-                <input type="date" id="endMaturityCal">
-                <button class="cal-btn" onclick="document.getElementById('endMaturityCal').showPicker()">&#x1F4C5;</button>
-              </div>
-            </div>
-            <button id="resetZoom" class="reset-btn">Reset View</button>
-          </div>
+      <div id="chart-mode-tabs" class="tab-bar">
+        <div class="tab-group">
+          <button class="tab-btn active" data-mode="yield">Yield Curves</button>
+          <button class="tab-btn" data-mode="spread" disabled title="Requires Market data">Spreads</button>
         </div>
+        <div class="tab-bar-right" style="gap:8px;">
+          <label style="font-size:12px; font-weight:700; color:var(--portal-card-text); letter-spacing:0.04em;">RANGE:</label>
+          <div class="date-inp-wrap">
+            <input type="text" id="startMaturity" placeholder="MM/DD/YYYY" maxlength="10">
+            <input type="date" id="startMaturityCal">
+            <button class="cal-btn" onclick="document.getElementById('startMaturityCal').showPicker()">&#x1F4C5;</button>
+          </div>
+          <span style="font-size:12px; color:var(--portal-card-text); opacity:0.7;">to</span>
+          <div class="date-inp-wrap">
+            <input type="text" id="endMaturity" placeholder="MM/DD/YYYY" maxlength="10">
+            <input type="date" id="endMaturityCal">
+            <button class="cal-btn" onclick="document.getElementById('endMaturityCal').showPicker()">&#x1F4C5;</button>
+          </div>
+          <button id="resetZoom" class="reset-btn">Reset View</button>
+        </div>
+      </div>
+      <div class="card" style="border-radius:0 0 8px 8px;">
         <div class="chart-area">
           <div id="yieldChartWrap" style="height:100%; position:relative;">
             <canvas id="yieldChart"></canvas>
@@ -170,7 +156,7 @@
             </div>
           </div>
         </div>
-        <div style="font-size:10px; color:#94a3b8; padding:4px 12px; border-top:1px solid #f1f5f9; display:flex; gap:15px;">
+        <div style="font-size:12px; color:#94a3b8; padding:4px 12px; border-top:1px solid #f1f5f9; display:flex; gap:15px;">
           <span><b>Zoom:</b> Wheel / +/- keys</span>
           <span><b>Pan:</b> Drag / Arrows</span>
           <span><b>Series:</b> Use checkboxes above</span>
@@ -182,25 +168,25 @@
 
     <div id="pane-bottom">
       <div class="card">
-        <div id="tipsControls" style="display:flex; padding:6px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; gap:18px; align-items:center; font-size:12px;">
-          <span style="font-weight:700; color:#475569; text-transform:uppercase; font-size:10px;">Show:</span>
+        <div id="tipsControls" style="display:flex; padding:6px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; gap:18px; align-items:center; font-size:13px;">
+          <span style="font-weight:700; color:#475569; text-transform:uppercase; font-size:11px;">Show:</span>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsAsk" checked> Ask</label>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsSa" checked> SA</label>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsSao" checked> SAO</label>
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
-          <a href="#" id="tipsShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:11px;">All</a>
-          <a href="#" id="tipsShowNone" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:11px;">None</a>
+          <a href="#" id="tipsShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">All</a>
+          <a href="#" id="tipsShowNone" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">None</a>
         </div>
-        <div id="nominalsControls" style="display:none; padding:6px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; gap:18px; align-items:center; font-size:12px;">
-          <span style="font-weight:700; color:#475569; text-transform:uppercase; font-size:10px;">Show:</span>
+        <div id="nominalsControls" style="display:none; padding:6px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; gap:18px; align-items:center; font-size:13px;">
+          <span style="font-weight:700; color:#475569; text-transform:uppercase; font-size:11px;">Show:</span>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="filterBills" checked> Bills</label>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="filterNotes" checked> Notes</label>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="filterBonds" checked> Bonds</label>
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="filterStrips"> STRIPS <span style="font-size:9px; color:#94a3b8; font-weight:normal;">(Market Only)</span></label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="filterStrips"> STRIPS <span style="font-size:11px; color:#94a3b8; font-weight:normal;">(Market Only)</span></label>
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
-          <a href="#" id="nominalsShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:11px;">All</a>
-          <a href="#" id="nominalsShowNone" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:11px;">None</a>
+          <a href="#" id="nominalsShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">All</a>
+          <a href="#" id="nominalsShowNone" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">None</a>
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="clipOutliers" checked> Clip Outliers</label>
         </div>

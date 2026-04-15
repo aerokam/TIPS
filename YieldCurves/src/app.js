@@ -346,6 +346,8 @@ function _showSaoDrill(cusip) {
 
 // ─── Main Logic ──────────────────────────────────────────────────────────────
 
+Chart.defaults.font.size = 13;
+
 async function init() {
   const statusEl = document.getElementById('status');
   console.log("init() started");
@@ -402,7 +404,6 @@ async function init() {
         const chkFid = document.getElementById('chkFidelity');
         chkFid.disabled = false;
         chkFid.checked = true;
-        document.getElementById('fidelityDateLabel').textContent = downloadDate ? ` (${fmtBrokerTime(downloadDate)} ET)` : '';
         console.log(`Loaded ${bonds.length} Fidelity Treasuries (${downloadDate})`);
         updateModeToggle();
       }
@@ -442,7 +443,6 @@ async function init() {
         const chkBroker = document.getElementById('chkTipsBroker');
         chkBroker.disabled = false;
         chkBroker.checked = true;
-        document.getElementById('tipsBrokerDateLabel').textContent = downloadDate ? ` (${fmtBrokerTime(downloadDate)} ET)` : '';
         console.log(`Loaded ${priceMap.size} Fidelity TIPS prices (${downloadDate})`);
         updateModeToggle();
       }
@@ -690,21 +690,18 @@ function processAndRenderNominals() {
       renderNominalsChart(fedFiltered, fidFiltered);
     }
 
-    const infoEl = document.getElementById('info-strip');
-    const parts = [];
-    if (showFed) parts.push(`FedInvest settle ${isoToMDY(rawNominalsData[0]?.settlementDate)} (T)`);
+    const treaFedSettle = rawNominalsData?.[0]?.settlementDate;
+    document.getElementById('treaFedMeta').textContent = showFed && treaFedSettle ? `settle ${isoToMDY(treaFedSettle)} (T)` : '';
     if (showFid && fidelityNominalsDate) {
       const loadDate = parseFidelityDateStr(fidelityNominalsDate);
       const t1 = nextBusinessDay(loadDate, holidaySet);
-      parts.push(`Market ${fmtBrokerTime(fidelityNominalsDate)} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`);
+      document.getElementById('treaMktMeta').textContent = `${fmtBrokerTime(fidelityNominalsDate)} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`;
+    } else {
+      document.getElementById('treaMktMeta').textContent = '';
     }
-    infoEl.textContent = parts.join(' \xb7 ');
-    const fedCount = fedFiltered?.length || 0;
-    const fidCount = fidFiltered?.length || 0;
-    const parts2 = [];
-    if (showFed) parts2.push(`FedInvest: ${fedCount}`);
-    if (showFid) parts2.push(`Market: ${fidCount}`);
-    statusEl.textContent = parts2.join(' · ');
+    document.getElementById('treaFedCount').textContent = showFed ? (fedFiltered?.length || 0) : '';
+    document.getElementById('treaMktCount').textContent = showFid ? (fidFiltered?.length || 0) : '';
+    statusEl.textContent = '';
     statusEl.className = '';
   } catch (err) {
     statusEl.textContent = `Error: ${err.message}`;
@@ -885,7 +882,7 @@ function renderNominalsChart(fedBonds, fidBonds) {
       },
       plugins: {
         legend: {
-          labels: { usePointStyle: true, boxWidth: 8, padding: 15, font: { size: 12, weight: '500' } },
+          labels: { usePointStyle: true, boxWidth: 8, padding: 15, font: { size: 13, weight: '500' } },
           onClick: (e, legendItem, legend) => { Chart.defaults.plugins.legend.onClick(e, legendItem, legend); rescaleToVisible(legend.chart); }
         },
         zoom: {
@@ -932,7 +929,6 @@ function processAndRenderTips() {
   if (!rawYieldsData || rawYieldsData.length === 0 || !rawRefCpiData) return;
 
   try {
-    const infoEl = document.getElementById('info-strip');
     const fedSettleStr = rawYieldsData[0]?.settlementDate;
 
     // Build the processed set for each active source
@@ -1023,21 +1019,17 @@ function processAndRenderTips() {
       renderChart(fedFiltered, brokerFiltered);
     }
 
-    const parts = [];
-    if (showFed) parts.push(`FedInvest settle ${isoToMDY(fedSettleStr)} (T)`);
-    if (showBroker) {
-      const loadDate = brokerDownloadDate ? parseFidelityDateStr(brokerDownloadDate) : localDate(fedSettleStr);
+    document.getElementById('tipsFedMeta').textContent = showFed && fedSettleStr ? `settle ${isoToMDY(fedSettleStr)} (T)` : '';
+    if (showBroker && brokerDownloadDate) {
+      const loadDate = parseFidelityDateStr(brokerDownloadDate);
       const t1 = nextBusinessDay(loadDate, holidaySet);
-      const timeStr = brokerDownloadDate ? fmtBrokerTime(brokerDownloadDate) : isoToMDY(fedSettleStr);
-      parts.push(`Market ${timeStr} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`);
+      document.getElementById('tipsMktMeta').textContent = `${fmtBrokerTime(brokerDownloadDate)} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`;
+    } else {
+      document.getElementById('tipsMktMeta').textContent = '';
     }
-    infoEl.textContent = parts.join(' \xb7 ');
-    const fedCount = fedFiltered?.length || 0;
-    const brokerCount = brokerFiltered?.length || 0;
-    const parts2 = [];
-    if (showFed) parts2.push(`FedInvest: ${fedCount}`);
-    if (showBroker) parts2.push(`Market: ${brokerCount}`);
-    statusEl.textContent = parts2.join(' · ');
+    document.getElementById('tipsFedCount').textContent = showFed ? (fedFiltered?.length || 0) : '';
+    document.getElementById('tipsBrokerCount').textContent = showBroker ? (brokerFiltered?.length || 0) : '';
+    statusEl.textContent = '';
     statusEl.className = '';
   } catch (err) {
     statusEl.textContent = `Error: ${err.message}`;
@@ -1197,7 +1189,7 @@ function renderChart(fedBonds, brokerBonds) {
       },
       plugins: {
         legend: {
-          labels: { filter: (item) => !item.hidden, usePointStyle: true, boxWidth: 8, padding: 15, font: { size: 12, weight: '500' } },
+          labels: { filter: (item) => !item.hidden, usePointStyle: true, boxWidth: 8, padding: 15, font: { size: 13, weight: '500' } },
           onClick: null
         },
         zoom: {
@@ -1275,7 +1267,7 @@ function rescaleToVisible(chart) {
 
 function updateModeToggle() {
   const hasMarket = activeTab === 'tips' ? !!brokerPrices : !!fidelityNominalsData;
-  const spreadBtn = document.querySelector('.mode-btn[data-mode="spread"]');
+  const spreadBtn = document.querySelector('#chart-mode-tabs .tab-btn[data-mode="spread"]');
   if (!spreadBtn) return;
   spreadBtn.disabled = !hasMarket;
   if (!hasMarket && spreadModeActive) {
@@ -1283,8 +1275,7 @@ function updateModeToggle() {
     switchChartMode('yield');
   }
   const currentMode = spreadModeActive ? 'spread' : 'yield';
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === currentMode));
-  document.getElementById('chartTitle').textContent = currentMode === 'spread' ? 'Bid/Ask Spreads' : 'Yield Curves';
+  document.querySelectorAll('#chart-mode-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === currentMode));
 }
 
 function switchChartMode(mode) {
@@ -1589,14 +1580,13 @@ document.getElementById('nominalsShowNone').onclick = (e) => {
 });
 
 // Chart Mode Toggle
-document.getElementById('chartModeToggle').addEventListener('click', e => {
-  const btn = e.target.closest('.mode-btn');
+document.getElementById('chart-mode-tabs').addEventListener('click', e => {
+  const btn = e.target.closest('.tab-btn[data-mode]');
   if (!btn || btn.disabled) return;
   const mode = btn.dataset.mode;
   if (spreadModeActive === (mode === 'spread')) return;
   spreadModeActive = (mode === 'spread');
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
-  document.getElementById('chartTitle').textContent = mode === 'spread' ? 'Bid/Ask Spread' : 'Yield Curve';
+  document.querySelectorAll('#chart-mode-tabs .tab-btn').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
   switchChartMode(mode);
   processAndRender();
 });
