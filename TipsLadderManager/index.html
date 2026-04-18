@@ -1256,15 +1256,25 @@ async function _showTipsRefModal(type) {
 
   let html = '<thead><tr><th>CUSIP</th><th>Maturity</th><th>Coupon</th>';
   if (type === 'Ref') html += '<th style="text-align:left">Dated Date</th><th>Base CPI</th>';
-  else html += '<th>Price</th><th>Yield</th>';
+  else html += '<th>Price</th><th>Index Ratio</th><th>Adj Price</th><th>Yield</th>';
   html += '</tr></thead><tbody>';
 
   const R = ' style="text-align:right"';
+  const refCpiSett = type === 'Mkt' ? lookupRefCpi(refCpiRows, toIso(settlementDate)) : null;
   for (const r of rows) {
     const matStr = type === 'Ref' ? r.maturity : _fmtMDY(toIso(r.maturity));
     html += '<tr><td>' + r.cusip + '</td><td>' + matStr + '</td><td' + R + '>' + (r.coupon * 100).toFixed(3) + '%</td>';
-    if (type === 'Ref') html += '<td>' + (r.datedDate || '') + '</td><td' + R + '>' + (r.baseCpi != null ? r.baseCpi.toFixed(5) : '') + '</td>';
-    else html += '<td' + R + '>' + r.price.toFixed(3) + '</td><td' + R + '>' + (r.yield * 100).toFixed(3) + '%</td>';
+    if (type === 'Ref') {
+      html += '<td>' + (r.datedDate || '') + '</td><td' + R + '>' + (r.baseCpi != null ? r.baseCpi.toFixed(5) : '') + '</td>';
+    } else {
+      const ref = tipsRefMap.get(r.cusip);
+      const ir = ref?.baseCpi ? refCpiSett / ref.baseCpi : null;
+      const adjPrice = ir != null ? r.price * ir : null;
+      html += '<td' + R + '>' + r.price.toFixed(3) + '</td>';
+      html += '<td' + R + '>' + (ir != null ? ir.toFixed(5) : '—') + '</td>';
+      html += '<td' + R + '>' + (adjPrice != null ? adjPrice.toFixed(3) : '—') + '</td>';
+      html += '<td' + R + '>' + (r.yield * 100).toFixed(3) + '%</td>';
+    }
     html += '</tr>';
   }
   html += '</tbody>';
@@ -1361,7 +1371,7 @@ loadData();
     </div>
     <div id="tipsref-warn" style="display:none;margin-bottom:8px;padding:6px 10px;background:#fee2e2;border:1px solid #fca5a5;border-radius:4px;font-size:12px;color:#991b1b;font-weight:600;"></div>
     <div style="overflow:auto;flex:1;">
-      <table id="tipsref-table" class="simple" style="width:100%;"></table>
+      <table id="tipsref-table" class="simple" style="width:auto;"></table>
     </div>
   </div>
 </div>
