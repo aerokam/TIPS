@@ -168,12 +168,21 @@
   thead th.dragging { opacity: 0.5; background: #334155 !important; }
   thead th.drag-over { border-left: 2px solid #f59e0b; }
 
+  /* ── Row banding ── */
+  tbody tr.row-band-b td { background: #e2e8f0; }
+  tbody tr.row-band-b td:first-child { background: #e2e8f0 !important; }
+  tbody tr.row-band-b:hover td { background: #fffde7; }
+  tbody tr.row-band-b:hover td:first-child { background: #fffde7 !important; }
+
   /* ── Scrollbars ── */
   .col-list::-webkit-scrollbar, .table-wrap::-webkit-scrollbar { width: 6px; height: 6px; }
   .col-list::-webkit-scrollbar-track, .table-wrap::-webkit-scrollbar-track { background: #f8fafc; }
   .col-list::-webkit-scrollbar-thumb, .table-wrap::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 3px; }
 
   footer { font-size: 11px; color: var(--border-med); padding: 5px; text-align: center; flex-shrink: 0; }
+
+  /* Tentative table: sortable but no drag/drop */
+  .tent-table thead th { cursor: pointer; }
 </style>
 </head>
 <body>
@@ -251,7 +260,7 @@
           <!-- Tentative Tab -->
           <div id="tab-tentative" class="tab-pane">
             <div class="table-wrap">
-              <table style="width:100%; table-layout:fixed;">
+              <table class="tent-table">
                 <thead id="tentative-thead"></thead>
                 <tbody id="tentative-tbody"></tbody>
               </table>

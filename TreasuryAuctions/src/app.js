@@ -152,6 +152,9 @@ let filters = {};              // field -> filter string
 let dateFrom = '';
 let dateTo = '';
 let tentativeAuctions = [];    // Parsed from Treasury's Tentative Auction Schedule XML
+let tentSortCol = null;
+let tentSortAsc = true;
+let tentFilters = {};
 
 let orderedColumns = { all: [], bills: [], notesbonds: [], tips: [] };
 let colWidths = {};           // field -> width (px)
@@ -440,12 +443,16 @@ function renderTable() {
 function renderBody(cols) {
   const { displayRows, totalRows, capped } = getActiveRows();
   const tbody = document.getElementById('mainTbody');
-  tbody.innerHTML = displayRows.map(r =>
-    `<tr>${cols.map(f => {
+  let band = 0, lastDate = null;
+  tbody.innerHTML = displayRows.map(r => {
+    const d = r.auction_date || '';
+    if (d !== lastDate) { lastDate = d; band = 1 - band; }
+    const cls = band === 1 ? ' class="row-band-b"' : '';
+    return `<tr${cls}>${cols.map(f => {
       const width = colWidths[f] ? `style="width:${colWidths[f]}px;min-width:${colWidths[f]}px;"` : '';
       return `<td data-field="${f}" ${width}>${fmtVal(r[f], detectFmt(f))}</td>`;
-    }).join('')}</tr>`
-  ).join('');
+    }).join('')}</tr>`;
+  }).join('');
   const countEl = document.getElementById('row-count');
   if (capped) {
     countEl.innerHTML = `<span style="color:#f59e0b;font-weight:600;">Showing ${ROW_LIMIT} of ${totalRows.toLocaleString()} rows — use date range to see more</span>`;
@@ -487,8 +494,12 @@ function renderUpcoming(csvText) {
   });
 
   thead.innerHTML = extendedHeaders.map(f => `<th>${fieldLabel(f)}</th>`).join('');
-  tbody.innerHTML = rows.map(r =>
-    `<tr>${extendedHeaders.map(f => {
+  let band = 0, lastDate = null;
+  tbody.innerHTML = rows.map(r => {
+    const d = r.auction_date || '';
+    if (d !== lastDate) { lastDate = d; band = 1 - band; }
+    const cls = band === 1 ? ' class="row-band-b"' : '';
+    return `<tr${cls}>${extendedHeaders.map(f => {
       const val = r[f];
       const fmt = detectFmt(f);
       let cellClass = '';
@@ -496,38 +507,128 @@ function renderUpcoming(csvText) {
         cellClass = ' style="color:#059669;font-weight:600;"';
       }
       return `<td${cellClass}>${fmtVal(val, fmt)}</td>`;
-    }).join('')}</tr>`
-  ).join('');
+    }).join('')}</tr>`;
+  }).join('');
 }
+
+function tentWeekKey(dateStr) {
+  let d;
+  if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) d = new Date(dateStr + 'T00:00:00');
+  else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(dateStr)) {
+    const [m, day, y] = dateStr.split('/');
+    d = new Date(+y, +m - 1, +day);
+  } else return dateStr;
+  if (isNaN(d.getTime())) return dateStr;
+  const dow = d.getDay(); // 0=Sun
+  d.setDate(d.getDate() - ((dow + 6) % 7)); // back to Monday
+  return d.toISOString().substring(0, 10);
+}
+
+// ── Tentative table fields ────────────────────────────────────────────────────
+const TENT_FIELDS = [
+  { key: 'auction_date',      label: 'Auction Date' },
+  { key: 'security_term',     label: 'Term' },
+  { key: 'security_type',     label: 'Type' },
+  { key: 'reopening',         label: 'Reopen' },
+  { key: 'tips',              label: 'TIPS' },
+  { key: 'announcement_date', label: 'Announcement Date' },
+  { key: 'settlement_date',   label: 'Settlement Date' },
+];
 
 // ── Render Tentative Schedule ────────────────────────────────────────────────
 function renderTentative() {
   const tbody = document.getElementById('tentative-tbody');
   const thead = document.getElementById('tentative-thead');
-  
+
   if (!tentativeAuctions.length) {
-    tbody.innerHTML = '<tr><td style="padding:20px; color:#64748b; font-style:italic; text-align:center;">No tentative schedule data available.</td></tr>';
+    thead.innerHTML = '';
+    tbody.innerHTML = '<tr><td colspan="7" style="padding:20px; color:#64748b; font-style:italic; text-align:center;">No tentative schedule data available.</td></tr>';
     return;
   }
 
-  const fields = [
-    { key: 'auction_date', label: 'Auction Date' },
-    { key: 'security_term', label: 'Term' },
-    { key: 'security_type', label: 'Type' },
-    { key: 'reopening', label: 'Reopen' },
-    { key: 'tips', label: 'TIPS' },
-    { key: 'announcement_date', label: 'Announcement Date' },
-    { key: 'settlement_date', label: 'Settlement Date' }
-  ];
+  thead.innerHTML = `
+    <tr>
+      ${TENT_FIELDS.map(f => {
+        const cls = tentSortCol === f.key ? (tentSortAsc ? 'sort-asc' : 'sort-desc') : '';
+        return `<th class="${cls}" data-field="${f.key}">${f.label}</th>`;
+      }).join('')}
+    </tr>
+    <tr class="filter-row">
+      ${TENT_FIELDS.map(f => {
+        const val = tentFilters[f.key] || '';
+        return `<td><input class="filter-input${val ? ' active' : ''}" type="text" data-field="${f.key}" value="${val}" placeholder="…" size="1"></td>`;
+      }).join('')}
+    </tr>
+  `;
 
-  thead.innerHTML = `<tr>${fields.map(f => `<th>${f.label}</th>`).join('')}</tr>`;
-  
-  // Exclude FRNs
-  const filtered = tentativeAuctions.filter(a => a.floating_rate !== 'Yes');
+  // Sort click handlers
+  thead.querySelectorAll('th[data-field]').forEach(th => {
+    th.addEventListener('click', () => {
+      const f = th.dataset.field;
+      if (tentSortCol === f) tentSortAsc = !tentSortAsc;
+      else { tentSortCol = f; tentSortAsc = true; }
+      renderTentative();
+    });
+  });
 
-  tbody.innerHTML = filtered.map(node => {
-    let rowHtml = '<tr>';
-    fields.forEach(f => {
+  // Filter input handlers (debounced)
+  let debounceTimer;
+  thead.querySelectorAll('.filter-input').forEach(inp => {
+    inp.addEventListener('input', e => {
+      const f = e.target.dataset.field;
+      tentFilters[f] = e.target.value;
+      e.target.classList.toggle('active', !!e.target.value);
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(renderTentBody, 200);
+    });
+  });
+
+  // Fix filter row sticky top
+  requestAnimationFrame(() => {
+    const hdr = thead.querySelector('tr:first-child');
+    const filterRow = thead.querySelector('.filter-row');
+    if (hdr && filterRow) {
+      const h = hdr.offsetHeight;
+      filterRow.querySelectorAll('td').forEach(td => { td.style.top = h + 'px'; });
+    }
+  });
+
+  renderTentBody();
+}
+
+function renderTentBody() {
+  const tbody = document.getElementById('tentative-tbody');
+
+  // Exclude FRNs, then apply column filters
+  let rows = tentativeAuctions.filter(a => a.floating_rate !== 'Yes');
+  const activeFilters = Object.entries(tentFilters).filter(([, v]) => v.trim());
+  if (activeFilters.length) {
+    rows = rows.filter(r =>
+      activeFilters.every(([f, v]) =>
+        (r[f] || '').toLowerCase().includes(v.trim().toLowerCase())
+      )
+    );
+  }
+
+  // Sort
+  if (tentSortCol) {
+    const field = tentSortCol;
+    rows = [...rows].sort((a, b) => {
+      const av = a[field] ?? '';
+      const bv = b[field] ?? '';
+      const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+      return tentSortAsc ? cmp : -cmp;
+    });
+  }
+
+  // Band by auction_date change
+  let band = 0, lastDate = null;
+  tbody.innerHTML = rows.map(node => {
+    const d = node.auction_date;
+    if (d !== lastDate) { lastDate = d; band = 1 - band; }
+    const cls = band === 1 ? ' class="row-band-b"' : '';
+    let rowHtml = `<tr${cls}>`;
+    TENT_FIELDS.forEach(f => {
       const val = node[f.key];
       let cellStyle = '';
       if (f.key === 'tips' && val === 'Yes') cellStyle = ' style="color:#059669; font-weight:600;"';
