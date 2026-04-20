@@ -10,7 +10,9 @@ export function handleChartKeydown(e, chart, options = {}) {
   const {
     panStep = 0.1,   // 10% of visible range
     zoomStep = 0.1,  // 10% zoom in/out
-    onAction = null  // callback after update
+    lockRight = false,
+    xMaxAnchor = null,
+    onAction = null
   } = options;
 
   const xAx = chart.scales.x;
@@ -48,20 +50,19 @@ export function handleChartKeydown(e, chart, options = {}) {
     const xRange = xAx.max - xAx.min;
     const yRange = yAx.max - yAx.min;
     const isZoomIn = e.key === '+' || e.key === '=';
-    
-    // Zoom around the center of the current view
-    const xMid = (xAx.max + xAx.min) / 2;
-    const yMid = (yAx.max + yAx.min) / 2;
-    
     const factor = isZoomIn ? (1 - zoomStep) : (1 + zoomStep);
-    
-    const newXHalf = (xRange * factor) / 2;
-    const newYHalf = (yRange * factor) / 2;
 
-    chart.options.scales.x.min = xMid - newXHalf;
-    chart.options.scales.x.max = xMid + newXHalf;
-    chart.options.scales.y.min = yMid - newYHalf;
-    chart.options.scales.y.max = yMid + newYHalf;
+    if (lockRight && xMaxAnchor != null) {
+      chart.options.scales.x.max = xMaxAnchor;
+      chart.options.scales.x.min = xMaxAnchor - xRange * factor;
+    } else {
+      const xMid = (xAx.max + xAx.min) / 2;
+      chart.options.scales.x.min = xMid - (xRange * factor) / 2;
+      chart.options.scales.x.max = xMid + (xRange * factor) / 2;
+    }
+    const yMid = (yAx.max + yAx.min) / 2;
+    chart.options.scales.y.min = yMid - (yRange * factor) / 2;
+    chart.options.scales.y.max = yMid + (yRange * factor) / 2;
     handled = true;
   }
 
@@ -113,6 +114,17 @@ export function snapYAfterZoom(chart, factor) {
   chart.options.scales.y.max = max;
   chart.options.scales.y.ticks.stepSize = step;
   chart.update('none');
+}
+
+/**
+ * After any zoom, re-anchors xMax to xMaxAnchor, preserving the new range.
+ * Does not call chart.update() — callers handle that.
+ */
+export function applyLockRight(chart, xMaxAnchor) {
+  const xMin = chart.options.scales.x.min ?? chart.scales.x.min;
+  const xMax = chart.options.scales.x.max ?? chart.scales.x.max;
+  chart.options.scales.x.max = xMaxAnchor;
+  chart.options.scales.x.min = xMaxAnchor - (xMax - xMin);
 }
 
 /**
