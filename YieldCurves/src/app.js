@@ -841,12 +841,18 @@ function renderNominalsChart(fedBonds, fidBonds) {
       tickFont = ctx => TERM_LABEL_MINOR.has(ctx.tick?.value) ? { size: 9 } : { size: 11 };
     } else {
       // Adaptive ticks: years when zoomed out, months/weeks when zoomed in
-      tickCb = (val, idx, ticks) => {
-        if (!ticks || ticks.length < 2) return `${Math.round(val / 52)}y`;
-        const interval = ticks[1].value - ticks[0].value;
-        if (interval >= 52) return `${Math.round(val / 52)}y`;
-        if (interval >= 4) return `${Math.round(val / 4.348)}m`;
-        return `${val}w`;
+      tickCb = (val) => {
+        if (val < 0) return '';
+        if (val >= 52) {
+          const years = val / 52;
+          if (Number.isInteger(years)) return `${years}y`;
+          const wholeYears = Math.floor(years);
+          const remMonths = Math.round((years - wholeYears) * 12);
+          if (remMonths === 6) return `${wholeYears}.5y`;
+          return `${wholeYears}y ${remMonths}m`;
+        }
+        if (val >= 4) return `${Math.round(val / 4.348)}m`;
+        return `${Math.round(val)}w`;
       };
       tickFont = () => ({ size: 11 });
     }
@@ -858,7 +864,7 @@ function renderNominalsChart(fedBonds, fidBonds) {
           scale.ticks = tickVals.filter(v => v >= scale.min && v <= scale.max).map(v => ({ value: v }));
         } else {
           const span = scale.max - scale.min;
-          const interval = span > 104 ? 52 : span > 26 ? 13 : span > 8 ? 4 : 1;
+          const interval = span > 260 ? 52 : span > 130 ? 26 : span > 52 ? 13 : span > 12 ? 4 : 1;
           const start = Math.ceil(Math.max(scale.min, 0) / interval) * interval;
           const ticks = [];
           for (let v = start; v <= scale.max; v += interval) ticks.push({ value: v });
