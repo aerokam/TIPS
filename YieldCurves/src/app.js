@@ -968,7 +968,8 @@ function renderNominalsChart(fedBonds, fidBonds) {
             title: items => {
               if (xAxisMode === 'ttm') {
                 const w = items[0].parsed.x;
-                return `${fmtDateMDY(new Date(now + w * 7 * 86400000))} (${w.toFixed(1)}w)`;
+                const termLabel = w < 52 ? `${w.toFixed(1)}w` : `${(w / 52).toFixed(1)}y`;
+                return `${fmtDateMDY(new Date(now + w * 7 * 86400000))} (${termLabel})`;
               }
               return fmtDateMDY(new Date(items[0].parsed.x));
             },
