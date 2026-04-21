@@ -139,7 +139,7 @@ function fmtDateMDY(date) {
 // Term axis constants for Bills chart (0–52w, linear, proportional)
 const TERM_TICK_VALUES = [0,2,4,6,8,10,12,13,14,16,17,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52];
 const TERM_LABEL_4W   = new Set([0,4,8,12,16,20,24,28,32,36,40,44,48,52]);
-const TERM_LABEL_MINOR = new Set([13,17]);
+const TERM_LABEL_MINOR = new Set([6,13,17,26]);
 
 // Format a ms timestamp as a term label (used by TIPS/spread chart tooltips).
 function ttmLabel(ms) {
