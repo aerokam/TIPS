@@ -136,15 +136,16 @@ function fmtDateMDY(date) {
          date.getFullYear();
 }
 
-// Format a millisecond timestamp as term-to-maturity label.
-// < 1 year → integer weeks ("26w"); ≥ 1 year → integer years ("10y")
+// Term axis constants for Bills chart (0–52w, linear, proportional)
+const TERM_TICK_VALUES = [0,2,4,6,8,10,12,13,14,16,17,18,20,22,24,26,28,30,32,34,36,38,40,42,44,46,48,50,52];
+const TERM_LABEL_4W   = new Set([0,4,8,12,16,20,24,28,32,36,40,44,48,52]);
+const TERM_LABEL_MINOR = new Set([13,17]);
+
+// Format a ms timestamp as a term label (used by TIPS/spread chart tooltips).
 function ttmLabel(ms) {
   const days = (ms - Date.now()) / 86400000;
-  if (days < 365.25) {
-    const w = Math.round(days / 7);
-    return w <= 0 ? '<1w' : `${w}w`;
-  }
-  return `${Math.round(days / 365.25)}y`;
+  if (days < 365.25) return `${(days / 7).toFixed(1)}w`;
+  return `${(days / 365.25).toFixed(1)}y`;
 }
 
 // Broker timestamp "MM/DD/YYYY HH:MM AM/PM" → "MM/DD HH:MM AM/PM" (drop year)
@@ -471,7 +472,7 @@ async function init() {
     setupDateInput(endEl, endCalEl, () => { savedZoom[activeTab] = null; processAndRender(); });
 
     document.querySelectorAll('input[name="xAxisMode"]').forEach(r => {
-      r.addEventListener('change', () => { xAxisMode = r.value; processAndRender(); });
+      r.addEventListener('change', () => { xAxisMode = r.value; savedZoom[activeTab] = null; processAndRender(); });
     });
 
     document.getElementById('resetZoom').onclick = () => {
@@ -789,7 +790,10 @@ function renderNominalsChart(fedBonds, fidBonds) {
   const allBonds = [...(fedBonds || []), ...(fidBonds || [])];
   if (allBonds.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
 
-  const toPoint = b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.yield * 100).toFixed(3)) });
+  const now = Date.now();
+  const toPoint = xAxisMode === 'ttm'
+    ? b => ({ x: (b.maturityDate.getTime() - now) / (7 * 86400000), y: parseFloat((b.yield * 100).toFixed(3)) })
+    : b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.yield * 100).toFixed(3)) });
   const bothShown = fedBonds && fidBonds;
 
   // FedInvest: cool blues/purple (dotted) — Fidelity: warm orange/red/teal (solid)
@@ -818,18 +822,52 @@ function renderNominalsChart(fedBonds, fidBonds) {
   const allPoints = activeSeries.flatMap(s => s.data);
   if (allPoints.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
 
-  const minDate = new Date(Math.min(...allPoints.map(d => d.x)));
-  const maxDate = new Date(Math.max(...allPoints.map(d => d.x)));
-  const _startDtN = parseDateInput(document.getElementById('startMaturity').value);
-  const _endDtN   = parseDateInput(document.getElementById('endMaturity').value);
-  const minX = _startDtN
-    ? new Date(_startDtN.getFullYear(), _startDtN.getMonth(), 1).getTime()
-    : new Date(minDate.getFullYear(), minDate.getMonth(), 1).getTime();
-  const maxX = _endDtN
-    ? new Date(_endDtN.getFullYear(), _endDtN.getMonth() + 1, 1).getTime()
-    : new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 1).getTime();
-  const spanMonths = (new Date(maxX) - new Date(minX)) / (1000 * 60 * 60 * 24 * 30.5);
-  const timeUnit = spanMonths <= 18 ? 'month' : 'year';
+  // X axis: linear term scale in Term mode; time scale in Maturity mode
+  let xScale;
+  if (xAxisMode === 'ttm') {
+    const rawMaxW = Math.max(...allPoints.map(d => d.x));
+    const isBillsOnly = rawMaxW <= 52;
+    const maxW = isBillsOnly ? 52 : Math.ceil(rawMaxW / 52) * 52;
+    let tickVals, tickCb, tickFont;
+    if (isBillsOnly) {
+      tickVals = TERM_TICK_VALUES;
+      tickCb = val => (TERM_LABEL_4W.has(val) || TERM_LABEL_MINOR.has(val)) ? `${val}w` : '';
+      tickFont = ctx => TERM_LABEL_MINOR.has(ctx.tick?.value) ? { size: 9 } : { size: 11 };
+    } else {
+      // Year-based ticks: every 52 weeks (1yr interval)
+      tickVals = Array.from({ length: Math.ceil(maxW / 52) + 1 }, (_, i) => i * 52);
+      tickCb = val => val % 52 === 0 ? `${val / 52}y` : '';
+      tickFont = () => ({ size: 11 });
+    }
+    xScale = {
+      type: 'linear',
+      min: 0, max: maxW,
+      afterBuildTicks: scale => { scale.ticks = tickVals.filter(v => v >= scale.min && v <= scale.max).map(v => ({ value: v })); },
+      grid: { color: 'rgba(0,0,0,0.05)' },
+      ticks: { maxRotation: 0, callback: tickCb, font: tickFont }
+    };
+  } else {
+    const minDate = new Date(Math.min(...allPoints.map(d => d.x)));
+    const maxDate = new Date(Math.max(...allPoints.map(d => d.x)));
+    const _startDtN = parseDateInput(document.getElementById('startMaturity').value);
+    const _endDtN   = parseDateInput(document.getElementById('endMaturity').value);
+    const minX = _startDtN
+      ? new Date(_startDtN.getFullYear(), _startDtN.getMonth(), 1).getTime()
+      : new Date(minDate.getFullYear(), minDate.getMonth(), 1).getTime();
+    const maxX = _endDtN
+      ? new Date(_endDtN.getFullYear(), _endDtN.getMonth() + 1, 1).getTime()
+      : new Date(maxDate.getFullYear(), maxDate.getMonth() + 1, 1).getTime();
+    const spanMonths = (new Date(maxX) - new Date(minX)) / (1000 * 60 * 60 * 24 * 30.5);
+    const timeUnit = spanMonths <= 18 ? 'month' : 'year';
+    xScale = {
+      type: 'time',
+      min: minX, max: maxX,
+      time: { unit: timeUnit, displayFormats: { year: 'MMM yyyy', month: 'MMM yyyy' } },
+      grid: { color: 'rgba(0,0,0,0.05)' },
+      ticks: { autoSkip: true, maxRotation: 0 }
+    };
+  }
+
   const allY = allPoints.map(d => d.y);
   let scaleY = allY;
   if (nominalsClipOutliers && allY.length >= 4) {
@@ -882,13 +920,7 @@ function renderNominalsChart(fedBonds, fidBonds) {
       animation: false,
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
       scales: {
-        x: {
-          type: 'time',
-          min: minX, max: maxX,
-          time: { unit: timeUnit, displayFormats: { year: 'MMM yyyy', month: 'MMM yyyy' } },
-          grid: { color: 'rgba(0,0,0,0.05)' },
-          ticks: { autoSkip: true, maxRotation: 0, ...(xAxisMode === 'ttm' ? { callback: (val) => ttmLabel(val) } : {}) }
-        },
+        x: xScale,
         y: {
           type: 'linear',
           title: { display: true, text: 'Yield (%)' },
@@ -911,9 +943,12 @@ function renderNominalsChart(fedBonds, fidBonds) {
           titleFont: { size: 11, weight: '700' }, bodyFont: { size: 11 },
           cornerRadius: 6, displayColors: false,
           callbacks: {
-            title: (items) => {
-              const ms = items[0].parsed.x;
-              return `${fmtDateMDY(new Date(ms))} (${ttmLabel(ms)})`;
+            title: items => {
+              if (xAxisMode === 'ttm') {
+                const w = items[0].parsed.x;
+                return `${fmtDateMDY(new Date(now + w * 7 * 86400000))} (${w.toFixed(1)}w)`;
+              }
+              return fmtDateMDY(new Date(items[0].parsed.x));
             },
             label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(3)}%`
           }
