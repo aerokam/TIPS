@@ -178,7 +178,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   for (const year of [...rangeYears].sort((a, b) => b - a)) {
     const bond = yearBondMap[year];
     const { indexRatio: ir, piPerBond: pi } = bondCalcs(bond, refCPI);
-    const qty  = _fyQty(daraByYear?.get(year) ?? dara, laterMatInt, pi);
+    const qty  = year > lastYear ? 0 : _fyQty(daraByYear?.get(year) ?? dara, laterMatInt, pi);
     // Annual interest = qty * 1000 * ir * coupon
     const annInt = qty * 1000 * ir * (bond.coupon ?? 0);
     prelim[year] = { targetFundedYearQty: qty, annualInterest: annInt, laterMatInt, pi };
@@ -187,6 +187,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
 
   // 3a. Validate: every funded year must have qty >= 1 (DARA too low if laterMatInt < dara but gap < piPerBond/2)
   for (const year of rangeYears) {
+    if (year > lastYear) continue;
     const { targetFundedYearQty, laterMatInt, pi } = prelim[year];
     const yearDara = daraByYear?.get(year) ?? dara;
     if (targetFundedYearQty === 0 && yearDara > laterMatInt) {
@@ -356,7 +357,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
       const exQty = exByYear[year] ?? 0;
       const excessLMI = exQty * 1000 * ir * (bond.coupon ?? 0);
 
-      const fyQty   = isZrd ? 0
+      const fyQty   = (isZrd || year > lastYear) ? 0
         : year === partialCreditYear
           ? Math.max(0, Math.round((yearDara - runningLMI - excessLMI - partialCredit) / pi))
           : Math.max(0, Math.round((yearDara - runningLMI - excessLMI) / pi));
@@ -394,7 +395,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     const preLadderCreditForYear = isZeroed
       ? Math.max(0, yearDara - (corr_lmi + excessLMI))
       : year === partialCreditYear ? partialCredit : 0;
-    const fundedYearAmt = fundedYearQty * prelim_pi + corr_lmi + excessLMI + preLadderCreditForYear;
+    const fundedYearAmt = year > lastYear ? 0 : fundedYearQty * prelim_pi + corr_lmi + excessLMI + preLadderCreditForYear;
     const exAmt  = isBracket ? excessQty * prelim_pi : '';
     const fundedYearCost = fundedYearQty * cpb;
     const exCost = isBracket ? excessQty * cpb : '';
