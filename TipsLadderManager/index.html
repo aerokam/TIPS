@@ -321,7 +321,7 @@
 <script type="module">
 import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash, yieldFromPrice } from './src/rebalance-lib.js';
 import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
-import { renderTable } from './src/render.js';
+import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { fetchTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
@@ -510,16 +510,50 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
 
 // ─── Export table CSV ────────────────────────────────────────────────────────
 document.getElementById('export-csv-btn').addEventListener('click', () => {
+  const mode = currentMode === 'build' ? 'build' : 'rebal';
+  const details = mode === 'build' ? buildDetails : rebalDetails;
+  if (!details) return;
   const filename = `tips-ladder-${currentMode}-${new Date().toISOString().split('T')[0]}.csv`;
-  const tableId = currentMode === 'rebalance' ? 'simple-table' : 'build-table';
-  const table = document.getElementById(tableId);
-  if (!table) return;
+
+  const q = s => '"' + String(s ?? '').replace(/"/g, '""') + '"';
+  const fmt2 = v => typeof v === 'number' ? v.toFixed(2) : '';
+  const fmtRaw = (v, fmt) => {
+    if (v == null || v === '') return '';
+    if (fmt === 'qty' || fmt === 'sgn') return typeof v === 'number' ? String(Math.round(v)) : String(v);
+    if (fmt === 'yld') return typeof v === 'number' ? (v * 100).toFixed(3) + '%' : String(v);
+    if (fmt === 'amt') return fmt2(v);
+    return String(v);
+  };
+
+  const cols = COLS.filter(c => mode === 'rebal' ? !c.buildOnly : !c.rebalOnly);
+  const EXTRA_LABELS = ['', 'Principal per TIPS', 'Last Cpn Per TIPS', 'LMI', 'Cost per TIPS', 'Annual Int per TIPS', 'Int from excess'];
+
   const csvData = [];
-  for (const row of table.querySelectorAll('tr')) {
-    const cols = row.querySelectorAll('td, th');
-    if (cols.length === 0) continue;
-    csvData.push([...cols].map(c => '"' + c.textContent.trim().replace(/"/g, '""') + '"').join(','));
+  csvData.push([...cols.map(c => q(c.label.replace(/\bQuantity\b/g, 'Qty'))), ...EXTRA_LABELS.map(q)].join(','));
+
+  for (let ri = 0; ri < details.length; ri++) {
+    const d = details[ri];
+    const isBT = mode === 'rebal' ? (d.excessQtyBefore > 0 || d.excessQtyAfter > 0) : d.excessQty > 0;
+
+    const principal     = 1000 * d.indexRatio;
+    const hof           = d.halfOrFull ?? (d.nPeriods === 1 ? 0.5 : 1.0);
+    const lmi           = d.longerDatedLMI ?? d.araAfterLaterMatInt;
+    const intFromExcess = (typeof d.excessLMI_After === 'number' && d.excessLMI_After > 0) ? d.excessLMI_After : null;
+    const extraVals     = ['', fmt2(principal), fmt2(principal * d.coupon * hof), fmt2(lmi), fmt2(d.costPerBond), fmt2(principal * d.coupon), fmt2(intFromExcess)];
+
+    const mainCells = cols.map(col => {
+      const v = col.key === 'fundedYear' ? d.fundedYear : col.value(d, ri, details);
+      return q(fmtRaw(v, col.fmt));
+    });
+    csvData.push([...mainCells, ...extraVals.map(q)].join(','));
+
+    if (isBT) {
+      const subCells = cols.map(col => q(col.subValue ? fmtRaw(col.subValue(d, ri, details), col.fmt) : ''));
+      const subExtra = ['', fmt2(principal), fmt2(principal * d.coupon * hof), '', '', '', ''];
+      csvData.push([...subCells, ...subExtra.map(q)].join(','));
+    }
   }
+
   const blob = new Blob([csvData.join('\n')], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');

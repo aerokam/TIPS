@@ -15,7 +15,7 @@ if (existsSync(_envPath)) {
 // First run (no existing file): fetches all auctions since 1980-01-01.
 // Subsequent runs: fetches last 30 days, merges by cusip+auction_date (new data wins).
 //
-// Scheduled at 11:05 AM ET and 1:35 PM ET on weekdays.
+// Scheduled at 11:35 AM ET and 1:05 PM ET on weekdays (after comp close at 11:30 AM and 1:00 PM ET).
 
 const FISCALDATA_URL = 'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/auctions_query';
 const R2_KEY = 'Treasuries/Auctions.csv';

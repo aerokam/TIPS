@@ -154,7 +154,7 @@ export function renderTable({ details, mode, summary }) {
       }
       return cellHtml(col, v, ri, drillKey);
     }).join('');
-    let html = '<tr class="' + (bt ? 'bracket ' : '') + (noChg ? 'no-change' : '') + '">' + mainCells + '</tr>';
+    let html = '<tr data-ri="' + ri + '" class="' + (bt ? 'bracket ' : '') + (noChg ? 'no-change' : '') + '">' + mainCells + '</tr>';
 
     if (bt) {
       const subCells = cols.map(col => {
@@ -162,7 +162,7 @@ export function renderTable({ details, mode, summary }) {
         const sdk = col.subDrillKeyFn ? col.subDrillKeyFn(d) : (col.subDrillKey ?? null);
         return cellHtml(col, sv, ri, sdk);
       }).join('');
-      const subRow = '<tr class="excess-subrow bracket">' + subCells + '</tr>';
+      const subRow = '<tr data-ri="' + ri + '" data-sub="1" class="excess-subrow bracket">' + subCells + '</tr>';
       html = upper ? subRow + html : html + subRow;
     }
     return html;
