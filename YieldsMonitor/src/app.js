@@ -57,6 +57,8 @@ const ET_YMD_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_Yor
 const ET_FULL_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
 const ET_HM_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', year: 'numeric', month: '2-digit', day: '2-digit', hour: 'numeric', minute: 'numeric' });
 const ET_WDAY_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'short' });
+const ET_TICK_DAY_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric' });
+const ET_TICK_MON_FMT = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', month: 'short', year: 'numeric' });
 
 let lastDayCache = { start: 0, end: 0, str: "" };
 
@@ -221,7 +223,7 @@ function createChartInstance(sym) {
     options: {
       animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false },
       scales: {
-        x: { type: 'time', time: { tooltipFormat: 'MM/dd/yy HH:mm:ss', displayFormats: { hour: 'MM/dd HH:mm', day: 'MMM dd', month: 'MMM yyyy', year: 'yyyy' } }, grid: { color: '#f1f5f9' }, ticks: { autoSkip: true, font: { size: 9, weight: 'bold' }, color: '#000' } },
+        x: { type: 'time', time: { tooltipFormat: 'MM/dd/yy HH:mm:ss', displayFormats: { hour: 'MM/dd HH:mm', day: 'MMM dd', month: 'MMM yyyy', year: 'yyyy' } }, grid: { color: '#f1f5f9' }, ticks: { autoSkip: true, font: { size: 9, weight: 'bold' }, color: '#000', callback(value) { const d = new Date(value); if (activeRange === '2D') { const p = ET_HM_FMT.formatToParts(d).reduce((a, pt) => ({...a, [pt.type]: pt.value}), {}); return `${p.month}/${p.day} ${p.hour}:${p.minute}`; } if (activeRange === '10D') return ET_TICK_DAY_FMT.format(d); return ET_TICK_MON_FMT.format(d); } } },
         y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } }
       },
       plugins: { legend: { display: false }, zoom: { zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy', onZoom: ({chart}) => { if (lockRight) applyLockRight(chart, xMaxAnchors[sym]); if (syncXAxis) syncAllChartsX(chart); }, onZoomComplete: ({chart}) => { if (lockRight) applyLockRight(chart, xMaxAnchors[sym]); rescaleYToVisible(chart, sym); if (syncXAxis) syncAllChartsX(chart); } }, pan: { enabled: true, mode: 'xy', onPanStart: ({chart}) => { Object.entries(charts).forEach(([s, c]) => { panStartY[s] = { min: c.scales.y.min, max: c.scales.y.max }; }); }, onPan: ({chart}) => { if (syncXAxis) syncAllCharts(chart); }, onPanComplete: ({chart}) => { if (syncXAxis) syncAllCharts(chart); Object.keys(panStartY).forEach(k => delete panStartY[k]); } } }, annotation: { annotations: {} }, tooltip: { backgroundColor: 'rgba(255, 255, 255, 0.95)', titleColor: '#64748b', titleFont: { size: 11, weight: 'bold' }, bodyColor: '#000', borderColor: '#cbd5e1', borderWidth: 1, padding: 8, bodyFont: { size: 12, weight: 'bold' }, cornerRadius: 6, displayColors: false, callbacks: { title: (items) => { if (!items.length) return ''; const date = new Date(items[0].parsed.x); return date.toLocaleString('en-US', { timeZone: 'America/New_York', hourCycle: 'h23', month: '2-digit', day: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }) + ' ET'; }, label: ctx => `Yield: ${ctx.parsed.y.toFixed(3)}%` } } }
