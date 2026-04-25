@@ -13,7 +13,8 @@
   .app-container { display: table; width: auto; margin: 0; }
   /* ── Card rows ── */
   .card-inputs { display: flex; flex-wrap: wrap; gap: 8px 20px; align-items: flex-end; }
-  .card-info { display: flex; gap: 12px; align-items: center; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.12); flex-wrap: nowrap; }
+  .card-info { display: flex; gap: 12px; align-items: center; margin-top: 6px; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.12); flex-wrap: wrap; }
+  .info-links-group { display: flex; gap: 12px; align-items: center; }
   #duration-links { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
   /* ── Info strip ── */
   .info-muted { font-size: 13px; color: var(--portal-card-text); opacity: 0.85; white-space: nowrap; }
@@ -65,7 +66,7 @@
 
 
   /* ── Simple table ── */
-  table.simple { border-collapse: collapse; width: 100%; font-size: 13px; }
+  table.simple { border-collapse: collapse; width: auto; font-size: 13px; }
   table.simple th { background: var(--portal-text-main); color: var(--portal-text-on-dark); padding: 6px 8px; text-align: right; box-shadow: 0 1px 0 #334155;
                     font-weight: 600; white-space: nowrap; position: sticky; top: 0; z-index: 10; vertical-align: bottom; }
   table.simple th:has(br) { text-align: center; }
@@ -76,8 +77,8 @@
   table.simple tr.excess-subrow td { background: #e2f3f3; color: #1e4f4f; font-size: 12px; font-style: italic; }
   table.simple tr.bracket:not(.excess-subrow) td { background: #c0e0e0; }
   table.simple tfoot td { font-weight: 700; border-top: 2px solid var(--portal-text-main); background: var(--portal-text-main); color: var(--portal-text-on-dark); padding: 6px 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  /* Build: keep narrow cols tight so extra width goes to CUSIP/Maturity/Amount/Cost */
-  #build-table th:nth-child(3), #build-table th:nth-child(4), #build-table th:nth-child(7) { width: 1px; }
+  /* All cols fit their content */
+  #build-table th { width: 1px; }
 
 
   /* ── Info strip ── */
@@ -278,10 +279,11 @@
       <span id="info-source" class="info-muted"></span>
       <span class="info-stat"><span class="info-stat-label">Term</span> <span id="val-term" class="info-stat-val">—</span></span>
       <span class="info-stat"><span class="info-stat-label">Range</span> <span id="val-range" class="info-stat-val">—</span></span>
-      <span class="info-sep">·</span>
-      <span id="info-tips-count"></span>
-      <span class="info-sep">·</span>
-      <span id="info-refcpi" class="info-muted"></span>
+      <div class="info-links-group">
+        <span id="info-tips-count"></span>
+        <span class="info-sep">·</span>
+        <span id="info-refcpi" class="info-muted"></span>
+      </div>
       <div id="net-cash-inline">
         <span class="nc-label" id="nc-label">Net Cash</span>
         <span class="nc-val" id="net-cash-val"></span>

@@ -34,7 +34,7 @@ export const COLS = [
     value: d => d.yield },
   { label: 'Funded Year', headerHTML: 'Funded<br>Year', key: 'fundedYear',  fmt: 'fy',
     value: (d, ri, details) => (ri === details.length - 1 || details[ri+1].fundedYear !== d.fundedYear) ? d.fundedYear : '',
-    subValue: d => d.isFuture30yCover ? 'Future 30Y' : 'Gap' },
+    subValue: d => d.isFuture30yCover ? 'Future 30Y' : 'Excess' },
 
   // Rebalance-only
   { label: 'Amount Before', headerHTML: 'Amt<br>Before', key: 'amtBefore', fmt: 'amt', rebalOnly: true,
