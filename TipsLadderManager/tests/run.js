@@ -196,14 +196,20 @@ runFullRebalanceTest('CusipQtyTestLumpy', './tests/CusipQtyTestLumpy.csv');
 console.log('\nBuild — DARA=50000, lastYear=2040');
 {
   const dara = 50000, lastYear = 2040;
-  const { summary, results } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate });
+  const firstYear = settlementDate.getFullYear();
+  const { summary, results, details } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate });
   assert('totalBuyCost > 0', summary.totalBuyCost > 0, true);
   assert('result rows > 0', results.length > 0, true);
   assert('lowerYear < upperYear', summary.lowerYear < summary.upperYear, true);
   assert('lowerWeight + upperWeight ≈ 1', summary.lowerWeight + summary.upperWeight, 1, 0.0001);
+  const numRungs = lastYear - firstYear + 1;
+  const totalAmt = details.reduce((s, d) => s + (d.fundedYearAmt ?? 0) + (d.excessAmt ?? 0), 0);
+  const avgAmt = totalAmt / numRungs;
+  assert('avgAmt ≈ DARA (gap LMI included)', avgAmt, dara, 200);
   console.log(`        totalBuyCost:  ${Math.round(summary.totalBuyCost).toLocaleString()}`);
   console.log(`        lowerYear:     ${summary.lowerYear}, upperYear: ${summary.upperYear}`);
   console.log(`        weights:       ${summary.lowerWeight.toFixed(4)} / ${summary.upperWeight.toFixed(4)}`);
+  console.log(`        avgAmt/rung:   ${Math.round(avgAmt).toLocaleString()} (DARA=${dara.toLocaleString()}, rungs=${numRungs})`);
 }
 
 // ── Test: Build — Future 30Y years (lastYear > maxRealYear) ───────────────────────
@@ -236,7 +242,7 @@ console.log('\nBuild — DARA=50000, lastYear=2060 (Future 30Y years)');
 console.log('\nBuild — firstYear=2036, lastYear=2056, preLadderInterest=true');
 {
   const dara = 20000, firstYear = 2036, lastYear = 2056;
-  const { summary, results } = runBuild({ dara, firstYear, lastYear, tipsMap, refCPI, settlementDate, preLadderInterest: true });
+  const { summary, results, details } = runBuild({ dara, firstYear, lastYear, tipsMap, refCPI, settlementDate, preLadderInterest: true });
   const lower = results.find(r => r[2] === summary.lowerYear);
   const upper = results.find(r => r[2] === summary.upperYear);
   const lowerTotalQty = (lower?.[3] ?? 0) + (lower?.[4] ?? 0); // fundedYearQty + excessQty
@@ -246,10 +252,15 @@ console.log('\nBuild — firstYear=2036, lastYear=2056, preLadderInterest=true')
   assert('upperExQty > 0', summary.upperExQty > 0, true);
   assert('lower bracket total qty > 0', lowerTotalQty > 0, true);
   assert('upper bracket total qty > 0', upperTotalQty > 0, true);
+  const numRungs = lastYear - firstYear + 1;
+  const totalAmt = details.reduce((s, d) => s + (d.fundedYearAmt ?? 0) + (d.excessAmt ?? 0), 0);
+  const avgAmt = totalAmt / numRungs;
+  assert('avgAmt ≈ DARA with PLI (gap LMI included)', avgAmt, dara, 200);
   console.log(`        lowerYear: ${summary.lowerYear}, upperYear: ${summary.upperYear}`);
   console.log(`        lowerExQty: ${summary.lowerExQty}, upperExQty: ${summary.upperExQty}`);
   console.log(`        zeroedFundedYears: [${summary.zeroedFundedYears?.join(', ')}]`);
   console.log(`        gapTotalCost: ${Math.round(summary.gapParams?.totalCost ?? 0).toLocaleString()}`);
+  console.log(`        avgAmt/rung:  ${Math.round(avgAmt).toLocaleString()} (DARA=${dara.toLocaleString()}, rungs=${numRungs})`);
 }
 
 // ── Test: Build→Rebalance symmetry ───────────────────────────────────────────
