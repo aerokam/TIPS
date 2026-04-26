@@ -4,12 +4,6 @@ appsscript/
 # Auto-memory (Claude Code internal)
 memory/
 
-# Test Data (ignore all local CSVs recursively, whitelist fixtures)
-tests/**/*.csv
-!tests/e2e/TipsYields.csv
-!tests/CusipQtyTestLumpy.csv
-!tests/MarisTOD.csv
-!tests/dev/**
 
 # Legacy data folder (ensure ignored if present)
 data/

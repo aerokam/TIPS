@@ -189,8 +189,8 @@ runFullRebalanceTest('CusipQtyTestLumpy', './tests/CusipQtyTestLumpy.csv');
 //    (Bug: lastYear derivation incorrectly reached into >2040 holdings when 2040 not held,
 //     causing spurious gap/bracket rows and rebuilding 2045/2051 as funded rungs.)
 {
-  console.log('\nMarisTOD — lastYear regression (no 2040 in holdings)');
-  const holdings = parseHoldings(readFileSync('./tests/MarisTOD.csv', 'utf8'));
+  console.log('\nCusipQtyTwoCol — lastYear regression (no 2040 in holdings)');
+  const holdings = parseHoldings(readFileSync('./tests/CusipQtyTwoCol.csv', 'utf8'));
   const { dara } = inferDARAFromCash({ holdings, tipsMap, refCPI, settlementDate });
   const { summary, details } = runRebalance({ dara, method: 'Full', holdings, tipsMap, refCPI, settlementDate });
 
