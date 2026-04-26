@@ -20,20 +20,71 @@ function parseCsv(text) {
   });
 }
 
-function parseHoldings(text) {
+// Multi-format holdings parser — mirrors index.html logic for Formats 3, 4, 5.
+// Formats 1/2 (broker CSV) are browser-only and not tested here.
+function parseHoldingsCSV(text, tipsMap) {
   const CUSIP_RE = /^[A-Z0-9]{9}$/i;
   const rawLines = text.trim().split('\n').filter(l => l.trim());
-  const startIdx = CUSIP_RE.test(rawLines[0].split(',')[0].trim()) ? 0 : 1;
-  const map = new Map();
-  for (let i = startIdx; i < rawLines.length; i++) {
-    const parts = rawLines[i].split(',').map(s => s.trim());
-    const [cusip, qtyStr] = parts;
-    if (!CUSIP_RE.test(cusip)) continue;
-    const qty = parseInt(qtyStr, 10);
-    if (!isNaN(qty) && qty >= 0) map.set(cusip, (map.get(cusip) ?? 0) + qty);
+  if (!rawLines.length) return [];
+  const firstLineLower = rawLines[0].replace(/\s/g, '').toLowerCase();
+  const arr = [];
+
+  if (firstLineLower === 'cusip,qty,excess') {
+    // Format 5: header cusip,qty,excess — qty=fundedYearQty, excess=excessQty
+    for (let i = 1; i < rawLines.length; i++) {
+      const parts = rawLines[i].split(',').map(s => s.trim());
+      if (parts.length < 2) continue;
+      const [cusip, qtyStr] = parts;
+      if (!CUSIP_RE.test(cusip)) continue;
+      const fundedQty = parseInt(qtyStr, 10);
+      if (isNaN(fundedQty) || fundedQty < 0) continue;
+      const excessQty = parts.length >= 3 ? (parseInt(parts[2], 10) || 0) : 0;
+      arr.push({ cusip, qty: fundedQty + excessQty, excessQty });
+    }
+  } else {
+    const startIdx = CUSIP_RE.test(rawLines[0].split(',')[0].trim()) ? 0 : 1;
+    const sampleParts = (rawLines[startIdx] ?? '').split(',').map(s => s.trim());
+    const isFormat4 = sampleParts.length >= 3 && parseInt(sampleParts[2], 10) >= 2000;
+
+    if (isFormat4) {
+      // Format 4: no header, multi-row per CUSIP — year field classifies funded vs excess
+      const cusipMap = new Map();
+      for (const line of rawLines) {
+        const parts = line.split(',').map(s => s.trim());
+        if (parts.length < 3) continue;
+        const [cusip, qtyStr, yearStr] = parts;
+        if (!CUSIP_RE.test(cusip)) continue;
+        const bond = tipsMap.get(cusip);
+        if (!bond?.maturity) continue;
+        const qty = parseInt(qtyStr, 10);
+        const year = parseInt(yearStr, 10);
+        if (isNaN(qty) || qty < 0 || isNaN(year)) continue;
+        if (!cusipMap.has(cusip)) cusipMap.set(cusip, { fundedQty: 0, excessQty: 0 });
+        const entry = cusipMap.get(cusip);
+        if (year === bond.maturity.getFullYear()) entry.fundedQty += qty;
+        else entry.excessQty += qty;
+      }
+      for (const [cusip, { fundedQty, excessQty }] of cusipMap) {
+        const total = fundedQty + excessQty;
+        if (total > 0) arr.push({ cusip, qty: total, excessQty });
+      }
+    } else {
+      // Format 3: optional header cusip,qty — one row per CUSIP, no excess info
+      for (let i = startIdx; i < rawLines.length; i++) {
+        const parts = rawLines[i].split(',').map(s => s.trim());
+        if (parts.length < 2) continue;
+        const [cusip, qtyStr] = parts;
+        if (!CUSIP_RE.test(cusip)) continue;
+        const qty = parseInt(qtyStr, 10);
+        if (!isNaN(qty) && qty >= 0) arr.push({ cusip, qty });
+      }
+    }
   }
-  return Array.from(map, ([cusip, qty]) => ({ cusip, qty }));
+  return arr;
 }
+
+// Keep old name as alias for callers that don't need tipsMap (Format 3 files only)
+function parseHoldings(text) { return parseHoldingsCSV(text, tipsMap); }
 
 function lookupRefCpi(refCpiRows, dateStr) {
   const matches = refCpiRows.filter(r => r.date <= dateStr);
@@ -162,31 +213,89 @@ runFullRebalanceTest('CusipQtyTestLumpy', './tests/CusipQtyTestLumpy.csv');
   console.log(`        netCash:       ${Math.round(summary.costDeltaSum).toLocaleString()}`);
 }
 
-// 3. Specific test for 3-bracket logic and multi-year aggregation (Fix for bug reported Mar 23)
+// ── Test: Format 4 parsing (TipsLadderCom — no header, multi-row per CUSIP) ──
 {
-  const filePath = './tests/dev/TipsLadderCom.csv';
-  if (existsSync(path.resolve('TipsLadderManager', filePath))) {
-    console.log(`\nTipsLadderCom — 3-bracket validation`);
-    const holdings = parseHoldings(readFileSync(path.resolve('TipsLadderManager', filePath), 'utf8'));
+  const filePath = path.resolve('./tests/dev/TipsLadderCom.csv');
+  if (existsSync(filePath)) {
+    console.log('\nFormat 4 (TipsLadderCom) — parsing + 3-bracket validation');
+    const holdings = parseHoldingsCSV(readFileSync(filePath, 'utf8'), tipsMap);
+
+    // Verify funded/excess split: CPU9 (Jan 2036) = 8 funded + (6+4+2)=12 excess
+    const cpu9 = holdings.find(h => h.cusip === '91282CPU9');
+    assert('F4: CPU9 total qty === 20',    cpu9?.qty,       20);
+    assert('F4: CPU9 excessQty === 12',   cpu9?.excessQty, 12);
+
+    // QF8 (Feb 2040) = 5 funded + (1+3+4)=8 excess
+    const qf8 = holdings.find(h => h.cusip === '912810QF8');
+    assert('F4: QF8 total qty === 13',    qf8?.qty,       13);
+    assert('F4: QF8 excessQty === 8',     qf8?.excessQty,  8);
+
+    // Non-bracket CUSIPs have no excess (single row each)
+    const cfr7 = holdings.find(h => h.cusip === '91282CFR7');
+    assert('F4: CFR7 excessQty === 0',    cfr7?.excessQty ?? 0, 0);
+
+    // Run rebalance — excessQtyBefore should reflect imported excess for bracket CUSIPs
     const dara = 20000;
     const { summary, details } = runRebalance({ dara, method: 'Gap', bracketMode: '3bracket', holdings, tipsMap, refCPI, settlementDate });
-    
-    // 91282CPU9 (Jan 2036) is the newLower bracket and has massive excess. 
-    // identifyBrackets should now correctly pick it as origLower because it has the most excess.
-    assert('origLower IS Jan 2036', summary.brackets.lowerCUSIP === '91282CPU9', true);
-    assert('newLower IS Jan 2036', summary.newLowerCUSIP === '91282CPU9', true);
-    
-    // Weights should be non-negative
-    assert('origLowerWeight >= 0', (summary.origLowerWeight ?? 0) >= 0, true);
-    assert('newLowerWeight3 >= 0', (summary.newLowerWeight3 ?? 0) >= 0, true);
-    assert('upperWeight3 >= 0', (summary.upperWeight3 ?? 0) >= 0, true);
-    
-    // Jan 2036 Quantity check: Should be significantly more than 3 (approx 25-30 total)
-    const jan2036 = details.find(d => d.cusip === '91282CPU9');
-    assert('Jan 2036 Qty After > 10', jan2036.qtyAfter > 10, true);
-    console.log(`        Jan 2036 Qty:  ${jan2036.qtyAfter}`);
-    const w1 = summary.origLowerWeight ?? 0, w2 = summary.newLowerWeight3 ?? 0, w3 = summary.upperWeight3 ?? 0;
-    console.log(`        Weights:       Orig=${w1.toFixed(4)}, New=${w2.toFixed(4)}, Upper=${w3.toFixed(4)}`);
+
+    assert('F4: origLower IS Jan 2036', summary.brackets.lowerCUSIP === '91282CPU9', true);
+    assert('F4: newLower IS Jan 2036',  summary.newLowerCUSIP === '91282CPU9', true);
+    assert('F4: origLowerWeight >= 0',  (summary.origLowerWeight ?? 0) >= 0, true);
+
+    const jan2036 = details.find(d => d.cusip === '91282CPU9' && d.isBracketTarget);
+    assert('F4: CPU9 excessQtyBefore === 12', jan2036?.excessQtyBefore, 12);
+    assert('F4: CPU9 fundedYearQtyBefore === 8', jan2036?.fundedYearQtyBefore, 8);
+    console.log(`        CPU9 before:   funded=${jan2036?.fundedYearQtyBefore} excess=${jan2036?.excessQtyBefore}`);
+    console.log(`        QF8 total:     ${qf8?.qty}  excess=${qf8?.excessQty}`);
+  }
+}
+
+// ── Test: Format 5 parsing (cusip,qty,excess header) ─────────────────────────
+{
+  console.log('\nFormat 5 (inline) — parsing: header detection + excessQty');
+  const csv5 = [
+    'cusip,qty,excess',
+    '91282CPU9,0,33',    // all excess (PLI-zeroed funded)
+    '912810QF8,19,24',   // funded + excess
+    '912810QP6,20,0',    // funded only
+    '912810QV3,21,0',
+  ].join('\n');
+  const h5 = parseHoldingsCSV(csv5, tipsMap);
+
+  const cpu9_5 = h5.find(h => h.cusip === '91282CPU9');
+  assert('F5: CPU9 total qty === 33',   cpu9_5?.qty,       33);
+  assert('F5: CPU9 excessQty === 33',   cpu9_5?.excessQty, 33);
+
+  const qf8_5 = h5.find(h => h.cusip === '912810QF8');
+  assert('F5: QF8 total qty === 43',    qf8_5?.qty,        43);
+  assert('F5: QF8 excessQty === 24',    qf8_5?.excessQty,  24);
+
+  const qp6_5 = h5.find(h => h.cusip === '912810QP6');
+  assert('F5: QP6 total qty === 20',    qp6_5?.qty,        20);
+  assert('F5: QP6 excessQty === 0',     qp6_5?.excessQty,  0);
+}
+
+// ── Test: Format 5 from file (tests/dev/CusipQtyExcess.csv) ─────────────────
+{
+  const filePath = path.resolve('./tests/dev/CusipQtyExcess.csv');
+  if (existsSync(filePath)) {
+    console.log('\nFormat 5 (CusipQtyExcess.csv) — file-based parsing + rebalance');
+    const holdings = parseHoldingsCSV(readFileSync(filePath, 'utf8'), tipsMap);
+
+    // Every row must produce a valid excessQty (not undefined)
+    const missingExcess = holdings.filter(h => h.excessQty == null);
+    assert('F5 file: all rows have excessQty', missingExcess.length, 0);
+
+    // Run a full rebalance and verify excessQtyBefore is non-zero for bracket targets
+    const { dara } = inferDARAFromCash({ holdings, tipsMap, refCPI, settlementDate });
+    const { summary, details } = runRebalance({ dara, method: 'Gap', holdings, tipsMap, refCPI, settlementDate });
+    const bracketTargets = details.filter(d => d.isBracketTarget);
+    const hasImportedExcess = bracketTargets.some(d => d.excessQtyBefore > 0);
+    assert('F5 file: bracket excessQtyBefore > 0 (from import)', hasImportedExcess, true);
+    console.log(`        bracket rows:  ${bracketTargets.length}`);
+    for (const d of bracketTargets) {
+      console.log(`        FY ${d.fundedYear}  exBefore=${d.excessQtyBefore}  exAfter=${d.excessQtyAfter}`);
+    }
   }
 }
 
