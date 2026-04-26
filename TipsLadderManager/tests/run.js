@@ -4,7 +4,7 @@
 
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
-import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash } from '../src/rebalance-lib.js';
+import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash, inferFirstYearFromHoldings } from '../src/rebalance-lib.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
 
@@ -580,6 +580,95 @@ console.log('\nBuild→Rebalance DARA inference — firstYear=2035→2036, lastY
   console.log(`        build DARA:      ${BUILD_DARA.toLocaleString()}`);
   console.log(`        inferredDARA:    ${Math.round(inferred).toLocaleString()}`);
   console.log(`        delta:           ${Math.round(inferred - BUILD_DARA).toLocaleString()}`);
+}
+
+// ── Test: Build — firstYear inside gap (2037/2038/2039) ──────────────────────
+// Lower bracket (Jan 2036) always exists — identified from tipsMap even when firstYear > 2036.
+// 2036 row: fundedYearQty = 0, excessQty > 0 (pure bracket excess for duration matching).
+for (const gapFirstYear of [2037, 2038, 2039]) {
+  console.log(`\nBuild — firstYear=${gapFirstYear} (gap year), lastYear=2047`);
+  const dara = 30000, lastYear = 2047;
+  const { summary, results, details } = runBuild({ dara, firstYear: gapFirstYear, lastYear, tipsMap, refCPI, settlementDate });
+  const gapYearsInRange = [];
+  for (let y = gapFirstYear; y <= 2039; y++) gapYearsInRange.push(y);
+  assert(`firstYear=${gapFirstYear}: gapYears covers [${gapFirstYear}–2039]`,
+    summary.gapYears.length, gapYearsInRange.length);
+  assert(`firstYear=${gapFirstYear}: lowerYear === 2036`,
+    summary.lowerYear, 2036);
+  assert(`firstYear=${gapFirstYear}: upperYear === 2040`,
+    summary.upperYear, 2040);
+  assert(`firstYear=${gapFirstYear}: lowerWeight + upperWeight ≈ 1`,
+    summary.lowerWeight + summary.upperWeight, 1, 0.0001);
+  assert(`firstYear=${gapFirstYear}: duration match (w_lo×d_lo + w_up×d_up ≈ avgDuration)`,
+    summary.lowerWeight * summary.lowerDuration + summary.upperWeight * summary.upperDuration,
+    summary.gapParams.avgDuration, 0.001);
+  assert(`firstYear=${gapFirstYear}: lowerExQty > 0`, summary.lowerExQty > 0, true);
+  assert(`firstYear=${gapFirstYear}: upperExQty > 0`, summary.upperExQty > 0, true);
+  assert(`firstYear=${gapFirstYear}: result rows > 0`, results.length > 0, true);
+  // 2036 appears as a pure bracket row (fundedYearQty=0, excessQty>0)
+  const d2036 = details.find(d => d.fundedYear === 2036);
+  assert(`firstYear=${gapFirstYear}: 2036 row present`, d2036 != null, true);
+  assert(`firstYear=${gapFirstYear}: 2036 fundedYearQty === 0`, d2036?.fundedYearQty, 0);
+  assert(`firstYear=${gapFirstYear}: 2036 excessQty > 0`, (d2036?.excessQty ?? 0) > 0, true);
+  console.log(`        gapYears:  [${summary.gapYears.join(',')}]`);
+  console.log(`        lowerYear: ${summary.lowerYear}  lowerExQty: ${summary.lowerExQty}  upperExQty: ${summary.upperExQty}`);
+  console.log(`        weights:   ${summary.lowerWeight?.toFixed(4)} / ${summary.upperWeight?.toFixed(4)}`);
+  console.log(`        durMatch:  ${(summary.lowerWeight*summary.lowerDuration + summary.upperWeight*summary.upperDuration).toFixed(4)} ≈ ${summary.gapParams?.avgDuration?.toFixed(4)}`);
+  console.log(`        totalBuyCost: ${Math.round(summary.totalBuyCost).toLocaleString()}`);
+}
+
+// ── Test: Rebalance — firstYearOverride inside gap (2037/2038/2039) ───────────
+{
+  console.log('\nBuild→Rebalance — firstYearOverride=2037, lastYear=2047');
+  const DARA = 30000, buildFirstYear = 2035, lastYear = 2047;
+  const { details: bldDetails } = runBuild({
+    dara: DARA, firstYear: buildFirstYear, lastYear,
+    tipsMap, refCPI, settlementDate,
+  });
+  const holdings = bldDetails.map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }));
+
+  const { summary: rSummary } = runRebalance({
+    dara: DARA, method: 'Full', bracketMode: '2bracket',
+    holdings, tipsMap, refCPI, settlementDate,
+    firstYearOverride: 2037, lastYearOverride: lastYear,
+  });
+  assert('Rebal firstYear=2037: lowerYear === 2036', rSummary.brackets.lowerYear, 2036);
+  assert('Rebal firstYear=2037: upperYear 2040', rSummary.brackets.upperYear, 2040);
+  assert('Rebal firstYear=2037: lowerWeight + upperWeight ≈ 1', rSummary.lowerWeight + rSummary.upperWeight, 1, 0.0001);
+  assert('Rebal firstYear=2037: duration match', rSummary.lowerWeight * rSummary.lowerDuration + rSummary.upperWeight * rSummary.upperDuration, rSummary.gapParams.avgDuration, 0.001);
+  assert('Rebal firstYear=2037: gapYears = [2037,2038,2039]', JSON.stringify(rSummary.gapYears), '[2037,2038,2039]');
+  // costDeltaSum is positive: selling 2035/2036 funded bonds releases cash (ladder shortening)
+  assert('Rebal firstYear=2037: costDeltaSum >= 0 (cash released from sold years)', rSummary.costDeltaSum >= 0, true);
+  console.log(`        costDeltaSum: ${Math.round(rSummary.costDeltaSum).toLocaleString()}`);
+  console.log(`        gapYears: [${rSummary.gapYears.join(',')}]`);
+  console.log(`        lowerWeight/upperWeight: ${rSummary.lowerWeight}/${rSummary.upperWeight}`);
+}
+
+// ── Test: inferFirstYearFromHoldings ─────────────────────────────────────────
+{
+  console.log('\ninferFirstYearFromHoldings');
+  const DARA = 30000, lastYear = 2047;
+
+  // Build with firstYear=2038 (gap year) → 2036 gets pure bracket excess, no funded component.
+  for (const firstYearIn of [2037, 2038, 2039]) {
+    const { details: bldD } = runBuild({ dara: DARA, firstYear: firstYearIn, lastYear, tipsMap, refCPI, settlementDate });
+    // Simulate Format 5 CSV round-trip: include excessQty for all rows.
+    const holdings = bldD.map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }));
+    const inferred = inferFirstYearFromHoldings({ holdings, tipsMap, refCPI, settlementDate });
+    assert(`inferFirstYear from build firstYear=${firstYearIn}`, inferred, firstYearIn);
+  }
+
+  // Format 3 (no excessQty) → returns null (no inference possible).
+  const { details: bldD3 } = runBuild({ dara: DARA, firstYear: 2038, lastYear, tipsMap, refCPI, settlementDate });
+  const holdingsNoExcess = bldD3.map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty }));
+  const inferredNull = inferFirstYearFromHoldings({ holdings: holdingsNoExcess, tipsMap, refCPI, settlementDate });
+  assert('inferFirstYear Format3 (no excessQty) → null', inferredNull, null);
+
+  // Build with firstYear=2036 (funded year, not pure bracket) → 2036 has funded component → returns null.
+  const { details: bldD36 } = runBuild({ dara: DARA, firstYear: 2036, lastYear, tipsMap, refCPI, settlementDate });
+  const holdings36 = bldD36.map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }));
+  const inferred36 = inferFirstYearFromHoldings({ holdings: holdings36, tipsMap, refCPI, settlementDate });
+  assert('inferFirstYear from build firstYear=2036 → null (2036 is funded, not pure bracket)', inferred36, null);
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────

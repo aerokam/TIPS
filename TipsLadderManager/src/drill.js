@@ -593,6 +593,18 @@ export function buildDurationPopupRows(summary, mode) {
     rows.push({ sep: true }, { label: 'Duration match', note: match, total: true });
     if (fellBack) rows.push({ sep: true }, { label: '2-bracket fallback', note: 'Orig lower excess exceeded gap cost (w1 > 1). Sold orig lower to 2-bracket target; no new lower bought.' });
 
+  } else if (lowerYear == null) {
+    // No lower bracket (firstYear is inside the gap \u2014 all coverage on upper bracket alone)
+    rows.push(
+      { label: 'Lower bracket', note: 'none \u2014 firstYear is inside the gap block', value: '\u2014' },
+      { label: 'Upper bracket (' + upperLabel + ')', note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
+      { sep: true },
+      { label: 'Lower weight', note: 'n/a', value: '0.0000' },
+      { label: 'Upper weight', note: 'all coverage on upper bracket', value: (upperWeight ?? 1).toFixed(4) }
+    );
+    buckets.push({ dur: upperDuration, weight: upperWeight ?? 1, label: upperLabel });
+    const match = '0.0000 \u00d7 n/a + ' + (upperWeight ?? 1).toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2) + ' = ' + avg.toFixed(2);
+    rows.push({ sep: true }, { label: 'Duration match', note: match, total: true });
   } else {
     const wFml = '(upper dur \u2212 avg dur) / (upper dur \u2212 lower dur)';
     rows.push(

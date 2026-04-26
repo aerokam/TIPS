@@ -1,8 +1,6 @@
-# CLAUDE.md
+# CLAUDE.md - Treasuries Project
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-## Commands
+## Commands (TipsLadderManager)
 
 ```bash
 # Unit/algorithm tests
@@ -14,10 +12,9 @@ npx playwright test --headed   # headed (debug)
 
 # Serve locally (no build step required)
 npx serve .
-# Local test server already running on port 8080
 ```
 
-## Architecture
+## Architecture (TipsLadderManager)
 
 **No build step.** Pure ES modules served statically via GitHub Pages. Data fetched from Cloudflare R2 at runtime.
 
@@ -30,27 +27,10 @@ npx serve .
 | `src/ladder-math.js` | Sweep helpers: `fyQty()`, `laterMatIntContribution()` |
 | `src/rebalance-lib.js` | Rebalance orchestrator — calls the above, no raw formulas |
 | `src/build-lib.js` | Build-from-scratch orchestrator — same constraint |
-| `src/render.js` | Table HTML from unified `COLS` schema (183L) |
+| `src/render.js` | Table HTML from unified `COLS` schema |
 | `src/drill.js` | Popup builder: `buildDrillHTML(d, colKey, summary, mode)` |
 | `src/data.js` | CSV fetch/parse from R2 |
 | `index.html` | Thin shell: event wiring, calls render/drill, zero business logic |
-
-### Spec-First Protocol (hard rule)
-
-**Knowledge docs are the source of truth for algorithm intent.** Any algorithm change updates the spec BEFORE or WITH the code, never after.
-
-| Doc | Governs |
-|-----|---------|
-| `knowledge/3.0_TIPS_Ladder_Rebalancing.md` | Core rebalance algorithm, all named quantities, formulas, variable mapping |
-| `knowledge/4.0_Computation_Modules.md` | Module APIs (bond-math, gap-math, ladder-math) |
-| `knowledge/5.0_UI_Schema.md` | COLS schema, table structure, drill popup routing |
-| `../knowledge/TIPS_Basics.md` | costPerBond, piPerBond, indexRatio, adjustedPrincipal |
-
-**Documentation Parity**: Whenever core logic, UI fields, or default behaviors are changed:
-- `README.md` must be updated to reflect new capabilities.
-- `index.html` Help Modal (`#help-overlay`) must be updated to ensure in-app help is accurate.
-
-Before touching any displayed value: read the relevant knowledge doc first.
 
 ### Key Algorithms
 
@@ -68,26 +48,23 @@ Before touching any displayed value: read the relevant knowledge doc first.
 
 - **R2 bucket**: `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/` — files: `YieldsFromFedInvestPrices.csv`, `RefCPI.csv`, `TipsRef.csv`
 - **GitHub Actions**: daily yield fetch (`get-tips-yields.yml`), monthly CPI fetch (`fetch-ref-cpi.yml`)
-- **DST note**: After Mar 8 2026, change `0 18` → `0 17` in `get-tips-yields.yml`
 
 ### Naming Conventions
 
 - `fundedYear` (not `fy`) everywhere: `d.fundedYear`, `fundedYearQty`, `fundedYearAmt`, `fundedYearCost`; column header "Funded Year"
 - `runBuild` (not `runBuildFromScratch`), `renderBuildOutput`, `buildSummary`, `buildDetails`, `build-table`
 
-### Terminology (read every session — do not infer, do not substitute)
-
-Derived from `knowledge/1.0_Bond_Ladders.md` → `knowledge/TIPS_Basics.md` → `knowledge/2.0_TIPS_Ladders.md`. If you see any of these used incorrectly in specs or code comments, flag it.
+### Terminology
 
 | Use this | Not this | Why |
 |---|---|---|
-| **TIPS** | bond, note, security | TIPS is a distinct Treasury category; use it in prose everywhere. Code variable names (`piPerBond`, `costPerBond`) are legacy — acceptable in code, never in spec prose or agent commentary. |
-| **actual TIPS** | real bond, real TIPS | "real" means inflation-adjusted (e.g., DARA = Desired Annual *Real* Amount). Never use "real" to mean "existing/purchased." |
-| **funded year** | real year, actual year | All years are real. A funded year is a ladder rung — a calendar year bucket that delivers ARA. |
-| **bracket year** | *(no bad term, just define it)* | A funded year that *also* holds excess TIPS for duration matching gap years. Same maturity, dual role. |
-| **gap year** | *(no bad term)* | A calendar year with no TIPS issuance (currently 2037–2039). |
-| **synthetic TIPS** | synthetic bond | Hypothetical TIPS constructed for gap years to enable duration matching. Never purchased. |
-| **LMI** | *(no bad term)* | Later Maturity Interest — annual coupon from ALL TIPS maturing after the funded year. Identical concept whether the rung is actual or synthetic. |
+| **TIPS** | bond, note, security | TIPS is a distinct Treasury category |
+| **actual TIPS** | real bond, real TIPS | "real" means inflation-adjusted |
+| **funded year** | real year, actual year | A funded year is a ladder rung |
+| **bracket year** | — | A funded year that also holds excess TIPS for duration matching gap years |
+| **gap year** | — | A calendar year with no TIPS issuance (currently 2037–2039) |
+| **synthetic TIPS** | synthetic bond | Hypothetical TIPS for gap years — never purchased |
+| **LMI** | — | Later Maturity Interest — annual coupon from ALL TIPS maturing after the funded year |
 
 ### Windows / Tooling Note
 

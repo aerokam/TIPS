@@ -321,7 +321,7 @@
 </div>
 
 <script type="module">
-import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash, yieldFromPrice } from './src/rebalance-lib.js';
+import { buildTipsMapFromYields, localDate, runRebalance, inferDARAFromCash, inferFirstYearFromHoldings, yieldFromPrice } from './src/rebalance-lib.js';
 import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill } from './src/drill.js';
@@ -380,8 +380,11 @@ async function loadData() {
 
     const firstYearSel = document.getElementById('first-year');
     while (firstYearSel.options.length > 1) firstYearSel.remove(1);
-    bfsYears.forEach(y => {
-      const opt = document.createElement('option'); opt.value = y; opt.textContent = y;
+    // Include gap years (2037–2039) so the user can start the ladder inside the gap block.
+    const _bfsFirstYearOptions = [...new Set([...bfsYears, ..._bfsGapYears])].sort((a, b) => a - b);
+    _bfsFirstYearOptions.forEach(y => {
+      const opt = document.createElement('option'); opt.value = y;
+      opt.textContent = _bfsGapYears.has(y) ? `${y} (gap)` : String(y);
       firstYearSel.appendChild(opt);
     });
     firstYearSel.value = bfsYears[0] || '';
@@ -745,15 +748,28 @@ function updateRebalFirstYearDropdown() {
 
   const _tipsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
   const _minTipsY  = _tipsYears[0] ?? _firstY;
+  const _maxTipsY  = _tipsYears[_tipsYears.length - 1] ?? _derivedLY;
+  // Gap years: years in [_minTipsY, _maxTipsY] with no TIPS issued
+  const _rebalGapYears = new Set();
+  for (let y = _minTipsY; y <= _maxTipsY; y++) { if (!_tipsYears.includes(y)) _rebalGapYears.add(y); }
 
   const _curVal = sel.value ? parseInt(sel.value, 10) : NaN;
-  const _selVal = (!isNaN(_curVal) && _curVal >= _minTipsY && _curVal <= _derivedLY) ? _curVal : _firstY;
+  let _defaultFirstYear = _firstY;
+  if (isNaN(_curVal) || _curVal < _minTipsY || _curVal > _derivedLY) {
+    const _refCPI = refCpiRows && (activeRefCpiDateStr ?? _defaultRefCpiDateStr)
+      ? lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr) : 0;
+    if (_refCPI > 0 && settlementDate) {
+      const _inferred = inferFirstYearFromHoldings({ holdings: currentHoldingsArray, tipsMap, refCPI: _refCPI, settlementDate });
+      if (_inferred != null) _defaultFirstYear = _inferred;
+    }
+  }
+  const _selVal = (!isNaN(_curVal) && _curVal >= _minTipsY && _curVal <= _derivedLY) ? _curVal : _defaultFirstYear;
 
   for (let y = _minTipsY; y <= _derivedLY; y++) {
-    if (!_tipsYears.includes(y)) continue;
+    if (!_tipsYears.includes(y) && !_rebalGapYears.has(y)) continue;
     const opt = document.createElement('option');
     opt.value = y;
-    opt.textContent = String(y);
+    opt.textContent = _rebalGapYears.has(y) ? `${y} (gap)` : String(y);
     if (y === _selVal) opt.selected = true;
     sel.appendChild(opt);
   }
