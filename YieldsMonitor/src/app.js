@@ -1,6 +1,6 @@
 // Treasury Yields Monitor - app.js
 import { handleChartKeydown, setupAxisWheelZoom, snapYBounds, snapYAfterZoom, applyLockRight } from '../../shared/src/chart-keys.js';
-import { applyXTimeUnit } from '../../shared/src/chart-time-axis.js';
+import { applyXTimeUnit, getXTimeUnit } from '../../shared/src/chart-time-axis.js';
 
 const AVAILABLE_SYMBOLS = {
   // TIPS
@@ -350,10 +350,13 @@ function applyDefaultBounds(sym, chart, data) {
     const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 10);
     chart.options.scales.x.min = cutoff.getTime();
   } else {
-    chart.options.scales.x.min = null;
+    chart.options.scales.x.min = data[0].x.getTime();
   }
   chart.options.scales.x.max = xMaxAnchors[sym] ?? snapXMax(data[data.length-1].x).getTime();
-  if (activeRange !== '2D' && activeRange !== '10D') applyXTimeUnit(chart);
+  if (activeRange !== '2D' && activeRange !== '10D') {
+    // Use data bounds directly — chart.scales.x.min may be uninitialized on first load
+    chart.options.scales.x.time.unit = getXTimeUnit(chart.options.scales.x.max - data[0].x.getTime());
+  }
   chart.update('none');
   rescaleYToVisible(chart, sym);
 }
