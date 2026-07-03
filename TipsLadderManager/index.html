@@ -435,24 +435,34 @@ document.getElementById('bracket-mode-help').addEventListener('click', e => {
 });
 document.getElementById('seg-tools-help').addEventListener('click', e => {
   e.stopPropagation();
-  showPopup(e.currentTarget, 'Segmented DARA', [
-    { html: 'Manage one holdings file as several consecutive ladders, each with its own independent DARA target — e.g. a near-term spend-down stretch, then one or more tapering or speculative/heirs stretches beyond it.' },
+  const isRebal = currentMode === 'rebalance';
+  const sections = [
+    { html: isRebal
+        ? 'Manage one holdings file as several consecutive ladders, each with its own independent DARA target — e.g. a near-term spend-down stretch, then one or more tapering or speculative/heirs stretches beyond it.'
+        : 'Divide the ladder you are building into several consecutive stretches, each with its own DARA target — e.g. a near-term stretch, then one or more tapering stretches beyond it.' },
     { sep: true },
     { heading: 'Split years' },
     { html: 'Add or remove split years to divide the funded-year range into segments. Adding/removing a split only changes where the boundaries fall — <b>nothing is inferred automatically</b>. You decide whether to infer any, some, or all of the resulting segments.' },
     { sep: true },
-    { heading: 'Infer DARA (per segment)' },
-    { html: 'Each segment’s button solves <b>that segment alone</b> and stamps a single self-financing value across its rungs — every other segment’s per-year DARA is left untouched. A segment solves against whatever is <b>currently</b> in the other segments, so income flows only downward (longer → shorter maturities): for whole-portfolio net cash ≈ 0, infer/finalize segments <b>top (longest) to bottom (shortest)</b>.' },
-    { sep: true },
-    { heading: '“Ripple down”' },
-    { html: 'A longer segment’s income still funds the shorter segments below it — but that happens as the natural coupon flow (LMI+AMD) inside the rebalance, <b>not</b> by rewriting their DARA. So you can infer one segment on its own and the ones below benefit when you run, without their targets changing.' },
-    { sep: true },
+  ];
+  if (isRebal) {
+    sections.push(
+      { heading: 'Infer DARA (per segment)' },
+      { html: 'Each segment’s button solves <b>that segment alone</b> and stamps a single self-financing value across its rungs — every other segment’s per-year DARA is left untouched. A segment solves against whatever is <b>currently</b> in the other segments, so income flows only downward (longer → shorter maturities): for whole-portfolio net cash ≈ 0, infer/finalize segments <b>top (longest) to bottom (shortest)</b>.' },
+      { sep: true },
+      { heading: '“Ripple down”' },
+      { html: 'A longer segment’s income still funds the shorter segments below it — but that happens as the natural coupon flow (LMI+AMD) inside the rebalance, <b>not</b> by rewriting their DARA. So you can infer one segment on its own and the ones below benefit when you run, without their targets changing.' },
+      { sep: true },
+    );
+  }
+  sections.push(
     { heading: 'Typed amount ($ each)' },
-    { html: 'Type a constant and press Enter (or click away) to stamp it across that segment’s rungs — a manual override of the inferred value (same as the main DARA field, no button). Every other segment is left untouched.' },
+    { html: 'Type a constant and press Enter (or click away) to stamp it across that segment’s rungs' + (isRebal ? ' — a manual override of the inferred value (same as the main DARA field, no button).' : ' (same as the main DARA field, no button).') + ' Every other segment is left untouched.' },
     { sep: true },
     { heading: 'Undo / Revert to loaded' },
     { html: 'Every bulk change is undoable (<b>Undo</b>, or Ctrl+Z while the panel is open). <b>Revert to loaded</b> jumps straight back to the per-year DARA as it was when the file loaded — no CSV reload needed.' },
-  ]);
+  );
+  showPopup(e.currentTarget, 'Segmented DARA', sections);
 });
 document.getElementById('help-close').addEventListener('click', () => {
   document.getElementById('help-overlay').style.display = 'none';
@@ -564,6 +574,9 @@ let _daraRebal = '', _daraBuild = '40000';
 // Per-mode per-year DARA state — saved/restored on mode switch so Build and Rebalance are fully independent
 let _daraByYearStoreRebal = new Map(), _daraByYearPanelDefaultRebal = null;
 let _daraByYearStoreBuild = new Map(), _daraByYearPanelDefaultBuild = null;
+// Years whose per-year DARA the user typed directly into that year's own row — protected from
+// being restamped by a segment Infer/constant action (including the auto-cascade below).
+let _daraManualYearsRebal = new Set(), _daraManualYearsBuild = new Set();
 const _infoPopups = {};
 let _rebalDurationRows = null, _buildDurationRows = null;
 let _rebalFuture30yDurationRows = null, _buildFuture30yDurationRows = null;
@@ -584,16 +597,24 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraBuild = daraEl.value;
       _daraByYearStoreBuild = _daraByYearStore; _daraByYearPanelDefaultBuild = _daraByYearPanelDefault;
       _daraUndoStackBuild = _daraUndoStack; _daraLoadedSnapshotBuild = _daraLoadedSnapshot;
+      _daraManualYearsBuild = _daraManualYears; _daraManualLoadedSnapshotBuild = _daraManualLoadedSnapshot;
+      _splitYearsBuild = _splitYears; _segInferredEchoBuild = _segInferredEcho;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
       _daraUndoStack = _daraUndoStackRebal; _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
+      _daraManualYears = _daraManualYearsRebal; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotRebal;
+      _splitYears = _splitYearsRebal; _segInferredEcho = _segInferredEchoRebal;
     } else {
       _daraRebal = daraEl.value;
       _daraByYearStoreRebal = _daraByYearStore; _daraByYearPanelDefaultRebal = _daraByYearPanelDefault;
       _daraUndoStackRebal = _daraUndoStack; _daraLoadedSnapshotRebal = _daraLoadedSnapshot;
+      _daraManualYearsRebal = _daraManualYears; _daraManualLoadedSnapshotRebal = _daraManualLoadedSnapshot;
+      _splitYearsRebal = _splitYears; _segInferredEchoRebal = _segInferredEcho;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
       _daraUndoStack = _daraUndoStackBuild; _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
+      _daraManualYears = _daraManualYearsBuild; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotBuild;
+      _splitYears = _splitYearsBuild; _segInferredEcho = _segInferredEchoBuild;
     }
     _rungPreEdit = null; _rungDirty = false;
     
@@ -634,11 +655,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     const _activeSummary = isRebalance ? rebalSummary : buildSummary;
     _renderWAD(_activeSummary?.weightedAvgDuration ?? 0, _activeSummary?.weightedAvgYield ?? 0);
 
-    document.getElementById('dara-remember-row').style.display = isRebalance && _daraCacheKey ? 'flex' : 'none';
-    if (!isRebalance) document.getElementById('dara-plan-banner').style.display = 'none';
-
     setStatus('');
-    renderDaraByYearPanel();
+    renderDaraByYearPanel();  // refreshes _panelYearRange first — the cache key below needs it current
+    _updateDaraRememberUI(isRebalance ? _lastAccountNames : null);
   });
 });
 
@@ -1132,9 +1151,11 @@ function updateRebalLastYearDropdown() {
 function _initRebalDaraFromPortfolio() {
   _daraByYearStore = new Map();
   _daraByYearPanelDefault = null;
+  _daraManualYears = new Set();
   _bracketAutoCapYears = new Set();
   _daraUndoStack = [];
   _daraLoadedSnapshot = null;
+  _daraManualLoadedSnapshot = null;
   document.getElementById('dara').value = '';
 
   if (currentMode !== 'rebalance' || !currentHoldingsArray || !tipsMap || !refCpiRows || !settlementDate) {
@@ -1151,6 +1172,10 @@ function _initRebalDaraFromPortfolio() {
   if (currentImportedDaraByYear && currentImportedDaraByYear.size > 0) {
     const yrs = [...currentImportedDaraByYear.keys()].sort((a, b) => a - b);
     _daraByYearStore = new Map(currentImportedDaraByYear);
+    // NOT marked manual: an explicit #fundedYear,dara block is a loaded baseline (honored exactly
+    // for Run, per 3.0/2.1), but pinning every one of its years would make the segment tools inert
+    // on any re-import of our own export — the common case for a next rebalancing cycle. Only a
+    // year the user hand-types into its own row THIS session is protected from the cascade.
     const vals = [...currentImportedDaraByYear.values()].sort((a, b) => a - b);
     _daraByYearPanelDefault = Math.round(vals[Math.floor(vals.length / 2)]);
     document.getElementById('dara').value = _daraByYearPanelDefault;
@@ -1159,6 +1184,7 @@ function _initRebalDaraFromPortfolio() {
     const fySel = document.getElementById('rebal-first-year');
     if (fySel && [...fySel.options].some(o => +o.value === yrs[0])) fySel.value = String(yrs[0]);
     _daraLoadedSnapshot = new Map(_daraByYearStore);
+    _daraManualLoadedSnapshot = new Set(_daraManualYears);
     renderDaraByYearPanel();
     return;
   }
@@ -1192,6 +1218,7 @@ function _initRebalDaraFromPortfolio() {
   _daraByYearStore = store;
   _daraByYearPanelDefault = median;
   _daraLoadedSnapshot = new Map(_daraByYearStore);
+  _daraManualLoadedSnapshot = new Set();  // load mirror — nothing hand-typed yet
   document.getElementById('dara').value = median;
   renderDaraByYearPanel();
 }
@@ -1207,6 +1234,11 @@ function _initRebalDaraFromPortfolio() {
 const DARA_PLAN_PREFIX = 'tlm-dara-plan:';
 
 function _computeDaraCacheKey(accountNames) {
+  if (currentMode === 'build') {
+    if (!_panelYearRange) return null;
+    const { fy, ly } = _panelYearRange;
+    return { key: `${DARA_PLAN_PREFIX}build:${fy}-${ly}`, label: `Build ${fy}–${ly}` };
+  }
   if (accountNames && accountNames.length) {
     const label = [...accountNames].sort((a, b) => a.localeCompare(b)).join(' + ');
     return { key: DARA_PLAN_PREFIX + 'acct:' + label, label };
@@ -1243,7 +1275,7 @@ function _updateDaraRememberUI(accountNames) {
   _daraCacheLabel = info?.label ?? null;
   banner.style.display = 'none';
 
-  if (currentMode !== 'rebalance' || !_daraCacheKey) { row.style.display = 'none'; cb.checked = false; return; }
+  if (!_daraCacheKey) { row.style.display = 'none'; cb.checked = false; return; }
   row.style.display = 'flex';
   document.getElementById('dara-remember-label').textContent = `Remember this DARA plan (${_daraCacheLabel})`;
 
@@ -1266,6 +1298,9 @@ document.getElementById('dara-plan-apply').addEventListener('click', () => {
   if (!saved) return;
   _snapshotDara();
   _daraByYearStore = new Map(saved.daraByYear);
+  // NOT marked manual — same reasoning as an explicit #fundedYear,dara import: a remembered plan is
+  // a loaded baseline, and pinning it whole would make the segment tools inert on the very next use.
+  _daraManualYears = new Set();
   _splitYears = saved.splitYears ?? [];
   _clearOutput();
   renderDaraByYearPanel();  // refreshes _panelYearRange first — _segments() below needs it current
@@ -1306,7 +1341,7 @@ document.getElementById('dara-plan-import-btn').addEventListener('click', () => 
 document.getElementById('dara-plan-import-file').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
-  if (!currentHoldingsArray) { setStatus('Load holdings before importing a DARA plan.', true); return; }
+  if (!_panelYearRange) { setStatus(currentMode === 'rebalance' ? 'Load holdings before importing a DARA plan.' : 'Choose a Last Year before importing a DARA plan.', true); return; }
   const text = await file.text();
   const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
   const daraMap = parseFundedYearDaraBlock(rawLines);
@@ -1320,14 +1355,19 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 
   _snapshotDara();
   _daraByYearStore = new Map(daraMap);
+  // NOT marked manual — same reasoning as an explicit #fundedYear,dara import: an imported plan is
+  // a loaded baseline, and pinning it whole would make the segment tools inert on the very next use.
+  _daraManualYears = new Set();
   _splitYears = splitYears;
   _daraByYearPanelDefault = Math.round(vals[Math.floor(vals.length / 2)]);
   document.getElementById('dara').value = _daraByYearPanelDefault;
-  const lySel = document.getElementById('rebal-last-year');
+  const isRebal = currentMode === 'rebalance';
+  const lySel = document.getElementById(isRebal ? 'rebal-last-year' : 'last-year');
   if (lySel && [...lySel.options].some(o => +o.value === yrs[yrs.length - 1])) lySel.value = String(yrs[yrs.length - 1]);
-  const fySel = document.getElementById('rebal-first-year');
+  const fySel = document.getElementById(isRebal ? 'rebal-first-year' : 'first-year');
   if (fySel && [...fySel.options].some(o => +o.value === yrs[0])) fySel.value = String(yrs[0]);
   _daraLoadedSnapshot = new Map(_daraByYearStore);
+  _daraManualLoadedSnapshot = new Set(_daraManualYears);
 
   _clearOutput();
   renderDaraByYearPanel();  // refreshes _panelYearRange (from the just-updated dropdowns) first
@@ -1367,9 +1407,11 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   _daraAutoInferred = false;
   _daraByYearStore = new Map();
   _daraByYearPanelDefault = null;
+  _daraManualYears = new Set();
   _bracketAutoCapYears = new Set();
   _daraUndoStack = [];
   _daraLoadedSnapshot = null;
+  _daraManualLoadedSnapshot = null;
   _splitYears = [];
   _segInferredEcho = new Map();
   _daraCacheKey = null; _daraCacheLabel = null;
@@ -1483,7 +1525,8 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     updateRebalLastYearDropdown();
     updateRebalFirstYearDropdown();
     _initRebalDaraFromPortfolio();
-    _updateDaraRememberUI(acctNames.length === 1 ? acctNames : null);
+    _lastAccountNames = acctNames.length === 1 ? acctNames : null;
+    _updateDaraRememberUI(_lastAccountNames);
   } catch (err) {
     setStatus('Error reading file: ' + err.message, true);
   }
@@ -1507,7 +1550,8 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     updateRebalLastYearDropdown();
     updateRebalFirstYearDropdown();
     _initRebalDaraFromPortfolio();
-    _updateDaraRememberUI(selected);
+    _lastAccountNames = selected;
+    _updateDaraRememberUI(_lastAccountNames);
   });
   const clearAllBtn = document.getElementById('account-clear-all');
   if (clearAllBtn) {
@@ -1608,35 +1652,47 @@ let _drillDragging = false;
 // ─── Per-year DARA panel ──────────────────────────────────────────────────────
 let _daraByYearPanelDefault = null;
 let _daraByYearStore = new Map();  // year → value; persists across year-range changes
+let _daraManualYears = new Set();  // years the user hand-typed into that year's own row — protected
+                                    // from segment Infer/constant (and its auto-cascade); see mode-swap above
+let _daraManualLoadedSnapshot = null;  // manual-year set paired with _daraLoadedSnapshot, for Revert
 let _bracketAutoCapYears = new Set();  // years auto-capped to median (bracket excess detected)
 let _lastKnownDara = null;          // last DARA used (including auto-inferred)
 let _daraAutoInferred = false;      // true when DARA field was populated by inferDARAFromCash
 let _daraByYearBodyCollapsed = true;
-let _splitYears = [];               // segment boundaries (rebalance segmented DARA); [] → whole ladder is one segment
+let _splitYears = [];               // segment boundaries (segmented DARA); [] → whole ladder is one segment
 let _segInferredEcho = new Map();   // segKey(years) -> last shown "$ each" value; #seg-rows is rebuilt every
                                      // render, so this is the only thing that survives a re-render to refill it
+// Per-mode mirrors of the two above, swapped on mode toggle — same pattern as _daraByYearStore, so
+// switching Build/Rebalance never leaks one mode's split years or echoes into the other's panel.
+let _splitYearsRebal = [], _splitYearsBuild = [];
+let _segInferredEchoRebal = new Map(), _segInferredEchoBuild = new Map();
 let _daraCacheKey = null;            // localStorage key for the current account/year-range signature, or null
 let _daraCacheLabel = null;          // human-readable label for the Remember checkbox / banner
 let _panelYearRange = null;         // { fy, ly } of the years currently shown in the per-year panel
+// Account names from the most recent rebalance holdings load, re-used to recompute the cache key/
+// label when switching back into rebalance (Build has no such identity — see mode-toggle handler).
+let _lastAccountNames = null;
 // Per-year DARA history (for Undo / Revert). Stacks hold pre-mutation clones of _daraByYearStore;
 // loaded snapshot is the as-imported map (rebalance only). All swap with the store on mode change.
 let _daraUndoStack = [], _daraLoadedSnapshot = null;
 let _daraUndoStackRebal = [], _daraLoadedSnapshotRebal = null;
 let _daraUndoStackBuild = [], _daraLoadedSnapshotBuild = null;
-let _rungPreEdit = null, _rungDirty = false;  // one undo entry per committed per-rung edit session
+let _daraManualLoadedSnapshotRebal = null, _daraManualLoadedSnapshotBuild = null;
+let _rungPreEdit = null, _rungDirty = false, _rungEditYear = null;  // one undo entry per committed per-rung edit session
 
-// Push a clone of the current store before a bulk DARA mutation, so it can be undone.
+// Push a clone of the current store + manual-year set before a bulk DARA mutation, so it can be undone.
 function _snapshotDara() {
-  _daraUndoStack.push(new Map(_daraByYearStore));
+  _daraUndoStack.push({ store: new Map(_daraByYearStore), manual: new Set(_daraManualYears) });
   if (_daraUndoStack.length > 50) _daraUndoStack.shift();
   _renderDaraHistoryBtns();
 }
 
-// Restore the store from a snapshot map, then refresh panel + clear stale output. The segment
-// "inferred amount" fields are display-only echoes of the last infer, so blank them — the restored
-// state no longer corresponds to those inferred medians.
-function _restoreDara(map) {
-  _daraByYearStore = map;
+// Restore the store + manual-year set from a snapshot, then refresh panel + clear stale output. The
+// segment "inferred amount" fields are display-only echoes of the last infer, so blank them — the
+// restored state no longer corresponds to those inferred medians.
+function _restoreDara(snap) {
+  _daraByYearStore = snap.store;
+  _daraManualYears = snap.manual ?? new Set();
   _segInferredEcho.clear();
   _clearOutput();
   renderDaraByYearPanel();
@@ -1653,7 +1709,7 @@ function _undoDara() {
 function _revertDaraToLoaded() {
   if (!_daraLoadedSnapshot) return;
   _snapshotDara();  // the revert itself is undoable
-  _restoreDara(new Map(_daraLoadedSnapshot));
+  _restoreDara({ store: new Map(_daraLoadedSnapshot), manual: new Set(_daraManualLoadedSnapshot ?? []) });
 }
 
 function _renderDaraHistoryBtns() {
@@ -1690,10 +1746,11 @@ function _daraByYearRow(y, val, suffix = '', bracketFlag = false) {
     + ' style="width:100px;text-align:right;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-size:12px;font-variant-numeric:tabular-nums"></td></tr>';
 }
 
-// Returns the numeric default DARA — handles 'by year' state where input holds text
+// Returns the numeric default DARA — the box reads blank whenever it's showing 'by year' (custom
+// per-year shape or a segmented ladder), so fall back to the tracked panel default in that case.
 function _getDefaultDara() {
   const v = document.getElementById('dara').value.trim();
-  return v === 'by year' ? (_daraByYearPanelDefault ?? NaN) : parseFloat(v);
+  return v === '' ? (_daraByYearPanelDefault ?? NaN) : parseFloat(v);
 }
 
 // True if any per-year store entry differs from the current default (panel need not be visible)
@@ -1705,21 +1762,47 @@ function _hasCustomDara() {
   return false;
 }
 
-// Shows 'by year' inside the DARA input whenever custom per-year values exist.
+// True whenever a single top-level number would be misleading: a variable per-year shape, or the
+// ladder is split into segments (even if every segment happens to currently share one value — the
+// model is segment-based now, not a single flat DARA).
+function _daraIsByYear() {
+  return _hasCustomDara() || _splitYears.length > 0;
+}
+
+// A representative "default" for internal fallback purposes (e.g. years outside the panel's own
+// range) that always tracks the LIVE store — never a stale number left over from before a segment
+// infer or a first/last-year change. Only meaningful once the store is populated.
+function _medianOfStore() {
+  const vals = [..._daraByYearStore.values()].filter(v => v > 0).sort((a, b) => a - b);
+  return vals.length ? vals[Math.floor(vals.length / 2)] : null;
+}
+
+// Blanks the top DARA box (with a "by year" placeholder hint) whenever a single number would be
+// misleading — custom per-year shape or a segmented ladder — and shows the real number otherwise.
 // force=true bypasses the active-element guard (used when per-year table fires input events).
 function updateDaraInput(force = false) {
   const inp = document.getElementById('dara');
   if (!force && document.activeElement === inp) return;  // don't interfere while user is typing
-  if (_hasCustomDara()) {
-    inp.value = 'by year';
-  } else if (inp.value === 'by year') {
+  if (_daraIsByYear()) {
+    inp.value = '';
+    inp.placeholder = 'by year';
+  } else if (inp.value.trim() === '') {
+    // Only fill in the default when the box is actually empty (leaving "by year" mode or a fresh
+    // load) — never clobber a number the user just typed, even an invalid one Run is about to reject.
+    inp.placeholder = '';
     inp.value = _daraByYearPanelDefault != null ? String(_daraByYearPanelDefault) : '';
+  } else {
+    inp.placeholder = '';
   }
 }
 
 function renderDaraByYearPanel() {
-  const panel       = document.getElementById('dara-by-year');
-  const defaultDara = _getDefaultDara();
+  const panel = document.getElementById('dara-by-year');
+  // When the top box is intentionally blank (segmented ladder / custom per-year shape), the
+  // internal default tracks the LIVE store's median instead of re-reading stale/blank field text —
+  // this is what keeps the top box, the segment boxes, and the per-year table from drifting out of
+  // sync (they're all derived from the current store, never from whatever was last typed).
+  const defaultDara = _daraIsByYear() ? (_medianOfStore() ?? _daraByYearPanelDefault) : _getDefaultDara();
   if (!tipsMap || isNaN(defaultDara) || defaultDara <= 0) {
     panel.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return;
   }
@@ -1741,10 +1824,18 @@ function renderDaraByYearPanel() {
   if (currentMode === 'rebalance') {
     if (!currentHoldingsArray) { panel.style.display = 'none'; return; }
     const ly = parseInt(document.getElementById('rebal-last-year').value);
-    let fy = Infinity;
-    for (const h of currentHoldingsArray) {
-      const b = tipsMap.get(h.cusip);
-      if (b?.maturity) fy = Math.min(fy, b.maturity.getFullYear());
+    // Respect an explicit First Year override — same range the actual rebalance run uses — instead
+    // of always starting from the earliest year you happen to hold.
+    const fyOverrideStr = document.getElementById('rebal-first-year').value;
+    let fy;
+    if (fyOverrideStr !== '' && !isNaN(parseInt(fyOverrideStr, 10))) {
+      fy = parseInt(fyOverrideStr, 10);
+    } else {
+      fy = Infinity;
+      for (const h of currentHoldingsArray) {
+        const b = tipsMap.get(h.cusip);
+        if (b?.maturity) fy = Math.min(fy, b.maturity.getFullYear());
+      }
     }
     if (!isFinite(fy) || !ly) return;
     for (let y = fy; y <= ly; y++) {
@@ -1762,6 +1853,13 @@ function renderDaraByYearPanel() {
   }
   if (!yearEntries.length) return;
 
+  // Drop any stored year outside the range just computed (e.g. after narrowing First/Last Year) —
+  // the table, the store, and the manual-year set should never show or carry a year the user can no
+  // longer see or act on.
+  const inRange = new Set(yearEntries.map(e => e.year));
+  for (const y of [..._daraByYearStore.keys()]) if (!inRange.has(y)) _daraByYearStore.delete(y);
+  for (const y of [..._daraManualYears]) if (!inRange.has(y)) _daraManualYears.delete(y);
+
   const tableEl = document.getElementById('dara-by-year-table');
   tableEl.innerHTML = '<thead><tr><th>Year</th><th>DARA ($)</th></tr></thead><tbody>'
     + yearEntries.map(({ year: y, suffix }) => _daraByYearRow(y, _daraByYearStore.get(y) ?? defaultDara, suffix, _bracketAutoCapYears.has(y))).join('')
@@ -1776,7 +1874,7 @@ function renderDaraByYearPanel() {
   updateDaraInput();
 }
 
-// ─── Segmented DARA tools (rebalance only for now) ─────────────────────────────
+// ─── Segmented DARA tools (split years + "$ each" shared; Infer DARA is rebalance-only) ─────────
 // Returns the current segments (array of year-Sets, ascending) for the range shown in the panel.
 function _segments() {
   if (!_panelYearRange) return [];
@@ -1808,13 +1906,14 @@ function _syncSegEchoFromStore() {
   }
 }
 
-// Render the split-year chips/add-control + one action row per resulting segment. Shown only in
-// rebalance with a range. Split years that fell outside the current range (e.g. after a
-// firstYear/lastYear override change) are dropped rather than silently ignored, so the chip list
-// stays truthful.
+// Render the split-year chips/add-control + one action row per resulting segment. Shown in both
+// modes once a year range exists; the Infer DARA button only renders in rebalance (it self-finances
+// against holdings, which Build has none of — Build gets split years + "$ each" stamping only).
+// Split years that fell outside the current range (e.g. after a firstYear/lastYear override change)
+// are dropped rather than silently ignored, so the chip list stays truthful.
 function _renderSegTools() {
   const tools = document.getElementById('dara-seg-tools');
-  if (currentMode !== 'rebalance' || !_panelYearRange) { tools.style.display = 'none'; return; }
+  if (!_panelYearRange) { tools.style.display = 'none'; return; }
   const { fy, ly } = _panelYearRange;
   _splitYears = _splitYears.filter(y => y > fy && y < ly);
 
@@ -1830,12 +1929,15 @@ function _renderSegTools() {
   addSel.innerHTML = addOpts;
 
   const segments = _segments();
+  const inferBtnHTML = i => currentMode === 'rebalance'
+    ? `<button type="button" class="seg-infer-btn seg-btn" data-idx="${i}" title="Infer the self-financing DARA for this segment and apply it across its rungs" style="font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#f1f5f9;color:#475569;cursor:pointer">Infer DARA</button>`
+    : '';
   document.getElementById('seg-rows').innerHTML = segments.map((years, i) => {
     const echo = _segInferredEcho.get(_segKey(years));
     return `
     <div class="seg-row" style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
       <b style="min-width:150px;color:#334155">${segments.length > 1 ? `Segment ${range(years)}` : `Whole ladder ${range(years)}`}</b>
-      <button type="button" class="seg-infer-btn seg-btn" data-idx="${i}" title="Infer the self-financing DARA for this segment and apply it across its rungs" style="font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#f1f5f9;color:#475569;cursor:pointer">Infer DARA</button>
+      ${inferBtnHTML(i)}
       <input type="number" class="seg-const-input" data-idx="${i}" placeholder="$ each" step="1000" min="0" value="${echo ?? ''}" style="width:80px;text-align:right;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-size:12px">
     </div>`;
   }).join('');
@@ -1860,42 +1962,67 @@ function _segmentInferCtx() {
   };
 }
 
-// Segments are inferred INDEPENDENTLY — inferring/changing one never rewrites another's per-year
-// DARA. A longer segment's income still "ripples down" to fund the shorter segments below it, but
-// that is the natural LMI+AMD coupon flow inside the rebalance engine (longest→shortest sweep), not
-// a DARA rewrite. Because each segment self-finances against whatever is CURRENTLY in the others,
-// infer/finalize top (longest) to bottom (shortest) for whole-portfolio net cash ≈ 0.
+// A higher (later-maturity) segment sits above every segment below it in the longest→shortest
+// sweep, so its own self-financing level never depends on them — but the income it throws off
+// (LMI+AMD) flows down and changes what EVERY segment below it needs. So the moment a segment's
+// number changes — by Infer or by typing a flat constant — every segment below it is automatically
+// re-solved against the new income, in order, so the whole ladder stays self-financing without the
+// user having to remember to walk back down and re-click each one by hand. A year the user typed
+// directly into its own row (_daraManualYears) is the user's stated intent for that specific year
+// and is never touched by this — the cascade solves around it, not through it.
 
-// Infer one segment (by index into _segments()) against the current per-year store, which already
-// carries whatever the other segments hold (hand-set or previously inferred) — solving against
-// _daraByYearStore directly is what makes the cascade generalize to any number of segments without
-// an explicit ordered pipeline.
-function _runSegmentInfer(idx) {
-  const ctx = _segmentInferCtx(); if (!ctx) return;
+// Solve + stamp ONE segment's self-financing flat DARA against the store as it stands right now
+// (which already carries whatever the segments above it hold). No snapshot, no re-render — callers
+// batch those around the whole cascade so one user action produces one Undo entry.
+function _inferSegmentCore(idx) {
+  const ctx = _segmentInferCtx(); if (!ctx) return false;
   const scopeYears = _segments()[idx];
-  if (!scopeYears || !scopeYears.size) return;
-  _snapshotDara();
+  if (!scopeYears || !scopeYears.size) return false;
+  const pinnedDaraByYear = new Map();
+  for (const y of scopeYears) if (_daraManualYears.has(y)) pinnedDaraByYear.set(y, _daraByYearStore.get(y));
   const { scaledMap, scaledMedian } = inferScaledDARAFromPortfolio({
     daraMap: ctx.daraMap, holdings: currentHoldingsArray, tipsMap, refCPI: ctx.rc, settlementDate,
     bracketMode: ctx.bracketMode, lastYearOverride: ctx.lastYearOverride, firstYearOverride: ctx.firstYearOverride,
-    preLadderInterest: ctx.preLadderInterest, scopeYears, fixedDaraByYear: _daraByYearStore, flat: true,
+    preLadderInterest: ctx.preLadderInterest, scopeYears, fixedDaraByYear: _daraByYearStore, pinnedDaraByYear, flat: true,
   });
   applySegmentMap(_daraByYearStore, scopeYears, scaledMap);
   // #seg-rows is fully rebuilt on every render, so the echo must live in _segInferredEcho (keyed
   // by the segment's own year span) rather than the DOM, or every OTHER segment's box would go
   // blank the next time anything re-renders the panel.
   _segInferredEcho.set(_segKey(scopeYears), Math.round(scaledMedian));
+  return true;
+}
+
+// Re-solve every segment BELOW idx (smaller index = nearer-term = downstream in the sweep), in
+// order, so each one reacts to the now-updated income from above. Never touches idx or anything
+// above it — income flows only downward.
+function _cascadeReinferBelow(idx) {
+  for (let j = idx - 1; j >= 0; j--) _inferSegmentCore(j);
+}
+
+// Infer one segment (by index into _segments()) against the current per-year store, then cascade
+// the result down through every segment below it.
+function _runSegmentInfer(idx) {
+  const scopeYears = _segments()[idx];
+  if (!scopeYears || !scopeYears.size) return;
+  _snapshotDara();
+  if (!_inferSegmentCore(idx)) return;
+  _cascadeReinferBelow(idx);
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
   _saveDaraPlanIfRemembered();
 }
 
-// Stamp a typed constant across one segment's rows (by index). Every other segment is untouched.
+// Stamp a typed constant across one segment's rows (by index), then cascade down. A year the user
+// hand-typed within THIS segment is left alone too — the constant fills only the rest.
 function _runSegmentConst(idx, val) {
   const scopeYears = _segments()[idx];
   if (!scopeYears || !scopeYears.size || isNaN(val) || val < 0) return;
   _snapshotDara();
-  applySegmentMap(_daraByYearStore, scopeYears, constantMap(scopeYears, val));
+  const map = constantMap(scopeYears, val);
+  for (const y of scopeYears) if (_daraManualYears.has(y)) map.delete(y);
+  applySegmentMap(_daraByYearStore, scopeYears, map);
   _segInferredEcho.set(_segKey(scopeYears), val);
+  _cascadeReinferBelow(idx);
   _clearOutput();
   renderDaraByYearPanel();
   updateDaraInput(true);
@@ -1908,6 +2035,7 @@ document.getElementById('split-year-add').addEventListener('change', e => {
   const y = parseInt(e.target.value, 10);
   if (!isNaN(y)) _splitYears = [...new Set([..._splitYears, y])].sort((a, b) => a - b);
   _renderSegTools();
+  updateDaraInput(true);  // a single top-level number stops being meaningful the moment segments exist
 });
 document.getElementById('split-year-chips').addEventListener('click', e => {
   const btn = e.target.closest('.split-chip-remove');
@@ -1915,6 +2043,7 @@ document.getElementById('split-year-chips').addEventListener('click', e => {
   const y = parseInt(btn.dataset.year, 10);
   _splitYears = _splitYears.filter(sy => sy !== y);
   _renderSegTools();
+  updateDaraInput(true);  // may un-blank the top box if that was the last split and the shape is flat
 });
 document.getElementById('seg-rows').addEventListener('click', e => {
   const btn = e.target.closest('.seg-infer-btn');
@@ -1972,8 +2101,10 @@ document.getElementById('dara-by-year-hdr').addEventListener('click', () => {
 // focus-out only if a value actually changed — so one Undo entry per deliberately edited rung.
 const _daraTable = document.getElementById('dara-by-year-table');
 _daraTable.addEventListener('focusin', e => {
-  if (!e.target.closest('input[data-year]')) return;
-  if (!_rungPreEdit) { _rungPreEdit = new Map(_daraByYearStore); _rungDirty = false; }
+  const inp = e.target.closest('input[data-year]');
+  if (!inp) return;
+  if (!_rungPreEdit) { _rungPreEdit = { store: new Map(_daraByYearStore), manual: new Set(_daraManualYears) }; _rungDirty = false; }
+  _rungEditYear = parseInt(inp.dataset.year, 10);
 });
 _daraTable.addEventListener('input', e => {
   const inp = e.target.closest('input[data-year]');
@@ -1987,31 +2118,38 @@ _daraTable.addEventListener('focusout', e => {
   // Defer so a focus move between two rung inputs keeps the same edit session open.
   setTimeout(() => {
     if (_daraTable.contains(document.activeElement)) return;  // still editing another rung
-    if (_rungPreEdit && _rungDirty) { _daraUndoStack.push(_rungPreEdit); _renderDaraHistoryBtns(); _saveDaraPlanIfRemembered(); }
-    _rungPreEdit = null; _rungDirty = false;
+    if (_rungPreEdit && _rungDirty) {
+      _daraUndoStack.push(_rungPreEdit);
+      // A hand-typed year is the user's stated intent for that specific rung — protected from being
+      // restamped by a later segment Infer/constant (and its auto-cascade).
+      if (_rungEditYear != null) _daraManualYears.add(_rungEditYear);
+      _renderDaraHistoryBtns(); _saveDaraPlanIfRemembered();
+    }
+    _rungPreEdit = null; _rungDirty = false; _rungEditYear = null;
   }, 0);
 });
 
-// When user focuses the DARA field: open per-year panel; populate from last known if empty
+// When user focuses the DARA field: open per-year panel. While the box is intentionally "by year"
+// (segmented / custom shape) it stays blank — the placeholder already says why — so typing starts
+// from nothing rather than an old flat number the user didn't ask to bring back.
 document.getElementById('dara').addEventListener('focus', () => {
   const inp = document.getElementById('dara');
-  if (inp.value === 'by year') {
-    renderDaraByYearPanel();
-    inp.value = '';
-  } else {
-    if (!inp.value.trim()) inp.value = _lastKnownDara ? String(_lastKnownDara) : '10000';
-    inp.select();
-    renderDaraByYearPanel();
-  }
+  renderDaraByYearPanel();
+  if (!_daraIsByYear() && !inp.value.trim()) inp.value = _lastKnownDara ? String(_lastKnownDara) : '10000';
+  inp.select();
 });
 
-// When user leaves the DARA field with a valid value, apply it to all per-year entries
+// When user leaves the DARA field with a valid value, apply it to all per-year entries — an
+// explicit "set everything to this one number" action, so it also un-pins any per-rung manual
+// values (they're being overridden on purpose) though it leaves segment splits in place.
 document.getElementById('dara').addEventListener('blur', () => {
-  const val = parseFloat(document.getElementById('dara').value);
+  const raw = document.getElementById('dara').value;
+  const val = parseFloat(raw);
   if (!isNaN(val) && val >= 1000) {
     // Snapshot only if this stamp will actually change a stored value.
     if ([..._daraByYearStore.values()].some(v => v !== val)) _snapshotDara();
     _daraByYearPanelDefault = val;
+    _daraManualYears.clear();
     // Update store and existing input elements in-place — avoids replacing innerHTML
     // (which would destroy any per-year input the user may be clicking into)
     const table = document.getElementById('dara-by-year-table');
@@ -2021,11 +2159,15 @@ document.getElementById('dara').addEventListener('blur', () => {
       if (inp) inp.value = val;
     }
     _saveDaraPlanIfRemembered();
+    updateDaraInput();
+  } else if (raw.trim() === '') {
+    updateDaraInput();  // restores the default / placeholder for a genuinely empty field
   }
-  updateDaraInput();
+  // else: a non-empty but invalid value (e.g. below $1,000) is left exactly as typed — Run's own
+  // validation reads and reports on it; don't blank it out from under the user first.
 });
 
-// Shared step logic for ▲/▼ buttons and ArrowUp/Down keys
+// Shared step logic for ▲/▼ buttons and ArrowUp/Down keys — same "explicit flat reset" as blur above.
 function _daraStep(delta) {
   const inp = document.getElementById('dara');
   const cur = _getDefaultDara() || 10000;
@@ -2033,6 +2175,7 @@ function _daraStep(delta) {
   if (_daraByYearStore.size) _snapshotDara();
   inp.value = newVal;
   _daraByYearPanelDefault = newVal;
+  _daraManualYears.clear();
   for (const [yr] of _daraByYearStore) _daraByYearStore.set(yr, newVal);
   renderDaraByYearPanel();
   _saveDaraPlanIfRemembered();
@@ -2132,8 +2275,14 @@ function _clearAutoDara() { if (_daraAutoInferred) { document.getElementById('da
 // Refresh per-year DARA panel when the year range changes (both modes)
 document.getElementById('rebal-last-year').addEventListener('change', renderDaraByYearPanel);
 document.getElementById('rebal-first-year').addEventListener('change', renderDaraByYearPanel);
-document.getElementById('last-year').addEventListener('change', renderDaraByYearPanel);
-document.getElementById('first-year').addEventListener('change', renderDaraByYearPanel);
+// Build has no holdings-load event to key its DARA-plan cache off of, so a changed year range is
+// Build's equivalent of "loading a different ladder" — recompute the cache key/label from it.
+function _onBuildYearRangeChange() {
+  renderDaraByYearPanel();
+  if (currentMode === 'build') _updateDaraRememberUI(null);
+}
+document.getElementById('last-year').addEventListener('change', _onBuildYearRangeChange);
+document.getElementById('first-year').addEventListener('change', _onBuildYearRangeChange);
 
 /* --- DRILL-DOWN MODAL LISTENERS --- */
 document.getElementById('drill-close').addEventListener('click', () => {
