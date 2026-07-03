@@ -107,7 +107,7 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
       const coupon = b.coupon ?? 0;
       const ir = refCPI / (b.baseCpi || refCPI);
       const piPB = 1000 * ir + (b.maturity.getMonth() + 1 < 7 ? 0.5 : 1.0) * 1000 * ir * coupon;
-      const qty = Math.max(0, Math.round((DARA - runningLMI) / piPB));
+      const qty = Math.max(0, Math.round(((daraByYear?.get(year) ?? DARA) - runningLMI) / piPB));
       const annInt = qty * 1000 * ir * coupon;
       prelimAnnInt[year] = annInt;
       runningLMI += annInt;
@@ -131,7 +131,7 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
   // When lastYear < 2040, 2040 is purely a bracket (not a funded rung) — use actual holdings qty for LMI
   const targetQty2040 = lastYear < 2040
     ? _ub2040Holdings.reduce((s, h) => s + h.qty, 0)
-    : Math.round((DARA - laterMaturityFrom2041Plus) / (piPerBond2040 || 1));
+    : Math.round(((daraByYear?.get(2040) ?? DARA) - laterMaturityFrom2041Plus) / (piPerBond2040 || 1));
   const annualInterest2040 = targetQty2040 * 1000 * indexRatio2040 * coupon2040;
 
   const gapLaterMaturityInterest = { 2040: annualInterest2040 };
@@ -491,7 +491,7 @@ export function parseParamsBlock(rawLines) {
 // `flat = true` makes the in-scope solve target a SINGLE flat DARA across every in-scope rung
 // (even real income — the liability-matching use case) instead of the proportionally-scaled
 // natural-ARA shape; the binary search then finds the one flat level that self-finances the segment.
-export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, bracketMode = '2bracket', lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, scopeYears = null, fixedDaraByYear = null, flat = false }) {
+export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, bracketMode = '2bracket', lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, scopeYears = null, fixedDaraByYear = null, pinnedDaraByYear = null, flat = false }) {
   // Cover-year income correction: build's per-year DARA identity is
   //   DARA_y = (P+I)_y + LMI_y + ownExcessCoupon_y + AMD_y
   // but computePortfolioARAByYear recovers only (P+I)+LMI. Add the two cover terms back so the
@@ -559,19 +559,33 @@ export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holding
     ? (y => scopeYears.has(y) || (y > topYear && scopeYears.has(topYear)))
     : (() => true);
 
-  // Scaling pivots on the IN-SCOPE natural-ARA median, so the returned scaledMedian is the
-  // segment's own median (the whole-portfolio median when unscoped).
-  const _vals = [...daraMap.entries()].filter(([y, v]) => inScope(y) && v > 0).map(([, v]) => v).sort((a, b) => a - b);
+  // A year the user has hand-typed a value into (`pinnedDaraByYear`) is held at that value even
+  // though it sits inside this segment's scope — the segment-flat solve sweeps only the remaining,
+  // non-pinned years to find its self-financing level. The pinned year's real cash flow still counts
+  // toward the segment's net-cash target (inCashScope/netCash below stay keyed off the full
+  // scopeYears), it just isn't itself a candidate for restamping.
+  const isPinned = pinnedDaraByYear ? (y => pinnedDaraByYear.has(y)) : (() => false);
+  const sweepable = y => inScope(y) && !isPinned(y);
+
+  // Scaling pivots on the IN-SCOPE, non-pinned natural-ARA median, so the returned scaledMedian is
+  // the segment's own median over the years it actually solves for (the whole-portfolio median when
+  // unscoped and nothing is pinned).
+  const _vals = [...daraMap.entries()].filter(([y, v]) => sweepable(y) && v > 0).map(([, v]) => v).sort((a, b) => a - b);
   const median = _median ?? (_vals.length > 0 ? _vals[Math.floor(_vals.length / 2)] : 0);
 
-  // daraByYear fed to each trial at DARA `level`: in-scope years take `level` flat (flat mode) or
-  // the natural ARA scaled by level/median; out-of-scope years take the other segment's fixed DARA
-  // (else their own natural ARA, so fixed=null ≡ whole-portfolio).
+  // daraByYear fed to each trial at DARA `level`: sweepable years take `level` flat (flat mode) or
+  // the natural ARA scaled by level/median; pinned years keep their fixed value; out-of-scope years
+  // take the other segment's fixed DARA (else their own natural ARA, so fixed=null ≡ whole-portfolio).
   const buildMap = level => {
     const k = median > 0 ? level / median : 1;
     const m = new Map();
-    for (const [y, v] of daraMap) m.set(y, inScope(y) ? (flat ? level : Math.round(v * k)) : (fixedDaraByYear?.get(y) ?? Math.round(v)));
-    if (fixedDaraByYear) for (const [y, v] of fixedDaraByYear) if (!inScope(y) && !m.has(y)) m.set(y, v);
+    for (const [y, v] of daraMap) {
+      if (sweepable(y)) m.set(y, flat ? level : Math.round(v * k));
+      else if (isPinned(y)) m.set(y, pinnedDaraByYear.get(y));
+      else m.set(y, fixedDaraByYear?.get(y) ?? Math.round(v));
+    }
+    if (fixedDaraByYear) for (const [y, v] of fixedDaraByYear) if (!sweepable(y) && !isPinned(y) && !m.has(y)) m.set(y, v);
+    if (pinnedDaraByYear) for (const [y, v] of pinnedDaraByYear) if (!m.has(y)) m.set(y, v);
     return m;
   };
 
@@ -599,7 +613,7 @@ export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holding
     try {
       result = runRebalance({ dara: mid, bracketMode, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear: buildMap(mid), lastYearOverride, firstYearOverride, preLadderInterest });
     } catch (e) {
-      if (e && e.daraTooLowYear != null && inScope(e.daraTooLowYear)) lo = mid + 1;
+      if (e && e.daraTooLowYear != null && sweepable(e.daraTooLowYear)) lo = mid + 1;
       else hi = mid - 1;
       continue;
     }
