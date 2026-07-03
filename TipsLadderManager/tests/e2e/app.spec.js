@@ -361,10 +361,9 @@ test('drill popup: gap-year PLI credit drills into pool composition', async ({ p
   await page.locator('#run-btn').click();
   await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
 
-  // Expand groups so bracket sub-rows (gapAmount cells) become visible.
-  const headers = page.locator('#build-table tbody tr.fy-group-header');
-  const hc = await headers.count();
-  for (let i = 0; i < hc; i++) await headers.nth(i).locator('td').first().click();
+  // Expand all groups so bracket sub-rows (gapAmount cells) become visible.
+  const expandAllBtn = page.locator('#expand-collapse-all-btn');
+  if ((await expandAllBtn.textContent())?.trim() === 'Expand All') await expandAllBtn.click();
 
   const gapCell = page.locator('#build-table td.drillable[data-col="gapAmount"]').first();
   await expect(gapCell).toBeVisible();
