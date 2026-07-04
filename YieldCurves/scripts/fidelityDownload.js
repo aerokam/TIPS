@@ -1,5 +1,5 @@
 import { chromium } from 'playwright';
-import { spawn } from 'child_process';
+import { spawn, spawnSync } from 'child_process';
 import path from 'path';
 import os from 'os';
 import fs from 'fs/promises';
@@ -50,6 +50,88 @@ const LOGIN_URL = 'https://digital.fidelity.com/prgw/digital/signin/retail';
 const SEARCH_URL = 'https://digital.fidelity.com/ftgw/digital/finewexp/secondaries';
 const DEBUG_PORT = 9222;
 const DOWNLOAD_FILENAME = 'FidelityTreasuriesTips.csv';
+const PHONE_LINK_OTP_SCRIPT = path.join(__dirname, 'readPhoneLinkOtp.ps1');
+const PHONE_LINK_OTP_TIMEOUT_SEC = 90;
+
+function getPhoneLinkOtpBaseline() {
+  const res = spawnSync('powershell', ['-NoProfile', '-File', PHONE_LINK_OTP_SCRIPT, '-Mode', 'baseline'], { encoding: 'utf8' });
+  return (res.stdout || '').trim();
+}
+
+function waitForPhoneLinkOtp(baseline) {
+  const res = spawnSync(
+    'powershell',
+    ['-NoProfile', '-File', PHONE_LINK_OTP_SCRIPT, '-Mode', 'wait', '-Baseline', baseline, '-TimeoutSec', String(PHONE_LINK_OTP_TIMEOUT_SEC)],
+    { encoding: 'utf8', timeout: (PHONE_LINK_OTP_TIMEOUT_SEC + 15) * 1000 }
+  );
+  const code = (res.stdout || '').trim();
+  if (res.status !== 0 || !/^\d{6}$/.test(code)) {
+    throw new Error(`Phone Link OTP read failed: ${res.stderr || 'no code received within timeout'}`);
+  }
+  return code;
+}
+
+// Fidelity's Okta-style verify flow defaults to a push notification to the mobile
+// app, which nobody is around to approve on the unattended 5 AM run. Switch to SMS
+// and read the code from Phone Link (paired to the account owner's phone) via
+// Windows UI Automation — see readPhoneLinkOtp.ps1.
+async function completeSmsChallenge(page) {
+  const tryAnotherWay = page.getByText('Try another way', { exact: true });
+  await tryAnotherWay.waitFor({ timeout: 20_000 });
+  await tryAnotherWay.click();
+
+  const textMeButton = page.getByText('Text me the code', { exact: true });
+  await textMeButton.waitFor({ timeout: 15_000 });
+
+  const baseline = getPhoneLinkOtpBaseline();
+  await textMeButton.click();
+  console.log('Requested SMS code, reading Phone Link...');
+  const code = waitForPhoneLinkOtp(baseline);
+  console.log('Got OTP from Phone Link.');
+
+  const codeInput = page.getByLabel('Security code');
+  await codeInput.fill(code);
+
+  const rememberCheckbox = page.getByRole('checkbox', { name: 'Remember this device' });
+  if (await rememberCheckbox.isVisible().catch(() => false) && !(await rememberCheckbox.isChecked())) {
+    await rememberCheckbox.check();
+  }
+
+  await page.getByText('Submit', { exact: true }).click();
+
+  await page.waitForFunction(
+    () => !location.href.includes('/signin/') && !location.href.includes('/login/'),
+    null,
+    { timeout: 30_000 }
+  );
+}
+
+// Safety net if the automated click-through above doesn't match what's on screen
+// (Fidelity changed the flow, Phone Link unreachable, etc.) — wait for a human to
+// finish it manually, dumping page state so the new flow can be inspected after.
+async function waitForManualLogin(page) {
+  const debugDir = path.join(__dirname, '../logs/mfa-debug');
+  const deadline = Date.now() + 300_000;
+  let dumped = false;
+  while (Date.now() < deadline) {
+    const url = page.url();
+    if (!url.includes('/signin/') && !url.includes('/login/')) return;
+    if (!dumped) {
+      console.log('Waiting for manual login completion. Dumping page state to logs/mfa-debug/...');
+      dumped = true;
+    }
+    try {
+      await fs.mkdir(debugDir, { recursive: true });
+      await fs.writeFile(path.join(debugDir, 'latest.html'), await page.content());
+      await page.screenshot({ path: path.join(debugDir, 'latest.png'), fullPage: true });
+      await fs.writeFile(path.join(debugDir, 'latest-url.txt'), `${new Date().toISOString()}\n${url}\n`);
+    } catch (e) {
+      console.error('Debug dump failed:', e.message);
+    }
+    await sleep(5000);
+  }
+  throw new Error('Timed out waiting for login to complete (MFA challenge?)');
+}
 
 async function ensureLoggedIn(page) {
   await page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' });
@@ -66,11 +148,15 @@ async function ensureLoggedIn(page) {
   await page.fill('#dom-pswd-input', process.env.FIDELITY_PASSWORD);
   await page.click('#dom-login-button');
 
-  // Complete any MFA prompt manually — script waits 5 min.
-  await page.waitForURL(
-    url => !url.href.includes('/signin/') && !url.href.includes('/login/'),
-    { timeout: 300_000 }
-  );
+  try {
+    await completeSmsChallenge(page);
+    console.log('Logged in.');
+    return;
+  } catch (e) {
+    console.error('Automated MFA handling failed, falling back to manual wait:', e.message);
+  }
+
+  await waitForManualLogin(page);
   console.log('Logged in.');
 }
 

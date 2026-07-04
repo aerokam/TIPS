@@ -10,7 +10,7 @@ $principal = New-ScheduledTaskPrincipal `
   -LogonType Interactive `
   -RunLevel  Limited
 
-$execLimit25m = New-TimeSpan -Minutes 25
+$execLimit30m = New-TimeSpan -Minutes 30
 $execLimit1h  = New-TimeSpan -Hours 1
 $execLimit72h = New-TimeSpan -Hours 72
 
@@ -22,34 +22,23 @@ function New-MondayTrigger($time) {
   New-ScheduledTaskTrigger -Weekly -WeeksInterval 1 -DaysOfWeek Monday -At $time
 }
 
-# ── FIDELITY (headed CDP browser — 3 daily windows) ──────────────────────────
+# ── FIDELITY (headed CDP browser — single task, 3 weekday trigger windows) ───
+# Consolidated into one task ("FidelityQuotes") so a single set of run/retry
+# settings and the log file apply across all three daily windows.
 
 $wrapperFidelity = "$REPO\YieldCurves\scripts\run-fidelity.cmd"
 
 Register-ScheduledTask `
-  -TaskName    "FidelityDownload-Morning" `
-  -Description "Fidelity bond download at market open (8:05 AM ET)" `
+  -TaskName    "FidelityQuotes" `
+  -Description "Download Fidelity broker quotes (TIPS + Treasuries), upload FidelityTips.csv + FidelityTreasuries.csv" `
   -Action      (New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$wrapperFidelity`"") `
-  -Trigger     (New-ScheduledTaskTrigger -Daily -At "5:05AM") `
-  -Settings    (New-ScheduledTaskSettingsSet -ExecutionTimeLimit $execLimit25m `
-                  -RestartCount 9 -RestartInterval (New-TimeSpan -Minutes 30) `
-                  -MultipleInstances IgnoreNew) `
-  -Principal   $principal -Force
-
-Register-ScheduledTask `
-  -TaskName    "FidelityDownload-Midday" `
-  -Description "Fidelity bond download at FedInvest price load (1 PM ET)" `
-  -Action      (New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$wrapperFidelity`"") `
-  -Trigger     (New-ScheduledTaskTrigger -Daily -At "10:00AM") `
-  -Settings    (New-ScheduledTaskSettingsSet -ExecutionTimeLimit $execLimit25m -MultipleInstances IgnoreNew) `
-  -Principal   $principal -Force
-
-Register-ScheduledTask `
-  -TaskName    "FidelityDownload-Close" `
-  -Description "Fidelity bond download at market close (5 PM ET)" `
-  -Action      (New-ScheduledTaskAction -Execute "cmd.exe" -Argument "/c `"$wrapperFidelity`"") `
-  -Trigger     (New-ScheduledTaskTrigger -Daily -At "2:00PM") `
-  -Settings    (New-ScheduledTaskSettingsSet -ExecutionTimeLimit $execLimit25m -MultipleInstances IgnoreNew) `
+  -Trigger     @(
+                  (New-WeekdayTrigger "5:05AM")
+                  (New-WeekdayTrigger "9:35AM")
+                  (New-WeekdayTrigger "2:05PM")
+                ) `
+  -Settings    (New-ScheduledTaskSettingsSet -ExecutionTimeLimit $execLimit30m `
+                  -MultipleInstances IgnoreNew -StartWhenAvailable) `
   -Principal   $principal -Force
 
 # ── FEDINVEST PRICES (weekdays noon ET = 9 AM PT) ────────────────────────────
@@ -123,7 +112,7 @@ Write-Host "Registering CPI tasks via setup-cpi-release-tasks.ps1..."
 Write-Host ""
 Write-Host "Tasks registered:"
 $names = @(
-  "FidelityDownload-Morning","FidelityDownload-Midday","FidelityDownload-Close",
+  "FidelityQuotes",
   "FedInvestPrices",
   "TreasuryAuctions-Morning","TreasuryAuctions-Afternoon",
   "TipsRef","Update CPI release schedule",
