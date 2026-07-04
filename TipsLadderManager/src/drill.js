@@ -130,12 +130,45 @@ export function buildDrillHTML(d, colKey, summary) {
     const longerDatedInt = d.longerDatedLMI ?? d.fundedYearLaterMatInt; // use separated if available, else combined legacy
     const _amd = d.future30yUpperAnnualAmd || 0;
     const _roll = d.future30yRollCoupon || 0;
+    // Multi-TIPS funded year (semiannual / all): the year's principal is delivered by several TIPS
+    // with different par values, so list each TIPS's P+I contribution (like the rebalance Amount drill)
+    // rather than a single "Par Value × Qty". Single-TIPS years keep the detailed per-bond breakdown.
+    const _rungs = (d.fundedRungs && d.fundedRungs.length > 1) ? d.fundedRungs : null;
 
-    let totalFmla = 'Principal + Coupons + <span class="formula-var" data-source="lmi">Longer-dated int</span>';
+    let totalFmla = _rungs
+      ? 'Funded-year TIPS + <span class="formula-var" data-source="lmi">Longer-dated int</span>'
+      : 'Principal + Coupons + <span class="formula-var" data-source="lmi">Longer-dated int</span>';
     if (sameYearExInt > 0) totalFmla += ' + <span class="formula-var" data-source="exlmi">Same-year excess int</span>';
     if (_plCredit > 0) totalFmla += ' + Pre-ladder credit';
     if (_amd > 0) totalFmla += ' + <span class="formula-var" data-source="amd">AMD</span>';
     if (_roll > 0) totalFmla += ' + <span class="formula-var" data-source="roll">Future-30Y coupon</span>';
+
+    if (_rungs) {
+      let ownSum = 0;
+      let rungRows = '';
+      _rungs.forEach(h => {
+        const piPB = h.principalPerBond * (1 + h.coupon / 2 * h.nPeriods);
+        const hTotal = piPB * h.qty;
+        ownSum += hTotal;
+        const mo = MONTHS[h.maturityMonth], yr = String(h.maturityYear).slice(2);
+        rungRows += row(mo + ' ’' + yr + ' \xd7 ' + h.qty, fm2(piPB) + '/TIPS', fm(hTotal));
+      });
+      rows =
+        rungRows +
+        sep() +
+        row('Funded-year TIPS subtotal', 'principal + last-year coupons across the year’s TIPS', fm(ownSum)) +
+        row('Interest from longer-dated TIPS', 'from TIPS maturing after ' + d.fundedYear, fm(longerDatedInt), false, undefined, 'lmi') +
+        (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
+        (_plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit), false, 'plcpool') : '') +
+        (_amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
+        (_roll > 0 ? row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', fm(_roll), false, undefined, 'roll') : '') +
+        sep() +
+        row('Funded Year Amount', totalFmla, fm(d.fundedYearAmt), true) +
+        sep() +
+        row('DARA', '', fm(d.dara), false, undefined, 'dara') +
+        row('Surplus / Deficit', '<span class="formula-var" data-source="total">FY Amount</span> − <span class="formula-var" data-source="dara">DARA</span>', (d.fundedYearAmt - d.dara >= 0 ? '+' : '') + Math.round(d.fundedYearAmt - d.dara).toLocaleString('en-US'));
+      return '<table style="border-collapse:collapse;width:auto;font-size:12px">' + rows + '</table>';
+    }
 
     rows =
       row('Quantity', '', d.fundedYearQty, false, undefined, 'qty') +

@@ -31,7 +31,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
 
   // 1. Canonical ladder bond selection (shared with rebalance — single source of truth).
   const {
-    yearBondMap, rangeYears, gapYears, future30yYears,
+    yearBondMap, yearTipsListMap, rangeYears, gapYears, future30yYears,
     future30yLowerYear, future30yUpperYear, future30yLowerCoverBond, future30yUpperCoverBond,
   } = selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref });
 
@@ -40,7 +40,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   // 2-5. Shared sizing pipeline — prelim, future-30Y/AMD, PLI, gap/excess, corrected sweep.
   //        Lives in ladder-core.js: the IDENTICAL code path build and rebalance both run.
   const {
-    prelim, corrFYQty, corrLMI,
+    prelim, corrFYQty, corrLMI, corrRungs,
     zeroedFundedYears, partialCreditYear, partialCredit,
     lowerYear, upperYear, lowerExQty, upperExQty, lowerWeight, upperWeight,
     lowerDuration, upperDuration, lowerMonth, upperMonth, totalExcessCost,
@@ -54,7 +54,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   } = sizeLadder({
     dara, daraByYear, firstYear, lastYear,
     rangeYears, gapYears, future30yYears,
-    yearBondMap, tipsMap, refCPI, settlementDate, settlementYear,
+    yearBondMap, yearTipsListMap, tipsMap, refCPI, settlementDate, settlementYear,
     preLadderInterest,
     future30yLowerCoverBond, future30yUpperCoverBond, future30yLowerYear, future30yUpperYear,
   });
@@ -64,35 +64,47 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   const details = [];
   let totalBuyCost = 0;
   for (const year of rangeYears) {
-    const bond = yearBondMap[year];
+    const repBond = yearBondMap[year];                        // representative TIPS (bracket/cover excess rides this)
     const isZeroed = zeroedFundedYears.has(year);
-    const prelim_pi = prelim[year].pi;
     const corr_lmi  = corrLMI[year] ?? prelim[year].laterMatInt;
     const yearDara = daraByYear?.get(year) ?? dara;
-    const fundedYearQty = corrFYQty[year] ?? prelim[year].targetFundedYearQty;
+    const rungs = corrRungs[year] ?? [{ ...bondCalcs(repBond, refCPI), bond: repBond, coupon: repBond.coupon ?? 0, qty: corrFYQty[year] ?? 0 }];
+    const repPi = prelim[year].pi;                            // representative P+I (bracket excess uses this)
+
+    // Year excess (gap / future-30Y). Bracket years hold a single TIPS, so the excess rides row 0.
     const gapExQty    = year === lowerYear ? lowerExQty : year === upperYear ? upperExQty : 0;
     const future30yExQty = year === future30yLowerYear ? future30yLowerExQty : year === future30yUpperYear ? future30yUpperExQty : 0;
     const excessQty   = gapExQty + future30yExQty;
-    const totQty      = fundedYearQty + excessQty;
-    const { indexRatio: ir, costPerBond: cpb } = bondCalcs(bond, refCPI);
-    const excessLMI   = excessQty * 1000 * ir * (bond.coupon ?? 0);
+    const { indexRatio: irRep, costPerBond: cpbRep } = bondCalcs(repBond, refCPI);
+    const excessLMI   = excessQty * 1000 * irRep * (repBond.coupon ?? 0);
     const future30yAmd  = calcFuture30yUpperAnnualAmd(year);
     const future30yRoll = calcFuture30yRollCoupon(year);   // cover-roll coupon credited to 2053–56
-
-    const mDuration = calculateMDuration(settlementDate, bond.maturity, bond.coupon ?? 0, bond.yield ?? 0);
     const isBracket    = excessQty > 0;
     const isFuture30yCover = future30yExQty > 0;
-    const monthF    = bond.maturity.getMonth() + 1;
-    const halfOrFull = monthF < 7 ? 0.5 : 1.0;
-    const principalPerBond     = 1000 * ir;
-    const ownRungCouponPerBond = principalPerBond * (bond.coupon ?? 0) * halfOrFull;
+
+    // Year-level funded aggregates — Σ over sub-rungs, each sized from its OWN pi/ir/coupon
+    // (multi-TIPS years: quarterly ≤~2030, Jan/Jul ≤~2035). N=1 reproduces the legacy single-TIPS year.
+    let fundedYearQty = 0, fundedYearPITotal = 0, fundedPrincipalTotal = 0, fundedOwnRungInt = 0;
+    const fundedRungs = [];
+    for (const r of rungs) {
+      const moF = r.bond.maturity.getMonth() + 1;
+      const hof = moF < 7 ? 0.5 : 1.0, nP = moF < 7 ? 1 : 2;
+      const ppb = 1000 * r.ir;
+      fundedYearQty += r.qty;
+      fundedYearPITotal += r.qty * r.pi;
+      fundedPrincipalTotal += r.qty * ppb;
+      fundedOwnRungInt += r.qty * ppb * (r.coupon ?? 0) * hof;
+      fundedRungs.push({ cusip: r.bond.cusip, maturityStr: fmtDate(r.bond.maturity),
+        maturityMonth: moF - 1, maturityYear: r.bond.maturity.getFullYear(),
+        qty: r.qty, principalPerBond: ppb, coupon: r.coupon ?? 0, nPeriods: nP, piPerBond: r.pi });
+    }
 
     // Per-year Amount + pre-ladder credit via the shared rule (ladder-core.fundedYearAmount),
     // so build and rebalance "After" are identical by construction. Zeroed years are funded
     // entirely by the PLI pool; the credit subtracts LMI + own-excess coupon + AMD so the row
     // lands on DARA (not overshooting by the AMD).
     const { credit: preLadderCreditForYear, amount: _fundedAmt } = fundedYearAmount({
-      principal: fundedYearQty * prelim_pi, laterMatInt: corr_lmi, ownExcessCoupon: excessLMI,
+      principal: fundedYearPITotal, laterMatInt: corr_lmi, ownExcessCoupon: excessLMI,
       amd: future30yAmd, rollCoupon: future30yRoll, dara: yearDara, isZeroed,
       partialCredit: year === partialCreditYear ? partialCredit : 0,
     });
@@ -109,60 +121,76 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
       ? (year === future30yLowerYear ? future30yLowerWeight : future30yUpperWeight) * (future30yLMITotal ?? 0)
       : 0;
     const amdLifetime = amdLifetimeByBracketYear.get(year) ?? 0;
-    const exAmt  = isBracket ? excessQty * prelim_pi - amdLifetime + gapLMIAlloc + future30yLMIAlloc : '';
-    const fundedYearCost = fundedYearQty * cpb;
-    const exCost = isBracket ? excessQty * cpb : '';
-    totalBuyCost += totQty * cpb;
-    results.push([
-      bond.cusip,             // 0: CUSIP
-      fmtDate(bond.maturity), // 1: Maturity
-      year,                   // 2: FY
-      fundedYearQty,         // 3: Funded Year Qty
-      excessQty || '',       // 4: Excess Qty (blank for non-bracket years)
-      totQty,                 // 5: Total Qty
-      fundedYearAmt,         // 6: Funded Year Amount
-      fundedYearCost,        // 7: Funded Year Cost
-      exAmt,                  // 8: Excess Amount (bracket only)
-      exCost,                 // 9: Excess Cost (bracket only)
-    ]);
-    details.push({
-      fundedYear: year,
-      cusip: bond.cusip,
-      maturityStr: fmtDate(bond.maturity),
-      coupon: bond.coupon ?? 0,
-      yield: bond.yield ?? 0,
-      price: bond.price ?? 0,
-      baseCpi: bond.baseCpi ?? refCPI,
-      refCPI,
-      indexRatio: ir,
-      halfOrFull,
-      dara: yearDara,
-      fundedYearQty: fundedYearQty,
-      longerDatedLMI: corr_lmi,
-      excessLMI_After: excessLMI,
-      preLadderCreditForYear,
-      future30yUpperAnnualAmd: future30yAmd,
-      future30yRollCoupon: future30yRoll,
-      fundedYearPi: prelim[year].pi,
-      fundedYearPrincipalTotal: fundedYearQty * principalPerBond,
-      fundedYearOwnRungInt: fundedYearQty * ownRungCouponPerBond,
-      fundedYearAmt: fundedYearAmt,
-      costPerBond: cpb,
-      fundedYearCost: fundedYearCost,
-      isFuture30yCover,
-      // Designated gap bracket (2036 lower / 2040 upper). Stays flagged even when its excess
-      // sizes to 0 (gap fully covered by PLI/LMI/AMD), so the row keeps its "*" + a qty-0 excess
-      // sub-row whose Gap Amount drill shows why no excess is needed (required qty 0).
-      isGapBracket: gapYears.length > 0 && (year === lowerYear || year === upperYear),
-      excessQty: excessQty,
-      excessPrincipalTotal: excessQty * principalPerBond,
-      excessOwnRungInt: excessQty * ownRungCouponPerBond,
-      excessAmt: isBracket ? excessQty * prelim_pi - amdLifetime + gapLMIAlloc + future30yLMIAlloc : 0,
-      gapLMIAlloc,
-      future30yLMIAlloc,
-      excessAmdLifetime: amdLifetime,
-      excessCost: isBracket ? excessQty * cpb : 0,
-      mDuration,
+    const exAmt  = isBracket ? excessQty * repPi - amdLifetime + gapLMIAlloc + future30yLMIAlloc : '';
+    const exCost = isBracket ? excessQty * cpbRep : '';
+
+    // Emit one row per funded sub-rung. Year-level fields (Amount, LMI, credit, aggregates) ride the
+    // FIRST row only — render's fyLevel picks the first non-null Amount and anchors the drill there;
+    // Cost/Qty columns sum the per-rung values across the group. Excess rides the first (representative) row.
+    rungs.forEach((r, j) => {
+      const moF = r.bond.maturity.getMonth() + 1;
+      const hof = moF < 7 ? 0.5 : 1.0, nP = moF < 7 ? 1 : 2;
+      const ppb = 1000 * r.ir;
+      const cpb_i = r.bond.price != null ? (r.bond.price / 100) * r.ir * 1000 : bondCalcs(r.bond, refCPI).costPerBond;
+      const rungCost = r.qty * cpb_i;
+      const mDuration = calculateMDuration(settlementDate, r.bond.maturity, r.bond.coupon ?? 0, r.bond.yield ?? 0);
+      const first = j === 0;
+      const rowExcessQty = first ? excessQty : 0;
+      const totQty = r.qty + rowExcessQty;
+      totalBuyCost += rungCost + (first ? excessQty * cpbRep : 0);
+      results.push([
+        r.bond.cusip,           // 0: CUSIP
+        fmtDate(r.bond.maturity), // 1: Maturity
+        year,                   // 2: FY
+        r.qty,                  // 3: Funded Year Qty (this sub-rung)
+        rowExcessQty || '',    // 4: Excess Qty (bracket row only)
+        totQty,                 // 5: Total Qty
+        first ? fundedYearAmt : '', // 6: Funded Year Amount (year total, first row only)
+        rungCost,               // 7: Funded Year Cost (this sub-rung)
+        first ? exAmt : '',    // 8: Excess Amount (bracket only)
+        first ? exCost : '',   // 9: Excess Cost (bracket only)
+      ]);
+      details.push({
+        fundedYear: year,
+        cusip: r.bond.cusip,
+        maturityStr: fmtDate(r.bond.maturity),
+        coupon: r.coupon ?? 0,
+        yield: r.bond.yield ?? 0,
+        price: r.bond.price ?? 0,
+        baseCpi: r.bond.baseCpi ?? refCPI,
+        refCPI,
+        indexRatio: r.ir,
+        halfOrFull: hof,
+        nPeriods: nP,
+        dara: first ? yearDara : null,
+        fundedYearQty: r.qty,
+        longerDatedLMI: first ? corr_lmi : null,
+        excessLMI_After: first ? excessLMI : 0,
+        preLadderCreditForYear: first ? preLadderCreditForYear : null,
+        future30yUpperAnnualAmd: first ? future30yAmd : 0,
+        future30yRollCoupon: first ? future30yRoll : 0,
+        fundedYearPi: r.pi,
+        // Multi-TIPS Amount drill iterates fundedRungs (each TIPS's own P+I); single-TIPS uses the
+        // per-bond breakdown. Year-level principal/own-coupon totals ride the first row for that drill.
+        fundedRungs: first ? fundedRungs : null,
+        fundedYearPrincipalTotal: first ? fundedPrincipalTotal : r.qty * ppb,
+        fundedYearOwnRungInt: first ? fundedOwnRungInt : r.qty * ppb * (r.coupon ?? 0) * hof,
+        fundedYearAmt: first ? fundedYearAmt : null,
+        costPerBond: cpb_i,
+        fundedYearCost: rungCost,
+        isFuture30yCover,
+        // Designated gap bracket (2036 lower / 2040 upper) — single TIPS, so flagged on its one row.
+        isGapBracket: gapYears.length > 0 && (year === lowerYear || year === upperYear),
+        excessQty: rowExcessQty,
+        excessPrincipalTotal: rowExcessQty * 1000 * irRep,
+        excessOwnRungInt: rowExcessQty * 1000 * irRep * (repBond.coupon ?? 0) * (repBond.maturity.getMonth() + 1 < 7 ? 0.5 : 1.0),
+        excessAmt: (first && isBracket) ? excessQty * repPi - amdLifetime + gapLMIAlloc + future30yLMIAlloc : 0,
+        gapLMIAlloc: first ? gapLMIAlloc : 0,
+        future30yLMIAlloc: first ? future30yLMIAlloc : 0,
+        excessAmdLifetime: first ? amdLifetime : 0,
+        excessCost: (first && isBracket) ? excessQty * cpbRep : 0,
+        mDuration,
+      });
     });
   }
 

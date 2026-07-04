@@ -465,7 +465,7 @@ export function parseParamsBlock(rawLines) {
       const [k, v] = kv.split('=').map(s => s.trim());
       if (!k) continue;
       if (/^preladderinterest$/i.test(k)) out.preLadderInterest = /^(true|1|yes|on)$/i.test(v);
-      else if (/^maturitypref$/i.test(k)) out.maturityPref = /^first$/i.test(v) ? 'first' : 'last';
+      else if (/^maturitypref$/i.test(k)) out.maturityPref = /^(first|semiannual|all)$/i.test(v) ? v.toLowerCase() : 'last';
     }
     return Object.keys(out).length > 0 ? out : null;
   }
@@ -949,7 +949,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const _sl = sizeLadder({
     dara: DARA, daraByYear, firstYear, lastYear, optionalYears: optionalRungYears,
     rangeYears: _canon.rangeYears, gapYears: _canon.gapYears, future30yYears: _canon.future30yYears,
-    yearBondMap: _canon.yearBondMap, tipsMap, refCPI, settlementDate, settlementYear,
+    yearBondMap: _canon.yearBondMap, yearTipsListMap: _canon.yearTipsListMap, tipsMap, refCPI, settlementDate, settlementYear,
     preLadderInterest,
     future30yLowerCoverBond: _canon.future30yLowerCoverBond, future30yUpperCoverBond: _canon.future30yUpperCoverBond,
     future30yLowerYear: _canon.future30yLowerYear, future30yUpperYear: _canon.future30yUpperYear,

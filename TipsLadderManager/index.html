@@ -174,7 +174,7 @@
     <p>Designs a new TIPS ladder from scratch with zero existing holdings.</p>
     <p><b>DARA</b> (required) — Enter your target annual real amount. After entering a value, a per-year table appears where you can override the target for individual funded years. The DARA field shows <b style="color:#7c3aed">by year</b> when any year's target differs from the default.</p>
     <p><b>First Year / Last Year</b> — Range of funded years. First year defaults to the current calendar year. The per-year DARA table updates automatically when you change the range, preserving any custom values already entered.</p>
-    <p><b>Maturity pick</b> — <i>Last</i>: use the latest-maturing TIPS in each year (default). <i>First</i>: use the earliest-maturing TIPS.</p>
+    <p><b>Maturity pick</b> — which TIPS fill each funded year. The DARA target stays annual; when more than one TIPS is chosen for a year, the year's amount is split evenly across them (latest maturity absorbs the rounding). <i>Last</i>: the latest-maturing TIPS (default, one per year). <i>First</i>: the earliest-maturing. <i>Semiannual</i>: the January and July TIPS (out to ~2035; single TIPS beyond). <i>All maturity months</i>: one TIPS per distinct maturity month (quarterly out to ~2030). When a month has two issues, the higher-coupon TIPS is used.</p>
     <p><b>Pre-ladder interest</b> — If checked, coupon payments received before the ladder starts (during the years between today and the first funded year) is applied to reduce the quantity needed for the earliest rungs.</p>
     <p><b>Total Cost</b> — full ladder purchase cost.</p>
 
@@ -295,6 +295,8 @@
         <select id="build-maturity">
           <option value="last">Last to mature</option>
           <option value="first">First to mature</option>
+          <option value="semiannual">Semiannual (Jan + Jul)</option>
+          <option value="all">All maturity months</option>
         </select>
       </div>
       <div class="field" id="field-pre-ladder">

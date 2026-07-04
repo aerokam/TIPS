@@ -51,20 +51,86 @@ export function fundedYearAmount({
 
 const BL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+// ─── Intra-year TIPS selection (maturityPref policy) ────────────────────────────
+// A funded year may hold MULTIPLE TIPS (quarterly out to ~5y, Jan/Jul out to ~10y,
+// single Feb 2040+). The DARA target stays annual; the year's amount is split across
+// the selected maturities (see sizeLadder). This picks which TIPS fill a year:
+//   'last'       — one TIPS, latest-maturing              (default; = legacy behavior)
+//   'first'      — one TIPS, earliest-maturing            (= legacy 'first')
+//   'semiannual' — the Jan TIPS + the Jul TIPS (one each), Jan→Jul order
+//   'all'        — one TIPS per distinct maturity MONTH, earliest→latest
+// Same-month/same-date collision tie-break (Jan 2027/28/29, Apr 2028/29 — two issues in one
+// month, different coupon): the HIGHER-coupon CUSIP always wins — including in 'all', which
+// takes one TIPS per month, NOT both same-month issues. CUSIP is the final total-order tiebreak
+// so selection is independent of Map iteration order. (Future opt-in: let the user choose the
+// higher- OR lower-coupon issue for a month that has more than one — a selectable coupon pref.)
+
+// True when `b` should beat `best` for a single-pick slot on a maturity-date tie.
+function tieBeats(b, best) {
+  const cb = b.coupon ?? 0, cbest = best.coupon ?? 0;
+  if (cb !== cbest) return cb > cbest;                       // higher coupon wins
+  return String(b.cusip ?? '') < String(best.cusip ?? '');   // stable final tiebreak
+}
+// Pick the earliest/latest-maturing TIPS from `cands`, tie-broken by tieBeats.
+function pickExtreme(cands, which /* 'first' | 'last' */) {
+  let best = null;
+  for (const b of cands) {
+    if (!best) { best = b; continue; }
+    const d = b.maturity - best.maturity;
+    if (which === 'first' ? (d < 0 || (d === 0 && tieBeats(b, best)))
+                          : (d > 0 || (d === 0 && tieBeats(b, best)))) best = b;
+  }
+  return best;
+}
+// Ordered list of TIPS that fill one funded year under `pref`. Never empty (callers only
+// pass years that have ≥1 candidate).
+function selectYearTips(cands, pref) {
+  const byMat = (a, b) => (a.maturity - b.maturity) || (tieBeats(a, b) ? -1 : 1);
+  if (pref === 'first') return [pickExtreme(cands, 'first')];
+  if (pref === 'all') {
+    // One TIPS per distinct maturity month; higher coupon wins when a month has two issues.
+    const byMonth = new Map();
+    for (const b of cands) {
+      const mo = b.maturity.getMonth();
+      const cur = byMonth.get(mo);
+      if (!cur || tieBeats(b, cur)) byMonth.set(mo, b);
+    }
+    return [...byMonth.values()].sort(byMat);
+  }
+  if (pref === 'semiannual') {
+    const jan = pickExtreme(cands.filter(b => b.maturity.getMonth() + 1 === 1), 'last');
+    const jul = pickExtreme(cands.filter(b => b.maturity.getMonth() + 1 === 7), 'last');
+    const picks = [jan, jul].filter(Boolean);
+    if (picks.length) return picks.sort(byMat);   // Jan before Jul
+    return [pickExtreme(cands, 'last')];           // no Jan/Jul (e.g. Feb 2040+): take the one available
+  }
+  return [pickExtreme(cands, 'last')];             // 'last' (default)
+}
+
 // ─── Canonical ladder bond selection (shared by build and rebalance) ────────────
-// Picks the funded-year bond per year, the 2040 upper bracket, the pre-gap lower
+// Picks the funded-year TIPS per year, the 2040 upper bracket, the pre-gap lower
 // bracket, and the future-30Y cover pair — purely from tipsMap. This is the single
-// source of truth for "which bonds the target ladder holds", so build and rebalance
-// size against an identical bond set. Returns the structures sizeLadder consumes.
+// source of truth for "which TIPS the target ladder holds", so build and rebalance
+// size against an identical set. Returns the structures sizeLadder consumes.
+//   yearTipsListMap[year] — the ordered funded-year TIPS list (≥1) per maturityPref.
+//   yearBondMap[year]     — the single representative (latest of the list); every
+//                           bracket/gap/cover path keys off this and is unaffected,
+//                           and it equals the legacy pick when the list has length 1.
 export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref = 'last' }) {
-  // 1. yearBondMap: latest-maturing (or earliest, per maturityPref) TIPS per year that matures after settlement.
-  const yearBondMap = {};
+  // 1. Gather candidate TIPS per year (maturing after settlement, in range), then apply the policy.
+  const candsByYear = {};
   for (const bond of tipsMap.values()) {
     if (!bond.maturity || bond.maturity <= settlementDate) continue;
     const yr = bond.maturity.getFullYear();
     if (yr < firstYear || yr > lastYear) continue;
-    if (!yearBondMap[yr] || (maturityPref === 'first' ? bond.maturity < yearBondMap[yr].maturity : bond.maturity > yearBondMap[yr].maturity))
-      yearBondMap[yr] = bond;
+    (candsByYear[yr] ??= []).push(bond);
+  }
+  const yearBondMap = {};       // year → representative single TIPS (latest of the funded list)
+  const yearTipsListMap = {};   // year → ordered funded-year TIPS list (≥1)
+  for (const yr of Object.keys(candsByYear).map(Number)) {
+    const list = selectYearTips(candsByYear[yr], maturityPref);
+    yearTipsListMap[yr] = list;
+    yearBondMap[yr] = pickExtreme(list, 'last');
   }
 
   let rangeYears = Object.keys(yearBondMap).map(Number).sort((a, b) => a - b);
@@ -92,6 +158,7 @@ export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate
         yearBondMap[2040] = bond;
     }
     if (!yearBondMap[2040]) throw new Error('No TIPS available in 2040 for upper bracket');
+    yearTipsListMap[2040] = [yearBondMap[2040]];   // 2040 has a single Feb TIPS — always length 1
     rangeYears = [...rangeYears, 2040].sort((a, b) => a - b);
   }
 
@@ -109,6 +176,7 @@ export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate
       const lbYear = lbBond.maturity.getFullYear();
       if (!yearBondMap[lbYear]) {
         yearBondMap[lbYear] = lbBond;
+        yearTipsListMap[lbYear] = [lbBond];   // pre-gap lower bracket (Jan 2036) — single TIPS
         rangeYears = [...rangeYears, lbYear].sort((a, b) => a - b);
       }
     }
@@ -133,32 +201,72 @@ export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate
   }
 
   return {
-    yearBondMap, rangeYears, gapYears, future30yYears,
+    yearBondMap, yearTipsListMap, rangeYears, gapYears, future30yYears,
     future30yLowerYear, future30yUpperYear, future30yLowerCoverBond, future30yUpperCoverBond,
   };
+}
+
+// ─── Multi-TIPS funded-year split ───────────────────────────────────────────────
+// A funded year's real P+I `need` (yearDARA minus the year-level income offsets — LMI,
+// own-excess coupon, future-30Y extra) is spread across its ordered TIPS list so each
+// sub-rung delivers an ≈ equal share of that year's maturity cash. Each sub-rung is sized
+// from its OWN pi; the LATEST maturity absorbs the rounding remainder so the year lands on
+// `need`. Same-year sub-rungs never feed each other's LMI (they mature in-year), so a single
+// year-level `need` is the correct thing to split. Returns [{ bond, ir, pi, coupon, qty }]
+// earliest→latest (qty ≥ 0). N=1 reproduces the legacy single-TIPS sizing exactly.
+function sizeYearRungs(list, need, refCPI) {
+  const rungs = list.map(bond => {
+    const { indexRatio: ir, piPerBond: pi } = bondCalcs(bond, refCPI);
+    return { bond, ir, pi, coupon: bond.coupon ?? 0, qty: 0 };
+  });
+  const N = rungs.length;
+  if (N === 0 || need <= 0) return rungs;
+  const share = need / N;
+  let deliveredPI = 0;
+  for (let i = 0; i < N - 1; i++) {
+    rungs[i].qty = Math.max(0, Math.round(share / rungs[i].pi));
+    deliveredPI += rungs[i].qty * rungs[i].pi;
+  }
+  const last = rungs[N - 1];                                   // latest maturity absorbs the remainder
+  last.qty = Math.max(0, Math.round((need - deliveredPI) / last.pi));
+  return rungs;
+}
+// Aggregate a sized rung list: total funded qty, total real annual coupon (feeds LMI),
+// and total real P+I delivered (the year's own maturity cash).
+function aggregateRungs(rungs) {
+  let qty = 0, annualInterest = 0, piTotal = 0;
+  for (const r of rungs) {
+    qty += r.qty;
+    annualInterest += r.qty * 1000 * r.ir * r.coupon;
+    piTotal += r.qty * r.pi;
+  }
+  return { qty, annualInterest, piTotal };
 }
 
 // ─── The shared sizing pipeline ─────────────────────────────────────────────────
 export function sizeLadder({
   dara, daraByYear = null, firstYear, lastYear, optionalYears = null,
   rangeYears, gapYears, future30yYears,
-  yearBondMap, tipsMap, refCPI, settlementDate, settlementYear,
+  yearBondMap, yearTipsListMap = null, tipsMap, refCPI, settlementDate, settlementYear,
   preLadderInterest = false,
   future30yLowerCoverBond = null, future30yUpperCoverBond = null,
   future30yLowerYear = null, future30yUpperYear = null,
 }) {
   let lowerYear = null, upperYear = null;
+  // Back-compat: a caller that passes only yearBondMap sizes every year as a single TIPS.
+  const tipsList = (year) => yearTipsListMap?.[year] ?? [yearBondMap[year]];
 
   // 3. Preliminary sweep (longest → shortest, no bracket excess). Produces prelim coupons
   //    used by the PLI bucket and gap LMI (the small, shared approximation).
   const prelim = {};
   let laterMatInt = 0;
   for (const year of [...rangeYears].sort((a, b) => b - a)) {
-    const bond = yearBondMap[year];
-    const { indexRatio: ir, piPerBond: pi } = bondCalcs(bond, refCPI);
-    const qty  = (year > lastYear || year < firstYear) ? 0 : _fyQty(daraByYear?.get(year) ?? dara, laterMatInt, pi);
-    const annInt = qty * 1000 * ir * (bond.coupon ?? 0);
-    prelim[year] = { targetFundedYearQty: qty, annualInterest: annInt, laterMatInt, pi };
+    const bond = yearBondMap[year];                            // representative (bracket/gap/message pi)
+    const { piPerBond: pi } = bondCalcs(bond, refCPI);
+    const need = (year > lastYear || year < firstYear) ? 0 : Math.max(0, (daraByYear?.get(year) ?? dara) - laterMatInt);
+    const rungs = sizeYearRungs(tipsList(year), need, refCPI);
+    const { qty, annualInterest: annInt } = aggregateRungs(rungs);
+    prelim[year] = { targetFundedYearQty: qty, annualInterest: annInt, laterMatInt, pi, rungs };
     laterMatInt += annInt;
   }
 
@@ -370,8 +478,11 @@ export function sizeLadder({
   }
 
   // 5. Corrected long→short sweep over actual funded years (LMI pool includes bracket excess interest).
+  //    corrRungs[year] holds the per-sub-rung breakdown (multi-TIPS years); corrFYQty[year] is the
+  //    funded-year total (Σ sub-rung qty) — the value every downstream aggregate consumer reads.
   const corrFYQty = {};
   const corrLMI   = {};
+  const corrRungs = {};
   {
     const exByYear = {};
     if (future30yUpperYear != null) exByYear[future30yUpperYear] = (exByYear[future30yUpperYear] ?? 0) + future30yUpperExQty;
@@ -382,9 +493,8 @@ export function sizeLadder({
     let runningLMI = 0;
     for (const year of [...rangeYears].sort((a, b) => b - a)) {
       corrLMI[year] = runningLMI;
-      const bond    = yearBondMap[year];
+      const bond    = yearBondMap[year];                        // representative (excess coupon keys off this)
       const { indexRatio: ir } = bondCalcs(bond, refCPI);
-      const pi      = prelim[year].pi;
       const yearDara = daraByYear?.get(year) ?? dara;
       const isZrd   = zeroedFundedYears.has(year);
 
@@ -392,18 +502,20 @@ export function sizeLadder({
       const excessLMI = exQty * 1000 * ir * (bond.coupon ?? 0);
       const future30yExtra = calcFuture30yExtraIncome(year);   // AMD (≤2052) + roll coupon (2053–56)
 
-      const fyQty   = (isZrd || year > lastYear || year < firstYear) ? 0
-        : year === partialCreditYear
-          ? Math.max(0, Math.round((yearDara - runningLMI - excessLMI - partialCredit - future30yExtra) / pi))
-          : Math.max(0, Math.round((yearDara - runningLMI - excessLMI - future30yExtra) / pi));
+      // Funded-year real P+I need after the year-level income offsets, split across the year's TIPS.
+      const need = (isZrd || year > lastYear || year < firstYear) ? 0
+        : Math.max(0, yearDara - runningLMI - excessLMI - future30yExtra - (year === partialCreditYear ? partialCredit : 0));
+      const rungs = sizeYearRungs(tipsList(year), need, refCPI);
+      const { qty: fyQty, annualInterest: fundedCoupon } = aggregateRungs(rungs);
 
+      corrRungs[year] = rungs;
       corrFYQty[year] = fyQty;
-      runningLMI += (fyQty + exQty) * 1000 * ir * (bond.coupon ?? 0);
+      runningLMI += fundedCoupon + exQty * 1000 * ir * (bond.coupon ?? 0);
     }
   }
 
   return {
-    prelim, corrFYQty, corrLMI,
+    prelim, corrFYQty, corrLMI, corrRungs,
     zeroedFundedYears, partialCreditYear, partialCredit, pliCreditByGapYear, pliCreditByFundedYear,
     lowerYear, upperYear, lowerExQty, upperExQty, lowerWeight, upperWeight,
     lowerDuration, upperDuration, lowerMonth, upperMonth, totalExcessCost,
