@@ -890,15 +890,15 @@ function renderNominalsChart(fedBonds, fidBonds) {
   const allY = allPoints.map(d => d.y);
   let scaleY = allY;
   if (nominalsClipOutliers && allY.length >= 4) {
-    // Use Notes yields for IQR (outliers live in notes; bills/bonds widen IQR too much).
-    // Filter IQR source to positive yields only — near-maturity notes can show extreme
+    // Use Bills/Notes yields for IQR (outliers live in short-dated issues; bonds widen IQR too much).
+    // Filter IQR source to positive yields only — near-maturity Bills/Notes can show extreme
     // negative YTM (e.g. -5%) when trading at a tiny premium with days to expiry.
-    // Only clip when Notes are visible — near-maturity Notes are the sole source of
-    // extreme negative YTM garbage. Without Notes, there's nothing to clip.
-    const notesY = activeSeries.filter(s => s.label.includes('Notes')).flatMap(s => s.data).map(d => d.y);
-    const notesYPos = notesY.filter(y => y > 0);
-    if (notesYPos.length >= 4) {
-      const bounds = iqrClipBounds(notesYPos);
+    // Only clip when Bills or Notes are visible — near-maturity Bills/Notes are the sole source of
+    // extreme negative YTM garbage. Without either, there's nothing to clip.
+    const nearMaturityY = activeSeries.filter(s => s.label.includes('Notes') || s.label.includes('Bills')).flatMap(s => s.data).map(d => d.y);
+    const nearMaturityYPos = nearMaturityY.filter(y => y > 0);
+    if (nearMaturityYPos.length >= 4) {
+      const bounds = iqrClipBounds(nearMaturityYPos);
       if (bounds) {
         const clipped = allY.filter(y => y >= bounds.lo);
         if (clipped.length > 0) scaleY = clipped;
@@ -1352,15 +1352,15 @@ function rescaleToVisible(chart) {
   if (allVisibleY.length === 0) return;
 
   if (nominalsClipOutliers && chartTab === 'treasuries' && allVisibleY.length >= 4) {
-    // Use Notes yields for IQR (outliers live in notes; bills/bonds widen IQR too much)
-    const notesVisibleY = [];
+    // Use Bills/Notes yields for IQR (outliers live in short-dated issues; bonds widen IQR too much)
+    const nearMaturityVisibleY = [];
     chart.data.datasets.forEach((dataset, i) => {
-      if (!chart.isDatasetVisible(i) || !dataset.label.includes('Notes')) return;
-      dataset.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) notesVisibleY.push(p.y); });
+      if (!chart.isDatasetVisible(i) || !(dataset.label.includes('Notes') || dataset.label.includes('Bills'))) return;
+      dataset.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) nearMaturityVisibleY.push(p.y); });
     });
-    const notesVisibleYPos = notesVisibleY.filter(y => y > 0);
-    if (notesVisibleYPos.length >= 4) {
-      const bounds = iqrClipBounds(notesVisibleYPos);
+    const nearMaturityVisibleYPos = nearMaturityVisibleY.filter(y => y > 0);
+    if (nearMaturityVisibleYPos.length >= 4) {
+      const bounds = iqrClipBounds(nearMaturityVisibleYPos);
       if (bounds) {
         const clipped = allVisibleY.filter(y => y >= bounds.lo && y <= bounds.hi);
         if (clipped.length > 0) allVisibleY = clipped;

@@ -275,8 +275,8 @@ test.describe('Clip Outliers — spread mode interaction', () => {
 });
 
 // ─── Group 5: Notes toggle interaction ───────────────────────────────────────
-// Clipping uses Notes IQR exclusively. When Notes are hidden, clipping is
-// short-circuited (no Notes yields for IQR). Tests confirm that:
+// Clipping uses Bills + Notes IQR. This fixture has no Bills rows, so hiding
+// Notes removes the only IQR source and clipping is short-circuited. Tests confirm that:
 // (a) showing Notes while clip is ON activates clipping immediately,
 // (b) clip state is not corrupted by Notes visibility changes.
 
@@ -383,5 +383,85 @@ test.describe('Clip Outliers — checkbox/state consistency', () => {
     await page.click('#clipOutliers'); // OFF
     await assertCheckboxUnchecked(page);
     await assertClipOff(page);
+  });
+});
+
+// ─── Group 7: Bills outlier (regression) ─────────────────────────────────────
+// Real-world bug: a near-maturity Bill traded at a tiny premium showed -0.639% YTM,
+// which the old algorithm didn't clip because IQR/floor were sourced from Notes only.
+// Fixture has 2 extreme-low Bills, normal Bills/Notes/Bonds, and no extreme Notes —
+// clip must still activate because Bills now feed the IQR source too.
+
+// Bills are zero-coupon: yieldFromPrice uses the simple 365/d investment-rate formula
+// (100/price - 1) * 365/days when days-to-maturity < ~182.5. Compute price from the
+// desired yield with that same formula so the round-trip is exact, and keep every
+// bill within the 182-day window so the simple formula (not bond math) always applies.
+const SETTLE_DATE = new Date(2026, 2, 25); // 2026-03-25
+function addDays(days) { const d = new Date(SETTLE_DATE); d.setDate(d.getDate() + days); return d; }
+function isoDate(d) { return d.toISOString().slice(0, 10); }
+function billPriceForYield(yieldFrac, days) { return 100 / (1 + yieldFrac * days / 365); }
+
+function makeBillsOutlierCsv() {
+  const rows = [
+    SETTLE,
+    'type,cusip,maturity,coupon,datedDateCpi,price,yield',
+    // 2 extreme-low bills (-0.639%, -1.200%) — the reported bug shape
+    `MARKET BASED BILL,BLOW00001,${isoDate(addDays(170))},0.00000,,${billPriceForYield(-0.00639, 170).toFixed(3)},-0.00639`,
+    `MARKET BASED BILL,BLOW00002,${isoDate(addDays(140))},0.00000,,${billPriceForYield(-0.0120, 140).toFixed(3)},-0.01200`,
+    // 3 TIPS (needed for TIPS tab initial load)
+    'TIPS,91282CCA7,2026-04-15,0.00125,262.25027,100.0625,0.000',
+    'TIPS,912828S50,2026-07-15,0.00125,239.70132,101.4375,0.000',
+    'TIPS,91282CDC2,2026-10-15,0.00125,273.25771,100.96875,0.000',
+  ];
+  // 10 normal bills (4.00–4.09%), all within the 182-day zero-coupon window
+  for (let i = 0; i < 10; i++) {
+    const y = 0.0400 + i * 0.001;
+    const days = 60 + i * 10;
+    rows.push(`MARKET BASED BILL,BNRM${String(i).padStart(5, '0')},${isoDate(addDays(days))},0.00000,,${billPriceForYield(y, days).toFixed(3)},${y.toFixed(5)}`);
+  }
+  // 10 normal notes (4.10–4.19%) — coupon bond priced at par yields exactly its coupon
+  for (let i = 0; i < 10; i++) {
+    const y = (0.0410 + i * 0.001).toFixed(5);
+    rows.push(`MARKET BASED NOTE,NNRM${String(i).padStart(5, '0')},${2029 + i}-01-15,${y},,100.000,${y}`);
+  }
+  // 10 bonds (4.60–4.69%)
+  for (let i = 0; i < 10; i++) {
+    const y = (0.0460 + i * 0.001).toFixed(5);
+    rows.push(`MARKET BASED BOND,BDRM${String(i).padStart(5, '0')},${2057 + i * 2}-01-15,${y},,100.000,${y}`);
+  }
+  return rows.join('\n');
+}
+
+const FID_EMPTY_CSV = 'Product,Description,Cusip|State,Coupon,Frequency,Maturity date,Call protected,'
+  + "Moody's/S&P rating,Yield,Bid price/Quantity (min),Adjusted bid price,Inflation factor,"
+  + 'Ask price/Quantity (min),Adjusted ask price,Ask yield to worst,Ask yield to sink,'
+  + 'Ask yield to maturity,3rd party price,Depth of book,Attributes,';
+
+const BILLS_OUTLIER_CSV = makeBillsOutlierCsv();
+
+test.describe('Clip Outliers — Bills outlier regression', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: BILLS_OUTLIER_CSV }));
+    await page.route('**/TIPS/RefCpiNsaSa.csv',                      r => r.fulfill({ status: 200, contentType: 'text/csv', body: REF_CPI_CSV }));
+    await page.route('**/misc/BondHolidaysSifma.csv',                       r => r.fulfill({ status: 200, contentType: 'text/csv', body: HOLIDAYS_CSV }));
+    await page.route('**/Treasuries/FidelityTreasuriesTips.csv',            r => r.fulfill({ status: 200, contentType: 'text/csv', body: FID_EMPTY_CSV }));
+    await page.goto('./');
+    await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
+    await page.click('[data-tab="treasuries"]');
+    await expect(page.locator('#nominalsTable tbody tr')).toHaveCount(32, { timeout: 10000 });
+  });
+
+  test('clip ON excludes extreme-low Bills from Y scale', async ({ page }) => {
+    await assertCheckboxChecked(page);
+    const b = await getYBounds(page);
+    expect(b, 'Y bounds must exist').not.toBeNull();
+    expect(b.min, `bounds.min=${b.min?.toFixed(3)} — clip ON should exclude -0.639%/-1.2% outlier bills, min should be >2.5`).toBeGreaterThan(2.5);
+  });
+
+  test('clip OFF includes extreme-low Bills in Y scale', async ({ page }) => {
+    await page.click('#clipOutliers'); // OFF
+    const b = await getYBounds(page);
+    expect(b, 'Y bounds must exist').not.toBeNull();
+    expect(b.min, `bounds.min=${b.min?.toFixed(3)} — clip OFF should include -1.2% outlier bill, min should be <0`).toBeLessThan(0);
   });
 });
