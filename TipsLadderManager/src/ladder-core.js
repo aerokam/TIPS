@@ -60,51 +60,50 @@ const BL_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','
 //   'semiannual' — the Jan TIPS + the Jul TIPS (one each), Jan→Jul order
 //   'all'        — one TIPS per distinct maturity MONTH, earliest→latest
 // Same-month/same-date collision tie-break (Jan 2027/28/29, Apr 2028/29 — two issues in one
-// month, different coupon): the HIGHER-coupon CUSIP always wins — including in 'all', which
-// takes one TIPS per month, NOT both same-month issues. CUSIP is the final total-order tiebreak
-// so selection is independent of Map iteration order. (Future opt-in: let the user choose the
-// higher- OR lower-coupon issue for a month that has more than one — a selectable coupon pref.)
+// month, different coupon): `couponPref` ('higher', default, or 'lower') picks the CUSIP that
+// wins — including in 'all', which takes one TIPS per month, NOT both same-month issues. CUSIP
+// is the final total-order tiebreak so selection is independent of Map iteration order.
 
 // True when `b` should beat `best` for a single-pick slot on a maturity-date tie.
-function tieBeats(b, best) {
+function tieBeats(b, best, couponPref = 'higher') {
   const cb = b.coupon ?? 0, cbest = best.coupon ?? 0;
-  if (cb !== cbest) return cb > cbest;                       // higher coupon wins
+  if (cb !== cbest) return couponPref === 'lower' ? cb < cbest : cb > cbest;
   return String(b.cusip ?? '') < String(best.cusip ?? '');   // stable final tiebreak
 }
 // Pick the earliest/latest-maturing TIPS from `cands`, tie-broken by tieBeats.
-function pickExtreme(cands, which /* 'first' | 'last' */) {
+function pickExtreme(cands, which /* 'first' | 'last' */, couponPref = 'higher') {
   let best = null;
   for (const b of cands) {
     if (!best) { best = b; continue; }
     const d = b.maturity - best.maturity;
-    if (which === 'first' ? (d < 0 || (d === 0 && tieBeats(b, best)))
-                          : (d > 0 || (d === 0 && tieBeats(b, best)))) best = b;
+    if (which === 'first' ? (d < 0 || (d === 0 && tieBeats(b, best, couponPref)))
+                          : (d > 0 || (d === 0 && tieBeats(b, best, couponPref)))) best = b;
   }
   return best;
 }
 // Ordered list of TIPS that fill one funded year under `pref`. Never empty (callers only
 // pass years that have ≥1 candidate).
-function selectYearTips(cands, pref) {
-  const byMat = (a, b) => (a.maturity - b.maturity) || (tieBeats(a, b) ? -1 : 1);
-  if (pref === 'first') return [pickExtreme(cands, 'first')];
+function selectYearTips(cands, pref, couponPref = 'higher') {
+  const byMat = (a, b) => (a.maturity - b.maturity) || (tieBeats(a, b, couponPref) ? -1 : 1);
+  if (pref === 'first') return [pickExtreme(cands, 'first', couponPref)];
   if (pref === 'all') {
-    // One TIPS per distinct maturity month; higher coupon wins when a month has two issues.
+    // One TIPS per distinct maturity month; couponPref wins when a month has two issues.
     const byMonth = new Map();
     for (const b of cands) {
       const mo = b.maturity.getMonth();
       const cur = byMonth.get(mo);
-      if (!cur || tieBeats(b, cur)) byMonth.set(mo, b);
+      if (!cur || tieBeats(b, cur, couponPref)) byMonth.set(mo, b);
     }
     return [...byMonth.values()].sort(byMat);
   }
   if (pref === 'semiannual') {
-    const jan = pickExtreme(cands.filter(b => b.maturity.getMonth() + 1 === 1), 'last');
-    const jul = pickExtreme(cands.filter(b => b.maturity.getMonth() + 1 === 7), 'last');
+    const jan = pickExtreme(cands.filter(b => b.maturity.getMonth() + 1 === 1), 'last', couponPref);
+    const jul = pickExtreme(cands.filter(b => b.maturity.getMonth() + 1 === 7), 'last', couponPref);
     const picks = [jan, jul].filter(Boolean);
     if (picks.length) return picks.sort(byMat);   // Jan before Jul
-    return [pickExtreme(cands, 'last')];           // no Jan/Jul (e.g. Feb 2040+): take the one available
+    return [pickExtreme(cands, 'last', couponPref)]; // no Jan/Jul (e.g. Feb 2040+): take the one available
   }
-  return [pickExtreme(cands, 'last')];             // 'last' (default)
+  return [pickExtreme(cands, 'last', couponPref)]; // 'last' (default)
 }
 
 // ─── Canonical ladder bond selection (shared by build and rebalance) ────────────
@@ -116,7 +115,7 @@ function selectYearTips(cands, pref) {
 //   yearBondMap[year]     — the single representative (latest of the list); every
 //                           bracket/gap/cover path keys off this and is unaffected,
 //                           and it equals the legacy pick when the list has length 1.
-export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref = 'last' }) {
+export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref = 'last', couponPref = 'higher' }) {
   // 1. Gather candidate TIPS per year (maturing after settlement, in range), then apply the policy.
   const candsByYear = {};
   for (const bond of tipsMap.values()) {
@@ -128,9 +127,9 @@ export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate
   const yearBondMap = {};       // year → representative single TIPS (latest of the funded list)
   const yearTipsListMap = {};   // year → ordered funded-year TIPS list (≥1)
   for (const yr of Object.keys(candsByYear).map(Number)) {
-    const list = selectYearTips(candsByYear[yr], maturityPref);
+    const list = selectYearTips(candsByYear[yr], maturityPref, couponPref);
     yearTipsListMap[yr] = list;
-    yearBondMap[yr] = pickExtreme(list, 'last');
+    yearBondMap[yr] = pickExtreme(list, 'last', couponPref);
   }
 
   let rangeYears = Object.keys(yearBondMap).map(Number).sort((a, b) => a - b);

@@ -8,6 +8,7 @@
 //   { heading: string }                — section heading (no value)
 
 let _el = null;
+let _openAnchor = null; // element that opened the currently-visible popup
 
 function _build() {
   _el = document.createElement('div');
@@ -33,19 +34,23 @@ function _build() {
   });
   document.addEventListener('mouseup', () => { drag = false; });
   document.addEventListener('click', e => {
-    if (_el.style.display !== 'none' && !_el.contains(e.target)) hidePopup();
+    // Ignore a click on the anchor itself: e.g. a <select> anchor fires a trailing native
+    // 'click' right after the 'change' that opened the popup — without this guard that click
+    // is immediately read as "outside the popup" and closes it before it's ever seen.
+    if (_el.style.display !== 'none' && !_el.contains(e.target) && e.target !== _openAnchor) hidePopup();
   }, true);
   document.addEventListener('keydown', e => {
     if (e.key === 'Escape') hidePopup();
   });
 }
 
-export function hidePopup() { if (_el) _el.style.display = 'none'; }
+export function hidePopup() { if (_el) _el.style.display = 'none'; _openAnchor = null; }
 
 let _state = null;
 
 export function showPopup(anchorEl, title, rowsOrBuilder, breadcrumb, initialToggleVal) {
   if (!_el) _build();
+  _openAnchor = anchorEl;
 
   let rows;
   if (typeof rowsOrBuilder === 'function') {

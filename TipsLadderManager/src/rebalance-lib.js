@@ -453,9 +453,10 @@ export function parseFundedYearDaraBlock(rawLines) {
 
 // Parse the `#params,key=value,...` line our exports append next to the DARA block. Carries the
 // construction parameters that per-year DARA does NOT encode but that still change the target
-// ladder — chiefly `preLadderInterest` (PLI zeroes early rungs) and `maturityPref` (which bond
-// per year). On import these set the UI controls so a round-trip reconstructs exactly; the user
-// may then override them (see 2.1 Broker Import). Returns null when absent (broker/legacy files).
+// ladder — chiefly `preLadderInterest` (PLI zeroes early rungs), `maturityPref` (which bond
+// per year), and `couponPref` (which issue wins a same-month two-issue tie). On import these set
+// the UI controls so a round-trip reconstructs exactly; the user may then override them (see 2.1
+// Broker Import). Returns null when absent (broker/legacy files).
 export function parseParamsBlock(rawLines) {
   for (const line of rawLines) {
     const norm = line.replace(/\s/g, '').toLowerCase();
@@ -466,6 +467,7 @@ export function parseParamsBlock(rawLines) {
       if (!k) continue;
       if (/^preladderinterest$/i.test(k)) out.preLadderInterest = /^(true|1|yes|on)$/i.test(v);
       else if (/^maturitypref$/i.test(k)) out.maturityPref = /^(first|semiannual|all)$/i.test(v) ? v.toLowerCase() : 'last';
+      else if (/^couponpref$/i.test(k)) out.couponPref = /^lower$/i.test(v) ? 'lower' : 'higher';
     }
     return Object.keys(out).length > 0 ? out : null;
   }

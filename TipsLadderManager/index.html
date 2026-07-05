@@ -291,12 +291,19 @@
         </div>
       </div>
       <div class="field" id="field-build-maturity" style="display:none">
-        <label>Maturity pick</label>
+        <label>Maturity preference</label>
         <select id="build-maturity">
           <option value="last">Last to mature</option>
           <option value="first">First to mature</option>
           <option value="semiannual">Semiannual (Jan + Jul)</option>
           <option value="all">All maturity months</option>
+        </select>
+      </div>
+      <div class="field" id="field-build-coupon" style="display:none">
+        <label style="gap:4px">Coupon pick<button id="coupon-pick-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Coupon pick help">?</button></label>
+        <select id="build-coupon">
+          <option value="higher">Higher coupon</option>
+          <option value="lower">Lower coupon</option>
         </select>
       </div>
       <div class="field" id="field-pre-ladder">
@@ -423,6 +430,23 @@ const tableEl  = document.getElementById('build-table');
 // ─── Help modal ───────────────────────────────────────────────────────────────
 document.getElementById('help-btn').addEventListener('click', () => {
   document.getElementById('help-overlay').style.display = 'block';
+});
+
+// Coupon pick only matters when a same-month two-issue collision can occur — never true for
+// 'last' (the duplicate months, Jan/Apr, are never the latest month in their year). Pops up
+// alongside Maturity pick for 'first'/'semiannual'/'all'; stays hidden (and irrelevant) for 'last'
+// and for Rebalance mode entirely.
+function _updateCouponFieldVisibility() {
+  const show = currentMode === 'build' && document.getElementById('build-maturity').value !== 'last';
+  document.getElementById('field-build-coupon').style.display = show ? '' : 'none';
+}
+document.getElementById('build-maturity').addEventListener('change', _updateCouponFieldVisibility);
+
+document.getElementById('coupon-pick-help').addEventListener('click', e => {
+  e.stopPropagation();
+  showPopup(e.currentTarget, 'Coupon Pick', [
+    { html: 'Some maturity months carry two TIPS issues with different coupons (Jan 2027/28/29, Apr 2028/29). Choose which one this ladder buys when a funded year lands on one of those months.' },
+  ]);
 });
 
 document.getElementById('bracket-mode-help').addEventListener('click', e => {
@@ -625,7 +649,8 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
 
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
     document.getElementById('field-build-maturity').style.display = isRebalance ? 'none' : '';
-    
+    _updateCouponFieldVisibility();
+
     document.getElementById('field-rebal-first-year').style.display = isRebalance && currentHoldingsArray ? '' : 'none';
     document.getElementById('field-first-year').style.display = isRebalance ? 'none' : '';
     document.getElementById('field-rebal-last-year').style.display = isRebalance ? '' : 'none';
@@ -753,9 +778,10 @@ document.getElementById('export-cusip-qty-btn').addEventListener('click', () => 
     }
   }
   // Construction params DARA doesn't encode (PLI zeroes early rungs; maturityPref picks the bond
-  // per year). Persisted so a re-import reconstructs the exact target without relying on UI state.
+  // per year; couponPref breaks same-month two-issue ties). Persisted so a re-import reconstructs
+  // the exact target without relying on UI state.
   if (summary) {
-    rows.push(`#params,preLadderInterest=${summary.preLadderInterest ? 'true' : 'false'},maturityPref=${summary.maturityPref ?? 'last'}`);
+    rows.push(`#params,preLadderInterest=${summary.preLadderInterest ? 'true' : 'false'},maturityPref=${summary.maturityPref ?? 'last'},couponPref=${summary.couponPref ?? 'higher'}`);
   }
 
   const filename = `cusip-qty-${new Date().toISOString().split('T')[0]}.csv`;
@@ -1541,7 +1567,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
       currentHoldingsArray = arr;
       // Our own exports append an explicit per-year DARA block — honor it on import (exact round-trip).
       currentImportedDaraByYear = parseFundedYearDaraBlock(rawLines);
-      // …and a #params line with the construction params DARA doesn't encode (PLI / maturityPref).
+      // …and a #params line with the construction params DARA doesn't encode (PLI / maturityPref / couponPref).
       // File is authoritative on load; the user may override afterward (controls are read live at Run).
       currentImportedParams = parseParamsBlock(rawLines);
       if (currentImportedParams) {
@@ -1549,6 +1575,9 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
           document.getElementById('pre-ladder-interest').checked = currentImportedParams.preLadderInterest;
         if (currentImportedParams.maturityPref)
           document.getElementById('build-maturity').value = currentImportedParams.maturityPref;
+        if (currentImportedParams.couponPref)
+          document.getElementById('build-coupon').value = currentImportedParams.couponPref;
+        _updateCouponFieldVisibility();
       }
     } else if (acctNames.length === 1) {
       currentHoldingsArray = parsedAccounts[acctNames[0]];
@@ -2254,6 +2283,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         refCPI,
         settlementDate,
         maturityPref: document.getElementById('build-maturity').value,
+        couponPref: document.getElementById('build-coupon').value,
         preLadderInterest: document.getElementById('pre-ladder-interest').checked,
         daraByYear: getDaraByYear()
       });
