@@ -29,6 +29,25 @@
 
   /* ── Form card ── */
   .form-card { width: fit-content; min-width: 845px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 0 0 8px 8px; padding: 10px 24px 8px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
+
+  /* ── DARA Plan card — same visual weight as the main form card, but a standalone card (not
+     flush under the tab bar): split years, per-segment Infer/$-each, Undo/Revert, Remember/
+     Export/Import. Distinct from the plain Per-Year DARA table box below it. ── */
+  .dara-plan-card { width: fit-content; min-width: 845px; margin: 0 0 16px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 8px; padding: 10px 24px 12px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); }
+  .dara-plan-card-hdr { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--portal-card-text); opacity: 0.85; margin: 0 0 8px; }
+  .dara-plan-card, .dara-plan-card label, .dara-plan-card span, .dara-plan-card b { color: var(--portal-card-text); }
+  .dara-plan-card select, .dara-plan-card input[type="number"] { background: var(--portal-header-bg); border: 1px solid var(--portal-header-bg); border-radius: 3px; color: var(--portal-text-on-dark); font-size: 12px; padding: 2px 4px; }
+  .dara-plan-card input[type="checkbox"] { margin: 0; }
+  .dara-plan-card .plan-btn { padding: 3px 8px; font-size: 11px; font-weight: 700; border: 1px solid var(--tab-active-bg); border-radius: 4px; background: var(--portal-header-bg); color: var(--portal-card-text); cursor: pointer; white-space: nowrap; }
+  .dara-plan-card .plan-btn:hover:not(:disabled) { background: var(--tab-active-bg); color: var(--portal-text-on-dark); }
+  .dara-plan-card .plan-btn:disabled { opacity: .5; cursor: default; }
+  .dara-plan-card .plan-help { background: none; border: 1px solid var(--portal-card-text); border-radius: 50%; width: 16px; height: 16px; font-size: 10px; color: var(--portal-card-text); cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0; }
+  .dara-plan-card .plan-banner { display: flex; padding: 6px 8px; background: rgba(91,164,164,0.18); border: 1px solid var(--tab-active-bg); border-radius: 4px; font-size: 11px; }
+  .dara-plan-card .plan-chip { display: inline-flex; align-items: center; gap: 3px; background: var(--portal-header-bg); border: 1px solid var(--tab-active-bg); border-radius: 10px; padding: 2px 6px; font-size: 11px; }
+  .dara-plan-card .plan-chip-remove { border: none; background: none; color: var(--portal-card-text); opacity: .7; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
+  .dara-plan-card .seg-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
+  .dara-plan-card .seg-row b { min-width: 150px; }
+  .dara-plan-card .seg-const-input { width: 80px; text-align: right; }
   /* .fields/.break removed — replaced by .card-inputs */
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
   /* .val-display removed — term/range now in .card-info as .info-stat-val */
@@ -345,6 +364,39 @@
   </div>
 </div>
 
+<!-- DARA Plan card — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/Import.
+     Same visual weight as the main form card; distinct from the plain Per-Year DARA table below. -->
+<div id="dara-plan-card" class="dara-plan-card" style="display:none">
+  <div class="dara-plan-card-hdr">DARA Plan</div>
+  <div id="dara-history-tools" style="display:none;font-size:11px;margin:0 0 8px;gap:6px;align-items:center">
+    <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
+    <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
+  </div>
+  <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
+    <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+      <input type="checkbox" id="dara-remember-cb" style="margin:0">
+      <span id="dara-remember-label"></span>
+    </label>
+    <button type="button" class="plan-btn" id="dara-plan-export-btn" title="Save the current per-year DARA (and split years) to a file you can re-import next time">⬇ Export DARA Plan</button>
+    <button type="button" class="plan-btn" id="dara-plan-import-btn" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+    <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
+  </div>
+  <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:0 0 8px;align-items:center;gap:8px;flex-wrap:wrap">
+    <span id="dara-plan-banner-text"></span>
+    <button type="button" class="plan-btn" id="dara-plan-apply">Apply</button>
+    <button type="button" class="plan-btn" id="dara-plan-dismiss" style="background:none;border-color:transparent">Dismiss</button>
+  </div>
+  <div id="dara-seg-tools" style="display:none;font-size:12px">
+    <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+      <span>Split years:</span>
+      <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
+      <select id="split-year-add"></select>
+      <button id="seg-tools-help" type="button" class="plan-help" title="Segmented DARA help">?</button>
+    </div>
+    <div id="seg-rows"></div>
+  </div>
+</div>
+
 <!-- Per-year DARA panel -->
 <div id="dara-by-year" style="display:none">
   <div style="border:1px solid #ddd; border-radius:6px; background:#fff; padding:8px 16px 12px;">
@@ -353,33 +405,6 @@
       <span style="font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.05em">Per-Year DARA</span>
     </div>
     <div id="dara-by-year-body">
-      <div id="dara-history-tools" style="display:none;font-size:11px;margin:0 0 8px;gap:6px;align-items:center">
-        <button type="button" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled style="font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#f1f5f9;color:#475569;cursor:pointer">↶ Undo</button>
-        <button type="button" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none;font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#f1f5f9;color:#475569;cursor:pointer">⟲ Revert to loaded</button>
-      </div>
-      <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:5px;color:#475569;cursor:pointer">
-          <input type="checkbox" id="dara-remember-cb" style="margin:0">
-          <span id="dara-remember-label"></span>
-        </label>
-        <button type="button" id="dara-plan-export-btn" title="Save the current per-year DARA (and split years) to a file you can re-import next time" style="font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#f1f5f9;color:#475569;cursor:pointer">⬇ Export DARA Plan</button>
-        <button type="button" id="dara-plan-import-btn" title="Load a previously exported DARA-plan file and overlay it on the current holdings" style="font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#f1f5f9;color:#475569;cursor:pointer">⬆ Import DARA Plan</button>
-        <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
-      </div>
-      <div id="dara-plan-banner" style="display:none;font-size:11px;margin:0 0 8px;padding:6px 8px;background:#eff6ff;border:1px solid #bfdbfe;border-radius:4px;color:#1e3a8a;align-items:center;gap:8px;flex-wrap:wrap">
-        <span id="dara-plan-banner-text"></span>
-        <button type="button" id="dara-plan-apply" style="font-size:11px;padding:2px 8px;border:1px solid #93c5fd;border-radius:4px;background:#dbeafe;color:#1e3a8a;cursor:pointer">Apply</button>
-        <button type="button" id="dara-plan-dismiss" style="font-size:11px;padding:2px 8px;border:none;background:none;color:#64748b;cursor:pointer">Dismiss</button>
-      </div>
-      <div id="dara-seg-tools" style="display:none;font-size:12px;margin:2px 0 10px">
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-          <span style="color:#334155">Split years:</span>
-          <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
-          <select id="split-year-add" style="border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-size:12px"></select>
-          <button id="seg-tools-help" type="button" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Segmented DARA help">?</button>
-        </div>
-        <div id="seg-rows"></div>
-      </div>
       <div class="table-scroll-wrap" id="dara-by-year-scroll">
         <table class="simple" id="dara-by-year-table"></table>
       </div>
@@ -1874,13 +1899,18 @@ function updateDaraInput(force = false) {
 
 function renderDaraByYearPanel() {
   const panel = document.getElementById('dara-by-year');
+  // The DARA Plan card (split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/Import)
+  // is always shown/hidden in lockstep with the Per-Year DARA table below it — same condition, same
+  // underlying store — so it's toggled alongside `panel` everywhere below rather than tracked
+  // separately.
+  const planCard = document.getElementById('dara-plan-card');
   // When the top box is intentionally blank (segmented ladder / custom per-year shape), the
   // internal default tracks the LIVE store's median instead of re-reading stale/blank field text —
   // this is what keeps the top box, the segment boxes, and the per-year table from drifting out of
   // sync (they're all derived from the current store, never from whatever was last typed).
   const defaultDara = _daraIsByYear() ? (_medianOfStore() ?? _daraByYearPanelDefault) : _getDefaultDara();
   if (!tipsMap || isNaN(defaultDara) || defaultDara <= 0) {
-    panel.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return;
+    panel.style.display = 'none'; planCard.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return;
   }
 
   // yearEntries: [{year, suffix}] where suffix is '' / '(gap)' / '(30Y)'
@@ -1898,7 +1928,7 @@ function renderDaraByYearPanel() {
   }
 
   if (currentMode === 'rebalance') {
-    if (!currentHoldingsArray) { panel.style.display = 'none'; return; }
+    if (!currentHoldingsArray) { panel.style.display = 'none'; planCard.style.display = 'none'; return; }
     const ly = parseInt(document.getElementById('rebal-last-year').value);
     // Respect an explicit First Year override — same range the actual rebalance run uses — instead
     // of always starting from the earliest year you happen to hold.
@@ -1947,6 +1977,7 @@ function renderDaraByYearPanel() {
   _renderDaraHistoryBtns();
   _setDaraByYearCollapsed(_daraByYearBodyCollapsed);
   panel.style.display = 'block';
+  planCard.style.display = 'block';
   updateDaraInput();
 }
 
@@ -1996,7 +2027,7 @@ function _renderSegTools() {
   const range = s => { const a = [...s]; return a.length ? `${Math.min(...a)}–${Math.max(...a)}` : '—'; };
 
   document.getElementById('split-year-chips').innerHTML = _splitYears.map(y =>
-    `<span class="split-chip" style="display:inline-flex;align-items:center;gap:3px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:10px;padding:2px 6px;font-size:11px;color:#334155">${y}<button type="button" class="split-chip-remove" data-year="${y}" title="Remove split at ${y}" style="border:none;background:none;color:#94a3b8;cursor:pointer;font-size:12px;line-height:1;padding:0">×</button></span>`
+    `<span class="plan-chip">${y}<button type="button" class="plan-chip-remove" data-year="${y}" title="Remove split at ${y}">×</button></span>`
   ).join('');
 
   const addSel = document.getElementById('split-year-add');
@@ -2006,15 +2037,15 @@ function _renderSegTools() {
 
   const segments = _segments();
   const inferBtnHTML = i => currentMode === 'rebalance'
-    ? `<button type="button" class="seg-infer-btn seg-btn" data-idx="${i}" title="Infer the self-financing DARA for this segment and apply it across its rungs" style="font-size:11px;padding:3px 8px;border:1px solid #cbd5e1;border-radius:4px;background:#f1f5f9;color:#475569;cursor:pointer">Infer DARA</button>`
+    ? `<button type="button" class="seg-infer-btn plan-btn" data-idx="${i}" title="Infer the self-financing DARA for this segment and apply it across its rungs">Infer DARA</button>`
     : '';
   document.getElementById('seg-rows').innerHTML = segments.map((years, i) => {
     const echo = _segInferredEcho.get(_segKey(years));
     return `
-    <div class="seg-row" style="display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap">
-      <b style="min-width:150px;color:#334155">${segments.length > 1 ? `Segment ${range(years)}` : `Whole ladder ${range(years)}`}</b>
+    <div class="seg-row">
+      <b>${segments.length > 1 ? `Segment ${range(years)}` : `Whole ladder ${range(years)}`}</b>
       ${inferBtnHTML(i)}
-      <input type="number" class="seg-const-input" data-idx="${i}" placeholder="$ each" step="1000" min="0" value="${echo ?? ''}" style="width:80px;text-align:right;border:1px solid #ccc;border-radius:3px;padding:2px 4px;font-size:12px">
+      <input type="number" class="seg-const-input" data-idx="${i}" placeholder="$ each" step="1000" min="0" value="${echo ?? ''}">
     </div>`;
   }).join('');
 
@@ -2114,7 +2145,7 @@ document.getElementById('split-year-add').addEventListener('change', e => {
   updateDaraInput(true);  // a single top-level number stops being meaningful the moment segments exist
 });
 document.getElementById('split-year-chips').addEventListener('click', e => {
-  const btn = e.target.closest('.split-chip-remove');
+  const btn = e.target.closest('.plan-chip-remove');
   if (!btn) return;
   const y = parseInt(btn.dataset.year, 10);
   _splitYears = _splitYears.filter(sy => sy !== y);
