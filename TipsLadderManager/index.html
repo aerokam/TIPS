@@ -2234,6 +2234,14 @@ document.getElementById('dara').addEventListener('blur', () => {
       const inp = table.querySelector(`input[data-year="${yr}"]`);
       if (inp) inp.value = val;
     }
+    // Same in-place update for the segment "$ each" echoes — a flat stamp applies to every
+    // segment too, not just the funded-year rows (3.0 §UI: segment actions — "mirrors how the
+    // main #dara field applies on blur").
+    _segments().forEach((years, i) => {
+      _segInferredEcho.set(_segKey(years), val);
+      const segInp = document.querySelector(`.seg-const-input[data-idx="${i}"]`);
+      if (segInp) segInp.value = val;
+    });
     _saveDaraPlanIfRemembered();
     updateDaraInput();
   } else if (raw.trim() === '') {
@@ -2253,6 +2261,7 @@ function _daraStep(delta) {
   _daraByYearPanelDefault = newVal;
   _daraManualYears.clear();
   for (const [yr] of _daraByYearStore) _daraByYearStore.set(yr, newVal);
+  for (const years of _segments()) _segInferredEcho.set(_segKey(years), newVal);
   renderDaraByYearPanel();
   _saveDaraPlanIfRemembered();
 }

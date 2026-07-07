@@ -365,12 +365,21 @@ export function buildDrillHTML(d, colKey, summary) {
 
   // ── Rebalance: Cash Delta ─────────────────────────────────────────────────────
   } else if (colKey === 'cashDelta') {
-    const qtyDelta  = d.qtyAfter - d.qtyBefore;
+    const qtyDelta  = d.fundedYearQtyDelta;
     const cashDelta = -(qtyDelta * d.costPerBond);
     const qdSign    = qtyDelta >= 0 ? '+' : '';
     const cdSign    = cashDelta >= 0 ? '+' : '';
-    rows =
-      row('Quantity delta', 'Quantity After \u2212 Quantity Before', qdSign + qtyDelta, false, undefined, 'qty') +
+    // A bracket-target CUSIP's funded and excess portions are the same held maturity, so held units
+    // are relabeled between the two buckets at no cost before either is traded \u2014 this maturity is
+    // never bought in one bucket while sold in the other. Show that reallocation explicitly so the
+    // funded-year quantity delta doesn't look like it's missing units.
+    rows = (d.isBracketTarget
+      ? row('Total held (this CUSIP)', '', d.qtyBefore) +
+        row('Reallocated to funded year', 'held units relabeled to this year\u2019s own rung at no cost, before any trade is sized', d.reallocFundedBefore, false, undefined, 'rfb') +
+        row('Funded year target', '', d.fundedYearQtyAfter) +
+        row('Quantity delta', 'Funded year target \u2212 <span class="formula-var" data-source="rfb">reallocated funded</span>', qdSign + qtyDelta, false, undefined, 'qty')
+      : row('Quantity delta', 'Quantity After \u2212 Quantity Before', qdSign + qtyDelta, false, undefined, 'qty')
+    ) +
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
@@ -493,14 +502,18 @@ export function buildDrillHTML(d, colKey, summary) {
 
   // ── Rebalance: Gap Cash Delta ─────────────────────────────────────────────────
   } else if (colKey === 'gapCashDelta') {
-    const exQtyBef  = d.excessQtyBefore;
     const exQtyAft  = d.excessQtyAfter;
-    const exQtyDel  = exQtyAft - exQtyBef;
+    const exQtyDel  = d.excessQtyDelta;
     const gapCash   = -(exQtyDel * d.costPerBond);
     const delSign   = exQtyDel >= 0 ? '+' : '';
     const cashSign  = gapCash  >= 0 ? '+' : '';
+    // Same reallocation as the funded-year Cash Delta popup: this excess is the SAME held maturity
+    // as the funded-year rung, so held units are relabeled between the two buckets at no cost before
+    // either is traded, rather than reading "Excess Quantity before" as its own current-holdings fact.
     rows =
-      row('Excess Quantity before', 'Current total \u2212 FY target', exQtyBef) +
+      row('Total held (this CUSIP)', '', d.qtyBefore) +
+      row('Reallocated to funded year', 'held units relabeled to the funded rung at no cost, before any trade is sized', d.reallocFundedBefore, false, undefined, 'rfb') +
+      row('Excess Quantity before (after reallocation)', '<span class="formula-var" data-source="rfb">Total held</span> minus reallocated funded', d.reallocExcessBefore) +
       row('Excess Quantity after',  'Rebalanced excess', exQtyAft) +
       row('Excess Quantity delta',  'After \u2212 before', delSign + exQtyDel, false, undefined, 'qty') +
       sep() +

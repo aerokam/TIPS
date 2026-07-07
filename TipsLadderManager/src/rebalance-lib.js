@@ -1526,23 +1526,40 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
 
     const isBT = !!(bst_loop?.isBracket && h.cusip === bst_loop.targetCUSIP);
     const cpbHere = (b.price ?? 0) / 100 * ir * 1000;
-    // exB: prior excess at this bracket year.
+    // Current-holdings split at a bracket year: how much of what's actually held counts as this
+    // year's own funded rung vs. extra held for gap coverage. This is a pure holdings-interpretation
+    // question — driven only by what the year needs (bracketTargetFundedYearQtyBefore, the funded-
+    // first LMI/DARA formula) — and must NEVER reference the after-rebalance trade target. Any
+    // "don't recommend a pointless simultaneous buy+sell" concern belongs entirely to the after-side
+    // targeting logic (tFundedYearQty / buySellTargets above), not here — it must not leak back into
+    // how we read the current holdings (see 3.0 §Named Quantities: the funded-first rule applies to
+    // ALL standard bracket years, with no after-side exception).
     // - future30y cover years: cost-based formula (pure excess, no funded component).
     // - Format 4/5 (h.excessQty present): use explicit CSV value directly.
-    // - 3-bracket orig lower (no h.excessQty): bracketTargetFundedYearQtyBefore → preserves freeze (exB = exA).
-    // - all other bracket years (no h.excessQty): funded-after rule — exB = h.qty - tFundedYearQty,
-    //   so fyQtyBefore equals the after target and no funded-year buy+sell appears.
+    // - every other bracket year: bracketTargetFundedYearQtyBefore (funded-first LMI/DARA formula).
     const exB = isBT && cpbHere > 0
       ? future30yCoverYearSet.has(h.year)
         ? Math.round((bracketExcessTargetCost[h.year] || 0) / cpbHere)
         : h.excessQty != null
           ? h.excessQty
-          : (is3Bracket && h.year === brackets?.lowerYear)
-            ? Math.max(0, h.qty - (bracketTargetFundedYearQtyBefore[h.year] ?? 0))
-            : Math.max(0, h.qty - (bst_loop?.targetFundedYearQty ?? h.qty))
+          : Math.max(0, h.qty - (bracketTargetFundedYearQtyBefore[h.year] ?? 0))
       : 0;
     const exA = isBT ? tQ - tFundedYearQty : 0;
-    
+
+    // The actual trade to place, split between the funded-year and excess buckets. A bracket-target
+    // CUSIP's funded and excess portions are the SAME held maturity, so simply subtracting the
+    // honest current-holdings split (fundedYearQtyBefore/excessQtyBefore above) from the after
+    // targets, bucket by bucket, can manufacture a sell in one bucket and a buy in the other for the
+    // identical bond — a nonsensical simultaneous buy+sell of one maturity. Before pricing any trade,
+    // first relabel (at zero cost) as much of what's already held as will satisfy the funded target,
+    // then trade only the shortfall or the leftover excess — so at most one bucket ever trades, and
+    // never in opposite directions. This reallocation is for trade-sizing only; it never changes the
+    // honest Before figures used for display (fundedYearQtyBefore/excessQtyBefore above).
+    const reallocFundedBefore = isBT ? Math.min(tFundedYearQty, h.qty) : h.qty;
+    const reallocExcessBefore = isBT ? (h.qty - reallocFundedBefore) : 0;
+    const fundedYearQtyDelta = tFundedYearQty - reallocFundedBefore;
+    const excessQtyDelta = exA - reallocExcessBefore;
+
     const bForLMI = tipsMap.get(h.cusip);
     const irForLMI = refCPI / (bForLMI?.baseCpi ?? refCPI);
     const annIntPerBond = 1000 * irForLMI * (bForLMI?.coupon ?? 0);
@@ -1563,6 +1580,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       isBracketTarget: isBT, isFuture30yCover: isBT && future30yCoverYearSet.has(h.year),
       isGapBracket: gapYears.length > 0 && (h.year === brackets.lowerYear || h.year === brackets.upperYear || (is3Bracket && h.year === newLowerYear)),
       excessQtyBefore: exB, excessQtyAfter: exA,
+      reallocFundedBefore, reallocExcessBefore, fundedYearQtyDelta, excessQtyDelta,
       excessAmtBefore: excessCoverageAmt(h.year, exB, piPB),
       excessAmtAfter:  excessCoverageAmt(h.year, exA, piPB),
       excessLMIAlloc:  excessLMIAllocFor(h.year),
@@ -1634,6 +1652,9 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       isBracketTarget: bst.isBracket, isFuture30yCover: bst.isBracket && future30yCoverYearSet.has(bYear),
       isGapBracket: gapYears.length > 0 && (bYear === brackets.lowerYear || bYear === brackets.upperYear || (is3Bracket && bYear === newLowerYear)),
       excessQtyBefore: 0, excessQtyAfter: exA,
+      // Nothing held yet, so there is nothing to reallocate — the whole target is a straight buy.
+      reallocFundedBefore: 0, reallocExcessBefore: 0,
+      fundedYearQtyDelta: bst.targetFundedYearQty, excessQtyDelta: exA,
       excessAmtBefore: 0,
       excessAmtAfter:  excessCoverageAmt(bYear, exA, piPB),
       excessLMIAlloc:  excessLMIAllocFor(bYear),
@@ -1697,6 +1718,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         isBracketTarget: false, isFuture30yCover: false,
         isGapBracket: gapYears.length > 0 && (year === brackets.lowerYear || year === brackets.upperYear || (is3Bracket && year === newLowerYear)),
         excessQtyBefore: 0, excessQtyAfter: 0,
+        reallocFundedBefore: 0, reallocExcessBefore: 0, fundedYearQtyDelta: 0, excessQtyDelta: 0,
         excessAmtBefore: 0, excessAmtAfter: 0,
         excessLMI_Before: 0, excessLMI_After: 0,
         araBeforeTotal: araB, araAfterTotal: araA,

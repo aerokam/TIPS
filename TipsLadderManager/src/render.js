@@ -84,15 +84,19 @@ export const COLS = [
     drill: true, drillCond: (_v, d) => (d.qtyAfter || 0) > 0,
     headerHTML: 'Qty After<br><span style="font-weight:normal;opacity:0.7">Qty After</span>' },
 
+  // fundedYearQtyDelta/excessQtyDelta (not a plain After-minus-Before per bucket) are the actual
+  // trade to place: for a bracket-target CUSIP, holdings are reallocated internally between the
+  // funded and excess buckets at zero cost before either bucket is sized, so the same maturity is
+  // never simultaneously bought in one bucket and sold in the other (3.0 §Named Quantities).
   { label: 'Quantity Delta',     key: 'qtyDelta',   fmt: 'sgn', rebalOnly: true,
-    value:    d => d.fundedYearQtyAfter - d.fundedYearQtyBefore,
-    subValue: d => d.excessQtyAfter - d.excessQtyBefore,
+    value:    d => d.fundedYearQtyDelta,
+    subValue: d => d.excessQtyDelta,
     total: true, totalFn: d => (d.qtyAfter || 0) - (d.qtyBefore || 0),
     headerHTML: 'Qty Delta<br><span style="font-weight:normal;opacity:0.7">Qty Delta</span>' },
 
   { label: 'Cash Delta',    key: 'cashDelta',  fmt: 'sgn', rebalOnly: true,
-    value:    d => -((d.fundedYearQtyAfter - d.fundedYearQtyBefore) * d.costPerBond),
-    subValue: d => -((d.excessQtyAfter - d.excessQtyBefore) * d.costPerBond),
+    value:    d => -(d.fundedYearQtyDelta * d.costPerBond),
+    subValue: d => -(d.excessQtyDelta * d.costPerBond),
     subDrillKey: 'gapCashDelta',
     total: true, totalFn: d => -((d.qtyAfter - d.qtyBefore) * d.costPerBond),
     drill: true, drillCond: v => typeof v === 'number' && v !== 0,
