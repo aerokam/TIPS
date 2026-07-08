@@ -515,6 +515,25 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
   console.log(`        accounts: ${Object.keys(accounts).join(', ')}`);
 }
 
+// ── Test: Format 3 (Vanguard) — whole-number coupon (no decimal point) ───────
+{
+  console.log('\nFormat 3 (Vanguard) — whole-number coupon name parsing');
+  // Real bug: Vanguard prints exact 1.000% coupons as bare "1" (no decimal point at all),
+  // same way it prints sub-1% coupons as ".125" (no leading zero, fixed in a80ddba).
+  // 912810SB5 (Feb 2048) and 912810SG4 (Feb 2049) both carry a 1.000% coupon — the old
+  // regex `(\d*\.\d+)` required a decimal point and silently dropped both.
+  const csv3b = [
+    'Account Number,Investment Name,Symbol,Shares,Share Price,Total Value,',
+    '11111111,U S TREASURY NOTE INFLATION INDEX NOTE 1 02/15/48 02/15/18,null,50000,74.125,37062.50,',
+    '11111111,U S TREASURY NOTE INFLATION INDEX NOTE 1 02/15/49 02/15/19,null,60000,73.0625,43837.50,',
+  ].join('\n');
+  const { holdings: holdings3b } = parseBrokerCSV(csv3b, tipsMap);
+  const sb5 = holdings3b['11111111']?.find(h => h.cusip === '912810SB5');
+  const sg4 = holdings3b['11111111']?.find(h => h.cusip === '912810SG4');
+  assert('F3b: SB5 (Feb 2048, 1.000% coupon) qty === 50 (name-resolved)', sb5?.qty, 50);
+  assert('F3b: SG4 (Feb 2049, 1.000% coupon) qty === 60 (name-resolved)', sg4?.qty, 60);
+}
+
 // ── Test: Build from scratch — deterministic output ───────────────────────────
 console.log('\nBuild — DARA=50000, lastYear=2040');
 {

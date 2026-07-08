@@ -108,7 +108,7 @@ export function parseBrokerCSV(csvText, tipsMap) {
     if (!resolvedCusip && map.investmentName > -1 && cols[map.investmentName]) {
       const invName = cols[map.investmentName];
       if (/inflation index/i.test(invName)) {
-        const m = invName.match(/(\d*\.\d+)\s+(\d{2})\/\d{2}\/(\d{2})/);
+        const m = invName.match(/(\d*\.?\d+)\s+(\d{2})\/\d{2}\/(\d{2})/);
         if (m) {
           const year4d = 2000 + parseInt(m[3], 10);
           resolvedCusip = vanguardLookup.get(`${parseFloat(m[1])}|${year4d}-${m[2]}`) || null;
