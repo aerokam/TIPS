@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Fund Holdings</title>
+<link rel="stylesheet" href="../shared/src/portal-theme.css">
+<style>
+  /* App-specific overrides — shared base, vars, tabs, buttons: portal-theme.css */
+  .page { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px; }
+  main { background: #fff; border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 8px 8px; padding: 16px; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border-light); white-space: nowrap; }
+  th:nth-child(1), td:nth-child(1),
+  th:nth-child(2), td:nth-child(2) { text-align: left; }
+  thead th { background: var(--portal-header-bg); color: var(--portal-text-on-dark); position: sticky; top: 0; font-weight: 700; }
+  thead th.sortable { cursor: pointer; user-select: none; }
+  thead th.sortable:hover { background: var(--tab-inactive-bg); }
+  thead th .sort-arrow { font-size: 10px; margin-left: 3px; opacity: 0.7; }
+  tbody tr:hover { background: var(--portal-bg); }
+  tfoot td { font-weight: 700; border-top: 2px solid var(--border-med); border-bottom: none; background: var(--chip-bg); }
+
+  .meta { color: var(--portal-text-muted); font-size: 12px; margin: 0 0 12px; }
+  .col-hidden { display: none; }
+  .status { padding: 24px; text-align: center; color: var(--portal-text-muted); }
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="tab-bar">
+    <div class="tab-bar-title">
+      <a href="../" class="portal-link">&#8592; Portal</a>
+      <span class="app-title">Fund Holdings</span>
+    </div>
+    <div class="tab-group" id="tabGroup"></div>
+  </div>
+  <main>
+    <p class="meta" id="meta"></p>
+    <div id="content"><div class="status">Loading…</div></div>
+  </main>
+</div>
+
+<script type="module">
+import { parseCsv } from "../shared/src/csv.js";
+import { calcMktWtdAvg } from "../shared/src/bond-math.js";
+
+// One entry per fund whose enriched CSV lives in data/. Add a ticker here
+// once vanguard/updateVanguardHoldings.js + enrichHoldings.js have been run for it.
+const FUNDS = ["VBIL", "VTIP", "VTP"];
+const WEEKS_PER_YEAR = 365.25 / 7;
+
+const tabGroup = document.getElementById("tabGroup");
+const meta = document.getElementById("meta");
+const content = document.getElementById("content");
+
+const NUMERIC_COLS = ["Quantity", "Coupon", "% of Fund", "Market Value", "Ask Yield", "SA Yield", "SAO Yield", "Term", "Duration"];
+const PCT_COLS = ["Coupon", "Ask Yield", "SA Yield", "SAO Yield"];
+const DISPLAY_COLS = ["CUSIP", "Holding Name", "Maturity Date", "Coupon", "% of Fund", "Market Value", "Ask Yield", "SA Yield", "SAO Yield", "Term", "Duration"];
+const UNSORTABLE_COLS = new Set(["CUSIP", "Holding Name"]);
+
+let fundMeta = {};
+try {
+  const res = await fetch("data/FundMeta.json");
+  if (res.ok) fundMeta = await res.json();
+} catch { /* meta is optional display sugar; page works without it */ }
+
+// State for the currently displayed fund, re-rendered on header-click sort
+// without refetching.
+let state = null;
+
+function fmt(col, val, termUnit) {
+  if (val === "" || val == null || Number.isNaN(Number(val))) return "";
+  const n = Number(val);
+  if (col === "Market Value") return n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (col === "% of Fund") return n.toFixed(2) + "%";
+  if (PCT_COLS.includes(col) && col !== "Coupon") return (n * 100).toFixed(2) + "%";
+  if (col === "Coupon") return n.toFixed(3) + "%";
+  if (col === "Duration") return n.toFixed(2);
+  if (col === "Term") {
+    return termUnit === "w" ? (n * WEEKS_PER_YEAR).toFixed(2) : n.toFixed(2);
+  }
+  return val;
+}
+
+function headerLabel(col, termUnit) {
+  if (col === "Duration") return "Duration (y)";
+  if (col === "Term") return termUnit === "w" ? "Term (w)" : "Term (y)";
+  return col;
+}
+
+function sortRows(rows, col, dir) {
+  return [...rows].sort((a, b) => {
+    const av = a[col], bv = b[col];
+    const aBlank = av == null || av === "";
+    const bBlank = bv == null || bv === "";
+    if (aBlank && bBlank) return 0;
+    if (aBlank) return 1;  // blanks always sort last, regardless of direction
+    if (bBlank) return -1;
+    if (typeof av === "number" && typeof bv === "number") return (av - bv) * dir;
+    return String(av).localeCompare(String(bv)) * dir;
+  });
+}
+
+function renderTable() {
+  const { rows, cols, wtdAvg, termUnit, sortCol, sortDir } = state;
+  const displayRows = sortCol ? sortRows(rows, sortCol, sortDir) : rows;
+
+  const thead = `<thead><tr>${cols.map(c => {
+    const sortable = !UNSORTABLE_COLS.has(c);
+    const arrow = sortCol === c ? `<span class="sort-arrow">${sortDir === 1 ? "▲" : "▼"}</span>` : "";
+    return `<th class="${sortable ? "sortable" : ""}" data-col="${c}">${headerLabel(c, termUnit)}${arrow}</th>`;
+  }).join("")}</tr></thead>`;
+
+  const tbody = `<tbody>${displayRows.map(r =>
+    `<tr>${cols.map(c => `<td>${c === "CUSIP" || c === "Holding Name" || c === "Maturity Date" ? (r[c] ?? "") : fmt(c, r[c], termUnit)}</td>`).join("")}</tr>`
+  ).join("")}</tbody>`;
+
+  const tfoot = `<tfoot><tr>${cols.map(c => {
+    if (c === "CUSIP") return `<td>Wtd Avg</td>`;
+    if (c === "Holding Name" || c === "Maturity Date") return `<td></td>`;
+    if (c === "% of Fund") return `<td>${rows.reduce((s, r) => s + (r["% of Fund"] ?? 0), 0).toFixed(2)}%</td>`;
+    if (c === "Market Value") return `<td>${rows.reduce((s, r) => s + (r["Market Value"] ?? 0), 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>`;
+    if (c in wtdAvg) return `<td>${fmt(c, wtdAvg[c], termUnit)}</td>`;
+    return `<td></td>`;
+  }).join("")}</tr></tfoot>`;
+
+  content.innerHTML = `<table>${thead}${tbody}${tfoot}</table>`;
+
+  content.querySelectorAll("thead th.sortable").forEach(th => {
+    th.addEventListener("click", () => {
+      const col = th.dataset.col;
+      state.sortDir = state.sortCol === col ? -state.sortDir : 1;
+      state.sortCol = col;
+      renderTable();
+    });
+  });
+}
+
+async function loadFund(ticker) {
+  content.innerHTML = '<div class="status">Loading…</div>';
+  const res = await fetch(`data/VanguardHoldings-${ticker}-Enriched.csv`);
+  if (!res.ok) {
+    content.innerHTML = `<div class="status">No enriched data for ${ticker} yet — run vanguard/updateVanguardHoldings.js then enrichHoldings.js.</div>`;
+    return;
+  }
+  const rows = parseCsv(await res.text());
+  if (rows.length === 0) {
+    content.innerHTML = `<div class="status">${ticker}: no holdings rows.</div>`;
+    return;
+  }
+
+  for (const col of NUMERIC_COLS) {
+    for (const r of rows) r[col] = r[col] === "" ? null : Number(r[col]);
+  }
+
+  const hasSaSao = rows.some(r => r["SA Yield"] != null);
+  const cols = hasSaSao ? DISPLAY_COLS : DISPLAY_COLS.filter(c => c !== "SA Yield" && c !== "SAO Yield");
+
+  // Cash/sweep lines (no CUSIP match in either yield source, so Ask Yield is
+  // null) are excluded from the weighted averages entirely — not just
+  // zero-weighted — since a cash line can carry a negative market value
+  // (e.g. "US Dollar") that would distort the weighted sum if included.
+  const bondRows = rows.filter(r => r["Ask Yield"] != null);
+  const bondWeights = bondRows.map(r => r["Market Value"] ?? 0);
+  const wtdAvg = {};
+  for (const col of ["Coupon", "Ask Yield", "SA Yield", "SAO Yield", "Term", "Duration"]) {
+    wtdAvg[col] = calcMktWtdAvg(bondRows.map(r => r[col]), bondWeights);
+  }
+
+  // Whole-fund short-duration funds (e.g. VBIL: every holding under a year)
+  // read better in weeks than as a fraction of a year.
+  const bondTerms = bondRows.map(r => r.Term).filter(t => t != null);
+  const termUnit = bondTerms.length > 0 && bondTerms.every(t => t < 1) ? "w" : "y";
+
+  const fundName = fundMeta[ticker]?.fundName;
+  meta.textContent = `${ticker}${fundName ? " — " + fundName : ""} — ${rows.length} holdings, as of ${rows[0]["As of"]}`;
+
+  state = { rows, cols, wtdAvg, termUnit, sortCol: null, sortDir: 1 };
+  renderTable();
+}
+
+function renderTabs(active) {
+  tabGroup.innerHTML = FUNDS.map(t =>
+    `<button class="tab-btn${t === active ? " active" : ""}" data-ticker="${t}">${t}</button>`
+  ).join("");
+  tabGroup.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      renderTabs(btn.dataset.ticker);
+      loadFund(btn.dataset.ticker);
+    });
+  });
+}
+
+renderTabs(FUNDS[0]);
+loadFund(FUNDS[0]);
+</script>
+</body>
+</html>

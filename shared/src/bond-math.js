@@ -90,6 +90,29 @@ function addSemiannualPeriods(date, n, matureDay) {
   return d;
 }
 
+// ─── Leap-day day-count helper ────────────────────────────────────────────────
+// True if Feb 29 falls strictly after d1 and on/before d2.
+export function hasLeapDayBetween(d1, d2) {
+  for (let yr = d1.getFullYear(); yr <= d2.getFullYear(); yr++) {
+    const feb29 = new Date(yr, 1, 29);
+    if (feb29.getMonth() === 1 && feb29 > d1 && feb29 <= d2) return true;
+  }
+  return false;
+}
+
+// ─── Term (years to maturity) ─────────────────────────────────────────────────
+// Under 1 year: actual/actual (365, or 366 if the span crosses Feb 29) — same
+// leap-day convention as the zero-coupon bill yield formula below.
+// 1 year or more: 365.25, the long-run average that avoids a single term's
+// leap-year placement skewing a multi-year figure.
+export function termYears(settle, maturity) {
+  const daysToMat = (maturity.getTime() - settle.getTime()) / 86400000;
+  if (daysToMat < 365) {
+    return daysToMat / (hasLeapDayBetween(settle, maturity) ? 366 : 365);
+  }
+  return daysToMat / 365.25;
+}
+
 // ─── Yield from price (actual/actual, matches Excel YIELD(...,2,1)) ───────────
 // Spec: 2.1 TIPS Basics (yield calculations)
 // cleanPrice: percentage of par (e.g. 99.5)
@@ -104,18 +127,12 @@ export function yieldFromPrice(cleanPrice, coupon, settle, mature) {
   const daysToMat = days(settle, mature);
   const semiCoupon = (coupon / 2) * 100;
 
-  // Zero-coupon bills: simple investment rate 365/d (matches market convention).
-  // No coupon schedule exists to check against, so this stays a pure day-count test.
+  // Zero-coupon bills: simple investment rate 365/d, or 366/d if the period spans
+  // a leap day (matches Treasury's published convention). No coupon schedule
+  // exists to check against, so this stays a pure day-count test.
   if (semiCoupon === 0) {
-    function hasLeapDayBetween(d1, d2) {
-      for (let yr = d1.getFullYear(); yr <= d2.getFullYear(); yr++) {
-        const feb29 = new Date(yr, 1, 29);
-        if (feb29.getMonth() === 1 && feb29 > d1 && feb29 <= d2) return true;
-      }
-      return false;
-    }
     const leapSpan = hasLeapDayBetween(settle, mature);
-    if (daysToMat < (leapSpan ? 183 : 182.5)) return (100 / cleanPrice - 1) * 365 / daysToMat;
+    if (daysToMat < (leapSpan ? 183 : 182.5)) return (100 / cleanPrice - 1) * (leapSpan ? 366 : 365) / daysToMat;
   }
 
   const matMon = mature.getMonth() + 1;

@@ -56,5 +56,17 @@ function roundTrips(settle, mature, coupon, yld, tol = 1e-9) {
   ok(Math.abs(y - expected) < 1e-12, `zero-coupon bill formula unchanged: ${y} vs ${expected}`);
 }
 
+// Zero-coupon bill whose term spans Feb 29 (leap day) uses 366, not 365, per
+// Treasury's published convention (TIPS_Basics.md "Exception — zero-coupon
+// Treasury Bills").
+{
+  const settle = new Date(2028, 0, 15), mature = new Date(2028, 3, 15); // 2028 is a leap year
+  const price = 98.9;
+  const y = yieldFromPrice(price, 0, settle, mature);
+  const daysToMat = (mature - settle) / 86400000;
+  const expected = (100 / price - 1) * 366 / daysToMat;
+  ok(Math.abs(y - expected) < 1e-12, `leap-spanning zero-coupon bill uses 366: ${y} vs ${expected}`);
+}
+
 console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'} — ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);

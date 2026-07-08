@@ -1,0 +1,6 @@
+{
+  "name": "vanguard-holdings-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "updateVanguardHoldings.js"
+}
