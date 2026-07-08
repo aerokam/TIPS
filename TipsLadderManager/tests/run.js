@@ -165,18 +165,36 @@ function assert(name, actual, expected, tolerance = 0) {
 // from rebalance-lib.js (single source of truth — the same code the app runs on import).
 
 // ── Helper: assert no simultaneous buy+sell on the same TIPS at any bracket year ─
+// Checks the ACTUAL trade quantities (fundedYearQtyDelta/excessQtyDelta) — the honest
+// Before figures (fundedYearQtyBefore/excessQtyBefore) legitimately differ from the After
+// targets on their own; that's exactly what the internal reallocation (3.0 §Named
+// Quantities) exists to net out before a trade is sized, so it's the delta fields, not a
+// naive Before/After subtraction, that must never disagree in sign.
 function assertNoBuySell(details, label) {
   const violations = details.filter(d => {
     if (!d.isBracketTarget) return false;
-    const fDelta = (d.fundedYearQtyAfter ?? 0) - (d.fundedYearQtyBefore ?? 0);
-    const eDelta = (d.excessQtyAfter ?? 0) - (d.excessQtyBefore ?? 0);
+    const fDelta = d.fundedYearQtyDelta ?? 0;
+    const eDelta = d.excessQtyDelta ?? 0;
     return (fDelta > 0 && eDelta < 0) || (fDelta < 0 && eDelta > 0);
   });
   assert(`${label}: no simultaneous buy+sell at any bracket year`, violations.length, 0);
   for (const v of violations) {
-    const fD = (v.fundedYearQtyAfter ?? 0) - (v.fundedYearQtyBefore ?? 0);
-    const eD = (v.excessQtyAfter ?? 0) - (v.excessQtyBefore ?? 0);
-    console.error(`        violation FY ${v.fundedYear}: fundedDelta=${fD} excessDelta=${eD}`);
+    console.error(`        violation FY ${v.fundedYear}: fundedDelta=${v.fundedYearQtyDelta} excessDelta=${v.excessQtyDelta}`);
+  }
+}
+
+// ── Helper: assert Before + Delta === After for every row, funded and excess bucket
+// alike. Guards the reallocation math (3.0 §Named Quantities) — a wrong reallocFundedBefore/
+// reallocExcessBefore basis can leave the delta fields internally consistent while silently
+// disagreeing with the Before/After figures shown in the table.
+function assertReconciles(details, label) {
+  const violations = details.filter(d =>
+    Math.round((d.fundedYearQtyBefore ?? 0) + (d.fundedYearQtyDelta ?? 0)) !== Math.round(d.fundedYearQtyAfter ?? 0) ||
+    Math.round((d.excessQtyBefore ?? 0) + (d.excessQtyDelta ?? 0)) !== Math.round(d.excessQtyAfter ?? 0)
+  );
+  assert(`${label}: Before + Delta === After for every row`, violations.length, 0);
+  for (const v of violations) {
+    console.error(`        violation ${v.cusip} FY ${v.fundedYear}: funded ${v.fundedYearQtyBefore}+${v.fundedYearQtyDelta}!=${v.fundedYearQtyAfter}, excess ${v.excessQtyBefore}+${v.excessQtyDelta}!=${v.excessQtyAfter}`);
   }
 }
 
@@ -213,6 +231,7 @@ function runFullRebalanceTest(name, filePath) {
     failed++;
   }
   assertNoBuySell(details, name);
+  assertReconciles(details, name);
   console.log(`        scaled DARA:   ${Math.round(scaledMedian).toLocaleString()}`);
   console.log(`        net cash:      ${Math.round(netCash).toLocaleString()}`);
   console.log(`        surplus check: ${Math.round(summary.gapCoverageSurplus).toLocaleString()}`);
@@ -300,6 +319,66 @@ runFullRebalanceTest('SampleHoldings (richest IRA)', './data/SampleHoldings.csv'
     assert('F4: CPU9 fundedYearQtyBefore === 8', jan2036?.fundedYearQtyBefore, 8);
     console.log(`        CPU9 before:   funded=${jan2036?.fundedYearQtyBefore} excess=${jan2036?.excessQtyBefore}`);
     console.log(`        QF8 total:     ${qf8?.qty}  excess=${qf8?.excessQty}`);
+  }
+}
+
+// ── Test: 3-bracket real-holdings reconciliation (distinct orig-lower/new-lower) ──
+// Regression for a bug where a bracket year's honest Before split (fundedYearQtyBefore/
+// excessQtyBefore) legitimately differs from its After target — the normal case whenever
+// OTHER years' rebalancing shifts the LMI cascade feeding this year — but the trade-sizing
+// reallocation (reallocFundedBefore/reallocExcessBefore) was computed from a different basis
+// (After target vs. total held) than the displayed Before split, so Before + Delta != After
+// per bucket even though the row-level total reconciled. Holdings below are a real IRA's
+// CUSIP/qty (no account/PII data) that exercises a genuine 3-bracket split (distinct 2034
+// orig-lower / 2036 new-lower), which the round-trip-only fixtures above never exercise.
+console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-lower)');
+{
+  const holdings = [
+    { cusip: '912810QF8', qty: 168 }, { cusip: '912810QP6', qty: 50 }, { cusip: '912810QV3', qty: 65 },
+    { cusip: '912810RA8', qty: 68 }, { cusip: '912810RF7', qty: 82 }, { cusip: '912810RL4', qty: 83 },
+    { cusip: '912810RR1', qty: 84 }, { cusip: '912810RW0', qty: 87 }, { cusip: '912810SB5', qty: 20 },
+    { cusip: '912810SG4', qty: 15 }, { cusip: '912810SM1', qty: 76 }, { cusip: '912810SV1', qty: 30 },
+    { cusip: '912810TE8', qty: 21 }, { cusip: '912810TP3', qty: 12 }, { cusip: '912810TY4', qty: 20 },
+    { cusip: '912810UH9', qty: 16 }, { cusip: '9128283R9', qty: 10 }, { cusip: '9128285W6', qty: 20 },
+    { cusip: '9128287D6', qty: 26 }, { cusip: '912828V49', qty: 10 }, { cusip: '912828Y38', qty: 9 },
+    { cusip: '912828Z37', qty: 21 }, { cusip: '912828ZZ6', qty: 44 }, { cusip: '91282CBF7', qty: 28 },
+    { cusip: '91282CCM1', qty: 46 }, { cusip: '91282CDC2', qty: 70 }, { cusip: '91282CDX6', qty: 34 },
+    { cusip: '91282CEJ6', qty: 20 }, { cusip: '91282CEZ0', qty: 47 }, { cusip: '91282CFR7', qty: 10 },
+    { cusip: '91282CGK1', qty: 52 }, { cusip: '91282CGW5', qty: 23 }, { cusip: '91282CHP9', qty: 36 },
+    { cusip: '91282CJH5', qty: 30 }, { cusip: '91282CJY8', qty: 152 }, { cusip: '91282CKL4', qty: 22 },
+    { cusip: '91282CML2', qty: 70 }, { cusip: '91282CNS6', qty: 19 }, { cusip: '91282CPU9', qty: 113 },
+  ].filter(h => tipsMap.has(h.cusip));
+
+  if (holdings.length > 0) {
+    const { dara } = inferDARAFromCash({ bracketMode: '3bracket', holdings, tipsMap, refCPI, settlementDate });
+    const { details, summary } = runRebalance({ dara, bracketMode: '3bracket', holdings, tipsMap, refCPI, settlementDate });
+
+    assert('3B real: genuine 3-bracket (newLowerCUSIP present)', summary.newLowerCUSIP != null, true);
+    assertNoBuySell(details, '3B real');
+    assertReconciles(details, '3B real');
+
+    // Regression: a custom per-year DARA plan (as "Apply saved DARA plan" installs) can legitimately
+    // push a bracket year's funded target down while its excess target goes up — the funded and excess
+    // naive deltas then point in OPPOSITE directions for the SAME held CUSIP. This is exactly the case
+    // the reallocation exists for: display must show "before" as already relabeled (no phantom funded
+    // trade) with the whole change landing on excess, not a same-maturity buy+sell. Verify the
+    // reallocation branch actually fires here (not a vacuous same-direction case).
+    const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
+    const bracketCandidates = getGapYearBracketCandidates(tipsMap);
+    const { daraMap } = derivePerYearDara(rawARA, bracketCandidates);
+    const { scaledMap, scaledMedian } = inferScaledDARAFromPortfolio({ daraMap, holdings, tipsMap, refCPI, settlementDate, bracketMode: '3bracket' });
+    const customDara = new Map(scaledMap);
+    customDara.set(2036, Math.round((customDara.get(2036) ?? scaledMedian) * 0.8));
+    const { details: details2 } = runRebalance({ dara: scaledMedian, bracketMode: '3bracket', holdings, tipsMap, refCPI, settlementDate, daraByYear: customDara });
+    const d2036 = details2.find(d => d.fundedYear === 2036 && d.isBracketTarget);
+    assert('3B real (custom plan): 2036 bracket row present', d2036 != null, true);
+    // Signature of the reallocation branch actually firing: the funded side fully absorbs into the
+    // reallocated Before (delta 0) while the whole real trade lands on excess — matches the reported
+    // case (funded shown 90->89 with no realloc would have been a phantom -1; correctly shows 0 here).
+    assert('3B real (custom plan): 2036 exercises the reallocation branch (funded delta 0, excess absorbs the trade)',
+      d2036 != null && d2036.fundedYearQtyDelta === 0 && d2036.excessQtyDelta !== 0, true);
+    assertNoBuySell(details2, '3B real (custom plan)');
+    assertReconciles(details2, '3B real (custom plan)');
   }
 }
 

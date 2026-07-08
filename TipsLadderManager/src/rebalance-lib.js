@@ -1546,17 +1546,33 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       : 0;
     const exA = isBT ? tQ - tFundedYearQty : 0;
 
+    // Honest current-holdings split — the funded-year side of the Before figures shown in the
+    // table (single source, also used below for the `fundedYearQtyBefore` field).
+    const fundedYearQtyBeforeHonest = isBT ? Math.max(0, h.qty - exB) : h.qty;
+
     // The actual trade to place, split between the funded-year and excess buckets. A bracket-target
-    // CUSIP's funded and excess portions are the SAME held maturity, so simply subtracting the
-    // honest current-holdings split (fundedYearQtyBefore/excessQtyBefore above) from the after
-    // targets, bucket by bucket, can manufacture a sell in one bucket and a buy in the other for the
-    // identical bond — a nonsensical simultaneous buy+sell of one maturity. Before pricing any trade,
-    // first relabel (at zero cost) as much of what's already held as will satisfy the funded target,
-    // then trade only the shortfall or the leftover excess — so at most one bucket ever trades, and
-    // never in opposite directions. This reallocation is for trade-sizing only; it never changes the
-    // honest Before figures used for display (fundedYearQtyBefore/excessQtyBefore above).
-    const reallocFundedBefore = isBT ? Math.min(tFundedYearQty, h.qty) : h.qty;
-    const reallocExcessBefore = isBT ? (h.qty - reallocFundedBefore) : 0;
+    // CUSIP's funded and excess portions are the SAME held maturity, so a per-bucket subtraction of
+    // Before from After is only a problem when the two buckets' naive deltas point in OPPOSITE
+    // directions (one bucket would buy this maturity while the other sells it) — that's the only
+    // case that manufactures a nonsensical simultaneous buy+sell of one bond. When both buckets move
+    // the same direction (or one doesn't move at all), the honest Before split already reconciles
+    // Before + Delta = After per bucket and must pass through unchanged. Before pricing any trade,
+    // relabel (at zero cost) only as much as needed to cancel the opposing signs, then trade the
+    // remaining shortfall/leftover in a single direction. This reallocation is for trade-sizing only;
+    // it never changes the honest Before figures used for display (fundedYearQtyBefore/excessQtyBefore
+    // above) — see 3.0 §Named Quantities.
+    const naiveFundedDelta = tFundedYearQty - fundedYearQtyBeforeHonest;
+    const naiveExcessDelta = exA - exB;
+    let reallocFundedBefore = fundedYearQtyBeforeHonest, reallocExcessBefore = exB;
+    if (isBT && naiveFundedDelta > 0 && naiveExcessDelta < 0) {
+      const realloc = Math.min(naiveFundedDelta, -naiveExcessDelta);
+      reallocFundedBefore = fundedYearQtyBeforeHonest + realloc;
+      reallocExcessBefore = exB - realloc;
+    } else if (isBT && naiveFundedDelta < 0 && naiveExcessDelta > 0) {
+      const realloc = Math.min(-naiveFundedDelta, naiveExcessDelta);
+      reallocFundedBefore = fundedYearQtyBeforeHonest - realloc;
+      reallocExcessBefore = exB + realloc;
+    }
     const fundedYearQtyDelta = tFundedYearQty - reallocFundedBefore;
     const excessQtyDelta = exA - reallocExcessBefore;
 
@@ -1575,13 +1591,21 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       principalPerBond: 1000 * ir, costPerBond: (b.price / 100 * ir * 1000),
       DARA: daraByYear?.get(h.year) ?? DARA,
       qtyBefore: h.qty, qtyAfter: tQ,
-      fundedYearQtyBefore: isBT ? Math.max(0, h.qty - exB) : h.qty,
+      // Displayed Before is the reallocated split, not the raw honest LMI-formula split
+      // (fundedYearQtyBeforeHonest/exB): when the honest before/after per-bucket deltas would
+      // otherwise point in opposite directions for this one held CUSIP (one bucket buying, the
+      // other selling), that split is relabeled first so the number shown as "before" already
+      // matches what the trade is actually computed against — Before + Delta = After always
+      // reconciles, and the funded/excess split never implies a same-maturity buy+sell. In the
+      // (usual) same-direction case reallocFundedBefore/reallocExcessBefore equal the honest split
+      // exactly, so this changes nothing there. See 3.0 §Named Quantities.
+      fundedYearQtyBefore: reallocFundedBefore,
       fundedYearQtyAfter: tFundedYearQty,
       isBracketTarget: isBT, isFuture30yCover: isBT && future30yCoverYearSet.has(h.year),
       isGapBracket: gapYears.length > 0 && (h.year === brackets.lowerYear || h.year === brackets.upperYear || (is3Bracket && h.year === newLowerYear)),
-      excessQtyBefore: exB, excessQtyAfter: exA,
+      excessQtyBefore: reallocExcessBefore, excessQtyAfter: exA,
       reallocFundedBefore, reallocExcessBefore, fundedYearQtyDelta, excessQtyDelta,
-      excessAmtBefore: excessCoverageAmt(h.year, exB, piPB),
+      excessAmtBefore: excessCoverageAmt(h.year, reallocExcessBefore, piPB),
       excessAmtAfter:  excessCoverageAmt(h.year, exA, piPB),
       excessLMIAlloc:  excessLMIAllocFor(h.year),
       excessLMI_Before: excessLMI_B, excessLMI_After: excessLMI_A,
