@@ -43,6 +43,15 @@ async function daraDisplay(page) {
   return placeholder === 'by year' ? 'by year' : '';
 }
 
+// The DARA Plan card is a dropdown, closed by default — opens via #dara-plan-toggle, or
+// automatically when a saved plan is found. Idempotent: a no-op if it's already open (e.g. just
+// auto-opened), so it's safe to call unconditionally wherever a test needs segment tools/Remember/
+// the banner visible, without risking toggling an auto-opened dropdown back closed.
+async function _openDaraPlan(page) {
+  if (await page.locator('#dara-plan-card').isVisible()) return;
+  await page.locator('#dara-plan-toggle').click();
+}
+
 test.beforeEach(async ({ page }) => {
   const yieldsBody = yieldsWithTodaySettlement();
   await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r =>
@@ -700,6 +709,7 @@ test('rebalance: Infer LMP fills an empty interior year to the segment DARA', as
   await page.locator('#holdings-file').setInputFiles(path.join(FIXTURES, 'OfxInteriorHoles.csv'));
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
+  await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 
   // Split so the empty year 2029 sits inside the bottom (LMP) segment, then infer it.
@@ -942,6 +952,7 @@ async function _twoSegSetup(page, name) {
   await page.locator('#holdings-file').setInputFiles(csvPath);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
+  await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 }
 
@@ -1109,6 +1120,7 @@ test('per-year DARA: opt-in Remember caches the plan across a reload; banner req
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
+  await _openDaraPlan(page);
   await expect(page.locator('#dara-remember-row')).toBeVisible({ timeout: 2_000 });
 
   const cb = page.locator('#dara-remember-cb');
@@ -1165,6 +1177,7 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
+  await _openDaraPlan(page);
   await expect(page.locator('#dara-remember-row')).toBeVisible({ timeout: 2_000 });
 
   const lySel = page.locator('#rebal-last-year');
@@ -1190,6 +1203,8 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
+  // No explicit _openDaraPlan here — the banner assertion below only passes if the dropdown
+  // auto-opened on its own (a saved plan was found), which is itself the thing being verified.
   await expect(page.locator('#dara-plan-banner')).toBeVisible({ timeout: 2_000 });
   await expect(lySel, 'fresh reload infers the wider range again, same as before Apply').toHaveValue(inferredLY);
 
@@ -1197,6 +1212,46 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
   await expect(lySel, 'Apply must snap last-year back to the saved range').toHaveValue(String(savedLY));
   await expect(page.locator(`#dara-by-year-table input[data-year="${inferredLY}"]`),
     'years outside the saved range must not reappear in the table').toHaveCount(0);
+});
+
+// ── DARA Plan dropdown: auto-open + persistent badge when a saved plan is found ──────────────────
+// A passive dismissible banner was easy to scroll past. The dropdown must auto-open on its own when
+// a saved plan is found (no click needed), and if the user closes it again without clicking Apply/
+// Dismiss, a badge on #dara-plan-toggle must persist so it isn't silently lost.
+test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closing without acting', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+  await page.locator('#dara-by-year-hdr').click();
+  await _openDaraPlan(page);
+  await expect(page.locator('#dara-plan-toggle')).not.toHaveClass(/needs-attention/);
+
+  await page.locator('#dara-remember-cb').check();
+  const rung = page.locator('#dara-by-year-table input[data-year]').first();
+  await rung.fill('99999');
+  await rung.blur();
+  await page.waitForFunction(() =>
+    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('99999')));
+
+  await page.reload();
+  await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+
+  // No click on #dara-plan-toggle or #dara-by-year-hdr here — the dropdown (and its banner) must
+  // already be open on its own.
+  await expect(page.locator('#dara-plan-banner'), 'dropdown auto-opens with no click needed').toBeVisible({ timeout: 2_000 });
+  await expect(page.locator('#dara-plan-toggle')).toHaveClass(/needs-attention/);
+
+  // Close it WITHOUT clicking Apply/Dismiss — the badge must survive.
+  await page.locator('#dara-plan-toggle').click();
+  await expect(page.locator('#dara-plan-card')).not.toBeVisible();
+  await expect(page.locator('#dara-plan-toggle'), 'badge persists after closing without acting').toHaveClass(/needs-attention/);
+
+  // Re-open and Apply — the badge clears.
+  await page.locator('#dara-plan-toggle').click();
+  await page.locator('#dara-plan-apply').click();
+  await expect(page.locator('#dara-plan-toggle')).not.toHaveClass(/needs-attention/);
 });
 
 // ── Standalone DARA-plan file (portable export/import, independent of localStorage) ────────────
@@ -1207,6 +1262,7 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
+  await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 
   await page.locator('#split-year-add').selectOption({ index: 1 }); // any valid in-range split
@@ -1258,6 +1314,7 @@ async function _buildSegSetup(page, lastYear = '2055') {
   await page.locator('#last-year').selectOption({ value: lastYear });
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
+  await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 }
 
@@ -1294,6 +1351,7 @@ test('mode toggle: switching Build <-> Rebalance does not leak split years betwe
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+  await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
   await expect(page.locator('#seg-rows .seg-row'), 'fresh rebalance load has no split years of its own').toHaveCount(1);
 

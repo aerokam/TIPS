@@ -30,10 +30,19 @@
   /* ── Form card ── */
   .form-card { width: fit-content; min-width: 845px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 0 0 8px 8px; padding: 10px 24px 8px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
 
-  /* ── DARA Plan card — same visual weight as the main form card, but a standalone card (not
-     flush under the tab bar): split years, per-segment Infer/$-each, Undo/Revert, Remember/
-     Export/Import. Distinct from the plain Per-Year DARA table box below it. ── */
-  .dara-plan-card { width: fit-content; min-width: 845px; margin: 0 0 16px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 8px; padding: 10px 24px 12px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); }
+  /* ── DARA Plan card — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/
+     Import. A dropdown that's a normal-flow child of the sticky #top-row: closed by default (zero
+     layout cost, unlike the old always-shown card), and when open it pushes the Per-Year DARA table
+     below it down rather than overlaying it — an overlay blocked clicks on that table, and real
+     usage interleaves editing per-year rungs with the plan tools. Being inside #top-row still means
+     it never scrolls away independently — #top-row (position: sticky) just grows/shrinks in place
+     as the dropdown opens/closes, same as the Per-Year table's own collapsible body already does.
+     Opened via #dara-plan-toggle or automatically when a saved plan is found. ── */
+  .dara-plan-card { width: fit-content; min-width: 845px; margin: 4px 0 0; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 8px; padding: 10px 24px 12px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); }
+  #dara-plan-toggle { position: relative; padding: 7px 9px; background: var(--portal-header-bg); border: 1px solid var(--portal-header-bg); border-radius: 4px; color: var(--portal-text-on-dark); font-size: 11px; cursor: pointer; align-self: flex-end; height: 33px; }
+  #dara-plan-toggle:hover { background: var(--tab-active-bg); }
+  #dara-plan-toggle .badge-dot { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: #e05252; border: 1px solid var(--portal-bg); display: none; }
+  #dara-plan-toggle.needs-attention .badge-dot { display: block; }
   .dara-plan-card-hdr { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--portal-card-text); opacity: 0.85; margin: 0 0 8px; }
   .dara-plan-card, .dara-plan-card label, .dara-plan-card span, .dara-plan-card b { color: var(--portal-card-text); }
   .dara-plan-card select, .dara-plan-card input[type="number"] { background: var(--portal-header-bg); border: 1px solid var(--portal-header-bg); border-radius: 3px; color: var(--portal-text-on-dark); font-size: 12px; padding: 2px 4px; }
@@ -283,6 +292,10 @@
           </div>
         </div>
       </div>
+      <div class="field" id="field-dara-plan-toggle" style="display:none;width:auto">
+        <label>&nbsp;</label>
+        <button type="button" id="dara-plan-toggle" title="DARA Plan — segments, Remember, Export/Import, Undo/Revert">▾ Plan<span class="badge-dot"></span></button>
+      </div>
       <div class="field" id="field-rebal-first-year" style="display:none;width:72px">
         <label>First Year</label>
         <select id="rebal-first-year"></select>
@@ -362,31 +375,33 @@
     </div>
     <div id="status"></div>
   </div>
-</div>
 
-<!-- DARA Plan card — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/Import.
-     Same visual weight as the main form card; distinct from the plain Per-Year DARA table below. -->
-<div id="dara-plan-card" class="dara-plan-card" style="display:none">
-  <div class="dara-plan-card-hdr">DARA Plan</div>
-  <div id="dara-history-tools" style="display:none;font-size:11px;margin:0 0 8px;gap:6px;align-items:center">
-    <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
-    <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
-  </div>
-  <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
-    <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-      <input type="checkbox" id="dara-remember-cb" style="margin:0">
-      <span id="dara-remember-label"></span>
-    </label>
-    <button type="button" class="plan-btn" id="dara-plan-export-btn" title="Save the current per-year DARA (and split years) to a file you can re-import next time">⬇ Export DARA Plan</button>
-    <button type="button" class="plan-btn" id="dara-plan-import-btn" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
-    <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
-  </div>
-  <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:0 0 8px;align-items:center;gap:8px;flex-wrap:wrap">
-    <span id="dara-plan-banner-text"></span>
-    <button type="button" class="plan-btn" id="dara-plan-apply">Apply</button>
-    <button type="button" class="plan-btn" id="dara-plan-dismiss" style="background:none;border-color:transparent">Dismiss</button>
-  </div>
-  <div id="dara-seg-tools" style="display:none;font-size:12px">
+  <!-- DARA Plan dropdown — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/
+       Import. Child of #top-row (its sticky containing block) so it anchors under the main card
+       instead of scrolling away; see .dara-plan-card CSS. Closed by default; opened via
+       #dara-plan-toggle or automatically when a saved plan is found (_updateDaraRememberUI). -->
+  <div id="dara-plan-card" class="dara-plan-card" style="display:none">
+    <div class="dara-plan-card-hdr">DARA Plan</div>
+    <div id="dara-history-tools" style="display:none;font-size:11px;margin:0 0 8px;gap:6px;align-items:center">
+      <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
+      <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
+    </div>
+    <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
+        <input type="checkbox" id="dara-remember-cb" style="margin:0">
+        <span id="dara-remember-label"></span>
+      </label>
+      <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
+      <button type="button" class="plan-btn" id="dara-plan-export-btn" title="Save the current per-year DARA (and split years) to a file you can re-import next time">⬇ Export DARA Plan</button>
+      <button type="button" class="plan-btn" id="dara-plan-import-btn" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+      <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
+    </div>
+    <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:0 0 8px;align-items:center;gap:8px;flex-wrap:wrap">
+      <span id="dara-plan-banner-text"></span>
+      <button type="button" class="plan-btn" id="dara-plan-apply">Apply</button>
+      <button type="button" class="plan-btn" id="dara-plan-dismiss" style="background:none;border-color:transparent">Dismiss</button>
+    </div>
+    <div id="dara-seg-tools" style="display:none;font-size:12px">
     <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
       <span>Split years:</span>
       <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
@@ -394,6 +409,7 @@
       <button id="seg-tools-help" type="button" class="plan-help" title="Segmented DARA help">?</button>
     </div>
     <div id="seg-rows"></div>
+    </div>
   </div>
 </div>
 
@@ -1365,7 +1381,26 @@ function _saveDaraPlanIfRemembered() {
     lastYear: _panelYearRange?.ly,
     savedAt: new Date().toISOString(),
   };
-  try { localStorage.setItem(_daraCacheKey, JSON.stringify(payload)); } catch { /* storage unavailable/full — convenience cache only, skip silently */ }
+  try {
+    localStorage.setItem(_daraCacheKey, JSON.stringify(payload));
+    _flashDaraSavedStatus();
+  } catch { /* storage unavailable/full — convenience cache only, skip silently */ }
+}
+
+// Brief "✓ Saved" confirmation next to the Remember checkbox — makes the "checked = continuously in
+// sync, every edit resaves automatically" model visible instead of implicit (no separate action to
+// "commit" a change; nothing to remember to do beyond checking the box once).
+let _daraSavedStatusTimer = null;
+function _flashDaraSavedStatus() {
+  const el = document.getElementById('dara-remember-status');
+  if (!el) return;
+  el.style.transition = 'none';
+  el.style.opacity = '1';
+  clearTimeout(_daraSavedStatusTimer);
+  _daraSavedStatusTimer = setTimeout(() => {
+    el.style.transition = 'opacity 1.2s';
+    el.style.opacity = '0';
+  }, 800);
 }
 
 // Recompute the cache key/label for the just-loaded holdings and refresh the Remember checkbox +
@@ -1378,6 +1413,7 @@ function _updateDaraRememberUI(accountNames) {
   _daraCacheKey = info?.key ?? null;
   _daraCacheLabel = info?.label ?? null;
   banner.style.display = 'none';
+  _setDaraPlanNeedsAttention(false);
 
   if (!_daraCacheKey) { row.style.display = 'none'; cb.checked = false; return; }
   row.style.display = 'flex';
@@ -1390,6 +1426,10 @@ function _updateDaraRememberUI(accountNames) {
   document.getElementById('dara-plan-banner-text').textContent =
     `Saved DARA plan found for "${_daraCacheLabel}" (saved ${new Date(saved.savedAt).toLocaleDateString()}) —`;
   banner.style.display = 'flex';
+  // Surface it immediately rather than as a passive strip the user can scroll past — auto-open the
+  // dropdown, and leave a badge on the toggle if they close it again without clicking Apply/Dismiss.
+  _setDaraPlanOpen(true);
+  _setDaraPlanNeedsAttention(true);
 }
 
 document.getElementById('dara-remember-cb').addEventListener('change', () => {
@@ -1421,9 +1461,11 @@ document.getElementById('dara-plan-apply').addEventListener('click', () => {
   _renderSegTools();        // re-render segment rows now that the echoes are populated
   updateDaraInput(true);
   document.getElementById('dara-plan-banner').style.display = 'none';
+  _setDaraPlanNeedsAttention(false);
 });
 document.getElementById('dara-plan-dismiss').addEventListener('click', () => {
   document.getElementById('dara-plan-banner').style.display = 'none';
+  _setDaraPlanNeedsAttention(false);
 });
 
 // ─── Standalone DARA-plan file (export/import) ───────────────────────────────
@@ -1775,6 +1817,11 @@ let _bracketAutoCapYears = new Set();  // years auto-capped to median (bracket e
 let _lastKnownDara = null;          // last DARA used (including auto-inferred)
 let _daraAutoInferred = false;      // true when DARA field was populated by inferDARAFromCash
 let _daraByYearBodyCollapsed = true;
+let _daraPlanOpen = false;          // DARA Plan dropdown open state — closed by default, same
+                                     // collapsed-by-default pattern as _daraByYearBodyCollapsed above
+let _daraPlanNeedsAttention = false; // badge on #dara-plan-toggle: a saved plan was found and hasn't
+                                      // been Applied/Dismissed yet — persists even if the user closes
+                                      // the dropdown again without acting, so it can't be missed
 let _splitYears = [];               // segment boundaries (segmented DARA); [] → whole ladder is one segment
 let _segInferredEcho = new Map();   // segKey(years) -> last shown "$ each" value; #seg-rows is rebuilt every
                                      // render, so this is the only thing that survives a re-render to refill it
@@ -1850,6 +1897,40 @@ function _setDaraByYearCollapsed(collapsed) {
   if (glyph) glyph.textContent   = collapsed ? '▶' : '▼';
 }
 
+// Whether the DARA Plan dropdown is relevant at all right now (valid DARA + range; holdings loaded
+// in rebalance) — controls whether #dara-plan-toggle is even shown. Independent of _daraPlanOpen
+// (open/closed state), which is preserved across re-renders while available, same as
+// _daraByYearBodyCollapsed is for the Per-Year DARA table.
+function _setDaraPlanAvailable(available) {
+  const card = document.getElementById('dara-plan-card');
+  const toggleField = document.getElementById('field-dara-plan-toggle');
+  card.dataset.available = available ? '1' : '0';
+  toggleField.style.display = available ? '' : 'none';
+  if (!available) { _setDaraPlanOpen(false); return; }
+  _setDaraPlanOpen(_daraPlanOpen);  // re-sync actual display with the preserved open/closed state
+}
+
+// Open/close the DARA Plan dropdown (#dara-plan-card). Card content is still rendered/updated while
+// closed (same pattern as the Per-Year DARA table body) so it's ready instantly when opened.
+function _setDaraPlanOpen(open) {
+  _daraPlanOpen = open;
+  const card = document.getElementById('dara-plan-card');
+  const toggle = document.getElementById('dara-plan-toggle');
+  if (card && card.dataset.available === '1') card.style.display = open ? 'block' : 'none';
+  if (toggle) toggle.firstChild.textContent = open ? '▴ Plan' : '▾ Plan';
+}
+
+// Badge dot on #dara-plan-toggle for "a saved plan was found and hasn't been Applied/Dismissed" —
+// persists even if the dropdown is closed again without acting, so it can't be silently missed.
+function _setDaraPlanNeedsAttention(flag) {
+  _daraPlanNeedsAttention = flag;
+  document.getElementById('dara-plan-toggle')?.classList.toggle('needs-attention', flag);
+}
+
+document.getElementById('dara-plan-toggle').addEventListener('click', () => {
+  _setDaraPlanOpen(!_daraPlanOpen);
+});
+
 function _daraByYearRow(y, val, suffix = '', bracketFlag = false) {
   const flagHTML = bracketFlag
     ? ' <span title="Auto-set to median: holdings suggest bracket excess. Adjust if this year is intended for higher income." style="color:#d97706;cursor:help;font-size:10px">⚠</span>'
@@ -1914,18 +1995,16 @@ function updateDaraInput(force = false) {
 
 function renderDaraByYearPanel() {
   const panel = document.getElementById('dara-by-year');
-  // The DARA Plan card (split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/Import)
-  // is always shown/hidden in lockstep with the Per-Year DARA table below it — same condition, same
-  // underlying store — so it's toggled alongside `panel` everywhere below rather than tracked
-  // separately.
-  const planCard = document.getElementById('dara-plan-card');
+  // The DARA Plan dropdown (split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/
+  // Import) shares its availability condition with the Per-Year DARA table below — same underlying
+  // store — but its open/closed *display* is independent (_setDaraPlanAvailable / _setDaraPlanOpen).
   // When the top box is intentionally blank (segmented ladder / custom per-year shape), the
   // internal default tracks the LIVE store's median instead of re-reading stale/blank field text —
   // this is what keeps the top box, the segment boxes, and the per-year table from drifting out of
   // sync (they're all derived from the current store, never from whatever was last typed).
   const defaultDara = _daraIsByYear() ? (_medianOfStore() ?? _daraByYearPanelDefault) : _getDefaultDara();
   if (!tipsMap || isNaN(defaultDara) || defaultDara <= 0) {
-    panel.style.display = 'none'; planCard.style.display = 'none'; _daraByYearPanelDefault = null; updateDaraInput(); return;
+    panel.style.display = 'none'; _setDaraPlanAvailable(false); _daraByYearPanelDefault = null; updateDaraInput(); return;
   }
 
   // yearEntries: [{year, suffix}] where suffix is '' / '(gap)' / '(30Y)'
@@ -1943,7 +2022,7 @@ function renderDaraByYearPanel() {
   }
 
   if (currentMode === 'rebalance') {
-    if (!currentHoldingsArray) { panel.style.display = 'none'; planCard.style.display = 'none'; return; }
+    if (!currentHoldingsArray) { panel.style.display = 'none'; _setDaraPlanAvailable(false); return; }
     const ly = parseInt(document.getElementById('rebal-last-year').value);
     // Respect an explicit First Year override — same range the actual rebalance run uses — instead
     // of always starting from the earliest year you happen to hold.
@@ -1992,7 +2071,7 @@ function renderDaraByYearPanel() {
   _renderDaraHistoryBtns();
   _setDaraByYearCollapsed(_daraByYearBodyCollapsed);
   panel.style.display = 'block';
-  planCard.style.display = 'block';
+  _setDaraPlanAvailable(true);
   updateDaraInput();
 }
 
@@ -2152,12 +2231,15 @@ function _runSegmentConst(idx, val) {
 }
 
 // Adding/removing a split year only changes where the boundaries fall and reveals the resulting
-// segment rows — it does NOT infer anything. The user decides which segments (if any) to infer.
+// segment rows — it does NOT infer anything. The user decides which segments (if any) to infer. The
+// boundary itself is still part of the saved payload (_splitYears), so it resaves like any other
+// mutation when Remember is checked.
 document.getElementById('split-year-add').addEventListener('change', e => {
   const y = parseInt(e.target.value, 10);
   if (!isNaN(y)) _splitYears = [...new Set([..._splitYears, y])].sort((a, b) => a - b);
   _renderSegTools();
   updateDaraInput(true);  // a single top-level number stops being meaningful the moment segments exist
+  _saveDaraPlanIfRemembered();
 });
 document.getElementById('split-year-chips').addEventListener('click', e => {
   const btn = e.target.closest('.plan-chip-remove');
@@ -2166,6 +2248,7 @@ document.getElementById('split-year-chips').addEventListener('click', e => {
   _splitYears = _splitYears.filter(sy => sy !== y);
   _renderSegTools();
   updateDaraInput(true);  // may un-blank the top box if that was the last split and the shape is flat
+  _saveDaraPlanIfRemembered();
 });
 document.getElementById('seg-rows').addEventListener('click', e => {
   const btn = e.target.closest('.seg-infer-btn');
