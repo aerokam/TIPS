@@ -43,13 +43,14 @@ async function daraDisplay(page) {
   return placeholder === 'by year' ? 'by year' : '';
 }
 
-// The DARA Plan card is a dropdown, closed by default — opens via #dara-plan-toggle, or
-// automatically when a saved plan is found. Idempotent: a no-op if it's already open (e.g. just
-// auto-opened), so it's safe to call unconditionally wherever a test needs segment tools/Remember/
-// the banner visible, without risking toggling an auto-opened dropdown back closed.
+// The DARA Plan card's header sliver (#dara-plan-hdr) is always visible once the card is relevant;
+// clicking it expands/collapses #dara-plan-body, closed by default, or auto-opens when a saved plan
+// is found. Idempotent: a no-op if it's already open (e.g. just auto-opened), so it's safe to call
+// unconditionally wherever a test needs segment tools/Remember/the banner visible, without risking
+// toggling an auto-opened dropdown back closed.
 async function _openDaraPlan(page) {
-  if (await page.locator('#dara-plan-card').isVisible()) return;
-  await page.locator('#dara-plan-toggle').click();
+  if (await page.locator('#dara-plan-body').isVisible()) return;
+  await page.locator('#dara-plan-hdr').click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -1217,14 +1218,14 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
 // ── DARA Plan dropdown: auto-open + persistent badge when a saved plan is found ──────────────────
 // A passive dismissible banner was easy to scroll past. The dropdown must auto-open on its own when
 // a saved plan is found (no click needed), and if the user closes it again without clicking Apply/
-// Dismiss, a badge on #dara-plan-toggle must persist so it isn't silently lost.
+// Dismiss, a badge on the header sliver (#dara-plan-hdr) must persist so it isn't silently lost.
 test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closing without acting', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
   await page.locator('#dara-by-year-hdr').click();
   await _openDaraPlan(page);
-  await expect(page.locator('#dara-plan-toggle')).not.toHaveClass(/needs-attention/);
+  await expect(page.locator('#dara-plan-hdr')).not.toHaveClass(/needs-attention/);
 
   await page.locator('#dara-remember-cb').check();
   const rung = page.locator('#dara-by-year-table input[data-year]').first();
@@ -1238,20 +1239,20 @@ test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closi
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
 
-  // No click on #dara-plan-toggle or #dara-by-year-hdr here — the dropdown (and its banner) must
+  // No click on #dara-plan-hdr or #dara-by-year-hdr here — the dropdown (and its banner) must
   // already be open on its own.
   await expect(page.locator('#dara-plan-banner'), 'dropdown auto-opens with no click needed').toBeVisible({ timeout: 2_000 });
-  await expect(page.locator('#dara-plan-toggle')).toHaveClass(/needs-attention/);
+  await expect(page.locator('#dara-plan-hdr')).toHaveClass(/needs-attention/);
 
   // Close it WITHOUT clicking Apply/Dismiss — the badge must survive.
-  await page.locator('#dara-plan-toggle').click();
-  await expect(page.locator('#dara-plan-card')).not.toBeVisible();
-  await expect(page.locator('#dara-plan-toggle'), 'badge persists after closing without acting').toHaveClass(/needs-attention/);
+  await page.locator('#dara-plan-hdr').click();
+  await expect(page.locator('#dara-plan-body')).not.toBeVisible();
+  await expect(page.locator('#dara-plan-hdr'), 'badge persists after closing without acting').toHaveClass(/needs-attention/);
 
   // Re-open and Apply — the badge clears.
-  await page.locator('#dara-plan-toggle').click();
+  await page.locator('#dara-plan-hdr').click();
   await page.locator('#dara-plan-apply').click();
-  await expect(page.locator('#dara-plan-toggle')).not.toHaveClass(/needs-attention/);
+  await expect(page.locator('#dara-plan-hdr')).not.toHaveClass(/needs-attention/);
 });
 
 // ── Standalone DARA-plan file (portable export/import, independent of localStorage) ────────────
