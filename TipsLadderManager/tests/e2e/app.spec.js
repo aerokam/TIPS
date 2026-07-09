@@ -1155,6 +1155,50 @@ test('per-year DARA: opt-in Remember caches the plan across a reload; banner req
   await expect(page.locator('#seg-rows .seg-const-input[data-idx="1"]'), '"$ each" box is repopulated, not left blank').toHaveValue('88000');
 });
 
+// ── Regression: Apply must restore the saved ladder range, not the freshly-inferred one ─────────
+// Bug: the cache payload didn't carry firstYear/lastYear, so an account-keyed saved plan (Formats
+// 1/2, no year-range in the cache key) applied its per-year values onto whatever last-year the
+// load-time mirror had just inferred from holdings — silently truncating/padding the restored shape
+// instead of reproducing the saved one.
+test('per-year DARA: Apply restores the saved last-year even when the fresh reload infers a different one', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('#dara-remember-row')).toBeVisible({ timeout: 2_000 });
+
+  const lySel = page.locator('#rebal-last-year');
+  const inferredLY = await lySel.inputValue();
+  const options = (await lySel.locator('option').allTextContents())
+    .map(t => parseInt(t, 10)).filter(y => !isNaN(y));
+  const savedLY = Math.min(...options.filter(y => y < parseInt(inferredLY, 10)));
+  test.skip(!isFinite(savedLY), 'fixture has no earlier year to select for this regression');
+
+  // Narrow the range and save under it.
+  await lySel.selectOption(String(savedLY));
+  await expect(page.locator(`#dara-by-year-table input[data-year="${inferredLY}"]`)).toHaveCount(0);
+  await page.locator('#dara-remember-cb').check();
+  const rung = page.locator('#dara-by-year-table input[data-year]').first();
+  await rung.fill('77777');
+  await rung.blur();
+  await page.waitForFunction(() =>
+    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('77777')));
+
+  // Reload and re-upload the same file — the mirror re-infers the wider default range again.
+  await page.reload();
+  await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('#dara-plan-banner')).toBeVisible({ timeout: 2_000 });
+  await expect(lySel, 'fresh reload infers the wider range again, same as before Apply').toHaveValue(inferredLY);
+
+  await page.locator('#dara-plan-apply').click();
+  await expect(lySel, 'Apply must snap last-year back to the saved range').toHaveValue(String(savedLY));
+  await expect(page.locator(`#dara-by-year-table input[data-year="${inferredLY}"]`),
+    'years outside the saved range must not reappear in the table').toHaveCount(0);
+});
+
 // ── Standalone DARA-plan file (portable export/import, independent of localStorage) ────────────
 // Export writes a #fundedYear,dara (+ #splitYears) file with no CUSIP rows; re-importing it onto a
 // freshly (re-)loaded holdings file overlays the saved plan and its split years exactly.

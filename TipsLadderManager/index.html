@@ -1358,7 +1358,13 @@ function _readDaraCache(key) {
 function _saveDaraPlanIfRemembered() {
   const cb = document.getElementById('dara-remember-cb');
   if (!_daraCacheKey || !cb?.checked) return;
-  const payload = { splitYears: _splitYears, daraByYear: [..._daraByYearStore.entries()], savedAt: new Date().toISOString() };
+  const payload = {
+    splitYears: _splitYears,
+    daraByYear: [..._daraByYearStore.entries()],
+    firstYear: _panelYearRange?.fy,
+    lastYear: _panelYearRange?.ly,
+    savedAt: new Date().toISOString(),
+  };
   try { localStorage.setItem(_daraCacheKey, JSON.stringify(payload)); } catch { /* storage unavailable/full — convenience cache only, skip silently */ }
 }
 
@@ -1395,6 +1401,15 @@ document.getElementById('dara-plan-apply').addEventListener('click', () => {
   const saved = _readDaraCache(_daraCacheKey);
   if (!saved) return;
   _snapshotDara();
+  // Restore the saved ladder range BEFORE the store/renderDaraByYearPanel below — otherwise the
+  // panel keeps whatever last/first year the load-time mirror inferred from current holdings, and
+  // its out-of-range trim (renderDaraByYearPanel) silently drops saved years / pads missing ones
+  // with the default DARA instead of reproducing the saved plan.
+  const isRebal = currentMode === 'rebalance';
+  const lySel = document.getElementById(isRebal ? 'rebal-last-year' : 'last-year');
+  if (lySel && saved.lastYear != null && [...lySel.options].some(o => +o.value === saved.lastYear)) lySel.value = String(saved.lastYear);
+  const fySel = document.getElementById(isRebal ? 'rebal-first-year' : 'first-year');
+  if (fySel && saved.firstYear != null && [...fySel.options].some(o => +o.value === saved.firstYear)) fySel.value = String(saved.firstYear);
   _daraByYearStore = new Map(saved.daraByYear);
   // NOT marked manual — same reasoning as an explicit #fundedYear,dara import: a remembered plan is
   // a loaded baseline, and pinning it whole would make the segment tools inert on the very next use.
@@ -2390,8 +2405,17 @@ function _buildRows() {
 function _clearAutoDara() { if (_daraAutoInferred) { document.getElementById('dara').value = ''; _daraAutoInferred = false; } }
 
 // Refresh per-year DARA panel when the year range changes (both modes)
-document.getElementById('rebal-last-year').addEventListener('change', renderDaraByYearPanel);
-document.getElementById('rebal-first-year').addEventListener('change', renderDaraByYearPanel);
+function _onRebalYearRangeChange() {
+  renderDaraByYearPanel();
+  // Account-keyed caches (Formats 1/2) don't depend on fy/ly — the account selection is the plan's
+  // identity, and the range is just an attribute of it — so a range change here is an edit to the
+  // SAME remembered plan and should auto-resave like any other mutation (segment infer/const,
+  // per-rung edits, undo/revert). Account-less ("range:") caches key ON fy/ly, so a range change
+  // there is "a different ladder" (mirrors Build's _onBuildYearRangeChange) — left alone.
+  if (_daraCacheKey?.startsWith(DARA_PLAN_PREFIX + 'acct:')) _saveDaraPlanIfRemembered();
+}
+document.getElementById('rebal-last-year').addEventListener('change', _onRebalYearRangeChange);
+document.getElementById('rebal-first-year').addEventListener('change', _onRebalYearRangeChange);
 // Build has no holdings-load event to key its DARA-plan cache off of, so a changed year range is
 // Build's equivalent of "loading a different ladder" — recompute the cache key/label from it.
 function _onBuildYearRangeChange() {
