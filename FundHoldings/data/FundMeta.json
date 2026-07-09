@@ -10,5 +10,9 @@
   "VTP": {
     "fundName": "Vanguard Total Inflation-Protected Securities ETF",
     "portId": "V049"
+  },
+  "RBIL": {
+    "fundName": "F/m Ultrashort Treasury Inflation-Protected Security (TIPS) ETF",
+    "etfId": 11
   }
 }

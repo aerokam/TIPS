@@ -133,7 +133,7 @@ export async function updateVanguardHoldings(tickers) {
     console.log(`${ticker}: ${rows.length} holdings as of ${asOf}`);
 
     const csv = toCsv(rows, asOf);
-    const filename = path.join(DATA_DIR, `VanguardHoldings-${ticker}.csv`);
+    const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
     fs.writeFileSync(filename, csv, "utf8");
     console.log(`Wrote ${filename}`);
 

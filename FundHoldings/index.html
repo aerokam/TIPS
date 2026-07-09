@@ -9,14 +9,17 @@
   .page { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px; }
   main { background: #fff; border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 8px 8px; padding: 16px; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
-  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border-light); white-space: nowrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; table-layout: fixed; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   th:nth-child(1), td:nth-child(1),
   th:nth-child(2), td:nth-child(2) { text-align: left; }
-  thead th { background: var(--portal-header-bg); color: var(--portal-text-on-dark); position: sticky; top: 0; font-weight: 700; }
+  thead th { background: var(--portal-header-bg); color: var(--portal-text-on-dark); position: sticky; top: 0; font-weight: 700; position: relative; }
   thead th.sortable { cursor: pointer; user-select: none; }
   thead th.sortable:hover { background: var(--tab-inactive-bg); }
   thead th .sort-arrow { font-size: 10px; margin-left: 3px; opacity: 0.7; }
+  thead th .col-resizer { position: absolute; top: 0; right: 0; width: 8px; height: 100%; cursor: col-resize; user-select: none; z-index: 1; }
+  thead th .col-resizer::after { content: ""; position: absolute; top: 20%; bottom: 20%; left: 50%; width: 2px; transform: translateX(-50%); background: rgba(255, 255, 255, 0.35); border-radius: 1px; }
+  thead th .col-resizer:hover::after, thead th .col-resizer.active::after { background: rgba(255, 255, 255, 0.9); width: 3px; }
   tbody tr:hover { background: var(--portal-bg); }
   tfoot td { font-weight: 700; border-top: 2px solid var(--border-med); border-bottom: none; background: var(--chip-bg); }
 
@@ -45,8 +48,9 @@ import { parseCsv } from "../shared/src/csv.js";
 import { calcMktWtdAvg } from "../shared/src/bond-math.js";
 
 // One entry per fund whose enriched CSV lives in data/. Add a ticker here
-// once vanguard/updateVanguardHoldings.js + enrichHoldings.js have been run for it.
-const FUNDS = ["VBIL", "VTIP", "VTP"];
+// once the fund's scraper (vanguard/updateVanguardHoldings.js or
+// fminvest/updateFminvestHoldings.js) + enrichHoldings.js have been run for it.
+const FUNDS = ["VBIL", "VTIP", "VTP", "RBIL"];
 const WEEKS_PER_YEAR = 365.25 / 7;
 
 const tabGroup = document.getElementById("tabGroup");
@@ -57,6 +61,34 @@ const NUMERIC_COLS = ["Quantity", "Coupon", "% of Fund", "Market Value", "Ask Yi
 const PCT_COLS = ["Coupon", "Ask Yield", "SA Yield", "SAO Yield"];
 const DISPLAY_COLS = ["CUSIP", "Holding Name", "Maturity Date", "Coupon", "% of Fund", "Market Value", "Ask Yield", "SA Yield", "SAO Yield", "Term", "Duration"];
 const UNSORTABLE_COLS = new Set(["CUSIP", "Holding Name"]);
+
+// Default column widths (px), used to build the <colgroup>. Users can drag
+// the resizer handle on each header to override these; overrides persist in
+// colWidths across sorts and fund-switches for the session.
+const COL_WIDTHS = {
+  CUSIP: 100,
+  "Holding Name": 220,
+  "Maturity Date": 100,
+  Coupon: 70,
+  "% of Fund": 80,
+  "Market Value": 110,
+  "Ask Yield": 80,
+  "SA Yield": 80,
+  "SAO Yield": 80,
+  Term: 70,
+  Duration: 80
+};
+const colWidths = { ...COL_WIDTHS };
+
+// fminvest-sourced holding names embed the coupon/maturity in the text itself
+// (e.g. "United States Treasury Inflation Indexed Bonds 0.125% 10/15/2026"),
+// duplicating the Coupon/Maturity Date columns and bloating the description
+// column. Strip that suffix for display; a no-op for sources (Vanguard) whose
+// Holding Name never carries it.
+const NAME_SUFFIX_RE = /\s+\d+(?:\.\d+)?%\s+\d{2}\/\d{2}\/\d{4}\s*$/;
+function displayName(name) {
+  return String(name ?? "").replace(NAME_SUFFIX_RE, "");
+}
 
 let fundMeta = {};
 try {
@@ -105,14 +137,22 @@ function renderTable() {
   const { rows, cols, wtdAvg, termUnit, sortCol, sortDir } = state;
   const displayRows = sortCol ? sortRows(rows, sortCol, sortDir) : rows;
 
+  const colgroup = `<colgroup>${cols.map(c =>
+    `<col data-col="${c}" style="width:${colWidths[c] ?? 90}px">`
+  ).join("")}</colgroup>`;
+
   const thead = `<thead><tr>${cols.map(c => {
     const sortable = !UNSORTABLE_COLS.has(c);
     const arrow = sortCol === c ? `<span class="sort-arrow">${sortDir === 1 ? "▲" : "▼"}</span>` : "";
-    return `<th class="${sortable ? "sortable" : ""}" data-col="${c}">${headerLabel(c, termUnit)}${arrow}</th>`;
+    return `<th class="${sortable ? "sortable" : ""}" data-col="${c}">${headerLabel(c, termUnit)}${arrow}<span class="col-resizer" data-col="${c}"></span></th>`;
   }).join("")}</tr></thead>`;
 
   const tbody = `<tbody>${displayRows.map(r =>
-    `<tr>${cols.map(c => `<td>${c === "CUSIP" || c === "Holding Name" || c === "Maturity Date" ? (r[c] ?? "") : fmt(c, r[c], termUnit)}</td>`).join("")}</tr>`
+    `<tr>${cols.map(c => {
+      if (c === "Holding Name") return `<td>${displayName(r[c])}</td>`;
+      if (c === "CUSIP" || c === "Maturity Date") return `<td>${r[c] ?? ""}</td>`;
+      return `<td>${fmt(c, r[c], termUnit)}</td>`;
+    }).join("")}</tr>`
   ).join("")}</tbody>`;
 
   const tfoot = `<tfoot><tr>${cols.map(c => {
@@ -124,23 +164,48 @@ function renderTable() {
     return `<td></td>`;
   }).join("")}</tr></tfoot>`;
 
-  content.innerHTML = `<table>${thead}${tbody}${tfoot}</table>`;
+  content.innerHTML = `<table>${colgroup}${thead}${tbody}${tfoot}</table>`;
 
   content.querySelectorAll("thead th.sortable").forEach(th => {
-    th.addEventListener("click", () => {
+    th.addEventListener("click", e => {
+      if (e.target.classList.contains("col-resizer")) return;
       const col = th.dataset.col;
       state.sortDir = state.sortCol === col ? -state.sortDir : 1;
       state.sortCol = col;
       renderTable();
     });
   });
+
+  content.querySelectorAll(".col-resizer").forEach(handle => {
+    handle.addEventListener("mousedown", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const col = handle.dataset.col;
+      const colEl = content.querySelector(`col[data-col="${col}"]`);
+      const startX = e.clientX;
+      const startWidth = colEl.getBoundingClientRect().width;
+      handle.classList.add("active");
+      function onMove(e2) {
+        const width = Math.max(40, startWidth + (e2.clientX - startX));
+        colWidths[col] = width;
+        colEl.style.width = `${width}px`;
+      }
+      function onUp() {
+        handle.classList.remove("active");
+        document.removeEventListener("mousemove", onMove);
+        document.removeEventListener("mouseup", onUp);
+      }
+      document.addEventListener("mousemove", onMove);
+      document.addEventListener("mouseup", onUp);
+    });
+  });
 }
 
 async function loadFund(ticker) {
   content.innerHTML = '<div class="status">Loading…</div>';
-  const res = await fetch(`data/VanguardHoldings-${ticker}-Enriched.csv`);
+  const res = await fetch(`data/Holdings-${ticker}-Enriched.csv`);
   if (!res.ok) {
-    content.innerHTML = `<div class="status">No enriched data for ${ticker} yet — run vanguard/updateVanguardHoldings.js then enrichHoldings.js.</div>`;
+    content.innerHTML = `<div class="status">No enriched data for ${ticker} yet — run the fund's scraper then enrichHoldings.js.</div>`;
     return;
   }
   const rows = parseCsv(await res.text());

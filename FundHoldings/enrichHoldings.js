@@ -88,7 +88,7 @@ function enrichRow(row, settle, { tipsByCusip, nominalByCusip }) {
 }
 
 export async function enrichHoldingsFile(ticker) {
-  const filename = path.join(DATA_DIR, `VanguardHoldings-${ticker}.csv`);
+  const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
   const rows = parseCsv(fs.readFileSync(filename, "utf8"));
   const sources = await loadYieldSources();
   const settle = new Date();
@@ -102,7 +102,7 @@ export async function enrichHoldingsFile(ticker) {
     lines.push(headers.map(h => `"${String(r[h] ?? "").replace(/"/g, '""')}"`).join(","));
   }
 
-  const outFilename = path.join(DATA_DIR, `VanguardHoldings-${ticker}-Enriched.csv`);
+  const outFilename = path.join(DATA_DIR, `Holdings-${ticker}-Enriched.csv`);
   fs.writeFileSync(outFilename, lines.join("\n") + "\n", "utf8");
   console.log(`Wrote ${outFilename}`);
   return enriched;
