@@ -671,22 +671,26 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraUndoStackBuild = _daraUndoStack; _daraLoadedSnapshotBuild = _daraLoadedSnapshot;
       _daraManualYearsBuild = _daraManualYears; _daraManualLoadedSnapshotBuild = _daraManualLoadedSnapshot;
       _splitYearsBuild = _splitYears; _segInferredEchoBuild = _segInferredEcho;
+      _bracketAutoCapYearsBuild = _bracketAutoCapYears;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
       _daraUndoStack = _daraUndoStackRebal; _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
       _daraManualYears = _daraManualYearsRebal; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotRebal;
       _splitYears = _splitYearsRebal; _segInferredEcho = _segInferredEchoRebal;
+      _bracketAutoCapYears = _bracketAutoCapYearsRebal;
     } else {
       _daraRebal = daraEl.value;
       _daraByYearStoreRebal = _daraByYearStore; _daraByYearPanelDefaultRebal = _daraByYearPanelDefault;
       _daraUndoStackRebal = _daraUndoStack; _daraLoadedSnapshotRebal = _daraLoadedSnapshot;
       _daraManualYearsRebal = _daraManualYears; _daraManualLoadedSnapshotRebal = _daraManualLoadedSnapshot;
       _splitYearsRebal = _splitYears; _segInferredEchoRebal = _segInferredEcho;
+      _bracketAutoCapYearsRebal = _bracketAutoCapYears;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
       _daraUndoStack = _daraUndoStackBuild; _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
       _daraManualYears = _daraManualYearsBuild; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotBuild;
       _splitYears = _splitYearsBuild; _segInferredEcho = _segInferredEchoBuild;
+      _bracketAutoCapYears = _bracketAutoCapYearsBuild;
     }
     _rungPreEdit = null; _rungDirty = false;
     
@@ -1315,13 +1319,14 @@ function _initRebalDaraFromPortfolio() {
   const heldARA = computePortfolioARAByYear(currentHoldingsArray, tipsMap, rc);
   if (Object.keys(heldARA).length === 0) { renderDaraByYearPanel(); return; }
 
-  const bracketCandidates = getGapYearBracketCandidates(tipsMap);
-  const { median, daraMap, autoCappedYears } = derivePerYearDara(heldARA, bracketCandidates);
-  _bracketAutoCapYears = autoCappedYears;
-
   const heldYearNums = Object.keys(heldARA).map(Number);
   const firstYear = Math.min(...heldYearNums);
   const lastYear = parseInt(document.getElementById('rebal-last-year').value) || Math.max(...heldYearNums);
+
+  const bracketCandidates = getGapYearBracketCandidates(tipsMap, lastYear);
+  const { median, daraMap, autoCappedYears } = derivePerYearDara(heldARA, bracketCandidates);
+  _bracketAutoCapYears = autoCappedYears;
+
   const fullARA = computePortfolioARAByYear(currentHoldingsArray, tipsMap, rc, { firstYear, lastYear });
 
   // Held years take the bracket-capped daraMap value. Gap years (2037-2039) have no TIPS to read
@@ -1834,6 +1839,10 @@ let _segInferredEcho = new Map();   // segKey(years) -> last shown "$ each" valu
 // switching Build/Rebalance never leaks one mode's split years or echoes into the other's panel.
 let _splitYearsRebal = [], _splitYearsBuild = [];
 let _segInferredEchoRebal = new Map(), _segInferredEchoBuild = new Map();
+// Same per-mode swap for the bracket-auto-cap flag set — Build never derives this from holdings
+// (it has none), so without this mirror a Rebalance-mode flag would otherwise bleed into Build's
+// panel (and vice versa) after a tab switch.
+let _bracketAutoCapYearsRebal = new Set(), _bracketAutoCapYearsBuild = new Set();
 let _daraCacheKey = null;            // localStorage key for the current account/year-range signature, or null
 let _daraCacheLabel = null;          // human-readable label for the Remember checkbox / banner
 let _panelYearRange = null;         // { fy, ly } of the years currently shown in the per-year panel
@@ -2159,11 +2168,12 @@ function _segmentInferCtx() {
   if (!(rc > 0)) return null;
   const rawARA = computePortfolioARAByYear(currentHoldingsArray, tipsMap, rc);
   if (Object.keys(rawARA).length === 0) return null;
-  const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap));
+  const lastYearOverride = parseInt(document.getElementById('rebal-last-year').value) || undefined;
+  const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap, lastYearOverride ?? Infinity));
   return {
     rc, daraMap,
     bracketMode: document.getElementById('bracket-mode').value,
-    lastYearOverride: parseInt(document.getElementById('rebal-last-year').value) || undefined,
+    lastYearOverride,
     firstYearOverride: parseInt(document.getElementById('rebal-first-year').value) || undefined,
     preLadderInterest: document.getElementById('pre-ladder-interest').checked,
   };

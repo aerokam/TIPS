@@ -396,11 +396,16 @@ export function getGapYears(tipsMap) {
 // Years adjacent to the structural gap (2037-2039) that may carry bracket excess: the
 // 2040 upper bracket and any Jan TIPS in [2032, minGap) that could have been an old lower
 // bracket. Holdings in these years with ARA > 1.5× median are auto-capped to median.
-export function getGapYearBracketCandidates(tipsMap) {
+// `lastYear` is the ladder's selected last funded year — bracket bridging (and so the whole
+// candidate concept) only applies once the ladder actually reaches the structural gap. A
+// ladder that stops short of it (e.g. lastYear 2036) has no gap to bridge, so a large holding
+// at an otherwise-candidate year (e.g. 2034) is just a regular funded year, not bracket excess.
+export function getGapYearBracketCandidates(tipsMap, lastYear = Infinity) {
   if (!tipsMap) return new Set();
   const gapYears = getGapYears(tipsMap);
   if (gapYears.length === 0) return new Set();
   const minGap = Math.min(...gapYears);
+  if (lastYear < minGap) return new Set();
   const maxGap = Math.max(...gapYears);
   const LOWEST_LOWER = 2032;
   const candidates = new Set([maxGap + 1]);
@@ -1812,7 +1817,7 @@ export function runFundedRebalance({
   const needsFunding = result.summary.gapYears.length > 0 || result.summary.future30yYears.length > 0;
   if (isPristineMirror && needsFunding) {
     const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
-    const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap));
+    const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap, result.summary.lastYear));
     const { scaledMap, scaledMedian } = inferScaledDARAFromPortfolio({
       daraMap, holdings, tipsMap, refCPI, settlementDate,
       bracketMode, lastYearOverride, firstYearOverride, preLadderInterest, flat: false,
