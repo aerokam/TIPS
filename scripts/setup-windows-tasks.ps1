@@ -53,7 +53,12 @@ function Register-DataTask {
     if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $Name -Confirm:$false
     }
-    $action    = New-ScheduledTaskAction -Execute $Execute -Argument $Argument -WorkingDirectory $Cwd
+    # Run via conhost --headless so no console window ever appears/steals focus.
+    # Task Scheduler otherwise pops a visible conhost window for any console-subsystem
+    # action, even when the script itself redirects all output to a log file.
+    $conhost   = "$env:WINDIR\System32\conhost.exe"
+    $hiddenArg = "--headless `"$Execute`" $Argument"
+    $action    = New-ScheduledTaskAction -Execute $conhost -Argument $hiddenArg -WorkingDirectory $Cwd
     $settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -StartWhenAvailable
     $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
     $task      = New-ScheduledTask -Action $action -Trigger $Triggers -Settings $settings -Principal $principal -Description $Description

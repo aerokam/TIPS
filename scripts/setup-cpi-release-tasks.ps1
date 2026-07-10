@@ -105,7 +105,9 @@ foreach ($task in $TASKS) {
     Write-Host ""
     Write-Host "Registering task '$($task.Name)'..."
 
-    $action = New-ScheduledTaskAction -Execute 'cmd' -Argument "/c $($task.Cmd)"
+    # Run via conhost --headless so no console window appears (see setup-windows-tasks.ps1).
+    $action = New-ScheduledTaskAction -Execute "$env:WINDIR\System32\conhost.exe" `
+        -Argument "--headless cmd /c `"$($task.Cmd)`""
     $desc   = "Runs on BLS CPI release dates at 8:35 AM ET. Triggers refreshed via setup-cpi-release-tasks.ps1."
 
     Register-ScheduledTask `
@@ -127,8 +129,8 @@ $refreshAt    = Get-Date -Year $lastYear -Month 12 -Day 29 -Hour 9 -Minute 0 -Se
 $refreshTask  = 'RefreshCpiTasks'
 $refreshDesc  = "Annual refresh of RefCPI + FetchCpiHistory task triggers. Reads the next year BLS CPI schedule from R2 and rebuilds date-specific triggers."
 $refreshAction = New-ScheduledTaskAction `
-    -Execute  'powershell' `
-    -Argument "-ExecutionPolicy Bypass -File `"$REPO\scripts\setup-cpi-release-tasks.ps1`""
+    -Execute  "$env:WINDIR\System32\conhost.exe" `
+    -Argument "--headless powershell -ExecutionPolicy Bypass -File `"$REPO\scripts\setup-cpi-release-tasks.ps1`""
 $refreshSettings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 5) `
     -StartWhenAvailable
