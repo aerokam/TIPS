@@ -6,7 +6,7 @@
 import { D, MONTHS, DIM, cum, MATS, Sat, Smin, Smax, doy, dateLabel, state, ILLUS_COUPON } from './sa-data.js';
 import { note, arrow, callout, calloutMulti, ring, vBracket, pill, AMBER, CYAN, GREEN, RED, INK } from './sa-annotate.js';
 
-const GRID = '#334155', MUTED = '#94a3b8', SLATE = '#94a3b8', WAVE = '#7dd3fc';
+const GRID = '#334155', MUTED = '#94a3b8', SLATE = '#94a3b8', WAVE = '#7dd3fc', BLUE = '#3b82f6';
 
 function noData(el, W, H) {
   el.innerHTML = `<text x="${W / 2}" y="${H / 2}" text-anchor="middle" style="fill:${MUTED};font-size:14px">CPI data unavailable (offline) — later chapters still work from the built-in seasonal shape.</text>`;
@@ -89,15 +89,23 @@ export function drawP1(el) {
   // H1/H2 soft background wash — full plot height, so it always contains
   // every point in its half (a hard-edged box sized to the average line
   // was cutting off the individual-year X marks that ran wider than it).
+  // H2 uses RED (not CYAN) so it doesn't fight the BLUE average line below.
   const h1x0 = L, h1x1 = L + slot * 6, h2x1 = W - R;
   s += `<rect x="${h1x0}" y="${T}" width="${h1x1 - h1x0}" height="${plotBottom - T}" fill="${AMBER}" opacity=".07"/>`;
-  s += `<rect x="${h1x1}" y="${T}" width="${h2x1 - h1x1}" height="${plotBottom - T}" fill="${CYAN}" opacity=".07"/>`;
+  s += `<rect x="${h1x1}" y="${T}" width="${h2x1 - h1x1}" height="${plotBottom - T}" fill="${RED}" opacity=".07"/>`;
 
-  // per-year NSA points as X marks (kept visually distinct from the average
-  // line's own dot vertices below) — nudged apart horizontally only when two
-  // years land within a few px of each other
+  // per-year NSA points as small dots, one color per year — nudged apart
+  // horizontally only when two years land within a few px of each other.
+  // First pass computes positions (needed for both the dots and the per-year
+  // connecting lines below); second pass draws.
+  const YEAR_COLORS = ['#f472b6', '#a78bfa', '#60a5fa', '#2dd4bf', '#fb923c', '#fde047'];
+  const years = [...new Set(byMo.flatMap(m => m.nsa.map(p => p.yr)))].sort((a, b) => a - b);
+  const yearColor = Object.fromEntries(years.map((yr, i) => [yr, YEAR_COLORS[i % YEAR_COLORS.length]]));
+
   const dotXY = []; // for annotation targeting below
-  const xr = 3.2;
+  const yearPos = {}; // yearPos[yr][m] = {x,y} — one calendar-year's trajectory
+  const dotR = 1.3, hitR = 8; // visible dot vs. its (larger) hover hit-area
+  const monthPts = [];
   for (let m = 0; m < 12; m++) {
     const x = cx(m);
     const pts = byMo[m].nsa.map(p => ({ ...p, cy: ty(p.val) }));
@@ -109,20 +117,35 @@ export function drawP1(el) {
       else side = 1;
       lastCy = pts[i].cy;
     });
-    pts.forEach((p, i) => {
-      const px = x + dx[i], py = p.cy;
-      // a transparent circle (radius > the X's own reach) is the actual hover
-      // target — the thin X stroke alone is too small a hit-area to aim at
-      s += `<g opacity=".6"><path d="M${(px - xr).toFixed(1)} ${(py - xr).toFixed(1)} L${(px + xr).toFixed(1)} ${(py + xr).toFixed(1)} M${(px - xr).toFixed(1)} ${(py + xr).toFixed(1)} L${(px + xr).toFixed(1)} ${(py - xr).toFixed(1)}" stroke="${SLATE}" stroke-width="1.6"/><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="8" fill="transparent"/><title>${p.yr}: ${p.val >= 0 ? '+' : ''}${p.val.toFixed(2)}%</title></g>`;
-    });
+    pts.forEach((p, i) => { (yearPos[p.yr] ||= {})[m] = { x: x + dx[i], y: p.cy }; });
+    monthPts.push(pts.map((p, i) => ({ ...p, px: x + dx[i] })));
     const lowI = order[order.length - 1]; // bottom-most (lowest-value) point this month
     dotXY[m] = { x: x + dx[lowI], y: pts[lowI] ? pts[lowI].cy : ty(nsaAvg[m]) };
   }
 
-  // NSA average line
+  // thin per-year lines, colored to match their dots — each year's own
+  // Jan→Dec trajectory, so the reader can see one specific year's seasonal
+  // path (and pick it out by color), not just the average
+  Object.entries(yearPos).forEach(([yr, pos]) => {
+    let path = '';
+    for (let m = 0; m < 12; m++) { if (!pos[m]) continue; path += (path ? 'L' : 'M') + pos[m].x.toFixed(1) + ' ' + pos[m].y.toFixed(1); }
+    s += `<path d="${path}" fill="none" stroke="${yearColor[yr]}" stroke-width="1" opacity=".35"/>`;
+  });
+
+  for (let m = 0; m < 12; m++) {
+    monthPts[m].forEach(p => {
+      const px = p.px, py = p.cy;
+      // a transparent circle (radius > the visible dot) is the actual hover
+      // target — the small dot alone is too small a hit-area to aim at
+      s += `<g opacity=".8"><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${dotR}" fill="${yearColor[p.yr]}"/><circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="${hitR}" fill="transparent"/><title>${p.yr}: ${p.val >= 0 ? '+' : ''}${p.val.toFixed(2)}%</title></g>`;
+    });
+  }
+
+  // NSA average line — bright BLUE so it stands out the way GREEN (SA) does,
+  // instead of competing with the muted grey per-year dots/text
   let nsaPath = ''; for (let m = 0; m < 12; m++) nsaPath += (m ? 'L' : 'M') + cx(m).toFixed(1) + ' ' + ty(nsaAvg[m]).toFixed(1);
-  s += `<path d="${nsaPath}" fill="none" stroke="${SLATE}" stroke-width="2.2"/>`;
-  for (let m = 0; m < 12; m++) s += `<circle cx="${cx(m)}" cy="${ty(nsaAvg[m])}" r="3" fill="${SLATE}"/>`;
+  s += `<path d="${nsaPath}" fill="none" stroke="${BLUE}" stroke-width="2.2"/>`;
+  for (let m = 0; m < 12; m++) s += `<circle cx="${cx(m)}" cy="${ty(nsaAvg[m])}" r="3" fill="${BLUE}"/>`;
 
   // SA line
   let saPath = ''; for (let m = 0; m < 12; m++) saPath += (m ? 'L' : 'M') + cx(m).toFixed(1) + ' ' + ty(saAvg[m]).toFixed(1);
@@ -133,7 +156,7 @@ export function drawP1(el) {
   // Top band: one combined H1/H2 explanation, two arrows (one per wash color).
   s += calloutMulti([
     { x: (h1x0 + h1x1) / 2, y: T + 14, bend: -0.15, color: AMBER },
-    { x: (h1x1 + h2x1) / 2, y: T + 14, bend: 0.15, color: CYAN },
+    { x: (h1x1 + h2x1) / 2, y: T + 14, bend: 0.15, color: RED },
   ], W / 2, 46, [
     'Month-over-month (MoM) CPI-U, not seasonally adjusted (NSA),',
     'is generally higher in H1 (Jan–Jun) than H2 (Jul–Dec).',
@@ -144,29 +167,32 @@ export function drawP1(el) {
   // own box rather than reaching across the chart.
   const xBoxTx = L + 10, lineBoxTx = W / 2, greenBoxTx = W - R - 10;
 
-  // grey X: connect to whichever nearby month has a point closest to the
+  // each DOT: connect to whichever nearby month has a point closest to the
   // bottom of the plot (i.e. physically nearest this box, which sits under Jan–Apr)
   const dotM = [0, 1, 2, 3].sort((a, b) => dotXY[b].y - dotXY[a].y)[0];
   s += callout(dotXY[dotM].x, dotXY[dotM].y, xBoxTx, plotBottom + 60, [
-    'grey X = CPI month-over-month',
+    'each DOT = CPI month-over-month',
     '(MoM) change for one year',
-    '(hover a mark to see which year)',
+    '(color = year;',
+    'hover a dot for the year)',
   ], SLATE, 'start', 0.2);
 
-  // grey LINE / GREEN: land on clearly different months (May vs Nov) so the
+  // BLUE LINE / GREEN: land on clearly different months (May vs Nov) so the
   // two arrows read as distinct, not two curves converging on the same spot
   const barM = 4; // May
   s += callout(cx(barM), ty(nsaAvg[barM]), lineBoxTx, plotBottom + 60, [
-    `grey LINE = the ${N}-year average`,
+    `BLUE LINE = the ${N}-year average`,
     'MoM % change in CPI-U',
     '(All Urban Consumers, NSA)',
-  ], SLATE, 'middle', -0.2);
+  ], BLUE, 'middle', -0.2);
 
   const saM = 10; // Nov
   s += callout(cx(saM), ty(saAvg[saM]), greenBoxTx, plotBottom + 60, [
     `GREEN = that same ${N}-year average,`,
-    'computed from the SA series instead —',
-    'flatter, since SA removes the seasonal effects',
+    'computed from the SA (Seasonally',
+    'Adjusted) series instead —',
+    'flatter, since SA removes',
+    'the seasonal effects',
   ], GREEN, 'end', 0.2);
 
   el.innerHTML = s;
