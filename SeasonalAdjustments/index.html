@@ -2,7 +2,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1"/>
-<title>TIPS Seasonal Adjustment Explorer</title>
+<title>TIPS Seasonality — A Visual Guide</title>
 <style>
   :root{
     --bg:#0f172a; --panel:#1e293b; --ink:#e2e8f0; --muted:#94a3b8;
@@ -10,28 +10,55 @@
     --up:#22c55e; --down:#ef4444; --accent:#a78bfa; --nsa:#94a3b8; --sa:#22c55e;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-  header{padding:16px 22px 0}
-  h1{font-size:19px;margin:0 0 2px}
-  .sub{color:var(--muted);font-size:13px;max-width:960px;margin-bottom:10px}
-  /* tabs */
-  .tabbar{display:flex;gap:0;padding:10px 22px 0;border-bottom:1px solid var(--grid)}
-  .tabbar button{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font:14px/1 inherit;padding:8px 18px 10px;margin-bottom:-1px}
-  .tabbar button.on{color:var(--settle);border-bottom-color:var(--settle)}
-  /* layouts */
-  .col1{padding:14px 22px 24px;display:flex;flex-direction:column;gap:14px}
-  .wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;padding:14px 22px 24px}
-  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
-  .tab-content{display:none}
-  .tab-content.on{display:block}
-  .panel{background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:14px 16px}
-  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
-  .panel .desc{color:var(--muted);font-size:12px;margin:0 0 8px;line-height:1.5}
-  svg{width:100%;height:auto;display:block}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
+  svg{width:100%;height:100%;display:block}
   text{fill:var(--ink);font-size:11px}
   .axis{fill:var(--muted);font-size:10px}
   .gl{stroke:var(--grid);stroke-width:1}
-  /* slider */
+  code{background:#0b1220;padding:1px 5px;border-radius:4px;color:var(--accent)}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;justify-content:center;font-size:11px;color:var(--muted)}
+
+  /* ── Top bar ─────────────────────────────────────────────────────────── */
+  #topbar{display:flex;align-items:center;gap:10px;padding:10px 16px;border-bottom:1px solid var(--grid);flex:0 0 auto}
+  .portal-link{font-size:11px;font-weight:700;color:var(--muted);background:#1e293b;border:1px solid var(--grid);border-radius:4px;padding:4px 10px;text-decoration:none;letter-spacing:.02em}
+  .portal-link:hover{background:var(--ink);color:#0f172a;border-color:var(--ink)}
+  #tocBtn{background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;display:flex;align-items:center;gap:6px}
+  #tocBtn:hover{border-color:var(--settle)}
+  #bookTitle{font-size:14px;font-weight:700;letter-spacing:.02em}
+  #crumb{margin-left:auto;color:var(--muted);font-size:12px}
+
+  /* ── Table of contents drawer ────────────────────────────────────────── */
+  #tocScrim{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .15s;z-index:20}
+  #toc.open #tocScrim{opacity:1;pointer-events:auto}
+  #tocPanel{position:fixed;top:0;left:0;bottom:0;width:min(340px,86vw);background:var(--panel);border-right:1px solid var(--grid);transform:translateX(-100%);transition:transform .18s;z-index:21;padding:18px 16px;overflow-y:auto}
+  #toc.open #tocPanel{transform:translateX(0)}
+  #tocPanel h3{margin:0 0 14px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .toc-chapters{list-style:none;margin:0;padding:0}
+  .toc-chapter{font-size:13px;font-weight:700;color:var(--ink);margin:16px 0 6px}
+  .toc-chapter:first-child{margin-top:0}
+  .toc-pages{list-style:none;margin:0 0 0 4px;padding:0;border-left:2px solid var(--grid)}
+  .toc-pages li{padding:7px 0 7px 14px;color:var(--muted);font-size:13px;cursor:pointer;border-left:2px solid transparent;margin-left:-2px}
+  .toc-pages li:hover{color:var(--ink)}
+  .toc-pages li.on{color:var(--settle);border-left-color:var(--settle);font-weight:600}
+
+  /* ── Stage (one page at a time) ──────────────────────────────────────── */
+  #stage{flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column}
+  .page{display:none;flex:1;flex-direction:column;padding:18px 22px 8px;min-height:0}
+  .page.on{display:flex}
+  .pageTitle{text-align:center;font-size:22px;font-weight:800;margin:2px 0 10px;letter-spacing:.01em}
+  .hero{flex:1 1 auto;min-height:280px;display:flex;align-items:center;justify-content:center}
+  .caption{text-align:center;color:var(--muted);font-size:13px;max-width:760px;margin:10px auto 4px;line-height:1.5}
+
+  /* ── Legacy panel/chapter styles (Chapters 2–3, kept as-is for now) ─── */
+  .col1{display:flex;flex-direction:column;gap:14px;overflow-y:auto}
+  .wrap{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;overflow-y:auto}
+  @media(max-width:980px){.wrap{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--grid);border-radius:10px;padding:14px 16px}
+  .panel h2{font-size:13px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 6px}
+  .panel .desc{color:var(--muted);font-size:12px;margin:0 0 8px;line-height:1.5}
+  .panel .legend{justify-content:flex-start;margin-bottom:6px}
   .controls{display:flex;flex-wrap:wrap;gap:14px;align-items:center;margin-top:8px}
   .controls label{color:var(--muted);font-size:12px}
   input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:30px;background:transparent;cursor:grab;touch-action:none;margin:6px 0;-webkit-user-select:none;user-select:none}
@@ -43,7 +70,6 @@
   .matbtns{display:flex;gap:6px;flex-wrap:wrap}
   .matbtns button{background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:6px 10px;border-radius:6px;cursor:pointer;font-size:12px}
   .matbtns button.on{background:var(--mat);color:#1a1205;border-color:var(--mat);font-weight:600}
-  /* readout */
   .readout div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;border-bottom:1px dashed #2b3a52}
   .readout .k{color:var(--muted)}
   .readout .v{font-variant-numeric:tabular-nums;font-weight:600}
@@ -52,128 +78,219 @@
   .verdict.up{background:rgba(34,197,94,.12);border:1px solid rgba(34,197,94,.4)}
   .verdict.down{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.4)}
   .verdict.flat{background:rgba(148,163,184,.12);border:1px solid rgba(148,163,184,.4)}
-  code{background:#0b1220;padding:1px 5px;border-radius:4px;color:var(--accent)}
-  .portal-link{font-size:11px;font-weight:700;color:var(--muted);background:#1e293b;border:1px solid var(--grid);border-radius:4px;padding:2px 10px;text-decoration:none;letter-spacing:.02em;margin-right:10px;vertical-align:middle}
-  .portal-link:hover{background:var(--ink);color:#0f172a;border-color:var(--ink)}
-  .dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:4px;vertical-align:middle}
-  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:6px}
-  .src{color:var(--muted);font-size:11px;padding:6px 22px 18px}
+
+  /* ── Pager ────────────────────────────────────────────────────────────── */
+  #pagerbar{display:flex;align-items:center;gap:14px;padding:10px 22px;border-top:1px solid var(--grid);flex:0 0 auto}
+  #pagerbar button{background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:8px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
+  #pagerbar button:hover:not(:disabled){border-color:var(--settle)}
+  #pagerbar button:disabled{opacity:.3;cursor:default}
+  #dots{flex:1;display:flex;justify-content:center;gap:7px}
+  #dots span{width:7px;height:7px;border-radius:50%;background:var(--grid)}
+  #dots span.on{background:var(--settle)}
+  .src{color:var(--muted);font-size:11px;text-align:center;padding:2px 22px 0}
 </style>
 </head>
 <body>
-<header>
-  <h1><a href="../" class="portal-link">&#8592; Portal</a>TIPS Seasonal Adjustment Explorer</h1>
-  <p class="sub">The adjusted principal of a Treasury Inflation-Protected Security (TIPS) equals its face value multiplied by the index ratio: the current Reference CPI (Ref CPI, non-seasonally adjusted) divided by the Ref CPI on the dated date (the 15th of the month in which the TIPS was issued). Because the Ref CPI on the dated date is fixed for the life of a TIPS and cancels in the day-over-day percentage change, every outstanding TIPS accrues the same daily inflation adjustment — equal to the daily percentage change in the Ref CPI — regardless of when it was issued. That Ref CPI has a predictable, calendar-driven seasonal component on top of its underlying trend. These tabs walk through how that seasonal component is identified and then stripped from TIPS prices to enable fair yield comparison across TIPS maturing in different calendar months.</p>
+
+<header id="topbar">
+  <a href="../" class="portal-link">&#8592; Portal</a>
+  <button id="tocBtn">&#9776; Contents</button>
+  <div id="bookTitle">TIPS Seasonality</div>
+  <div id="crumb"></div>
 </header>
 
-<div class="tabbar">
-  <button class="on" onclick="switchTab(0)">CPI Cycle</button>
-  <button onclick="switchTab(1)">SA Factor</button>
-  <button onclick="switchTab(2)">Price Adjustment</button>
-</div>
-
-<!-- Tab 0: CPI Cycle -->
-<div id="tab0" class="tab-content on">
-  <div class="col1">
-    <div class="panel">
-      <h2>CPI-U: Average Month-over-Month % Change by Calendar Month</h2>
-      <p class="desc">Each gray bar shows the average month-over-month (MoM) % change in the Consumer Price Index for All Urban Consumers, non-seasonally adjusted (CPI-U NSA), for that calendar month, averaged across approximately 10 years. Gray dots show individual years. The dashed lines mark the H1 (Jan–Jun) and H2 (Jul–Dec) averages: first-half months are substantially higher, with only November consistently averaging below zero in H2. The green line shows the seasonally adjusted (SA) equivalent, roughly flat across all months by design — seasonal adjustment removes exactly this calendar dependence. The SA Factor chart below quantifies the cumulative effect of this seasonal cycle for each day of the year.</p>
-      <div class="legend">
-        <span><span class="dot" style="background:var(--nsa)"></span>CPI-U NSA avg MoM %</span>
-        <span><span class="dot" style="background:var(--nsa);opacity:.5"></span>Individual years</span>
-        <span><span class="dot" style="background:var(--sa)"></span>CPI-U SA avg MoM %</span>
-      </div>
-      <svg id="cpiChart" viewBox="0 0 860 260" preserveAspectRatio="xMidYMid meet"></svg>
-    </div>
-    <div class="panel">
-      <h2>SA Factor = Ref CPI NSA / Ref CPI SA — last 10 years</h2>
-      <p class="desc">Dividing NSA by SA isolates the seasonal component of the Ref CPI for each day. Values above 1.0 mean NSA is running ahead of trend (spring/summer); below 1.0 means it's running behind (fall/winter). This ratio is the SA Factor S used to adjust TIPS prices.</p>
-      <div class="legend">
-        <span><span class="dot" style="background:var(--price)"></span>SA Factor = Ref CPI NSA / Ref CPI SA (daily)</span>
-        <span><span class="dot" style="background:var(--mat)"></span>CPI-U NSA / CPI-U SA (monthly, plotted 3 months earlier — shows the lag)</span>
-        <span style="display:flex;align-items:center;gap:4px"><svg width="18" height="10"><line x1="0" y1="5" x2="18" y2="5" stroke="#94a3b8" stroke-width="1.5"/></svg>S = 1.0000</span>
-      </div>
-      <svg id="factorChart" viewBox="0 0 860 220" preserveAspectRatio="xMidYMid meet"></svg>
-    </div>
+<nav id="toc">
+  <div id="tocScrim"></div>
+  <div id="tocPanel">
+    <h3>Contents</h3>
+    <ol class="toc-chapters">
+      <li>
+        <div class="toc-chapter">1 · Why CPI Has Seasons</div>
+        <ol class="toc-pages">
+          <li data-page="0">Inflation Has a Rhythm</li>
+          <li data-page="1">The Rhythm, Measured</li>
+        </ol>
+      </li>
+      <li>
+        <div class="toc-chapter">2 · One Seasonal Year</div>
+        <ol class="toc-pages">
+          <li data-page="2">The Annual Curve</li>
+        </ol>
+      </li>
+      <li>
+        <div class="toc-chapter">3 · Settlement, Cash Flows &amp; Maturity</div>
+        <ol class="toc-pages">
+          <li data-page="3">Buying Into the Cycle</li>
+        </ol>
+      </li>
+    </ol>
   </div>
-</div>
+</nav>
 
-<!-- Tab 1: SA Factor (single calendar year + annotation) -->
-<div id="tab1" class="tab-content">
-  <div class="col1">
-    <div class="panel">
-      <h2>SA Factor S over a single calendar year — 5-year average</h2>
-      <p class="desc">The SA Factor S = Ref CPI NSA / Ref CPI SA, plotted across a single calendar year. Each point is the 5-year average for that month/day. The trough in late winter (Feb–Mar) and the peak in late summer (Aug–Sep) reflect the predictable seasonal cycle of CPI-U. TIPS with January and April maturities sit near the trough; July and October maturities sit near the peak.</p>
-      <div class="legend">
-        <span><span class="dot" style="background:var(--price)"></span>SA Factor S (5-yr avg)</span>
-        <span><span class="dot" style="background:var(--mat)"></span>TIPS maturity months (Jan/Apr/Jul/Oct 15)</span>
-      </div>
-      <svg id="curve1" viewBox="0 0 720 300" preserveAspectRatio="xMidYMid meet"></svg>
+<div id="stage">
+
+  <!-- Page 1.1 -->
+  <div id="page-1-1" class="page on">
+    <h2 class="pageTitle">Inflation Has a Rhythm</h2>
+    <div class="hero"><svg id="cpiChart" viewBox="0 0 860 480" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--nsa)"></span>CPI-U NSA avg MoM %</span>
+      <span><span class="dot" style="background:var(--nsa);opacity:.5"></span>individual years</span>
+      <span><span class="dot" style="background:var(--sa)"></span>CPI-U SA avg MoM %</span>
     </div>
+    <p class="caption">Same calendar month, ~10 years, stacked together. Prices don't rise evenly through the year — they follow a repeating seasonal pattern.</p>
   </div>
-</div>
 
-<!-- Tab 2: Price Adjustment -->
-<div id="tab2" class="tab-content">
-  <div class="wrap">
-    <div>
+  <!-- Page 1.2 -->
+  <div id="page-1-2" class="page">
+    <h2 class="pageTitle">The Rhythm, Measured</h2>
+    <div class="hero"><svg id="factorChart" viewBox="0 0 860 440" preserveAspectRatio="xMidYMid meet"></svg></div>
+    <div class="legend">
+      <span><span class="dot" style="background:var(--price)"></span>SA Factor (daily)</span>
+      <span><span class="dot" style="background:var(--mat)"></span>CPI-U, 3-month lag</span>
+    </div>
+    <p class="caption">Divide out that rhythm and you get a repeating ratio — the SA Factor — the seasonal signature used to adjust TIPS prices.</p>
+  </div>
+
+  <!-- Page 2.1 -->
+  <div id="page-2-1" class="page">
+    <div class="col1">
       <div class="panel">
-        <h2>SA Factor S over the calendar year — with settlement marker</h2>
-        <p class="desc">The SA transform multiplies price by S(settle)/S(maturity), stripping the net seasonal component of the Ref CPI between the settlement date and the maturity month/day. This leaves a price from which the SA yield — reflecting trend inflation only — can be derived. The adjustment is entirely in the <b>stub</b>: over whole years S repeats and cancels; only the fractional-year offset between the settlement month/day and the maturity month/day carries a net effect.</p>
+        <h2>SA Factor S over a single calendar year — 5-year average</h2>
+        <p class="desc">The SA Factor S = Ref CPI NSA / Ref CPI SA, plotted across a single calendar year. Each point is the 5-year average for that month/day. The trough in late winter (Feb–Mar) and the peak in late summer (Aug–Sep) reflect the predictable seasonal cycle of CPI-U. TIPS with January and April maturities sit near the trough; July and October maturities sit near the peak.</p>
         <div class="legend">
-          <span><span class="dot" style="background:var(--price)"></span>SA Factor S(t)</span>
-          <span><span class="dot" style="background:var(--settle)"></span>settlement</span>
-          <span><span class="dot" style="background:var(--mat)"></span>maturity month/day</span>
+          <span><span class="dot" style="background:var(--price)"></span>SA Factor S (5-yr avg)</span>
+          <span><span class="dot" style="background:var(--mat)"></span>TIPS maturity months (Jan/Apr/Jul/Oct 15)</span>
         </div>
-        <svg id="curve" viewBox="0 0 720 300" preserveAspectRatio="xMidYMid meet"></svg>
-        <div class="controls">
-          <div style="flex:1 1 100%">
-            <label>Settlement date: <b id="settleLbl" style="color:var(--settle)"></b></label>
-            <input id="settle" type="range" min="0" max="364" value="135"/>
-          </div>
-          <div>
-            <label style="display:block;margin-bottom:4px">Maturity month/day (TIPS issue months)</label>
-            <div class="matbtns" id="matbtns"></div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div>
-      <div class="panel">
-        <h2>What's happening right now</h2>
-        <div class="readout">
-          <div><span class="k"><span class="dot" style="background:var(--settle)"></span>S(settle)</span><span class="v" id="vSettle"></span></div>
-          <div><span class="k"><span class="dot" style="background:var(--mat)"></span>S(maturity)</span><span class="v" id="vMat"></span></div>
-          <div><span class="k">Stub (settle → maturity m/d)</span><span class="v" id="vStub"></span></div>
-        </div>
-        <div style="text-align:center;margin-top:12px">
-          <div class="k" style="color:var(--muted);font-size:12px">Price-adjustment ratio <code>S(settle)/S(maturity)</code></div>
-          <div class="big" id="vRatio"></div>
-          <div class="k" style="color:var(--muted);font-size:12px">Seasonal component of index growth <code>S(mat)/S(settle)</code></div>
-          <div class="big" id="vCapture" style="font-size:20px"></div>
-        </div>
-        <div id="verdict" class="verdict flat"></div>
+        <svg id="curve1" viewBox="0 0 720 300" preserveAspectRatio="xMidYMid meet"></svg>
       </div>
     </div>
   </div>
+
+  <!-- Page 3.1 -->
+  <div id="page-3-1" class="page">
+    <div class="wrap">
+      <div>
+        <div class="panel">
+          <h2>The seasonal gap — and how often it repeats before it matters</h2>
+          <p class="desc">The horizontal dashed line is S(settle) — the seasonal factor fixed the day you buy. The wavy line is S(t), the same annual cycle as Chapter 2, stretched across the bond's whole life instead of folded into one year. This example bond pays one coupon a year instead of two (TIPS really pay twice a year, but a second payment date only adds a tiny, mostly-irrelevant correction — see sidebar — so dropping it keeps the picture clean). Every payment then falls on the exact same calendar month/day as maturity, so every payment sits on the identical point of the wave: the <b>vertical bar</b> from the settle line to the wave — the price-adjustment gap between S(settle) and S(paydate) — is the same height every single year. It never "resolves." Bar <b>thickness</b> is that payment's share of the price: thin for ordinary coupons, thick for the final payment (last coupon <i>plus</i> principal — most of the price). The gap itself doesn't shrink at maturity. Maturity just stops being the only payment date that matters in dollars.</p>
+          <div class="legend">
+            <span><span class="dot" style="background:var(--settle)"></span>settlement</span>
+            <span><span class="dot" style="background:var(--price)"></span>S(t) — seasonal cycle</span>
+            <span><span class="dot" style="background:var(--up)"></span>gap: SA yield rises</span>
+            <span><span class="dot" style="background:var(--down)"></span>gap: SA yield falls</span>
+            <span><span class="dot" style="background:var(--mat)"></span>maturity (thick bar = principal)</span>
+          </div>
+          <svg id="curve" viewBox="0 0 860 320" preserveAspectRatio="xMidYMid meet"></svg>
+          <div class="controls">
+            <div style="flex:1 1 100%">
+              <label>Settlement date: <b id="settleLbl" style="color:var(--settle)"></b></label>
+              <input id="settle" type="range" min="0" max="364" value="135"/>
+            </div>
+            <div>
+              <label style="display:block;margin-bottom:4px">Maturity month/day (TIPS issue months)</label>
+              <div class="matbtns" id="matbtns"></div>
+            </div>
+            <div>
+              <label style="display:block;margin-bottom:4px">Years to maturity</label>
+              <div class="matbtns" id="yearbtns"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel">
+          <h2>What's happening right now</h2>
+          <div class="readout">
+            <div><span class="k"><span class="dot" style="background:var(--settle)"></span>S(settle)</span><span class="v" id="vSettle"></span></div>
+            <div><span class="k"><span class="dot" style="background:var(--mat)"></span>S(final payment)</span><span class="v" id="vMat"></span></div>
+            <div><span class="k">First coupon is a stub of</span><span class="v" id="vStub"></span></div>
+          </div>
+          <div style="text-align:center;margin-top:4px">
+            <div class="k" style="color:var(--muted);font-size:12px">Approx. SA yield impact — shrinks as years-to-maturity grows</div>
+            <div class="big" id="vYieldImpact" style="color:var(--mat)"></div>
+          </div>
+          <div style="text-align:center;margin-top:12px">
+            <div class="k" style="color:var(--muted);font-size:12px">Price-adjustment ratio <code>S(settle)/S(maturity)</code></div>
+            <div class="big" id="vRatio"></div>
+            <div class="k" style="color:var(--muted);font-size:12px">Seasonal component of index growth <code>S(mat)/S(settle)</code></div>
+            <div class="big" id="vCapture" style="font-size:20px"></div>
+          </div>
+          <div id="verdict" class="verdict flat"></div>
+          <div class="readout" style="margin-top:10px">
+            <div><span class="k">Illustrative bond</span><span class="v" id="vBondDesc"></span></div>
+            <div><span class="k"><span class="dot" style="background:var(--mat)"></span>Principal share of price</span><span class="v" id="vPrincipalShare"></span></div>
+            <div><span class="k"><span class="dot" style="background:var(--price)"></span>All coupons combined</span><span class="v" id="vCouponsShare"></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div>
 
+<div id="pagerbar">
+  <button id="prevBtn">&#8249; Prev</button>
+  <div id="dots"></div>
+  <button id="nextBtn">Next &#8250;</button>
+</div>
 <div class="src" id="src">Loading…</div>
 
-<script>
-const R2 = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/RefCpiNsaSa.csv';
+<script type="module">
+import { nextBusinessDay, parseHolidaySet } from '../shared/src/settlement.js';
+import { parseCsv } from '../shared/src/csv.js';
+const R2ROOT = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
+const R2 = R2ROOT + '/TIPS/RefCpiNsaSa.csv';
+const HOLIDAYS_URL = R2ROOT + '/misc/BondHolidaysSifma.csv';
 const MONTHLY_S = [1.00010,0.99673,0.99371,0.99596,0.99813,1.00004,1.00154,1.00264,1.00350,1.00273,1.00212,1.00171];
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DIM = [31,28,31,30,31,30,31,31,30,31,30,31];
 const cum = [0]; for(const d of DIM) cum.push(cum[cum.length-1]+d);
 const MATS = [{m:0,label:'Jan 15'},{m:3,label:'Apr 15'},{m:6,label:'Jul 15'},{m:9,label:'Oct 15'}];
 
-let daily = null;    // 365-element S array (5-yr avg), for Tab 1 curve and Tab 2
-let series = null;   // [{date, nsa, sa, factor}] chronological ~10 yrs, for Tab 0 charts
+// Illustrative bond for the Chapter 3 chart — not a live calculator, just a stand-in.
+// Coupon: average coupon across all outstanding TIPS (TipsRef.csv, checked 2026-07-11).
+// Yield: approximate real-yield curve by years-to-maturity (FedInvest, 2026-07-10 snapshot).
+// Simplified to one ANNUAL payment (Canty's Eq. 1-14 assumption) instead of TIPS's real
+// semiannual schedule — every payment then falls on the same calendar month/day as
+// maturity, so every seasonal-gap bar in the chart is identical, and only bar thickness
+// (present value) varies. See Canty.md §1a on why this is a fair simplification.
+const ILLUS_COUPON = 0.0125;
+const ILLUS_YIELD_CURVE = [[1,0.0207],[2,0.0188],[3,0.0186],[5,0.019]];
+const YEARS_OPTS = [1,2,3,5];
+function yieldForYears(y){
+  const c=ILLUS_YIELD_CURVE;
+  if(y<=c[0][0]) return c[0][1];
+  if(y>=c[c.length-1][0]) return c[c.length-1][1];
+  for(let i=0;i<c.length-1;i++){
+    const [y0,r0]=c[i], [y1,r1]=c[i+1];
+    if(y>=y0&&y<=y1) return r0+(r1-r0)*(y-y0)/(y1-y0);
+  }
+  return c[c.length-1][1];
+}
+
+let daily = null;    // 365-element S array (5-yr avg), for Ch2 curve and Ch3
+let series = null;   // [{date, nsa, sa, factor}] chronological ~10 yrs, for Ch1 charts
 let matIdx = 6;
+let yearsToMat = 3;
 
 function doy(month, day){ return cum[month]+(day-1); }
+
+// Default settlement date = the next bond trading day after today (T+1, skipping
+// weekends and SIFMA holidays) — i.e. the settlement a trade made today would use.
+// Holiday fetch is optional (3s timeout): falls back to weekend-only skip.
+async function defaultSettleDoy(){
+  let holidays=new Set();
+  try{
+    const ctrl=new AbortController(), to=setTimeout(()=>ctrl.abort(),3000);
+    const r=await fetch(HOLIDAYS_URL,{cache:'no-store',signal:ctrl.signal});
+    clearTimeout(to);
+    if(r.ok) holidays=parseHolidaySet(parseCsv(await r.text(), false));
+  }catch(e){ /* unavailable — weekend-skip only */ }
+  const settleDate=nextBusinessDay(new Date(), holidays);
+  return doy(settleDate.getMonth(), settleDate.getDate());
+}
 
 function buildDailyFromMonthly(){
   const out = new Array(365);
@@ -205,7 +322,7 @@ async function loadData(){
       (byKey[key]||=[]).push({year,S:factor});
     }
 
-    // 5-year average per mm-dd (Tab 1 curve + Tab 2 slider)
+    // 5-year average per mm-dd (Ch2 curve + Ch3 slider)
     const maxYear=parseInt(latestDate.slice(0,4)), minYear=maxYear-4;
     const out=new Array(365);
     for(let m=0;m<12;m++) for(let d=0;d<DIM[m];d++){
@@ -229,7 +346,7 @@ async function loadData(){
   }
 }
 
-function Sat(d){ return daily[((d%365)+365)%365]; }
+function Sat(d){ return daily[Math.round(((d%365)+365)%365)%365]; }
 const Smin=()=>Math.min(...daily), Smax=()=>Math.max(...daily);
 
 function dateLabel(doyVal){
@@ -238,11 +355,11 @@ function dateLabel(doyVal){
   return '';
 }
 
-// ── Tab 0: average MoM CPI-U NSA by calendar month (bar chart) ────────────
+// ── Ch1: average MoM CPI-U NSA by calendar month (bar chart) ──────────────
 function drawCpiChart(){
   if(!series||series.length===0) return;
   const el=document.getElementById('cpiChart');
-  const W=860,H=260,L=52,R=12,T=20,B=44;
+  const W=860,H=480,L=52,R=12,T=20,B=44;
   const MSHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   // Build lookup
@@ -348,11 +465,11 @@ function drawCpiChart(){
   el.innerHTML=s;
 }
 
-// ── Tab 0: multi-year SA Factor chart ──────────────────────────────────────
+// ── Ch1: multi-year SA Factor chart ────────────────────────────────────────
 function drawFactorChart(){
   if(!series||series.length===0) return;
   const el=document.getElementById('factorChart');
-  const W=860,H=220,L=52,R=10,T=12,B=42;
+  const W=860,H=440,L=52,R=10,T=12,B=42;
   const MSHORT=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   const dates=series.map(r=>r.date);
   // Anchor x-scale to Jan 1 of the first year that has a January data point
@@ -430,7 +547,7 @@ function drawFactorChart(){
   el.innerHTML=s;
 }
 
-// ── Tab 1: single-year curve (same as Tab 2 curve but no settlement marker) ─
+// ── Ch2: single-year curve ──────────────────────────────────────────────────
 function drawAnnualCurve(){
   if(!daily) return;
   const el=document.getElementById('curve1');
@@ -458,15 +575,91 @@ function drawAnnualCurve(){
   el.innerHTML=s;
 }
 
-// ── Tab 2: interactive curve ────────────────────────────────────────────────
-function drawCurve(settleDoy){
+// ── Ch3: cash-flow schedule for the illustrative bond ──────────────────────
+// "elapsed" = days from settlement. Annual payments (see ILLUS_COUPON note
+// above), so every payment date is the maturity month/day, one year apart —
+// the final payment is pinned to the true anniversary closest to yearsToMat
+// years out. Simplified — no stub-period day-count precision — good enough
+// to show relative weight, not meant to match a real trade ticket. See
+// shared/src/bond-math.js for real (semiannual, Actual/Actual) TIPS pricing.
+function finalElapsed(settleDoy){
+  const matDoy=doy(matIdx,15);
+  const stub=((matDoy-settleDoy)%365+365)%365;
+  const candA=stub+365*(yearsToMat-1), candB=stub+365*yearsToMat;
+  const target=yearsToMat*365;
+  return (candA>0 && Math.abs(candA-target)<=Math.abs(candB-target)) ? candA : candB;
+}
+
+function cashFlowSchedule(settleDoy){
+  const ef=finalElapsed(settleDoy);
+  const periods=Math.max(1,Math.round(ef/365));
+  const yld=yieldForYears(yearsToMat);
+  const cpn=ILLUS_COUPON*1000;
+  const flows=[];
+  for(let i=1;i<=periods;i++){
+    const elapsed=ef-(periods-i)*365;
+    const principal=i===periods;
+    const yearsElapsed=elapsed/365;
+    const cf=principal?cpn+1000:cpn;
+    const pv=cf/Math.pow(1+yld,yearsElapsed);
+    flows.push({elapsed,yearsElapsed,principal,cf,pv});
+  }
+  return flows;
+}
+
+// Macaulay/modified duration from the schedule itself (annual payments, so
+// n=1 compounding) — a local, deliberately simplified calc consistent with
+// the annual-coupon simplification above; not the same math as (and not a
+// duplicate of) shared/src/bond-math.js's semiannual calculateMDuration.
+function modifiedDuration(flows, yld){
+  let macNum=0, macDen=0;
+  for(const f of flows){ macNum+=f.yearsElapsed*f.pv; macDen+=f.pv; }
+  const macDur=macNum/macDen;
+  return macDur/(1+yld);
+}
+
+// ── Ch3: seasonal-gap timeline ──────────────────────────────────────────────
+// X = days elapsed since settlement (0 → final payment). Y = S(t). The wavy
+// line is S(t) stretched across the bond's life instead of folded into one
+// year. A horizontal dashed line marks S(settle). Every payment date gets a
+// vertical bar from that line to the wave — the seasonal gap Eq. 14 removes
+// — colored by direction, with stroke-width ∝ that payment's present value.
+function drawTimeline(settleDoy, flows){
   if(!daily) return;
-  const W=720,H=300,L=44,R=14,T=14,B=28;
-  const lo=Smin()-0.0003, hi=Smax()+0.0003;
-  const x=i=>L+(i/364)*(W-L-R);
+  const W=860,H=320,L=50,R=16,T=16,B=34;
+  const ef=flows[flows.length-1].elapsed;
+  const x=e=>L+(e/ef)*(W-L-R);
+  const Ssettle=Sat(settleDoy);
+  const sAt=e=>Sat(settleDoy+e);
+  const lo=Math.min(Smin(),Ssettle)-0.0003, hi=Math.max(Smax(),Ssettle)+0.0003;
   const y=v=>T+(1-(v-lo)/(hi-lo))*(H-T-B);
   let s='';
-  for(let m=0;m<12;m++){const xx=x(cum[m]); s+=`<line class="gl" x1="${xx}" y1="${T}" x2="${xx}" y2="${H-B}"/><text class="axis" x="${xx+2}" y="${H-12}">${MONTHS[m]}</text>`;}
+
+  // month ticks (major Jan, minor Apr/Jul/Oct, tick others) over the calendar cycle
+  const totalDays=ef;
+  for(let e=0;e<=totalDays;e++){
+    const calDoy=(settleDoy+e)%365;
+    const m=cum.indexOf(calDoy);
+    if(m<0) continue;
+    const xx=x(e);
+    if(m===0){
+      s+=`<line class="gl" x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H-B}"/>`;
+      s+=`<text class="axis" x="${xx.toFixed(1)}" y="${H-B+13}" text-anchor="middle">Jan</text>`;
+    } else if(m===3||m===6||m===9){
+      s+=`<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H-B}" stroke="var(--grid)" stroke-width="1" opacity=".35"/>`;
+      s+=`<text class="axis" x="${xx.toFixed(1)}" y="${H-B+13}" text-anchor="middle" opacity=".6">${MONTHS[m]}</text>`;
+    } else {
+      s+=`<line x1="${xx.toFixed(1)}" y1="${H-B}" x2="${xx.toFixed(1)}" y2="${H-B+4}" stroke="var(--grid)" stroke-width="1" opacity=".35"/>`;
+    }
+  }
+  // elapsed-year boundaries, labeled from settlement
+  for(let k=1;365*k<=totalDays;k++){
+    const xx=x(365*k);
+    s+=`<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H-B}" stroke="var(--ink)" stroke-width="1" opacity=".2" stroke-dasharray="2 3"/>`;
+    s+=`<text class="axis" x="${xx.toFixed(1)}" y="${T+11}" text-anchor="middle" style="fill:var(--ink)" opacity=".7">+${k}y</text>`;
+  }
+
+  // Y gridlines
   {const span=hi-lo,step=span<0.008?0.001:span<0.016?0.002:span<0.04?0.005:0.01;
   const tLo=Math.ceil((lo-1)/step)*step+1,tHi=Math.floor((hi-1)/step)*step+1;
   for(let v=tLo;v<=tHi+step*0.001;v=Math.round((v+step)*1e6)/1e6){
@@ -474,31 +667,36 @@ function drawCurve(settleDoy){
     s+=`<line x1="${L}" y1="${yy}" x2="${W-R}" y2="${yy}" stroke="${is1?'#94a3b8':'var(--grid)'}" stroke-width="${is1?1.5:1}" opacity="${is1?0.85:0.45}"/>`;
     s+=`<text class="axis" x="6" y="${yy+3}" ${is1?'style="fill:#cbd5e1"':''}>${v.toFixed(4)}</text>`;
   }}
-  let p=''; for(let i=0;i<365;i++) p+=(i?'L':'M')+x(i).toFixed(1)+' '+y(daily[i]).toFixed(1)+' ';
-  s+=`<path d="${p}" fill="none" stroke="var(--price)" stroke-width="2.5"/>`;
-  for(const mm of MATS){const dd=doy(mm.m,15); const solid=mm.m===matIdx;
-    s+=`<line x1="${x(dd)}" y1="${T}" x2="${x(dd)}" y2="${H-B}" stroke="var(--mat)" stroke-width="${solid?2:1}" opacity="${solid?1:.3}"/>`;
-    s+=`<circle cx="${x(dd)}" cy="${y(Sat(dd))}" r="${solid?5:3}" fill="var(--mat)" opacity="${solid?1:.4}"/>`;}
-  s+=`<line x1="${x(settleDoy)}" y1="${T}" x2="${x(settleDoy)}" y2="${H-B}" stroke="var(--settle)" stroke-width="2"/>`;
-  s+=`<circle cx="${x(settleDoy)}" cy="${y(Sat(settleDoy))}" r="5" fill="var(--settle)"/>`;
-  // Bracket drawn last so it sits on top of maturity line and dots
-  {const matDoy=doy(matIdx,15), Ss=Sat(settleDoy), Sm=Sat(matDoy);
-  if(Math.abs(Ss-Sm)>0.00005){
-    const col=Ss<Sm?'var(--up)':'var(--down)';
-    const sx=x(settleDoy), sy=y(Ss);
-    const mx=x(matDoy),    my=y(Sm);
-    const projY=y(Ss);
-    // dashed horizontal: settlement dot → top of bracket
-    s+=`<line x1="${sx}" y1="${sy}" x2="${mx}" y2="${projY}" stroke="${col}" stroke-width="1.5" stroke-dasharray="5 3" opacity=".6"/>`;
-    // top tick (projected settle level at maturity x), vertical bar, bottom tick (maturity level)
-    s+=`<line x1="${mx-6}" y1="${projY}" x2="${mx+6}" y2="${projY}" stroke="${col}" stroke-width="2" opacity=".9"/>`;
-    s+=`<line x1="${mx}" y1="${projY}" x2="${mx}" y2="${my}" stroke="${col}" stroke-width="2.5" opacity=".9"/>`;
-    s+=`<line x1="${mx-6}" y1="${my}" x2="${mx+6}" y2="${my}" stroke="${col}" stroke-width="2" opacity=".9"/>`;
-    // % label centered on bracket
-    const pct=(Ss/Sm-1)*100;
-    const lx=mx+(mx<W-70?8:-60), ly=(projY+my)/2+4;
-    s+=`<text x="${lx}" y="${ly}" class="axis" style="fill:${col};font-size:11px;font-weight:600">${pct>=0?'+':''}${pct.toFixed(3)}%</text>`;
-  }}
+
+  // S(settle) reference line
+  const ySettle=y(Ssettle);
+  s+=`<line x1="${L}" y1="${ySettle}" x2="${W-R}" y2="${ySettle}" stroke="var(--settle)" stroke-width="1.5" stroke-dasharray="6 4" opacity=".8"/>`;
+  s+=`<text class="axis" x="${L+4}" y="${ySettle-5}" style="fill:var(--settle)">S(settle)</text>`;
+
+  // S(t) wave
+  let p=''; const step=Math.max(1,Math.round(totalDays/500));
+  for(let e=0;e<=totalDays;e+=step) p+=(e?'L':'M')+x(e).toFixed(1)+' '+y(sAt(e)).toFixed(1)+' ';
+  s+=`<path d="${p}" fill="none" stroke="var(--price)" stroke-width="2"/>`;
+
+  // seasonal-gap bars, one per cash flow, thickness ∝ PV
+  const maxPv=Math.max(...flows.map(f=>f.pv));
+  for(const f of flows){
+    const xx=x(f.elapsed), Sv=sAt(f.elapsed), yv=y(Sv);
+    const up=Sv>Ssettle; // S(pay) > S(settle) → SA yield rises (Eq 14 divides by a bigger S(mat))
+    const col=up?'var(--up)':'var(--down)';
+    const w=1.2+22*(f.pv/maxPv); // linear in PV (not sqrt) — true proportionality, exaggerated by a big max
+    s+=`<line x1="${xx.toFixed(1)}" y1="${ySettle.toFixed(1)}" x2="${xx.toFixed(1)}" y2="${yv.toFixed(1)}" stroke="${col}" stroke-width="${w.toFixed(1)}" opacity="${f.principal?0.95:0.55}" stroke-linecap="round"><title>${f.principal?'Final payment (last coupon + principal)':'Coupon'} — day +${Math.round(f.elapsed)}: S=${Sv.toFixed(5)}, PV $${f.pv.toFixed(2)}</title></line>`;
+    if(f.principal){
+      const pct=(Ssettle/Sv-1)*100;
+      const labelY=up?yv-10:yv+16;
+      s+=`<circle cx="${xx.toFixed(1)}" cy="${yv.toFixed(1)}" r="5" fill="var(--mat)"/>`;
+      s+=`<text x="${Math.min(xx,W-90).toFixed(1)}" y="${labelY.toFixed(1)}" text-anchor="middle" style="fill:${col};font-size:12px;font-weight:700">${pct>=0?'+':''}${pct.toFixed(3)}%</text>`;
+    }
+  }
+
+  // settlement dot
+  s+=`<circle cx="${L}" cy="${ySettle.toFixed(1)}" r="5" fill="var(--settle)"/>`;
+
   document.getElementById('curve').innerHTML=s;
 }
 
@@ -510,17 +708,40 @@ function update(){
   document.getElementById('settleLbl').textContent=dateLabel(settleDoy);
   document.getElementById('vSettle').textContent=Ss.toFixed(5);
   document.getElementById('vMat').textContent=Sm.toFixed(5);
-  let stub=matDoy-settleDoy; if(stub<0) stub+=365;
-  document.getElementById('vStub').textContent=stub+' days ('+(stub/365*12).toFixed(1)+' mo)';
+  let matStub=matDoy-settleDoy; if(matStub<0) matStub+=365;
+
+  const flows=cashFlowSchedule(settleDoy);
+  const firstStubDays=Math.round(flows[0].elapsed);
+  document.getElementById('vStub').textContent=firstStubDays+' days ('+(firstStubDays/365*12).toFixed(1)+' mo)';
   document.getElementById('vRatio').textContent=ratio.toFixed(5);
   const pct=(capture-1)*100;
   document.getElementById('vCapture').textContent=capture.toFixed(5)+'  ('+(pct>=0?'+':'')+pct.toFixed(3)+'%)';
+
+  // Same price-ratio gap, converted to an approximate yield effect via modified
+  // duration: %ΔPrice ≈ -ModDur×Δy, so a maturity-independent price gap produces
+  // a shrinking yield effect as duration (≈ years-to-maturity) grows.
+  const yld=yieldForYears(yearsToMat);
+  const modDur=modifiedDuration(flows,yld);
+  const yieldImpactBps=(1-ratio)/modDur*10000;
+  document.getElementById('vYieldImpact').textContent=
+    (yieldImpactBps>=0?'+':'')+yieldImpactBps.toFixed(1)+' bps'+'  (mod. duration ≈ '+modDur.toFixed(1)+'y)';
   const v=document.getElementById('verdict');
-  const near=stub===0;
-  if(near){v.className='verdict flat';v.innerHTML=`Settlement is on the maturity month/day — a <b>whole number of years to maturity</b>. S(settle) = S(maturity), ratio = 1.0, <b>no seasonal adjustment</b>. The seasonal component repeats every year and fully cancels over whole years.`;}
-  else if(ratio<1){v.className='verdict up';v.innerHTML=`S(settle) &lt; S(maturity): the <b>seasonal component of the Ref CPI rises</b> from settlement to the maturity month/day (<b>+${pct.toFixed(3)}%</b>). The market prices this in — quoted real yield is lower because that rise is already embedded. The SA transform multiplies price by <b>${ratio.toFixed(4)}</b> to remove it → <b>SA yield rises</b>.`;}
-  else{v.className='verdict down';v.innerHTML=`S(settle) &gt; S(maturity): the <b>seasonal component of the Ref CPI falls</b> from settlement to the maturity month/day (<b>${pct.toFixed(3)}%</b>). The market prices this in — quoted real yield is higher because that fall is already embedded. The SA transform multiplies price by <b>${ratio.toFixed(4)}</b> to compensate → <b>SA yield falls</b>.`;}
-  drawCurve(settleDoy);
+  const near=matStub===0;
+  if(near){v.className='verdict flat';v.innerHTML=`Settlement is on the maturity month/day — a <b>whole number of years to maturity</b>. S(settle) = S(final payment), ratio = 1.0, <b>no seasonal adjustment</b>.`;}
+  else if(ratio<1){v.className='verdict up';v.innerHTML=`S(settle) &lt; S(final payment): the <b>seasonal component of the Ref CPI rises</b> from settlement to the maturity month/day (<b>+${pct.toFixed(3)}%</b>). This same gap recurs every year of the bond's life — it's the bar height in the chart, every time. The SA transform multiplies price by <b>${ratio.toFixed(4)}</b> to remove it → <b>SA yield rises</b>. It only shows up in the price because the <b>last</b> occurrence carries the principal.`;}
+  else{v.className='verdict down';v.innerHTML=`S(settle) &gt; S(final payment): the <b>seasonal component of the Ref CPI falls</b> from settlement to the maturity month/day (<b>${pct.toFixed(3)}%</b>). This same gap recurs every year of the bond's life — it's the bar height in the chart, every time. The SA transform multiplies price by <b>${ratio.toFixed(4)}</b> to compensate → <b>SA yield falls</b>. It only shows up in the price because the <b>last</b> occurrence carries the principal.`;}
+
+  const totalPv=flows.reduce((a,f)=>a+f.pv,0);
+  const principalFlow=flows[flows.length-1];
+  const finalCpnPv=principalFlow.pv*(ILLUS_COUPON*1000)/principalFlow.cf;
+  const principalPv=principalFlow.pv-finalCpnPv;
+  const principalShare=principalPv/totalPv;
+  document.getElementById('vBondDesc').textContent=
+    `${principalFlow.yearsElapsed.toFixed(1)}y, ${(ILLUS_COUPON*100).toFixed(2)}% coupon, ${(yieldForYears(yearsToMat)*100).toFixed(2)}% real yield`;
+  document.getElementById('vPrincipalShare').textContent=(principalShare*100).toFixed(1)+'%';
+  document.getElementById('vCouponsShare').textContent=((1-principalShare)*100).toFixed(1)+'% ('+flows.length+(flows.length===1?' payment':' payments')+')';
+
+  drawTimeline(settleDoy, flows);
 }
 
 function buildMatBtns(){
@@ -529,19 +750,59 @@ function buildMatBtns(){
     b.onclick=()=>{matIdx=mm.m;buildMatBtns();update();}; c.appendChild(b);});
 }
 
-function switchTab(n){
-  document.querySelectorAll('.tab-content').forEach((el,i)=>el.classList.toggle('on',i===n));
-  document.querySelectorAll('.tabbar button').forEach((el,i)=>el.classList.toggle('on',i===n));
+function buildYearBtns(){
+  const c=document.getElementById('yearbtns'); c.innerHTML='';
+  YEARS_OPTS.forEach(yy=>{const b=document.createElement('button'); b.textContent=yy+'y'; if(yy===yearsToMat)b.className='on';
+    b.onclick=()=>{yearsToMat=yy;buildYearBtns();update();}; c.appendChild(b);});
 }
 
+// ── Book navigation: chapters/pages, TOC drawer, prev/next pager ───────────
+const PAGES = [
+  {chapter:'Why CPI Has Seasons',              title:'Inflation Has a Rhythm'},
+  {chapter:'Why CPI Has Seasons',              title:'The Rhythm, Measured'},
+  {chapter:'One Seasonal Year',                title:'The Annual Curve'},
+  {chapter:'Settlement, Cash Flows & Maturity',title:'Buying Into the Cycle'},
+];
+let curPage=0;
+const pageEls=()=>document.querySelectorAll('.page');
+const dotsEl=document.getElementById('dots');
+PAGES.forEach(()=>{const d=document.createElement('span'); dotsEl.appendChild(d);});
+
+function showPage(i){
+  curPage=Math.max(0,Math.min(PAGES.length-1,i));
+  pageEls().forEach((el,idx)=>el.classList.toggle('on',idx===curPage));
+  document.getElementById('crumb').textContent=PAGES[curPage].chapter+' · '+(curPage+1)+'/'+PAGES.length;
+  document.querySelectorAll('#toc [data-page]').forEach(el=>el.classList.toggle('on',+el.dataset.page===curPage));
+  document.querySelectorAll('#dots span').forEach((el,idx)=>el.classList.toggle('on',idx===curPage));
+  document.getElementById('prevBtn').disabled=curPage===0;
+  document.getElementById('nextBtn').disabled=curPage===PAGES.length-1;
+  closeToc();
+}
+function openToc(){document.getElementById('toc').classList.add('open');}
+function closeToc(){document.getElementById('toc').classList.remove('open');}
+
+document.getElementById('tocBtn').addEventListener('click',openToc);
+document.getElementById('tocScrim').addEventListener('click',closeToc);
+document.querySelectorAll('#toc [data-page]').forEach(el=>el.addEventListener('click',()=>showPage(+el.dataset.page)));
+document.getElementById('prevBtn').addEventListener('click',()=>showPage(curPage-1));
+document.getElementById('nextBtn').addEventListener('click',()=>showPage(curPage+1));
+document.addEventListener('keydown',e=>{
+  if(document.getElementById('toc').classList.contains('open')){ if(e.key==='Escape') closeToc(); return; }
+  if(e.key==='ArrowRight') showPage(curPage+1);
+  else if(e.key==='ArrowLeft') showPage(curPage-1);
+});
+
 (async function(){
-  await loadData();
+  const [, settleDoy] = await Promise.all([loadData(), defaultSettleDoy()]);
+  document.getElementById('settle').value=settleDoy;
   drawCpiChart();
   drawFactorChart();
   drawAnnualCurve();
   buildMatBtns();
+  buildYearBtns();
   document.getElementById('settle').addEventListener('input',update);
   update();
+  showPage(0);
 })();
 </script>
 </body>
