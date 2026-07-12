@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Treasuries Ecosystem Context</title>
+<title>Treasury Investors Portal — Context Diagram</title>
 <style>
   :root {
     --bg: #0d0d1a;
@@ -175,7 +175,7 @@
   <a href="viewer.html#/md/knowledge/VERIFICATION_SUITE.md">Verify Setup</a>
 </div>
 
-<h1>Treasuries Ecosystem Context</h1>
+<h1>Treasury Investors Portal<br><span style="font-size: 0.55em; letter-spacing: 2px; opacity: 0.75;">Context Diagram</span></h1>
 
 <div class="dfd-container">
   
@@ -188,6 +188,8 @@
     <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e4" class="entity">BLS Public API</a>
     <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e5" class="entity">CNBC Market</a>
     <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e6" class="entity">Fidelity Market</a>
+    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e7" class="entity" style="border-style: dashed; opacity: 0.85;">Vanguard API</a>
+    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e8" class="entity" style="border-style: dashed; opacity: 0.85;">fminvest.com</a>
   </div>
 
   <div class="arrow-lane"><div class="arrow"></div></div>
@@ -214,28 +216,56 @@
 
   <div class="arrow-lane"><div class="arrow"></div></div>
 
-  <!-- Column 4: Applications -->
+  <!-- Column 4: Applications, grouped to match the portal's own categories -->
   <div class="column">
-    <div class="label">Applications</div>
-    <a href="viewer.html#/md/knowledge/TipsLadderManager.md" class="process">
-      TipsLadder<br>Manager
-      <span>Ladder Planning</span>
-    </a>
-    <a href="viewer.html#/md/knowledge/YieldCurves.md" class="process">
-      YieldCurves
-      <span>Seasonal Analysis</span>
-    </a>
-    <a href="viewer.html#/md/knowledge/YieldsMonitor.md" class="process">
+    <div class="label" style="color: #7a9a7a;">Daily Workflow</div>
+    <a href="viewer.html#/md/knowledge/YieldsMonitor.md" class="process" style="border-color: #5a6e5a;">
       YieldsMonitor
       <span>Market Tracking</span>
     </a>
-    <a href="viewer.html#/md/knowledge/TreasuryAuctions.md" class="process">
+    <a href="viewer.html#/md/knowledge/YieldCurves.md" class="process" style="border-color: #5a6e5a;">
+      YieldCurves
+      <span>Seasonal Analysis</span>
+    </a>
+    <a href="viewer.html#/md/knowledge/TipsLadderManager.md" class="process" style="border-color: #5a6e5a;">
+      TipsLadder<br>Manager
+      <span>Ladder Planning</span>
+    </a>
+
+    <div style="height: 15px;"></div>
+    <div class="label" style="color: #6ba6cc;">Reference</div>
+    <a href="viewer.html#/md/knowledge/TreasuryAuctions.md" class="process" style="border-color: #2474a6;">
       TreasuryAuctions
       <span>Auction Data</span>
     </a>
-    <a href="viewer.html#/md/CpiExplorer/knowledge/1.0_Overview.md" class="process">
+    <a href="viewer.html#/md/TipsReference/knowledge/1.0_TIPS_Reference.md" class="process" style="border-color: #2474a6;">
+      TipsReference
+      <span>TIPS Table</span>
+    </a>
+    <a href="viewer.html#/md/CpiExplorer/knowledge/1.0_Overview.md" class="process" style="border-color: #2474a6;">
       CpiExplorer
       <span>CPI Analysis</span>
+    </a>
+    <a href="viewer.html#/md/TaxationOfTreasuries/docs/TaxationOfTreasuries_Foundation.md" class="process" style="border-color: #2474a6;">
+      TaxationOf<br>Treasuries
+      <span>Tax Reference</span>
+    </a>
+    <a href="viewer.html#/md/FundHoldings/knowledge/1.0_FundHoldings.md" class="process" style="border-color: #2474a6;">
+      FundHoldings
+      <span>Fund Holdings</span>
+    </a>
+
+    <div style="height: 15px;"></div>
+    <div class="label" style="color: #a68ad4;">Educational</div>
+    <a href="viewer.html#/md/SeasonalAdjustments/knowledge/1.0_SeasonalAdjustments_Explorer.md" class="process" style="border-color: #6c4ab8;">
+      Seasonal<br>Adjustments
+      <span>Visual Explainer</span>
+    </a>
+
+    <div style="height: 15px;"></div>
+    <div class="label" style="color: #d4a94a;">External Resources</div>
+    <a href="https://motips.pythonanywhere.com/" target="_blank" rel="noopener" class="entity" style="border-style: dashed; border-color: #c8920a; opacity: 0.85;">
+      After-Tax<br>Calculator
     </a>
   </div>
 
@@ -255,6 +285,13 @@
   </div>
 
 </div>
+
+<p style="max-width: 900px; margin-top: 40px; font-size: 0.75rem; color: #666699; text-align: center; line-height: 1.6;">
+  Application groups match the portal's own grouping (Daily Workflow / Reference / Educational / External Resources). Not every app consumes every upstream store —
+  <b>TaxationOfTreasuries</b> is static reference content with no live data pipeline; <b>FundHoldings</b> fetches its primary holdings data (Vanguard/fminvest, dashed above)
+  via a manually-run script committed directly to the repo rather than the shared Ingestion → R2 pipeline (it does still read R2 for yield enrichment); the
+  <b>After-Tax Calculator</b> is a third-party tool with no data flow from this system at all. See each app's own spec for exact data dependencies.
+</p>
 
 </body>
 </html>

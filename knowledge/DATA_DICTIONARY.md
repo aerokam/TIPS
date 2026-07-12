@@ -35,6 +35,10 @@
   *Market mid-price feed for live monitoring. Symbols include US10Y, US30Y, etc.*
 - <a id="e6"></a>**E6: Fidelity Fixed Income** = `CUSIP + Maturity + Coupon + Price_Bid + Price_Ask + Yield_Bid + Ask_Yield_to_Maturity + ( Inflation_Factor + Adjusted_Price_Bid + Adjusted_Price_Ask ) + Quantity`
   *Broker bid/ask quotes. Used for "Market Price" comparisons and bid/ask spread analysis. Two files: one for TIPS (includes inflation-adjustment columns), one for Nominals (includes quantity columns). Column names are as they appear in the exported CSV header row (used verbatim for parsing).*
+- <a id="e7"></a>**E7: Vanguard Advisors API** = `CUSIP + Holding_Name + Ticker + Category + ( Quantity | Face_Amount ) + Coupon_Rate + Percent_Of_Fund + Market_Value + Maturity_Date + ISIN + SEDOL + As_Of_Date`
+  *Fund holdings for Vanguard Treasury/TIPS funds (e.g., VBIL, VTIP, VTP), scraped from the public `advisors.vanguard.com` product holdings endpoint. Not every fund publishes a "daily" snapshot — the scraper tries `holdings/daily` first and falls back to `holdings/latest`. Run manually/on-demand (`FundHoldings/vanguard/updateVanguardHoldings.js`), not on the shared GH Actions/Windows Task ingestion schedule.*
+- <a id="e8"></a>**E8: fminvest.com API** = `field_symbol (CUSIP) + field_name (Holding_Name) + field_par_value (Quantity) + field_weightings (Percent_Of_Fund) + field_market_value + field_as_of_date`
+  *Fund holdings for ETFs not covered by Vanguard's own API (currently RBIL only). Keyed by an internal numeric ETF id with no public ticker lookup, so the id is hardcoded per fund in `FundHoldings/fminvest/updateFminvestHoldings.js`. Coupon and maturity are parsed out of the trailing `"<coupon>% MM/DD/YYYY"` suffix on `field_name` — cash/sweep rows have no such suffix and are naturally excluded downstream. Run manually/on-demand.*
 
 ---
 
@@ -51,6 +55,10 @@
 - <a id="s6"></a>**S6: YieldHistory** = `{ @Symbol + { [ Timestamp + Yield_Value ] } }`
 - <a id="s8"></a>**S8: CPI_history.csv** = `{ @Year + @Period + PeriodName + NSA + SA }`
   *Full monthly BLS CPI-U history from January 1913 to present. NSA = `CUUR0000SA0`; SA = `CUSR0000SA0`. SA blank before 1947. R2 key: `bls/CPI_history.csv`.*
+- <a id="s9"></a>**S9: tentative_tips.json** = `{ auction_date + security_term + reopening }`
+  *Upcoming TIPS auctions extracted from the Treasury's Tentative Auction Schedule. Used by TreasuryAuctions to flag TIPS in the upcoming-auctions feed, which lacks a native TIPS flag. R2 key: `TIPS/tentative_tips.json`.*
+- <a id="s10"></a>**S10: YieldsSaSao.csv** = `{ @cusip + maturity + coupon + ask_yield + sa_yield + sao_yield }`
+  *TIPS ask/SA/SAO yields derived from Fidelity quotes, produced by `YieldCurves/scripts/updateSaSaoYields.js` (triggered by the `FidelityQuotes` task). Consumed by FundHoldings to enrich TIPS fund holdings with seasonally-adjusted yield. R2 key: `TIPS/YieldsSaSao.csv`.*
 
 - <a id="s7a"></a>**S7a: FidelityTips.csv** — TIPS bid/ask quotes. Local drop path: `YieldCurves/data/FidelityTips.csv` (gitignored). R2 key: `Treasuries/FidelityTips.csv`.
   CSV columns (exact header names): `Cusip, State, Description, Coupon, Maturity Date, Moody's Rating, S&P Rating, Price Bid, Price Ask, Yield Bid, Ask Yield to Worst, Ask Yield to Maturity, Inflation Factor, Adjusted Price Bid, Adjusted Price Ask, Attributes`

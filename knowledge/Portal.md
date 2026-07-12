@@ -1,6 +1,6 @@
 # Treasury Investors Portal
 
-The portal is the browser-based entry point to all Treasury investment tools. It links to eight standalone apps plus one third-party tool, each focused on a distinct phase of Treasury portfolio management. All portal apps run privately in the browser; no user data is uploaded to any server.
+The portal is the browser-based entry point to all Treasury investment tools. It links to nine standalone apps plus one third-party tool, each focused on a distinct phase of Treasury portfolio management. All portal apps run privately in the browser; no user data is uploaded to any server.
 
 **URL (GH Pages):** `https://aerokam.github.io/Treasuries/`
 
@@ -18,7 +18,8 @@ The portal is the browser-based entry point to all Treasury investment tools. It
 | A6 | CPI Explorer | [CpiExplorer/](../CpiExplorer/knowledge/) | CPI index levels, YoY/MoM changes, rolling windows, and CAGR over any date range |
 | A7 | Taxation of Treasuries | [TaxationOfTreasuries/](../TaxationOfTreasuries/) | Reference docs for federal and state tax treatment of Treasury bills, notes, bonds, and TIPS — OID, inflation adjustments, 1099 reconciliation |
 | A8 | Seasonal Adjustments | [SeasonalAdjustments/](../SeasonalAdjustments/knowledge/) | Interactive explainer for TIPS seasonal adjustment and the SA/SAO yield series |
-| A9 | After-Tax TIPS Ladder Calculator *(third-party)* | https://motips.pythonanywhere.com/data-entry/ | After-tax return calculator for TIPS ladders; linked from the portal because it complements the suite but is not a portal app |
+| A9 | Fund Holdings | [FundHoldings/](../FundHoldings/knowledge/) | Vanguard/F/m Treasury & TIPS fund holdings by CUSIP, enriched with ask/SA/SAO yield, term, and duration |
+| A10 | After-Tax TIPS Ladder Calculator *(third-party)* | https://motips.pythonanywhere.com/data-entry/ | After-tax return calculator for TIPS ladders; linked from the portal because it complements the suite but is not a portal app |
 
 ---
 
@@ -26,11 +27,13 @@ The portal is the browser-based entry point to all Treasury investment tools. It
 
 ```
 External Sources (E)  →  Ingestion Jobs (P)  →  Cloudflare R2 (S)  →  Browser Apps (A)
-     E1–E6                 GH Actions /               S1–S8                 A1–A8
+     E1–E6                 GH Actions /               S1–S10                A1–A9
                          Local Tasks (Win)
 ```
 
 All apps fetch data directly from Cloudflare R2 at runtime using public HTTPS URLs. No server-side rendering; no authentication.
+
+**Exception**: Fund Holdings (A9) does not fit this pipeline for its primary data. Its raw holdings feed (E7/E8) is fetched by a manually-run script and committed to the repo directly (not R2, not a scheduled ingestion job) — see [FundHoldings/knowledge/1.0_FundHoldings.md](../FundHoldings/knowledge/1.0_FundHoldings.md). It does still read Cloudflare R2 (S10, S7b) for yield enrichment, same as any other app.
 
 ---
 
@@ -44,8 +47,10 @@ All apps fetch data directly from Cloudflare R2 at runtime using public HTTPS UR
 | [S4](./DataStores.md#s4) | RefCpiNsaSa.csv | A2 (SA factor computation) |
 | [S5](./DataStores.md#s5) | Auctions.csv | A4 (historical auction data) |
 | [S6](./DataStores.md#s6) | YieldHistory/ | A3 (historical yield time series) |
-| [S7a/b](./DataStores.md#s7a) | FidelityQuotes | A2 (broker bid/ask quotes) |
+| [S7a/b](./DataStores.md#s7a) | FidelityQuotes | A2 (broker bid/ask quotes), A9 (nominal fund holdings enrichment) |
 | [S8](./DataStores.md#s8) | CPI_history.csv | A5 (full monthly CPI history 1913+) |
+| [S9](./DataStores.md#s9) | tentative_tips.json | A4 (flag TIPS in upcoming auctions) |
+| [S10](./DataStores.md#s10) | YieldsSaSao.csv | A9 (TIPS fund holdings enrichment) |
 
 ---
 
@@ -61,6 +66,8 @@ All definitions are canonical in the [Data Dictionary](./DATA_DICTIONARY.md#1.0-
 | [E4](./DATA_DICTIONARY.md#e4) | BLS Public API | A2 (SA), A5 (CPI history) |
 | [E5](./DATA_DICTIONARY.md#e5) | CNBC GraphQL | A3 |
 | [E6](./DATA_DICTIONARY.md#e6) | Fidelity Fixed Income | A2 |
+| [E7](./DATA_DICTIONARY.md#e7) | Vanguard Advisors API | A9 |
+| [E8](./DATA_DICTIONARY.md#e8) | fminvest.com API | A9 |
 
 ---
 
@@ -98,3 +105,4 @@ Most apps have a `knowledge/` subdirectory with their own DFD, process specs, an
 | CpiExplorer | [1.0 Overview](../CpiExplorer/knowledge/1.0_Overview.md) · [2.0 Technical Spec](../CpiExplorer/knowledge/2.0_Technical_Spec.md) |
 | SeasonalAdjustments | [knowledge/](../SeasonalAdjustments/knowledge/) *(self-contained interactive explainer; see knowledge dir for details)* |
 | TaxationOfTreasuries | [Foundation](../TaxationOfTreasuries/docs/TaxationOfTreasuries_Foundation.md) · [Treasury Bills](../TaxationOfTreasuries/docs/TaxationOfTreasuryBills.md) · [Notes & Bonds](../TaxationOfTreasuries/docs/TaxationOfTreasuryNotesAndBonds.md) · [TIPS OID Reference](../TaxationOfTreasuries/docs/TIPS_OID_Tax_Reference.md) |
+| FundHoldings | [1.0 Fund Holdings](../FundHoldings/knowledge/1.0_FundHoldings.md) |

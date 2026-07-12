@@ -1,10 +1,12 @@
 # Treasury Investors Portal — Vision and Principles
 
+This portal offers a variety of web apps that help investors manage their U.S. Treasury investments — and, through extensive in-context pop-up help, build a better understanding of how Treasuries and TIPS actually work.
+
 ## 1. Productivity
 Replace spreadsheet-based workflows with tools that are faster, more powerful, and easier to use. A user should be able to accomplish in seconds what would take minutes in a spreadsheet — with fewer errors and no manual maintenance.
 
 ## 2. Transparency and Understanding
-Every number on screen must be explainable and verifiable. A user new to TIPS should be able to understand what a number means and where it comes from. An experienced user should be able to confirm that a number is being calculated correctly — without having to trust a black box.
+Numbers on screen should be explainable and verifiable wherever practical. A user new to TIPS should be able to understand what a number means and where it comes from. An experienced user should be able to confirm that a number is being calculated correctly — without having to trust a black box.
 
 Both goals are served by the same mechanisms: pop-up explanations that show the calculation behind a value, and CSV export so numbers can be independently analyzed in a spreadsheet. Terms align with market convention (e.g., "Ref CPI", "Dated Date Ref CPI").
 

@@ -134,3 +134,23 @@ This document provides the technical schemas and field-level specifications for 
 **Logic**: Used by the TreasuryAuctions app to identify TIPS in the upcoming auctions feed, which lacks a native TIPS flag.
 
 **Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json)
+
+---
+
+## <a id="s10"></a>S10: YieldsSaSao.csv
+**Description**: TIPS ask/SA/SAO yields derived from Fidelity quotes.
+**Update Frequency**: Triggered by the `FidelityQuotes` task (3× daily on weekdays), via `updateSaSaoYields.js`.
+**R2 Key**: `TIPS/YieldsSaSao.csv`
+
+| Field | Type | Description |
+|---|---|---|
+| `cusip` | String | 9-character security identifier. |
+| `maturity` | Date | Maturity date. |
+| `coupon` | Number | Real coupon rate (decimal). |
+| `ask_yield` | Number | Ask yield-to-maturity (decimal). |
+| `sa_yield` | Number | [SA Yield](./DATA_DICTIONARY.md#sa-yield). |
+| `sao_yield` | Number | [SAO Yield](./DATA_DICTIONARY.md#sao-yield). |
+
+**Consumer**: FundHoldings ([E7](./DATA_DICTIONARY.md#e7)/[E8](./DATA_DICTIONARY.md#e8) holdings enrichment) — cross-references by CUSIP to attach ask/SA/SAO yield to TIPS fund holdings.
+
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/YieldsSaSao.csv)
