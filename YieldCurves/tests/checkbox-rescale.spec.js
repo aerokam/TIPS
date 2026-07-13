@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 // Bills ~3.8%  |  Notes ~4.25–4.35%  |  Bonds ~4.75–4.85%
@@ -110,6 +110,8 @@ test.describe('Treasuries tab — checkbox rescale', () => {
     await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
     // Switch to Treasuries
     await page.click('[data-tab="treasuries"]');
+    // FedInvest defaults off; these tests exercise both sources so start from both ON.
+    await page.check('#chkFedInvest');
     // Wait for nominals table and Market checkbox to be enabled
     await expect(page.locator('#nominalsTable tbody tr')).toHaveCount(5, { timeout: 10000 });
     await expect(page.locator('#chkFidelity')).not.toBeDisabled({ timeout: 5000 });
@@ -240,6 +242,8 @@ test.describe('TIPS tab — checkbox rescale', () => {
   test.beforeEach(async ({ page }) => {
     await setupRoutes(page);
     await page.goto('./');
+    // FedInvest defaults off; these tests exercise both sources so start from both ON.
+    await page.check('#chkTipsFed');
     await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
     await expect(page.locator('#chkTipsBroker')).not.toBeDisabled({ timeout: 5000 });
   });
@@ -302,8 +306,12 @@ test.describe('Treasuries tab — outlier clipping: bonds+notes combined', () =>
   test.beforeEach(async ({ page }) => {
     await setupOutlierRoutes(page);
     await page.goto('./');
+    // FedInvest defaults off; Market is deliberately inactive in this fixture (see
+    // setupOutlierRoutes), so FedInvest is the only source and must be checked.
+    await page.check('#chkTipsFed');
     await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
     await page.click('[data-tab="treasuries"]');
+    await page.check('#chkFedInvest');
     // 52 nominals: 2 extreme notes + 30 normal notes + 20 normal bonds
     await expect(page.locator('#nominalsTable tbody tr')).toHaveCount(52, { timeout: 10000 });
   });

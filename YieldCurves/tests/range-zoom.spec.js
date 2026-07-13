@@ -1,4 +1,4 @@
-﻿// Tests that the RANGE date inputs adapt the chart X axis to the selected range.
+// Tests that the RANGE date inputs adapt the chart X axis to the selected range.
 // The chart should re-scale horizontally to match the filtered data whenever the
 // start or end maturity is changed.
 
@@ -95,6 +95,8 @@ test.describe('TIPS tab — RANGE input adapts X axis', () => {
   test.beforeEach(async ({ page }) => {
     await setupTipsRoutes(page);
     await page.goto('./');
+    // FedInvest defaults off and Fidelity 404s in this fixture, so check it explicitly.
+    await page.check('#chkTipsFed');
     // Wait for all 5 TIPS rows (2026×3 + 2030 + 2034)
     await expect(page.locator('#saTable tbody tr')).toHaveCount(5, { timeout: 10000 });
   });
@@ -185,6 +187,8 @@ test.describe('Treasuries tab — RANGE input adapts X axis', () => {
     await page.goto('./');
     // Start on TIPS tab, then switch
     await page.click('[data-tab="treasuries"]');
+    // FedInvest defaults off and Fidelity 404s in this fixture, so check it explicitly.
+    await page.check('#chkFedInvest');
     await expect(page.locator('#nominalsTable tbody tr')).toHaveCount(5, { timeout: 10000 });
   });
 

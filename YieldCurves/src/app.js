@@ -1,4 +1,4 @@
-﻿// Yield Curves — Frontend Logic
+// Yield Curves — Frontend Logic
 import { yieldFromPrice } from '../../shared/src/bond-math.js';
 import { saFactorForDate } from '../../shared/src/ref-cpi.js';
 import { parseCsv } from '../../shared/src/csv.js';
@@ -1424,8 +1424,13 @@ function switchChartMode(mode) {
       chkFed.disabled = true;
       if (fedLabel) fedLabel.style.opacity = '0.4';
     } else {
-      chkFed.checked = chkFed._savedChecked !== undefined ? chkFed._savedChecked : true;
-      chkFed._savedChecked = undefined;
+      // Only restore checked state when actually leaving spread mode (chkFed.disabled
+      // means spread had forced it off). A plain tab switch must never touch checked —
+      // that's how the user's FedInvest/Market selection carries over between tabs.
+      if (chkFed.disabled) {
+        chkFed.checked = chkFed._savedChecked !== undefined ? chkFed._savedChecked : false;
+        chkFed._savedChecked = undefined;
+      }
       chkFed.disabled = false;
       if (fedLabel) fedLabel.style.opacity = '';
     }
@@ -1691,15 +1696,20 @@ function preserveZoom() {
 }
 
 // Unified Source Change Handlers
-['chkTipsFed', 'chkTipsBroker'].forEach(id => {
+// FedInvest/Market selections are shared concepts across tabs (TIPS vs Treasuries),
+// so toggling one tab's checkbox mirrors the same on/off state onto the other tab's
+// corresponding checkbox (only if that counterpart's data has loaded).
+const CHECKBOX_MIRROR = {
+  chkTipsFed: 'chkFedInvest', chkFedInvest: 'chkTipsFed',
+  chkTipsBroker: 'chkFidelity', chkFidelity: 'chkTipsBroker',
+};
+function mirrorCheckbox(id) {
+  const counterpart = document.getElementById(CHECKBOX_MIRROR[id]);
+  if (!counterpart.disabled) counterpart.checked = document.getElementById(id).checked;
+}
+['chkTipsFed', 'chkTipsBroker', 'chkFedInvest', 'chkFidelity'].forEach(id => {
   document.getElementById(id).addEventListener('change', () => {
-    preserveZoom();
-    updateModeToggle();
-    processAndRender();
-  });
-});
-['chkFedInvest', 'chkFidelity'].forEach(id => {
-  document.getElementById(id).addEventListener('change', () => {
+    mirrorCheckbox(id);
     preserveZoom();
     updateModeToggle();
     processAndRender();

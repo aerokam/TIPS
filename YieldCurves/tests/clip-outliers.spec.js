@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 // ─── Mock data ────────────────────────────────────────────────────────────────
 // FedInvest outlier dataset: 2 extreme notes at 1.5% and 2.0%, 30 normal notes
@@ -139,6 +139,14 @@ async function loadTreasuries(page) {
   await setupRoutes(page);
   await page.goto('./');
   await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
+  // FedInvest defaults off; enable it (even while hidden on the TIPS tab) before switching
+  // so the first Treasuries render already includes it — checking afterward would leave
+  // the maturity-range inputs auto-narrowed to whatever rendered first (Market only).
+  await page.evaluate(() => {
+    const el = document.getElementById('chkFedInvest');
+    el.checked = true;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
   await page.click('[data-tab="treasuries"]');
   await expect(page.locator('#nominalsTable tbody tr')).toHaveCount(52, { timeout: 10000 });
   await expect(page.locator('.tab-btn[data-mode="spread"]')).not.toBeDisabled({ timeout: 8000 });
@@ -446,8 +454,11 @@ test.describe('Clip Outliers — Bills outlier regression', () => {
     await page.route('**/misc/BondHolidaysSifma.csv',                       r => r.fulfill({ status: 200, contentType: 'text/csv', body: HOLIDAYS_CSV }));
     await page.route('**/Treasuries/FidelityTreasuriesTips.csv',            r => r.fulfill({ status: 200, contentType: 'text/csv', body: FID_EMPTY_CSV }));
     await page.goto('./');
+    // FedInvest defaults off and Fidelity is empty in this fixture, so it's the only source.
+    await page.check('#chkTipsFed');
     await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
     await page.click('[data-tab="treasuries"]');
+    await page.check('#chkFedInvest');
     await expect(page.locator('#nominalsTable tbody tr')).toHaveCount(32, { timeout: 10000 });
   });
 

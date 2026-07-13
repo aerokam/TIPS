@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 test.describe('Yield Curves Chart and UI', () => {
   test.beforeEach(async ({ page }) => {
@@ -36,6 +36,9 @@ test.describe('Yield Curves Chart and UI', () => {
     });
 
     await page.goto('./');
+    // FedInvest defaults off and no Market data is mocked here, so it must be
+    // checked explicitly for these FedInvest-sourced fixtures to render.
+    await page.check('#chkTipsFed');
     // Wait for the table to load (indicates data processing finished)
     await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
   });
