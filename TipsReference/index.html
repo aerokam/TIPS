@@ -196,7 +196,9 @@ var COLS = [
   { key: 'nextCoupon',  label: 'Cpn Date',             align: 'left',  sortType: 'str',
     title: 'Coupon payment date on or after the selected Ref CPI Date',
     fmt: function(v) { return v != null ? fmtDate(v) : '—'; } },
-  { key: 'cpnPayment',  label: 'Cpn $ / Bond',        align: 'right', sortType: 'num', wrapHeader: true,
+  { key: 'cpnDateIR',   label: 'Cpn Date IR',        align: 'right', sortType: 'num', wrapHeader: true,
+    fmt: function(v) { return v != null ? v.toFixed(5) : '—'; } },
+  { key: 'cpnPayment',  label: 'Cpn $ / TIPS',        align: 'right', sortType: 'num', wrapHeader: true,
     fmt: function(v) { return v != null ? v.toFixed(4) : '—'; } },
 ];
 
@@ -259,12 +261,14 @@ function recomputeWithRefCpi(dateStr) {
         var d = nextCpn.getDate() < 10 ? '0' + nextCpn.getDate() : String(nextCpn.getDate());
         r.nextCoupon = y + '-' + m + '-' + d;
         r.cpnRefCpi = lookupRefCpi(refCpiRows, r.nextCoupon);
-        r.cpnPayment = (r.cpnRefCpi != null && r.baseCpi && r.coupon != null)
-          ? (r.coupon / 2) * (r.cpnRefCpi / r.baseCpi) * 1000
+        var cpnIR = (r.cpnRefCpi != null && r.baseCpi) ? r.cpnRefCpi / r.baseCpi : null;
+        r.cpnDateIR = cpnIR;
+        r.cpnPayment = (cpnIR != null && r.coupon != null)
+          ? (r.coupon / 2) * cpnIR * 1000
           : null;
       } else {
         r.nextCoupon = null;
-        r.cpnRefCpi = null; r.cpnPayment = null;
+        r.cpnRefCpi = null; r.cpnDateIR = null; r.cpnPayment = null;
       }
     } else {
       r.nextCoupon = null;
@@ -474,6 +478,7 @@ async function loadData() {
         macDuration: macDur,
         modDuration: modDur,
         nextCoupon:  null,
+        cpnDateIR:   null,
         cpnPayment:  null,
       };
     });
