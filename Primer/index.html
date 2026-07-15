@@ -1,0 +1,234 @@
+<!DOCTYPE html><html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Treasury Securities — A Primer</title>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --ink:#e2e8f0; --muted:#94a3b8;
+    --grid:#334155; --accent:#38bdf8; --accent2:#f59e0b; --usage:#c4b5fd;
+    --up:#22c55e; --down:#f87171; --card:#152238;
+  }
+  /* Single control point for the whole deck's type scale: every font-size below
+     is expressed in rem, relative to this. To resize everything, change this
+     one value — nothing else in this stylesheet needs to change. */
+  html{font-size:21px}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:1rem/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
+  a{color:var(--accent)}
+  a:visited{color:var(--accent)}
+  a:hover{color:var(--accent2)}
+
+  /* ── Top bar ── */
+  #topbar{display:flex;align-items:center;gap:16px;padding:14px 24px;border-bottom:1px solid var(--grid);flex:0 0 auto}
+  .portal-link{font-size:.714rem;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--grid);border-radius:6px;padding:8px 16px;text-decoration:none;letter-spacing:.02em}
+  .portal-link:hover{background:var(--ink);color:#0f172a;border-color:var(--ink)}
+  #tocBtn{background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:10px 18px;border-radius:8px;cursor:pointer;font-size:.857rem}
+  #tocBtn:hover{border-color:var(--accent)}
+  #bookTitle{font-size:.929rem;font-weight:700;letter-spacing:.02em}
+  #crumb{margin-left:auto;color:var(--muted);font-size:.786rem}
+
+  /* ── TOC drawer ── */
+  #tocScrim{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .15s;z-index:20}
+  #toc.open #tocScrim{opacity:1;pointer-events:auto}
+  #tocPanel{position:fixed;top:0;left:0;bottom:0;width:min(460px,88vw);background:var(--panel);border-right:1px solid var(--grid);transform:translateX(-100%);transition:transform .18s;z-index:21;padding:26px 22px;overflow-y:auto}
+  #toc.open #tocPanel{transform:translateX(0)}
+  #tocPanel h3{margin:0 0 20px;font-size:.786rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+  .toc-chapter{font-size:.857rem;font-weight:700;color:var(--ink);margin:22px 0 8px}
+  .toc-chapter:first-child{margin-top:0}
+  .toc-pages{list-style:none;margin:0 0 0 4px;padding:0;border-left:2px solid var(--grid)}
+  .toc-pages li{padding:9px 0 9px 18px;color:var(--muted);font-size:.786rem;cursor:pointer;border-left:2px solid transparent;margin-left:-2px}
+  .toc-pages li:hover{color:var(--ink)}
+  .toc-pages li.on{color:var(--accent);border-left-color:var(--accent);font-weight:600}
+
+  /* ── Stage ── */
+  #stage{flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
+  .page{display:none;flex:1;flex-direction:column;padding:22px 32px 32px;min-height:0}
+  .page.on{display:flex}
+  .pageTitle{text-align:center;font-size:1.5rem;font-weight:800;margin:4px 0 8px;letter-spacing:.01em}
+  .pageKicker{text-align:center;font-size:.714rem;text-transform:uppercase;letter-spacing:.08em;color:var(--accent);margin-bottom:16px;font-weight:700}
+  .content{flex:1 1 auto;max-width:1180px;margin:0 auto;width:100%}
+
+  /* ── Content building blocks (used by page render functions) ── */
+  .lead{font-size:1rem;color:var(--ink);margin:0 0 20px}
+  .defcard{background:var(--card);border:1px solid var(--grid);border-radius:12px;padding:20px 26px;margin:0 0 18px}
+  .defcard h4{margin:0 0 10px;font-size:.929rem;color:var(--accent);letter-spacing:.01em}
+  .defcard p{margin:0;color:var(--ink);font-size:.893rem;line-height:1.55}
+  .defcard p+p{margin-top:12px}
+  .defcard p.cfr-notes{border-top:2px dashed var(--muted);margin-top:14px;padding-top:12px;color:var(--accent2)}
+  .defcard p.cfr-usage{color:var(--usage)}
+  .defcard ul{margin:0 0 12px;padding-left:22px;color:var(--ink);font-size:.893rem;line-height:1.55}
+  .defcard ul+p{margin-top:12px}
+  .defcard li{margin:4px 0}
+  .defcard u{text-decoration-color:var(--accent2);text-decoration-thickness:2px;text-underline-offset:2px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .aside{border:1px dashed var(--grid);border-radius:10px;padding:16px 20px;font-size:.821rem;color:var(--muted);margin:18px 0}
+  .aside b{color:var(--accent2)}
+  .callout{background:#1c1408;border:1px solid #7a5b12;border-radius:10px;padding:16px 20px;font-size:.821rem;color:#facc78;margin:18px 0}
+  table.primer{width:100%;border-collapse:collapse;font-size:.821rem;margin:16px 0}
+  table.primer th,table.primer td{border:1px solid var(--grid);padding:10px 16px;text-align:left}
+  table.primer th{background:#0b1220;color:var(--muted);font-weight:600}
+  .example{background:#0b1220;border-radius:10px;padding:16px 20px;font-size:.821rem;color:var(--muted);margin:16px 0}
+  .example b{color:var(--ink)}
+  .calc{display:flex;flex-wrap:wrap;gap:26px;align-items:flex-start;margin-top:12px}
+  .calc .inputs{background:var(--card);border:1px solid var(--grid);border-radius:12px;padding:20px 26px;flex:1 1 340px}
+  .calc .inputs label{display:block;font-size:.679rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin:14px 0 5px}
+  .calc .inputs label:first-child{margin-top:0}
+  .calc .inputs input,.calc .inputs select{width:100%;background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:10px 12px;border-radius:8px;font-size:.821rem}
+  .calc .outputs{background:#0b1220;border:1px solid var(--grid);border-radius:12px;padding:20px 26px;flex:1 1 320px}
+  .calc .outputs .row{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--grid);font-size:.821rem}
+  .calc .outputs .row:last-child{border-bottom:none}
+  .calc .outputs .row b{color:var(--accent)}
+  .timeline{display:flex;align-items:center;gap:0;margin:26px 0;overflow-x:auto;padding-bottom:8px}
+  .tl-dot{display:flex;flex-direction:column;align-items:center;min-width:160px;flex:0 0 auto}
+  .tl-dot .dot{width:20px;height:20px;border-radius:50%;background:var(--accent);border:2px solid #0b1220}
+  .tl-dot .lbl{font-size:.679rem;color:var(--muted);margin-top:8px;text-align:center}
+  .tl-dot .val{font-size:.786rem;color:var(--ink);font-weight:600;margin-top:3px;text-align:center}
+  .tl-line{flex:1 1 auto;height:2px;background:var(--grid);min-width:32px}
+  .muted{color:var(--muted)}
+  .err{color:var(--down);font-size:.821rem}
+
+  /* ── Pager ── */
+  #pagerbar{display:flex;align-items:center;gap:20px;padding:12px 26px;border-top:1px solid var(--grid);flex:0 0 auto}
+  #pagerbar button{background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:10px 22px;border-radius:10px;cursor:pointer;font-size:.821rem;font-weight:600}
+  #pagerbar button:hover:not(:disabled){border-color:var(--accent)}
+  #pagerbar button:disabled{opacity:.3;cursor:default}
+  #dots{flex:1;display:flex;justify-content:center;gap:8px;flex-wrap:wrap}
+  #dots span{width:10px;height:10px;border-radius:50%;background:var(--grid);cursor:pointer}
+  #dots span.on{background:var(--accent)}
+  .src{color:var(--muted);font-size:.679rem;text-align:center;padding:4px 26px 8px}
+</style>
+</head>
+<body>
+
+<header id="topbar">
+  <a href="../" class="portal-link">&#8592; Portal</a>
+  <button id="tocBtn">&#9776; Contents</button>
+  <div id="bookTitle">Treasury Securities — A Primer</div>
+  <div id="crumb"></div>
+</header>
+
+<nav id="toc">
+  <div id="tocScrim"></div>
+  <div id="tocPanel"><h3>Contents</h3><div id="tocList"></div></div>
+</nav>
+
+<div id="stage"></div>
+
+<div id="pagerbar">
+  <button id="prevBtn">&#8249; Prev</button>
+  <div id="dots"></div>
+  <button id="nextBtn">Next &#8250;</button>
+</div>
+<div class="src" id="src">Loading live data…</div>
+
+<script type="module">
+import { loadPrimerData } from './src/primer-data.js';
+import { loadDeck, renderBlocks } from './src/deck-manager.js';
+import { CALCS } from './src/primer-calcs.js';
+
+// Deck structure (page order, chapters, titles) and every page's static
+// content is defined entirely in content/deck.md — this file has no page
+// text in it. CALCS supplies the handful of pages that also need a live
+// calculator widget mounted after the static blocks render.
+const PAGES = (await loadDeck()).map(pg => ({ ...pg, calc: CALCS[pg.id] || null }));
+
+// ── Build stage, TOC, dots ──────────────────────────────────────────────────
+const stage = document.getElementById('stage');
+PAGES.forEach((pg, i) => {
+  const div = document.createElement('div');
+  div.className = 'page'; div.id = 'page' + i;
+  div.innerHTML = `<div class="pageKicker">${pg.ch}</div><h2 class="pageTitle">${pg.title}</h2><div class="content" id="content${i}"></div>`;
+  stage.appendChild(div);
+});
+
+const tocList = document.getElementById('tocList');
+let lastCh = null;
+let tocHtml = '';
+PAGES.forEach((pg, i) => {
+  if (pg.ch !== lastCh) {
+    if (lastCh !== null) tocHtml += '</ol>';
+    tocHtml += `<div class="toc-chapter">${pg.ch || '(uncategorized)'}</div><ol class="toc-pages">`;
+    lastCh = pg.ch;
+  }
+  tocHtml += `<li data-page="${i}">${pg.title || '(untitled)'}</li>`;
+});
+tocList.innerHTML = tocHtml + '</ol>';
+
+const dotsEl = document.getElementById('dots');
+PAGES.forEach((_, i) => {
+  const d = document.createElement('span');
+  d.addEventListener('click', () => showPage(i));
+  dotsEl.appendChild(d);
+});
+
+// ── Data (live R2 fetch, shared across all pages) ───────────────────────────
+let primerData = null;
+let dataError = null;
+
+// ── Navigation ──────────────────────────────────────────────────────────────
+let curPage = 0;
+function showPage(i) {
+  curPage = Math.max(0, Math.min(PAGES.length - 1, i));
+  const pg = PAGES[curPage];
+  document.querySelectorAll('.page').forEach((el, idx) => el.classList.toggle('on', idx === curPage));
+  document.getElementById('crumb').textContent = (pg.ch ? pg.ch + ' · ' : '') + (curPage + 1) + '/' + PAGES.length;
+  document.querySelectorAll('#toc [data-page]').forEach(el => el.classList.toggle('on', +el.dataset.page === curPage));
+  document.querySelectorAll('#dots span').forEach((el, idx) => el.classList.toggle('on', idx === curPage));
+  document.getElementById('prevBtn').disabled = curPage === 0;
+  document.getElementById('nextBtn').disabled = curPage === PAGES.length - 1;
+  closeToc();
+  renderCurrent();
+}
+function renderCurrent() {
+  const pg = PAGES[curPage];
+  const el = document.getElementById('content' + curPage);
+  try {
+    el.innerHTML = renderBlocks(pg.blocks);
+    if (!pg.calc) return;
+    if (!primerData) {
+      el.innerHTML += dataError
+        ? `<p class="err">Live data unavailable (${dataError}). This page needs it — try reloading.</p>`
+        : `<p class="muted">Loading live data…</p>`;
+      return;
+    }
+    const mount = document.createElement('div');
+    el.appendChild(mount);
+    pg.calc(mount, primerData);
+  } catch (e) {
+    el.innerHTML = `<p class="err">Error rendering this page: ${e.message}</p>`;
+    console.error(e);
+  }
+}
+
+function openToc() { document.getElementById('toc').classList.add('open'); }
+function closeToc() { document.getElementById('toc').classList.remove('open'); }
+document.getElementById('tocBtn').addEventListener('click', openToc);
+document.getElementById('tocScrim').addEventListener('click', closeToc);
+document.querySelectorAll('#toc [data-page]').forEach(el => el.addEventListener('click', () => showPage(+el.dataset.page)));
+document.getElementById('prevBtn').addEventListener('click', () => showPage(curPage - 1));
+document.getElementById('nextBtn').addEventListener('click', () => showPage(curPage + 1));
+document.addEventListener('keydown', e => {
+  if (document.getElementById('toc').classList.contains('open')) { if (e.key === 'Escape') closeToc(); return; }
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') return;
+  if (e.key === 'ArrowRight') showPage(curPage + 1);
+  else if (e.key === 'ArrowLeft') showPage(curPage - 1);
+});
+
+// ── Init ────────────────────────────────────────────────────────────────────
+showPage(0);
+loadPrimerData().then(data => {
+  primerData = data;
+  document.getElementById('src').textContent =
+    'Live data: FedInvest prices/yields, TreasuryDirect Reference CPI — settlement ' + data.settlementDate;
+  renderCurrent();
+}).catch(e => {
+  dataError = e.message;
+  document.getElementById('src').textContent = 'Live data unavailable: ' + e.message;
+  renderCurrent();
+});
+</script>
+</body>
+</html>
