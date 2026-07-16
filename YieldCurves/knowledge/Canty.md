@@ -40,13 +40,23 @@ Canty's paper uses generic notation for inflation-linked bonds across any market
 
 **Key points for TIPS:**
 
-- **The 3-month lag.** The Ref CPI for any date in month $M$ is interpolated between the CPI-U (NSA) published for months $M-3$ and $M-2$. For example, a March 15 settlement uses the January and February CPI-U values interpolated for day 15 of a 31-day month.
+- **The 3-month lag, stated exactly.** Ref CPI(month $M$, day 1) = CPI-U($M-3$); Ref CPI interpolates linearly from there to Ref CPI(month $M{+}1$, day 1) = CPI-U($M-2$) across the days of month $M$. For example, Ref CPI for **March 1** equals the CPI-U print for **December**; a March 15 settlement (day 15 of a 31-day month) interpolates between the December and January prints. Single implementation: `shared/src/ref-cpi.js` `refCpiFromMonthly()`.
 
 - **No official daily SA Ref CPI.** BLS publishes monthly SA CPI-U alongside monthly NSA, but there is no official daily SA Ref CPI — daily interpolation officially applies to NSA only (it drives TIPS inflation accrual). The daily SA Ref CPI in `RefCpiNsaSa.csv` is constructed by applying the same App. B interpolation to the monthly CPI-SA series. It is a necessary calculated construct, not an official publication, and is used solely for seasonal yield comparison.
 
 - **Trend component = SA Ref CPI.** Because the SA Factor $S = \text{NSA}/\text{SA}$ and the index decomposes as $I = T \times S$, the trend component $T$ is exactly the SA Ref CPI: $T = I / S = \text{NSA} / (\text{NSA}/\text{SA}) = \text{SA}$.
 
 - **Semiannual vs annual.** Canty's Eq. 1–14 simplify to annual coupons; TIPS pay semi-annually. Eq. 17 handles two coupon months. As shown in spec [2.2](2.2_SAO_Residual_Analysis.md), the single-factor approximation (Eq. 14) is adequate for TIPS because the second-factor correction is ≤1 bp, driven by the small coupon stream while the principal cashflow (which dominates) falls in the maturity month in both formulas identically.
+
+---
+
+## 1b. Why this matters — the paper's own motivating example
+
+Canty opens the "Seasonally adjusted prices" section (Risk, Jan 2009, p.107) — before introducing any of the math — with a concrete illustration of the problem, not an abstract one:
+
+> Whenever the maturity of an ILB is not a whole number of years after its settlement date, seasonality becomes an issue. For example, if a bond settles in April and matures some years later in September, the indexation period includes an extra six months of inflation from January to June (due to the three-month lag). Inflation in this period is typically much higher than from July to December, which means that the overall breakeven inflation rate should be higher than the same bond with a whole number of years left to maturity. This article focuses on quantifying this effect.
+
+**In TIPS terms.** April → September is a 5-month stub on top of however many whole years separate settlement from maturity. Because of the 3-month indexation lag, that stub's Ref CPI doesn't draw from the April–September window itself — it draws from the CPI-U prints **3 months earlier at each end**: April's Ref CPI references January's CPI-U, and September's Ref CPI references June's. So the "extra" stub inflation baked into this TIPS's principal growth is really the **January–June** window — which, per the seasonal pattern documented in [SeasonalAdjustments/1.0](../../SeasonalAdjustments/knowledge/1.0_SeasonalAdjustments_Explorer.md) (H1 NSA CPI-U MoM changes run hotter than H2), is systematically higher than a same-tenor bond whose stub happened to fall in the calendar's cooler half. The market prices that predictable extra inflation into the bond, so its **quoted breakeven inflation reads higher — not because expected inflation is actually higher, but purely because of the calendar position of the stub.** This is exactly the effect Eq. 13/14 (§4 below) exist to strip back out; note also that a bond whose settlement and maturity fall on the **same** calendar month/day (a whole number of years apart, zero stub) needs no adjustment at all — see the anniversary identity in §4.
 
 ---
 
