@@ -416,16 +416,16 @@
       </div>
     </div>
   </div>
-</div>
 
-<!-- Per-year DARA panel -->
-<div id="dara-by-year" style="display:none">
-  <div style="border:1px solid #ddd; border-radius:6px; background:#fff; padding:8px 16px 12px;">
-    <div id="dara-by-year-hdr" style="display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;padding:2px 0 4px">
-      <span id="dara-by-year-glyph" style="font-size:10px;color:#64748b">▼</span>
-      <span style="font-size:11px;font-weight:700;color:#334155;text-transform:uppercase;letter-spacing:.05em">Per-Year DARA</span>
+  <!-- Per-year DARA panel — like DARA Plan, child of #top-row (its sticky containing block)
+       so it anchors below the plan card instead of scrolling away. Same collapsed-header pattern:
+       click #dara-by-year-hdr to expand/collapse #dara-by-year-body. ── -->
+  <div id="dara-by-year" class="dara-plan-card" style="display:none;margin:4px 0 0">
+    <div id="dara-by-year-hdr" class="dara-plan-card-hdr" style="padding:2px 0">
+      <span id="dara-by-year-glyph" style="font-size:10px">▼</span>
+      <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em">Per-Year DARA</span>
     </div>
-    <div id="dara-by-year-body">
+    <div id="dara-by-year-body" style="padding-top:8px">
       <div class="table-scroll-wrap" id="dara-by-year-scroll">
         <table class="simple" id="dara-by-year-table"></table>
       </div>
