@@ -1,6 +1,6 @@
 # security-basics
-ch:
-title:
+ch: Terminology
+title: Security nomenclature
 
 ## Security
 ### CFR
@@ -12,7 +12,7 @@ Security means a Treasury bill, note, or bond, each as described in this part. S
 ### Notes
 A term commonly used for this is "bond", but since Treasury uses "bond" to denote one type of Security, we'll avoid using "bond" for this.
 
-## Marketable security
+## Marketable securities
 ### CFR
 Marketable security means a security that may be bought, sold and transferred in the secondary market. [[356.2:§356.2]]
 
@@ -31,9 +31,9 @@ CUSIP number means the unique identifying number assigned to each separate secur
 
 ### Notes
 
-# par-price
-ch:
-title:
+# Valuation terms
+ch: Terminology
+title: Valuation terms
 
 ## Par
 ### CFR
@@ -43,6 +43,8 @@ Par means a price of 100. [[356.2:§356.2]]
 "Are sold at discount, __par__, or premium, depending upon the auction results." [[356.5:§356.5(b)(1)(iv)]]
 
 ### Notes
+
+Treasury securities mature at par: price = 100, maturity value of one security = 1,000 (unadjusted for TIPS)
 
 ## Par amount
 ### CFR
@@ -87,6 +89,70 @@ n/a
 
 ### Notes
 Face value is a common synonym for par amount.
+
+# dates
+ch: Terminology
+title: Dates
+
+## Dated date
+### CFR
+Dated date means the date from which interest accrues for notes and bonds. The dated date and issue date are usually the same. In those cases where interest begins accruing prior to the issue date, however, the dated date will be prior to the issue date. An example is when the dated date is a Saturday and the issue date is the following Monday. [[356.2:§356.2]]
+
+### Usage
+"Interest on notes and bonds accrues from the __dated date__." [[356.30:§356.30(a)]]
+
+### Notes
+
+## Issue date
+### CFR
+Issue date means the date specified in the auction announcement on which we issue a security as an obligation of the United States. Interest normally begins to accrue on a security's issue date. [[356.2:§356.2]]
+
+### Usage
+"Securities bought in the auction must be paid for by the __issue date__." [[356.25:§356.25]]
+
+### Notes
+
+## Maturity date
+### CFR
+Maturity date means the date on which a security becomes due and payable, and ceases to earn interest. The maturity date is specified in the auction announcement. [[356.2:§356.2]]
+
+### Usage
+"We will pay principal on bills, notes, and bonds on the __maturity date__ as specified in the auction announcement." [[356.30:§356.30(a)]]
+
+### Notes
+
+# interest-rate-yield
+ch: Terminology
+title: Interest rate, yield & real yield
+
+## Interest rate
+### CFR
+Interest rate means the annual percentage rate of interest paid on the par amount (or the inflation-adjusted principal) of a specific issue of notes or bonds. [[356.2:§356.2]]
+
+### Usage
+"Interest is expressed as a percentage of the par amount and accrues daily on the basis of the actual number of days elapsed in a half-year period." [[356.30:§356.30(a)]]
+
+### Notes
+Interest rate is fixed at auction and does not change. Yield (see next card) is not fixed — it depends on price, per the Appendix B §II/§III formulas covered in Chapters 6–7.
+
+## Yield
+### CFR
+Yield means the annualized rate of return to maturity on a non-indexed security. Yield is expressed as a percentage. For an inflation-protected security, yield means the real yield. Yield is also referred to as "yield to maturity." [[356.2:§356.2]]
+
+### Usage
+"Competitive bidders bid on the basis of yield…on non-indexed securities." [[356.10:§356.10]]
+
+### Notes
+Yield varies with price in the secondary market. For TIPS, "yield" already denotes real yield — there is no separate CFR term for nominal yield.
+
+## Real yield
+### CFR
+Real yield means, for an inflation-protected security, the yield based on the payment stream in constant dollars. In other words, the real yield is the yield in the absence of inflation. [[356.2:§356.2]]
+
+### Usage
+"For an inflation-protected security, yield means the __real yield__." [[356.2:§356.2, Yield]]
+
+### Notes
 
 # treasury-bills
 ch:
@@ -163,54 +229,6 @@ title:
 "We will pay principal on bills, notes, and __bonds__ on the maturity date as specified in the auction announcement." [[356.30:§356.30(a)]]
 
 ### Notes
-
-# dates
-ch:
-title:
-
-## Dated date
-### CFR
-Dated date means the date from which interest accrues for notes and bonds. The dated date and issue date are usually the same. In those cases where interest begins accruing prior to the issue date, however, the dated date will be prior to the issue date. An example is when the dated date is a Saturday and the issue date is the following Monday. [[356.2:§356.2]]
-
-### Usage
-"Interest on notes and bonds accrues from the __dated date__." [[356.30:§356.30(a)]]
-
-### Notes
-
-## Issue date
-### CFR
-Issue date means the date specified in the auction announcement on which we issue a security as an obligation of the United States. Interest normally begins to accrue on a security's issue date. [[356.2:§356.2]]
-
-### Usage
-"Securities bought in the auction must be paid for by the __issue date__." [[356.25:§356.25]]
-
-### Notes
-
-## Maturity date
-### CFR
-Maturity date means the date on which a security becomes due and payable, and ceases to earn interest. The maturity date is specified in the auction announcement. [[356.2:§356.2]]
-
-### Usage
-"We will pay principal on bills, notes, and bonds on the __maturity date__ as specified in the auction announcement." [[356.30:§356.30(a)]]
-
-### Notes
-
-# interest-rate-yield
-ch:
-title:
-
-## Interest rate
-*Interest rate* means the annual percentage rate of interest paid on the par amount (or the inflation-adjusted principal) of a specific issue of notes or bonds.
-
-## Yield
-*Yield* means the annualized rate of return to maturity on a non-indexed security. Yield is expressed as a percentage. For an inflation-protected security, yield means the real yield. Yield is also referred to as "yield to maturity."
-
-**Note:** interest rate is fixed at auction and does not change. Yield is not fixed — it depends on price, per the Appendix B §II/§III formulas covered in Chapters 6–7.
-
-## Real yield
-*Real yield* means, for an inflation-protected security, the yield based on the payment stream in constant dollars. In other words, the real yield is the yield in the absence of inflation.
-
-**Note:** per the Yield definition above, "yield" already means the real yield for an inflation-protected security — there is no separate defined term in this part for a TIPS's nominal yield.
 
 # cpi
 ch: 4 · TIPS & the CPI Index
