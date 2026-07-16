@@ -275,6 +275,7 @@ function setupUI() {
     }
     document.getElementById('saLegend').style.display = showSaYield ? 'flex' : 'none';
     refreshSaOverlays(true);
+    updateYieldCurves();
   });
 
   document.querySelectorAll('.clear-btn').forEach(btn => btn.addEventListener('click', (e) => {
@@ -318,7 +319,7 @@ function setupUI() {
   }));
   document.getElementById('refreshAll').addEventListener('click', async () => {
     updateAllData(true);
-    if (showSaYield) { tipsBondMeta = await fetchTipsBondMeta(true); refreshSaOverlays(); }
+    if (showSaYield) { tipsBondMeta = await fetchTipsBondMeta(true); refreshSaOverlays(); updateYieldCurves(); }
   });
   document.getElementById('resetAllZoom').addEventListener('click', () => { yOverrideSyms.clear(); isUpdatingData = true; Object.entries(charts).forEach(([sym, chart]) => applyDefaultBounds(sym, chart, rangeData[sym])); isUpdatingData = false; });
 }
@@ -900,16 +901,19 @@ function adjustFirstPointToClosingTime(firstPoint) {
   return firstPoint;
 }
 
-// Read one maturity's yield on a specific ET calendar date. pickLast=false returns that
-// day's first print (the close, for a historical day); pickLast=true returns the last print
-// (the latest reading on the end day). Returns null when the maturity has no print that day,
-// so the curve shows a gap rather than borrowing a value from another date.
-function valueOnDate(sym, dateStr, pickLast) {
-  const d = rangeData[sym];
-  if (!d || !d.length || !dateStr) return null;
-  const pts = d.filter(p => getEtDateStr(p.x) === dateStr);
+// Read one maturity's yield on a specific ET calendar date, from an arbitrary {x,y} series.
+// pickLast=false returns that day's first print (the close, for a historical day); pickLast=true
+// returns the last print (the latest reading on the end day). Returns null when the series has
+// no print that day, so the curve shows a gap rather than borrowing a value from another date.
+function valueFromSeriesOnDate(data, dateStr, pickLast) {
+  if (!data || !data.length || !dateStr) return null;
+  const pts = data.filter(p => getEtDateStr(p.x) === dateStr);
   if (!pts.length) return null;
   return (pickLast ? pts[pts.length - 1] : pts[0]).y;
+}
+
+function valueOnDate(sym, dateStr, pickLast) {
+  return valueFromSeriesOnDate(rangeData[sym], dateStr, pickLast);
 }
 
 function updateYieldCurves() {
@@ -928,25 +932,58 @@ function updateYieldCurves() {
   const sT = refStart ? adjustFirstPointToClosingTime(refStart.x) : null, eT = refEnd ? refEnd.x : null;
   const sL = sT ? ET_HM_FMT.format(sT) + ' ET' : '—', eL = eT ? ET_HM_FMT.format(eT) + ' ET' : '—';
 
-  const buildYield = (id, key, syms) => {
+  // SA overlay data, per SA-eligible symbol, for the active range — reused by both the TIPS
+  // curve (direct SA yield) and the BEI curve (Nominal - SA yield). Same "overlay, don't
+  // replace" convention as the Time Series SA line (see 2.4_Seasonal_Adjustment.md).
+  const saSeriesBySym = {};
+  if (showSaYield) SA_SYMBOLS.forEach(sym => { saSeriesBySym[sym] = computeSaSeries(sym, rangeData[sym]); });
+
+  const curveOptions = { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } } }, plugins: { legend: { display: true, labels: { font: { size: 10, weight: 'bold' } } }, zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } } };
+
+  // saEligible charts always reserve dataset slots 2/3 for the SA overlay (empty when SA is
+  // off), so toggling SA doesn't need to recreate the chart — same pattern as the Time Series
+  // charts reserving their SA dataset slot.
+  const buildYield = (id, key, syms, saEligible) => {
     const sD = syms.map(s => valueOnDate(s, startDateStr, false));
     const eD = syms.map(s => valueOnDate(s, endDateStr, true));
-    if (yieldCurveCharts[key]) { const c = yieldCurveCharts[key]; c.data.datasets[0].data = sD; c.data.datasets[0].label = sL; c.data.datasets[1].data = eD; c.data.datasets[1].label = eL; c.update(); return; }
+    const saSD = saEligible ? syms.map(s => showSaYield ? valueFromSeriesOnDate(saSeriesBySym[s], startDateStr, false) : null) : null;
+    const saED = saEligible ? syms.map(s => showSaYield ? valueFromSeriesOnDate(saSeriesBySym[s], endDateStr, true) : null) : null;
+    if (yieldCurveCharts[key]) {
+      const c = yieldCurveCharts[key];
+      c.data.datasets[0].data = sD; c.data.datasets[0].label = sL;
+      c.data.datasets[1].data = eD; c.data.datasets[1].label = eL;
+      if (saEligible) { c.data.datasets[2].data = saSD; c.data.datasets[2].label = `${sL} (SA)`; c.data.datasets[3].data = saED; c.data.datasets[3].label = `${eL} (SA)`; }
+      c.update();
+      return;
+    }
+    const datasets = [
+      { label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false },
+      { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: false }
+    ];
+    if (saEligible) {
+      datasets.push({ label: `${sL} (SA)`, data: saSD, borderColor: SA_COLOR, borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false });
+      datasets.push({ label: `${eL} (SA)`, data: saED, borderColor: SA_COLOR, fill: false, tension: 0.3, spanGaps: false });
+    }
     const ctx = document.getElementById(id).getContext('2d');
-    yieldCurveCharts[key] = new Chart(ctx, {
-      type: 'line',
-      data: { labels: syms.map(s => SYMBOL_LABELS[s]), datasets: [{ label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false }, { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: false }] },
-      options: { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } } }, plugins: { legend: { display: true, labels: { font: { size: 10, weight: 'bold' } } }, zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } } }
-    });
+    yieldCurveCharts[key] = new Chart(ctx, { type: 'line', data: { labels: syms.map(s => SYMBOL_LABELS[s]), datasets }, options: curveOptions });
   };
 
   const buildBei = (id, key, pairs) => {
     const sD = pairs.map(p => { const n = valueOnDate(p.n, startDateStr, false), t = valueOnDate(p.t, startDateStr, false); return (n == null || t == null) ? null : n - t; });
     const eD = pairs.map(p => { const n = valueOnDate(p.n, endDateStr, true), t = valueOnDate(p.t, endDateStr, true); return (n == null || t == null) ? null : n - t; });
+    const saBei = (p, dateStr, pickLast) => {
+      if (!showSaYield || !SA_SYMBOLS.has(p.t)) return null;
+      const n = valueOnDate(p.n, dateStr, pickLast), t = valueFromSeriesOnDate(saSeriesBySym[p.t], dateStr, pickLast);
+      return (n == null || t == null) ? null : n - t;
+    };
+    const saSD = pairs.map(p => saBei(p, startDateStr, false));
+    const saED = pairs.map(p => saBei(p, endDateStr, true));
     if (yieldCurveCharts[key]) {
       const c = yieldCurveCharts[key];
       c.data.datasets[0].data = sD; c.data.datasets[0].label = sL;
       c.data.datasets[1].data = eD; c.data.datasets[1].label = eL;
+      c.data.datasets[2].data = saSD; c.data.datasets[2].label = `${sL} (SA)`;
+      c.data.datasets[3].data = saED; c.data.datasets[3].label = `${eL} (SA)`;
       c.update();
       return;
     }
@@ -957,26 +994,17 @@ function updateYieldCurves() {
         labels: pairs.map(p => p.label),
         datasets: [
           { label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false },
-          { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: false }
+          { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: false },
+          { label: `${sL} (SA)`, data: saSD, borderColor: SA_COLOR, borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false },
+          { label: `${eL} (SA)`, data: saED, borderColor: SA_COLOR, fill: false, tension: 0.3, spanGaps: false }
         ]
       },
-      options: {
-        animation: false, responsive: true, maintainAspectRatio: false,
-        interaction: { mode: 'index', intersect: false },
-        scales: {
-          x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } },
-          y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } }
-        },
-        plugins: {
-          legend: { display: true, labels: { font: { size: 10, weight: 'bold' } } },
-          zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } }
-        }
-      }
+      options: curveOptions
     });
   };
 
-  buildYield('yield-curve-tips', 'tips', TIPS_SYMBOLS);
-  buildYield('yield-curve-nominal', 'nominal', NOMINAL_SYMBOLS);
+  buildYield('yield-curve-tips', 'tips', TIPS_SYMBOLS, true);
+  buildYield('yield-curve-nominal', 'nominal', NOMINAL_SYMBOLS, false);
   buildBei('yield-curve-breakeven', 'breakeven', BEI_PAIRS);
 }
 
