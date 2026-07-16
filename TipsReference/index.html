@@ -199,7 +199,13 @@ var COLS = [
   { key: 'cpnDateIR',   label: 'Cpn Date IR',        align: 'right', sortType: 'num', wrapHeader: true,
     fmt: function(v) { return v != null ? v.toFixed(5) : '—'; } },
   { key: 'cpnPayment',  label: 'Cpn $ / TIPS',        align: 'right', sortType: 'num', wrapHeader: true,
-    fmt: function(v) { return v != null ? v.toFixed(4) : '—'; } },
+    fmt: function(v) { return v != null ? v.toFixed(4) : '—'; },
+    // Export at higher precision than the on-screen 4dp: coupon and Index Ratio (already
+    // Treasury's own max precision, 5dp) are both exact, so cpnPayment is an exact decimal.
+    // Consumers who multiply by Quantity to get actual holding interest should round to
+    // cents once, on that final total — not on this per-$1,000 rate first. 6dp keeps that
+    // rounding error undetectable at any realistic holding size.
+    exportFmt: function(v) { return v != null ? v.toFixed(6) : '—'; } },
 ];
 
 // Duration helpers — inline copy of shared/src/bond-math.js (must stay in sync)
@@ -285,7 +291,7 @@ function recomputeWithRefCpi(dateStr) {
       var d = nextCpn.getDate() < 10 ? '0' + nextCpn.getDate() : String(nextCpn.getDate());
       r.nextCoupon = y + '-' + m + '-' + d;
       r.cpnRefCpi = lookupRefCpi(refCpiRows, r.nextCoupon);
-      var cpnIR = (r.cpnRefCpi != null && r.baseCpi) ? r.cpnRefCpi / r.baseCpi : null;
+      var cpnIR = indexRatio(r.cpnRefCpi, r.baseCpi);
       r.cpnDateIR = cpnIR;
       r.cpnPayment = (cpnIR != null && r.coupon != null)
         ? (r.coupon / 2) * cpnIR * 1000
@@ -333,7 +339,7 @@ function showCpnModal(row) {
   function r2(label, val) { return '<tr><td class="cml">' + label + '</td><td class="cmv">' + val + '</td></tr>'; }
   function sep() { return '<tr class="cms"><td colspan="2"></td></tr>'; }
 
-  var ir = (row.cpnRefCpi != null && row.baseCpi) ? row.cpnRefCpi / row.baseCpi : null;
+  var ir = row.cpnDateIR;
   var semiRate = row.coupon != null ? row.coupon / 2 : null;
 
   var formulaVars = 'Index Ratio &times; (Coupon Rate / 2) &times; $1,000';
@@ -558,7 +564,7 @@ document.getElementById('export-btn').addEventListener('click', function() {
   var headerLine = COLS.map(function(c) { return c.label; }).join(',');
   var dataLines = rows.map(function(r) {
     return COLS.map(function(col) {
-      var v = cellDisplay(r, col);
+      var v = col.exportFmt ? col.exportFmt(r[col.key]) : cellDisplay(r, col);
       return v.indexOf(',') !== -1 ? '"' + v + '"' : v;
     }).join(',');
   });
