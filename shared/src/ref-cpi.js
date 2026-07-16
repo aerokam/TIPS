@@ -32,6 +32,18 @@ export function lookupRefCpi(rows, dateStr) {
   return null; // within range but no exact entry (data gap)
 }
 
+// ─── Truncate-then-round (31 CFR §356 App. B §I.B.3) ─────────────────────────
+// "Interpolation calculations are truncated to six decimal places, then
+// rounded to five decimal places — so Ref CPI and Index Ratio are always
+// expressed to five decimal places." Applied at both computation points below.
+function truncateThenRound(x, truncDp = 6, roundDp = 5) {
+  if (x == null) return x;
+  const truncFactor = 10 ** truncDp;
+  const truncated = Math.trunc(x * truncFactor) / truncFactor;
+  const roundFactor = 10 ** roundDp;
+  return Math.round(truncated * roundFactor) / roundFactor;
+}
+
 // ─── Calculated (31 CFR §356 Appendix B) ─────────────────────────────────────
 // Ref CPI for a date by linear interpolation of a monthly CPI-U series.
 //   Ref CPI(month, 1)   = CPI-U(month − 3)
@@ -49,11 +61,11 @@ export function refCpiFromMonthly(dateStr, monthly) {
   };
   const v1 = get(y, mo - 3);            // Ref CPI for the 1st of this month
   if (v1 == null) return null;
-  if (d === 1) return v1;
+  if (d === 1) return truncateThenRound(v1);
   const v2 = get(y, mo - 2);            // Ref CPI for the 1st of next month
   if (v2 == null) return null;
   const daysInMonth = new Date(y, mo, 0).getDate();
-  return v1 + (d - 1) / daysInMonth * (v2 - v1);
+  return truncateThenRound(v1 + (d - 1) / daysInMonth * (v2 - v1));
 }
 
 // Build the `monthly` map refCpiFromMonthly() expects from CPI rows.
@@ -72,7 +84,7 @@ export function monthlyCpiMap(rows, valueKey = 'value') {
 
 // ─── Index ratio ─────────────────────────────────────────────────────────────
 export function indexRatio(refCpi, baseCpi) {
-  return (refCpi != null && baseCpi) ? refCpi / baseCpi : null;
+  return (refCpi != null && baseCpi) ? truncateThenRound(refCpi / baseCpi) : null;
 }
 
 // ─── SA Factor lookup (RefCpiNsaSa.csv rows) ─────────────────────────────────

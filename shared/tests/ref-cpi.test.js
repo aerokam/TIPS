@@ -15,8 +15,10 @@ const REFCPI_URL    = `${R2}/TIPS/RefCPI.csv`;
 const CPI_URL       = `${R2}/bls/CPI.csv`;
 const REFCPINSASA_URL = `${R2}/TIPS/RefCpiNsaSa.csv`;
 
-// Published Ref CPI is rounded to 5 dp; our calc is exact real arithmetic.
-const TOL = 1e-3;
+// Both published and calculated Ref CPI are truncated-to-6/rounded-to-5 per
+// 31 CFR §356 App. B §I.B.3 (see refCpiFromMonthly), so these should agree to
+// within float noise, not just to the nearest published decimal.
+const TOL = 1e-4;
 
 let pass = 0, fail = 0;
 const ok  = (cond, msg) => { if (cond) { pass++; } else { fail++; console.error('  ✗ ' + msg); } };
@@ -98,6 +100,15 @@ async function main() {
   ok(Math.abs(indexRatio(300, 150) - 2) < 1e-12, 'indexRatio basic');
   ok(indexRatio(300, 0) === null, 'indexRatio zero base → null');
   ok(indexRatio(null, 150) === null, 'indexRatio null refCpi → null');
+
+  // ── 31 CFR §356 App. B §I.B.3 worked example (Ref CPI April 1996) ──
+  // Ref CPI_Apr1,1996 = CPI_Jan,1996 = 154.40; Ref CPI_May1,1996 = CPI_Feb,1996 = 154.90.
+  const cfrMonthly = { '1996-1': 154.40, '1996-2': 154.90 };
+  const rcApr15 = refCpiFromMonthly('1996-04-15', cfrMonthly);
+  const rcApr16 = refCpiFromMonthly('1996-04-16', cfrMonthly);
+  ok(rcApr15 === 154.63333, `CFR example: Ref CPI Apr15,1996 truncate6/round5 → 154.63333 (got ${rcApr15})`);
+  ok(rcApr16 === 154.65000, `CFR example: Ref CPI Apr16,1996 → 154.65000 (got ${rcApr16})`);
+  ok(indexRatio(rcApr16, rcApr15) === 1.00011, `CFR example: Index Ratio Apr16,1996 → 1.00011 (got ${indexRatio(rcApr16, rcApr15)})`);
 
   // ── saFactorForDate ── (uses the raw CSV-column shape, via the shared parser)
   const saRows = parseCsv(nsaSaText); // [{ "Ref CPI Date", "Ref CPI NSA", "Ref CPI SA", "SA Factor" }, ...]

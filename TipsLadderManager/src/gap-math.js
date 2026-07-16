@@ -3,6 +3,7 @@
 // Math reference: knowledge/3.0_TIPS_Ladder_Rebalancing.md Phase 2, Phase 3, Phase 4
 
 import { calculateMDuration, priceFromYield } from '../../shared/src/bond-math.js';
+import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 
 // ─── Yield interpolation ──────────────────────────────────────────────────────
 // Spec: 4.0 Phase 2, 3.0 Synthetic TIPS Construction
@@ -166,7 +167,7 @@ export function gapParamsWithUpperFeedback(args) {
   if (!lowerBond || !upperBond) return gapParamsCore(args);
 
   const upperYear = upperBond.maturity.getFullYear();
-  const irU = refCPI / (upperBond.baseCpi ?? refCPI);
+  const irU = calcIndexRatio(refCPI, upperBond.baseCpi ?? refCPI);
   const upperCPB = (upperBond.price ?? 0) / 100 * irU * 1000;          // cost per bond (real $)
   const upperAnnCpnPerBond = 1000 * irU * (upperBond.coupon ?? 0);     // annual coupon per bond (real $)
   if (!(upperCPB > 0) || !(upperAnnCpnPerBond > 0)) return gapParamsCore(args);
@@ -238,7 +239,7 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
 export function excessAmdSchedule({ bond, exQty, refCPI, settlementYear }) {
   const byYear = new Map();
   if (!(exQty > 0 && bond?.maturity)) return byYear;
-  const ir          = refCPI / (bond.baseCpi ?? refCPI);
+  const ir          = calcIndexRatio(refCPI, bond.baseCpi ?? refCPI);
   const costPerBond = (bond.price ?? 0) / 100 * ir * 1000;
   const matYear     = bond.maturity.getFullYear();
   const parPerBond  = ir * 1000;                      // redemption value in settlement-real dollars

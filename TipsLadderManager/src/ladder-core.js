@@ -10,6 +10,7 @@
 // truth that kills the build↔rebalance duplication.
 
 import { bondCalcs, calculateMDuration } from '../../shared/src/bond-math.js';
+import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 import { bracketWeights, bracketExcessQtys, fyQty as _fyQty, gapParamsWithUpperFeedback, future30yParamsCore, excessAmdSchedule } from './gap-math.js';
 
 // ─── Gap parameters adapter ─────────────────────────────────────────────────────
@@ -303,8 +304,8 @@ export function sizeLadder({
     ({ lowerWeight: future30yLowerWeight, upperWeight: future30yUpperWeight } = bracketWeights(future30yLowerDuration, future30yUpperDuration, future30yParams.avgDuration));
     if (future30yParams.avgDuration > future30yUpperDuration) future30yFellBack = true;
 
-    const future30yLowerCPB = (future30yLowerCoverBond.price ?? 0) / 100 * (refCPI / (future30yLowerCoverBond.baseCpi ?? refCPI)) * 1000;
-    const future30yUpperCPB = (future30yUpperCoverBond.price ?? 0) / 100 * (refCPI / (future30yUpperCoverBond.baseCpi ?? refCPI)) * 1000;
+    const future30yLowerCPB = (future30yLowerCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yLowerCoverBond.baseCpi ?? refCPI) * 1000;
+    const future30yUpperCPB = (future30yUpperCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yUpperCoverBond.baseCpi ?? refCPI) * 1000;
     ({ lowerExQty: future30yLowerExQty, upperExQty: future30yUpperExQty } = bracketExcessQtys(future30yParams.future30yTotalCost, future30yLowerWeight, future30yUpperWeight, future30yLowerCPB, future30yUpperCPB));
     future30yTotalExcessCost = future30yLowerExQty * future30yLowerCPB + future30yUpperExQty * future30yUpperCPB;
     future30yLowerMonth = BL_MONTHS[future30yLowerCoverBond.maturity.getMonth()];
@@ -465,12 +466,12 @@ export function sizeLadder({
     const upperBond = yearBondMap[upperYear];
     upperDuration = calculateMDuration(settlementDate, upperBond.maturity, upperBond.coupon ?? 0, upperBond.yield ?? 0);
     upperMonth = BL_MONTHS[upperBond.maturity.getMonth()];
-    const upperCPB = (upperBond.price ?? 0) / 100 * (refCPI / (upperBond.baseCpi ?? refCPI)) * 1000;
+    const upperCPB = (upperBond.price ?? 0) / 100 * calcIndexRatio(refCPI, upperBond.baseCpi ?? refCPI) * 1000;
 
     const lowerBond = yearBondMap[lowerYear];
     lowerDuration = calculateMDuration(settlementDate, lowerBond.maturity, lowerBond.coupon ?? 0, lowerBond.yield ?? 0);
     lowerMonth = BL_MONTHS[lowerBond.maturity.getMonth()];
-    const lowerCPB = (lowerBond.price ?? 0) / 100 * (refCPI / (lowerBond.baseCpi ?? refCPI)) * 1000;
+    const lowerCPB = (lowerBond.price ?? 0) / 100 * calcIndexRatio(refCPI, lowerBond.baseCpi ?? refCPI) * 1000;
     ({ lowerWeight, upperWeight } = bracketWeights(lowerDuration, upperDuration, gapParams.avgDuration));
     ({ lowerExQty: lowerExQty, upperExQty: upperExQty } = bracketExcessQtys(gapParams.totalCost, lowerWeight, upperWeight, lowerCPB, upperCPB));
     totalExcessCost = lowerExQty * lowerCPB + upperExQty * upperCPB;

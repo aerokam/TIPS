@@ -2,6 +2,8 @@
 // Pure per-unit calculations ($1,000 face value).
 // Spec: ../knowledge/TIPS_Basics.md, knowledge/4.0_Computation_Modules.md §bond-math.js
 
+import { indexRatio as calcIndexRatio } from './ref-cpi.js';
+
 // ─── Macaulay / Modified duration ────────────────────────────────────────────
 // Matches Google Sheets DURATION/MDURATION (Actual/Actual, semi-annual).
 // Uses fractional first coupon period w = DSC/E to avoid the ±0.5y error
@@ -66,7 +68,7 @@ export function calculateMDuration(settlement, maturity, coupon, yld) {
 export function bondCalcs(bond, refCPI) {
   const coupon          = bond.coupon  ?? 0;
   const baseCpi         = bond.baseCpi ?? refCPI;
-  const indexRatio      = refCPI / baseCpi;
+  const indexRatio      = calcIndexRatio(refCPI, baseCpi);
   const principalPerBond = 1000 * indexRatio;
   const costPerBond     = (bond.price ?? 0) / 100 * indexRatio * 1000;
   const nPeriods        = (bond.maturity.getMonth() + 1) < 7 ? 1 : 2;
