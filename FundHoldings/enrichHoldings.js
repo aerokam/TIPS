@@ -3,6 +3,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { calculateDuration, termYears } from "../shared/src/bond-math.js";
 import { parseCsv } from "../shared/src/csv.js";
+import { upload } from "../shared/upload.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "data");
@@ -104,7 +105,7 @@ export async function enrichHoldingsFile(ticker) {
 
   const outFilename = path.join(DATA_DIR, `Holdings-${ticker}-Enriched.csv`);
   fs.writeFileSync(outFilename, lines.join("\n") + "\n", "utf8");
-  console.log(`Wrote ${outFilename}`);
+  await upload(outFilename, "FundHoldings");
   return enriched;
 }
 

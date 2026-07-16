@@ -172,6 +172,13 @@ Register-NodeTask "SaFactors" `
     @(New-ScheduledTaskTrigger -Daily -At "6:35am") `
     "YieldCurves/scripts/updateRefCpi.js"
 
+# FundHoldings  -  Daily 6:40am PT
+# Fetch Vanguard (VBIL/VTIP/VTP) + fminvest (RBIL) fund holdings, enrich, upload to R2.
+Register-NodeTask "FundHoldings" `
+    "Refresh Vanguard/fminvest fund holdings, enrich with yields, upload to R2 (FundHoldings/ prefix)" `
+    @(New-ScheduledTaskTrigger -Daily -At "6:40am") `
+    "FundHoldings/updateAllHoldings.js"
+
 # FidelityQuotes  -  8:05am ET [PT: 5:05am], 12:35pm ET [PT: 9:35am], 5:05pm ET [PT: 2:05pm]
 # Bond market hours 8am-5pm ET; run at open, midday, and close.
 Register-CmdTask "FidelityQuotes" `

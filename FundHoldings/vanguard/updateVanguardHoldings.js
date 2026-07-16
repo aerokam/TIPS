@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import { upload } from "../../shared/upload.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "..", "data");
@@ -135,10 +136,12 @@ export async function updateVanguardHoldings(tickers) {
     const csv = toCsv(rows, asOf);
     const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
     fs.writeFileSync(filename, csv, "utf8");
-    console.log(`Wrote ${filename}`);
+    await upload(filename, "FundHoldings");
 
     saveFundMeta(ticker, { fundName, portId });
   }
+
+  await upload(FUND_META_PATH, "FundHoldings", "application/json");
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

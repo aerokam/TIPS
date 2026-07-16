@@ -17,10 +17,10 @@ function getR2Client() {
   };
 }
 
-export async function upload(filePath, prefix) {
+export async function upload(filePath, prefix, contentType = 'text/csv') {
   const { client, bucket } = getR2Client();
   const key = `${prefix}/${basename(filePath)}`;
   const body = readFileSync(filePath);
-  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: 'text/csv' }));
+  await client.send(new PutObjectCommand({ Bucket: bucket, Key: key, Body: body, ContentType: contentType }));
   console.log(`Uploaded → R2 ${bucket}/${key}`);
 }

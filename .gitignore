@@ -28,6 +28,7 @@ lerna-debug.log*
 /TipsSA/data/*.csv
 
 YieldsMonitor/data/
+FundHoldings/data/
 # Portal local-only sentinel: presence reveals the Admin Dashboard link (never deployed)
 local-admin.json
 # Yield Curves project folder

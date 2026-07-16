@@ -52,6 +52,7 @@ import { calcMktWtdAvg } from "../shared/src/bond-math.js";
 // fminvest/updateFminvestHoldings.js) + enrichHoldings.js have been run for it.
 const FUNDS = ["VBIL", "VTIP", "VTP", "RBIL"];
 const WEEKS_PER_YEAR = 365.25 / 7;
+const R2_BASE = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/FundHoldings";
 
 const tabGroup = document.getElementById("tabGroup");
 const meta = document.getElementById("meta");
@@ -92,7 +93,7 @@ function displayName(name) {
 
 let fundMeta = {};
 try {
-  const res = await fetch("data/FundMeta.json");
+  const res = await fetch(`${R2_BASE}/FundMeta.json`);
   if (res.ok) fundMeta = await res.json();
 } catch { /* meta is optional display sugar; page works without it */ }
 
@@ -203,7 +204,7 @@ function renderTable() {
 
 async function loadFund(ticker) {
   content.innerHTML = '<div class="status">Loading…</div>';
-  const res = await fetch(`data/Holdings-${ticker}-Enriched.csv`);
+  const res = await fetch(`${R2_BASE}/Holdings-${ticker}-Enriched.csv`);
   if (!res.ok) {
     content.innerHTML = `<div class="status">No enriched data for ${ticker} yet — run the fund's scraper then enrichHoldings.js.</div>`;
     return;
