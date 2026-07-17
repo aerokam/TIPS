@@ -623,7 +623,7 @@ function parseFidelityNominals(text) {
     seen.add(cusip);
     bonds.push({
       cusip, type,
-      coupon: parseFloat(couponStr) || 0,
+      coupon: parseFloat(couponStr) / 100 || 0,
       price: parseFloat(priceStr) || NaN,
       yield: yld,
       bidPrice: parseFloat(bidPriceStr),
