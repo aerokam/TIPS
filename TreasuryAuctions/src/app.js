@@ -83,6 +83,17 @@ function fieldLabel(f) {
   return FIELD_LABELS[f] || f.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
 }
 
+// ── Auto-insert slashes as the user types digits into a date filter (mm/dd/yyyy) ──
+function autoMaskDateFilter(raw) {
+  const opMatch = raw.match(/^(>=|<=|>|<)/);
+  const op = opMatch ? opMatch[1] : '';
+  const digits = raw.slice(op.length).replace(/\D/g, '').slice(0, 8);
+  let formatted = digits;
+  if (digits.length > 4) formatted = `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+  else if (digits.length > 2) formatted = `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  return op + formatted;
+}
+
 // ── Format detection by field name ────────────────────────────────────────────
 function detectFmt(f) {
   if (f.includes('cpi')) return 'num5';
@@ -153,7 +164,8 @@ let tentSortAsc = true;
 let tentFilters = {};
 
 let orderedColumns = { all: [], bills: [], notesbonds: [], tips: [] };
-let colWidths = {};           // field -> width (px)
+const DEFAULT_COL_WIDTHS = { issue_date: 82, maturity_date: 82 }; // wide enough to show a fully-typed mm/dd/yyyy filter
+let colWidths = { ...DEFAULT_COL_WIDTHS }; // field -> width (px)
 
 const ROW_LIMIT = 100;        // default cap for non-TIPS views when no date range set
 
@@ -249,19 +261,26 @@ function getActiveRows() {
   if (activeFilters.length) {
     rows = rows.filter(r =>
       activeFilters.every(([f, v]) => {
-        const val = (r[f] || '').toString().toLowerCase();
+        const fmt = detectFmt(f);
+        const rawVal = (r[f] || '').toString();
+        // Match against the displayed mm/dd/yyyy form for date fields so typed "/" isn't a dead end
+        const val = (fmt === 'date' ? fmtVal(rawVal, fmt) : rawVal).toLowerCase();
         const filterStr = v.trim().toLowerCase();
 
         // Support range filters: >, <, >=, <=
         const match = filterStr.match(/^(>=|<=|>|<)(.*)$/);
         if (match) {
           const op = match[1];
-          const target = match[2].trim();
+          let target = match[2].trim();
           const rVal = r[f];
           if (rVal === '' || rVal == null) return false;
 
+          // Normalize mm/dd/yyyy (or m/d/yyyy) targets to ISO yyyy-mm-dd for comparison
+          const mdY = target.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (mdY) target = `${mdY[3]}-${mdY[1].padStart(2, '0')}-${mdY[2].padStart(2, '0')}`;
+
           // If it's a date field or target looks like a date
-          if (detectFmt(f) === 'date' || /^\d{4}-\d{2}-\d{2}$/.test(target)) {
+          if (fmt === 'date' || /^\d{4}-\d{2}-\d{2}$/.test(target)) {
             const rowDate = rVal.substring(0, 10);
             if (op === '>') return rowDate > target;
             if (op === '<') return rowDate < target;
@@ -425,7 +444,12 @@ function renderTable() {
   thead.querySelectorAll('.filter-input').forEach(inp => {
     inp.addEventListener('input', e => {
       const f = e.target.dataset.field;
-      const v = e.target.value;
+      let v = e.target.value;
+      if (detectFmt(f) === 'date') {
+        v = autoMaskDateFilter(v);
+        e.target.value = v;
+        e.target.setSelectionRange(v.length, v.length);
+      }
       filters[f] = v;
       e.target.classList.toggle('active', !!v);
       clearTimeout(debounceTimer);
@@ -572,8 +596,14 @@ function renderTentative() {
   thead.querySelectorAll('.filter-input').forEach(inp => {
     inp.addEventListener('input', e => {
       const f = e.target.dataset.field;
-      tentFilters[f] = e.target.value;
-      e.target.classList.toggle('active', !!e.target.value);
+      let v = e.target.value;
+      if (detectFmt(f) === 'date') {
+        v = autoMaskDateFilter(v);
+        e.target.value = v;
+        e.target.setSelectionRange(v.length, v.length);
+      }
+      tentFilters[f] = v;
+      e.target.classList.toggle('active', !!v);
       clearTimeout(debounceTimer);
       debounceTimer = setTimeout(renderTentBody, 200);
     });
@@ -783,7 +813,7 @@ function init() {
     const defs = DEFAULT_COLS[activeView];
     const rest = allColumns.filter(c => !defs.includes(c));
     orderedColumns[activeView] = [...defs, ...rest];
-    colWidths = {};
+    colWidths = { ...DEFAULT_COL_WIDTHS };
     renderColList();
     renderTable();
   });
