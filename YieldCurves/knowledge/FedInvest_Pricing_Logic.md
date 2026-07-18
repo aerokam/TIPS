@@ -12,7 +12,7 @@ The "Price" reported by FedInvest represents the **midpoint of the market bid an
 3.  **Bill Sensitivity**: This discrepancy is most pronounced for short-dated Treasury Bills, where small price differences result in significant annualized yield deltas.
 
 ## Usage in Treasury Investors Portal
-The portal uses FedInvest as a primary daily data source due to its stability and comprehensive coverage. However, when comparing FedInvest data to real-time broker quotes:
+The portal uses FedInvest as a primary daily data source due to its stability and comprehensive coverage. It is also offered because it is available to anybody and is used by non-portal apps like tipsladder.com. However, when comparing FedInvest data to real-time broker quotes:
 -   **FedInvest (Dotted Lines)**: Represents mid-market reference data.
 -   **Broker/Market (Solid Lines)**: Represents actionable "Ask" pricing.
 
