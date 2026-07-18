@@ -1,14 +1,33 @@
-# 31 CFR Part 356, Subpart A — §356.2 Definitions and Appendix B (Formulas and Tables)
+# 31 CFR Part 356 — Cached Reference Text
 
-Treasury's auction regulations. §356.2 defines every term used elsewhere in Part 356 (auctions, settlement, STRIPS, floating rate notes, TIPS). Appendix B gives the actual formulas Treasury uses to convert yields/discount rates/discount margins to prices, compute accrued interest, and compute the TIPS Index Ratio.
+Treasury's auction regulations. This is the primary corpus for word choice
+and sentence construction anywhere this suite writes about Treasury/TIPS
+concepts — CFR text first, then the language each app's own UI/spec uses,
+never generic paraphrase. Covers Subpart A in full (§356.0–§356.5),
+Appendix B (Formulas and Tables), Appendix C (Investment Considerations),
+and Appendix D (Description of the Indexes). Subparts B, C, and D
+(bidding/certification, auction-award/settlement mechanics, and STRIPS/tax
+miscellany) and Appendix A (Bidder Categories) are not transcribed here —
+out of scope for every app that currently cites this file — but the full
+Part 356 text, including those, is cached as a source PDF (see below) if
+ever needed.
 
 **Sources:**
-- §356.2 text: eCFR, current as of 2026-07-06 (`www.ecfr.gov`, title 31, part 356).
+- §356.0, §356.1, §356.2, §356.5, Appendix C, Appendix D text: extracted directly from the official codified PDF, `https://www.govinfo.gov/content/pkg/CFR-2025-title31-vol2/pdf/CFR-2025-title31-vol2-part356.pdf` (`pdftotext`, no `-layout` flag — that flag interleaves the source's two-column layout and garbles reading order), cross-checked against eCFR where separately verified.
 - Appendix B text: GovInfo annual codified edition `CFR-2025-title31-vol2` (effective 7-1-2025), cross-checked against the eCFR XML.
 - Appendix B, Section IV formulas (floating rate notes) render as scanned images (CCITT Group 4 fax-compressed TIFF-in-PDF) in *every* text rendition of the CFR — eCFR HTML, the codified PDF, and the original Federal Register PDF (78 FR 46428, July 31, 2013) all embed them as graphics with no text alternative. They were recovered here by decoding the embedded CCITT streams directly and are reproduced below as plain-text formulas. Each was cross-checked against the worked numerical examples in the surrounding text (results match to the penny), so transcription is verified, not reconstructed from memory.
 - **Appendix B, Table 2** (the 160-row lookup table of daily interest decimals for rates 1/8%–20% in 1/8-point increments, across 4 half-year lengths) is a pre-calculator convenience table, not a formula — by design decision, it is **omitted** here. The generating formula is given in its place (§I.A.2 below); consult the CFR directly if the printed table itself is ever needed.
+- eCFR (`www.ecfr.gov`) blocks automated fetching (redirects through a bot-check) — govinfo.gov's codified PDF does not, and is the reliable source going forward.
 
 ---
+
+## § 356.0 What authority does the Treasury have to sell and issue securities?
+
+Chapter 31 of Title 31 of the United States Code authorizes the Secretary of the Treasury to issue United States obligations, and to offer them for sale with the terms and conditions that the Secretary prescribes.
+
+## § 356.1 To which securities does this circular apply?
+
+The provisions in this part, including the appendices, and each individual auction announcement govern the sale and issuance of marketable Treasury securities issued on or after March 1, 1993. This part also governs all securities eligible for the STRIPS (Separate Trading of Registered Interest and Principal of Securities) Program (See § 356.31.). In addition, these provisions and the auction announcements govern any other types of securities we may issue under this part.
 
 ## § 356.2 What definitions do I need to know to understand this part?
 
@@ -151,6 +170,63 @@ Treasury's auction regulations. §356.2 defines every term used elsewhere in Par
 *You* means a prospective bidder in an auction.
 
 *[69 FR 45202, July 28, 2004, as amended at 70 FR 57439, Sept. 30, 2005; 73 FR 14938, Mar. 20, 2008; 76 FR 18063, Apr. 1, 2011; 78 FR 46428, July 31, 2013; 81 FR 43070, July 1, 2016; 87 FR 40439, July 7, 2022]*
+
+---
+
+## § 356.5 What types of securities does the Treasury auction?
+
+We offer securities under this part exclusively in book-entry form and as direct obligations of the United States issued under Chapter 31 of Title 31 of the United States Code. When we issue additional securities with the same CUSIP number as outstanding securities, we consider them to be the same securities as the outstanding securities.
+
+**(a) Treasury bills.**
+(1) Are issued at a discount or at par, depending upon the auction results;
+(2) Are redeemed at their par amount at maturity; and
+(3) Have maturities of not more than one year.
+
+**(b) Treasury notes.**
+
+*(1) Treasury non-indexed notes.*[^1]
+(i) Are issued with a stated rate of interest to be applied to the par amount;
+(ii) Have interest payable semiannually;
+(iii) Are redeemed at their par amount at maturity;
+(iv) Are sold at discount, par, or premium, depending upon the auction results; and
+(v) Have maturities of at least one year, but of not more than ten years.
+
+[^1]: We use the term "non-indexed" in this part to distinguish such notes and bonds from "inflation-protected securities" and "floating rate notes." We refer to non-indexed notes and non-indexed bonds as "notes" and "bonds" in official Treasury publications, such as auction announcements and auction results, as well as in auction systems.
+
+*(2) Treasury inflation-protected notes.*
+(i) Are issued with a stated rate of interest to be applied to the inflation-adjusted principal on each interest payment date;
+(ii) Have interest payable semiannually;
+(iii) Are redeemed at maturity at their inflation-adjusted principal, or at their par amount, whichever is greater;
+(iv) Are sold at discount, par, or premium, depending on the auction results (See appendix B for price and interest payment calculations and appendix C for Investment Considerations.); and
+(v) Have maturities of at least one year, but not more than ten years.
+(vi) Are only reopened as scheduled or announced.
+
+*(3) Treasury floating rate notes.*
+(i) Are issued with a stated spread to be added to the index rate for daily interest accrual throughout each interest payment period;
+(ii) Have a zero-percent minimum daily interest accrual rate;
+(iii) Have interest payable quarterly;
+(iv) Are redeemed at their par amount at maturity;
+(v) Are sold at discount, par, or premium depending on the auction results (See appendix B for price and interest payment calculations and appendix C for Investment Considerations.); and
+(vi) Have maturities of at least one year, but not more than ten years.
+
+**(c) Treasury bonds.**
+
+*(1) Treasury non-indexed bonds.*
+(i) Are issued with a stated rate of interest to be applied to the par amount;
+(ii) Have interest payable semiannually;
+(iii) Are redeemed at their par amount at maturity;
+(iv) Are sold at discount, par, or premium, depending on the auction results; and
+(v) Have maturities of more than ten years.
+
+*(2) Treasury inflation-protected bonds.*
+(i) Are issued with a stated rate of interest to be applied to the inflation-adjusted principal on each interest payment date;
+(ii) Have interest payable semiannually;
+(iii) Are redeemed at maturity at their inflation-adjusted principal, or at their par amount, whichever is greater;
+(iv) Are sold at discount, par, or premium, depending on the auction results; and
+(v) Have maturities of more than ten years. (See appendix B for price and interest payment calculations and appendix C for Investment Considerations.)
+(vi) Are only reopened as scheduled or announced.
+
+*[69 FR 45202, July 28, 2004, as amended at 70 FR 57439, Sept. 30, 2005; 74 FR 26086, June 1, 2009; 78 FR 46428, 46429, July 31, 2013; 87 FR 40439, July 7, 2022]*
 
 ---
 
@@ -526,3 +602,55 @@ Let a_i = 100 × max(r+s, 0)/360 (daily projected interest per $100 par), and A_
 ---
 
 *[Appendix B citation history: 69 FR 45202, July 28, 2004, as amended at 69 FR 52967, Aug. 30, 2004; 69 FR 53622, Sept. 2, 2004; 73 FR 14939, Mar. 20, 2008; 78 FR 46428, 46430, July 31, 2013; 78 FR 50335, Aug. 19, 2013; 78 FR 52857, Aug. 27, 2013; 78 FR 59228-59230, Sept. 26, 2013; 81 FR 43070, July 1, 2016; 87 FR 40440, July 7, 2022]*
+
+---
+
+## Appendix C to Part 356 — Investment Considerations
+
+### I. Inflation-Protected Securities
+
+**A. Principal and Interest Variability**
+
+An investment in securities with principal or interest determined by reference to an inflation index involves factors not associated with an investment in a non-indexed security. Such factors include the possibility that: the inflation index may be subject to significant changes; changes in the index may or may not correlate to changes in interest rates generally or with changes in other indices; the resulting interest may be greater or less than that payable on other securities of similar maturities; and in the event of sustained deflation, the amount of the semiannual interest payments, the inflation-adjusted principal of the security, and the value of stripped components will decrease. However, if at maturity the inflation-adjusted principal is less than a security's par amount, we will pay an additional amount so that the additional amount plus the inflation-adjusted principal equals the par amount. Regardless of whether or not we pay such an additional amount, we will always base interest payments on the inflation-adjusted principal as of the interest payment date. If a security has been stripped, we will pay any such additional amount at maturity to holders of principal components only. (See § 356.30.)
+
+**B. Trading in the Secondary Market**
+
+The Treasury securities market is the largest and most liquid securities market in the world. The market for Treasury inflation-protected securities, however, may not be as active or liquid as the market for Treasury non-indexed securities. In addition, Treasury inflation-protected securities may not be as widely traded or as well understood as Treasury non-indexed securities. Lesser liquidity and fewer market participants may result in larger spreads between bid and asked prices for inflation-protected securities than the bid-asked spreads for non-indexed securities with the same time to maturity. Larger bid-asked spreads normally result in higher transaction costs and/or lower overall returns. The liquidity of an inflation-protected security may be enhanced over time as we issue additional amounts or more entities participate in the market.
+
+**C. Tax Considerations**
+
+Treasury inflation-protected securities and the stripped interest and principal components of these securities are subject to specific tax rules provided by Treasury regulations issued under sections 1275(d) and 1286 of the Internal Revenue Code of 1986, as amended.
+
+**D. Indexing Issues**
+
+While the Consumer Price Index ("CPI") measures changes in prices for goods and services, movements in the CPI that have occurred in the past do not necessarily indicate changes that may occur in the future.
+
+The calculation of the index ratio incorporates an approximate three-month lag, which may have an impact on the trading price of the securities, particularly during periods of significant, rapid changes in the index.
+
+The CPI is reported by the Bureau of Labor Statistics, a bureau within the Department of Labor. The Bureau of Labor Statistics operates independently of Treasury and, therefore, we have no control over the determination, calculation, or publication of the index. For a discussion of how we will apply the CPI in various situations, see appendix B, section I, paragraph B of this part. In addition, for a discussion of actions that we would take in the event the CPI is: discontinued; in the judgment of the Secretary, fundamentally altered in a manner materially adverse to the interests of an investor in the security; or, in the judgment of the Secretary, altered by legislation or Executive Order in a manner materially adverse to the interests of an investor in the security, see appendix B, section I, paragraph B.4 of this part.
+
+### II. Floating Rate Notes
+
+*(Not transcribed in full here — out of scope for this suite's apps. Covers interest variability, secondary-market trading, tax considerations, and indexing issues for FRNs, parallel in structure to Section I above. See the source PDF if ever needed.)*
+
+*[69 FR 45202, July 28, 2004, as amended at 78 FR 46428, 46444, July 31, 2013]*
+
+---
+
+## Appendix D to Part 356 — Description of the Indexes
+
+### I. Consumer Price Index
+
+The Consumer Price Index ("CPI") for purposes of inflation-protected securities is the non-seasonally adjusted U.S. City Average All Items Consumer Price Index for All Urban Consumers. It is published monthly by the Bureau of Labor Statistics (BLS), a bureau within the Department of Labor. The CPI is a measure of the average change in consumer prices over time in a fixed market basket of goods and services. This market basket includes food, clothing, shelter, fuels, transportation, charges for doctors' and dentists' services, and drugs.
+
+In calculating the index, price changes for the various items are averaged together with weights that represent their importance in the spending of urban households in the United States. The BLS periodically updates the contents of the market basket of goods and services, and the weights assigned to the various items, to take into account changes in consumer expenditure patterns.
+
+The CPI is expressed in relative terms in relation to a time base reference period for which the level is set at 100. For example, if the CPI for the 1982–84 reference period is 100.0, an increase of 16.5 percent from that period would be shown as 116.5. The CPI for a particular month is released and published during the following month. From time to time, the CPI is rebased to a more recent base reference period. We provide the base reference period for a particular inflation-protected security on the auction announcement for that security.
+
+Further details about the CPI may be obtained by contacting the BLS.
+
+### II. Floating Rate Note Index
+
+The floating rate note index is the 13-week Treasury bill auction High Rate (stop out rate), and converted to the simple-interest money market yield computed on an actual/360 basis.
+
+*[69 FR 45202, July 28, 2004, as amended at 78 FR 46444, July 31, 2013]*
