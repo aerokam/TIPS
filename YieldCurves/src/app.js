@@ -1404,7 +1404,7 @@ function switchChartMode(mode) {
     if (spreadChart1) { spreadChart1.destroy(); spreadChart1 = null; }
     if (spreadChart2) { spreadChart2.destroy(); spreadChart2 = null; }
   }
-  document.getElementById('tipsControls').style.display     = (activeTab === 'tips') ? 'flex' : 'none';
+  document.getElementById('tipsControls').style.display     = (activeTab === 'tips' && !isSpread) ? 'flex' : 'none';
   document.getElementById('nominalsControls').style.display = (activeTab === 'treasuries') ? 'flex' : 'none';
 
   // FedInvest is irrelevant in spread mode (spread uses Market data only)
@@ -1453,20 +1453,45 @@ function _rescaleSpread(chartInst) {
   chartInst.update('none');
 }
 
-// Centered moving average over a series sorted by maturity date, used to draw a
-// smoothed trend line through the spread scatter (window scales with sample size).
-function _movingAverageTrend(points) {
+// Kernel-weighted local average (Nadaraya-Watson) over a series sorted by
+// maturity date — draws a smooth trend line giving a visual impression of the
+// average spread by maturity. Evaluated on an evenly-spaced grid (not at the
+// original, unevenly-spaced data points) so the curve itself renders smoothly
+// regardless of how clustered the underlying data is (e.g. Bills bunching at
+// the short end vs. Bonds spread thinly across decades). Unlike a locally
+// weighted *regression* (LOESS), a weighted average can never overshoot the
+// data in its window, so it stays visually calm even where a series has few,
+// noisy points (e.g. Bills/Notes at the short end) instead of zigzagging.
+function _kernelAverageTrend(points, span = 0.45, gridSize = 80) {
   const n = points.length;
   if (n < 5) return null;
   const sorted = [...points].sort((a, b) => a.x - b.x);
-  const window = Math.min(51, Math.max(5, Math.round(n * 0.1)));
-  const half = Math.floor(window / 2);
-  return sorted.map((p, i) => {
-    const lo = Math.max(0, i - half), hi = Math.min(n - 1, i + half);
-    let sum = 0;
-    for (let j = lo; j <= hi; j++) sum += sorted[j].y;
-    return { x: p.x, y: sum / (hi - lo + 1) };
-  });
+  const xs = sorted.map(p => p.x), ys = sorted.map(p => p.y);
+  const windowSize = Math.max(4, Math.min(n, Math.round(span * n)));
+  const xMin = xs[0], xMax = xs[n - 1];
+  if (xMax === xMin) return null;
+
+  const trend = [];
+  for (let g = 0; g < gridSize; g++) {
+    const gx = xMin + (xMax - xMin) * g / (gridSize - 1);
+
+    // Nearest `windowSize` points to gx by maturity distance.
+    const nearest = xs
+      .map((x, i) => i)
+      .sort((a, b) => Math.abs(xs[a] - gx) - Math.abs(xs[b] - gx))
+      .slice(0, windowSize);
+    const maxDist = Math.max(...nearest.map(i => Math.abs(xs[i] - gx))) || 1;
+
+    // Tricube-weighted average of y within the local window.
+    let sumW = 0, sumWY = 0;
+    for (const i of nearest) {
+      const u = Math.min(Math.abs(xs[i] - gx) / maxDist, 1);
+      const w = (1 - u * u * u) ** 3;
+      sumW += w; sumWY += w * ys[i];
+    }
+    trend.push({ x: gx, y: sumWY / sumW });
+  }
+  return trend;
 }
 
 function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
@@ -1573,7 +1598,7 @@ function renderSpreadCharts(bonds, tab) {
   const toPt = (b, key) => ({ x: b.maturityDate.getTime(), y: parseFloat(b[key].toFixed(4)) });
 
   const pushSeries = (arr, label, data, color, r) => {
-    if (data.length) arr.push({ label, data, color, r, trend: _movingAverageTrend(data) });
+    if (data.length) arr.push({ label, data, color, r, trend: _kernelAverageTrend(data) });
   };
 
   const yieldSeries = [], priceSeries = [];

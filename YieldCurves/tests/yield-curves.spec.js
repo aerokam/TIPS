@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 
 // ─── Shared fixture data ───────────────────────────────────────────────────────
 // Same CUSIPs across FedInvest + Fidelity so parseFidelityNominals accepts them.
@@ -150,10 +150,10 @@ test('tipsControls visible in TIPS yield mode', async ({ page }) => {
   await expect(page.locator('#tipsControls')).toBeVisible();
 });
 
-test('tipsControls visible in TIPS spread mode', async ({ page }) => {
+test('tipsControls hidden in TIPS spread mode', async ({ page }) => {
   await loadTips(page);
   await spreadBtn(page).click();
-  await expect(page.locator('#tipsControls')).toBeVisible();
+  await expect(page.locator('#tipsControls')).toBeHidden();
 });
 
 test('tipsControls hidden on Treasuries tab', async ({ page }) => {
