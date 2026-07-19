@@ -20,33 +20,35 @@ function makeFedOutlierCsv() {
   const rows = [
     SETTLE,
     'type,cusip,maturity,coupon,datedDateCpi,price,yield',
-    // 2 extreme-low notes (1.5%, 2.0%) — no Fidelity counterpart
-    'MARKET BASED NOTE,NLOW00001,2027-01-15,0.01500,,100.000,0.01500',
-    'MARKET BASED NOTE,NLOW00002,2028-01-15,0.02000,,100.000,0.02000',
+    // 2 extreme-low notes (1.5%, 2.0%) — no Fidelity counterpart. Note root
+    // (912828) with suffixes above the 000-029 range used by normal notes below.
+    'MARKET BASED NOTE,912828900,2027-01-15,0.01500,,100.000,0.01500',
+    'MARKET BASED NOTE,912828901,2028-01-15,0.02000,,100.000,0.02000',
     // 3 TIPS (needed for TIPS tab initial load)
     'TIPS,91282CCA7,2026-04-15,0.00125,262.25027,100.0625,0.000',
     'TIPS,912828S50,2026-07-15,0.00125,239.70132,101.4375,0.000',
     'TIPS,91282CDC2,2026-10-15,0.00125,273.25771,100.96875,0.000',
   ];
-  // 30 normal notes (4.00–4.58%) — CUSIPs match Fidelity below
+  // 30 normal notes (4.00–4.58%) — CUSIPs match Fidelity below. Note root (912828).
   for (let i = 0; i < 30; i++) {
     const y = (0.0400 + i * 0.0002).toFixed(5);
-    const cusip = `NORM${String(i).padStart(5, '0')}`;
+    const cusip = `912828${String(i).padStart(3, '0')}`;
     const matYear = 2029 + Math.floor(i / 2);
     const matMonth = i % 2 === 0 ? '01' : '07';
     rows.push(`MARKET BASED NOTE,${cusip},${matYear}-${matMonth}-15,${y},,100.000,${y}`);
   }
-  // 20 bonds (4.60–5.17%) — CUSIPs match Fidelity below
+  // 20 bonds (4.60–5.17%) — CUSIPs match Fidelity below. Bond root (912810).
   for (let i = 0; i < 20; i++) {
     const y = (0.0460 + i * 0.0003).toFixed(5);
-    const cusip = `BNDX${String(i).padStart(5, '0')}`;
+    const cusip = `912810${String(i).padStart(3, '0')}`;
     rows.push(`MARKET BASED BOND,${cusip},${2057 + i * 2}-01-15,${y},,100.000,${y}`);
   }
   return rows.join('\n');
 }
 
 // Fidelity yields must be in PERCENTAGE form (parseFidelityNominals divides by 100).
-// Description must contain "NOTE" (for notes) or no "BILL"/"NOTE" (for bonds → BDS).
+// Type is classified from the CUSIP root (912828/91282C = Note, 912810 = Bond, 912797 = Bill),
+// not from the description text — description here is just flavor text and isn't parsed.
 function makeFidCombinedCsv() {
   const HDR = 'Product,Description,Cusip|State,Coupon,Frequency,Maturity date,Call protected,'
     + "Moody's/S&P rating,Yield,Bid price/Quantity (min),Adjusted bid price,Inflation factor,"
@@ -58,7 +60,7 @@ function makeFidCombinedCsv() {
     const yPct   = (yDec * 100).toFixed(3);
     const bidPct = ((yDec + 0.0001) * 100).toFixed(3);
     const coupon = (yDec * 100).toFixed(3);
-    const cusip  = `NORM${String(i).padStart(5, '0')}`;
+    const cusip  = `912828${String(i).padStart(3, '0')}`;
     const yr     = 2029 + Math.floor(i / 2);
     const mo     = i % 2 === 0 ? '01' : '07';
     rows.push(`Treasury,"US TREAS NOTE ${yPct}% ${mo}/15/${yr}",${cusip},${coupon},semi-annually,${yr}-${mo}-15,Yes,AA1/ --,${bidPct},99.900/1000(1000),--,--,100.000/1000(1000),--,${yPct},--,${yPct},--,--,CP`);
@@ -68,7 +70,7 @@ function makeFidCombinedCsv() {
     const yPct   = (yDec * 100).toFixed(3);
     const bidPct = ((yDec + 0.0001) * 100).toFixed(3);
     const coupon = (yDec * 100).toFixed(3);
-    const cusip  = `BNDX${String(i).padStart(5, '0')}`;
+    const cusip  = `912810${String(i).padStart(3, '0')}`;
     const yr     = 2057 + i * 2;
     rows.push(`Treasury,"US TREAS BDS ${yPct}% 01/15/${yr}",${cusip},${coupon},semi-annually,${yr}-01-15,Yes,AA1/ --,${bidPct},99.900/1000(1000),--,--,100.000/1000(1000),--,${yPct},--,${yPct},--,--,CP`);
   }

@@ -6,6 +6,7 @@ import { localDate, toIsoDate, nextBusinessDay, parseHolidaySet } from '../../sh
 import { handleChartKeydown, setupAxisWheelZoom, snapYBounds, snapYAfterZoom } from '../../shared/src/chart-keys.js';
 import { initDatePicker } from '../../shared/src/date-picker.js';
 import { calendarTimeAxis } from '../../shared/src/chart-time-axis.js';
+import { classifyByCusipRoot, isStrip } from '../../shared/src/treasury-cusip.js';
 
 console.log("YieldCurves app.js loading...");
 
@@ -48,9 +49,10 @@ let spreadModeActive = false;
 const savedZoom = { tips: null, treasuries: null };
 const savedDateRange = { tips: null, treasuries: null };
 
-// CUSIP 6-char prefixes that identify STRIPS instruments
-const STRIPS_PREFIXES = new Set(['912803','912820','912821','912833','912834']);
-const isStrip = cusip => STRIPS_PREFIXES.has((cusip || '').slice(0, 6));
+// classifyByCusipRoot() returns 'Bill'/'Note'/'Bond'/'STRIPS'; map to the
+// app's internal type strings (which mirror FedInvest's own Type column).
+const CUSIP_TYPE_TO_MARKET_BASED = { Bill: 'MARKET BASED BILL', Note: 'MARKET BASED NOTE', Bond: 'MARKET BASED BOND', STRIPS: 'MARKET BASED STRIP' };
+
 let activeTab = 'tips';
 let nominalsTypeFilters = new Set(['MARKET BASED BILL', 'MARKET BASED NOTE', 'MARKET BASED BOND']);
 let nominalsSort = { col: 'maturity', dir: 'asc' };
@@ -583,13 +585,6 @@ function parseFidelityNominals(text) {
   const bonds = [];
   const seen = new Set();
 
-  // FedInvest's Type column (Bill/Note/Bond) is Treasury's own official
-  // classification — prefer it by CUSIP over guessing from Fidelity's free-text
-  // description, which drops all "NOTE"/"BILL" wording once a security is close
-  // to maturity (Fidelity renames it to "TREAS SER <code>-YYYY"), silently
-  // misclassifying near-maturity Notes as Bonds.
-  const fedTypeByCusip = new Map((rawNominalsData || []).map(r => [r.cusip, r.type]));
-
   for (const row of rows) {
     const n = {};
     for (const k in row) n[k.toLowerCase().trim()] = row[k];
@@ -606,7 +601,8 @@ function parseFidelityNominals(text) {
     // Old-format fallback: reject anything FedInvest knows as TIPS
     if (rawYieldsData.some(r => r.cusip === cusip) || /\bTIPS\b/.test(desc)) continue;
 
-    const isActuallyStrip = isStrip(cusip);
+    const cusipType = classifyByCusipRoot(cusip);
+    if (!cusipType) { console.warn(`Unrecognized CUSIP root, skipping: ${cusip}`); continue; }
 
     const matStr    = clean(n['maturity date']);
     const maturity  = fidParseMaturity(matStr);
@@ -622,11 +618,7 @@ function parseFidelityNominals(text) {
     const yld = parseFloat(yldStr) / 100;
     if (!maturityDate || isNaN(yld)) continue;
 
-    let type = fedTypeByCusip.get(cusip)
-             || (/BILL/.test(desc) ? 'MARKET BASED BILL'
-             : /\bNOTE\b/.test(desc) ? 'MARKET BASED NOTE'
-             : 'MARKET BASED BOND');
-    if (isActuallyStrip) type = 'MARKET BASED STRIP';
+    const type = CUSIP_TYPE_TO_MARKET_BASED[cusipType];
 
     seen.add(cusip);
     bonds.push({
