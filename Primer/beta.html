@@ -4,29 +4,34 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Treasury Securities Primer (Beta)</title>
-<link rel="stylesheet" href="../shared/src/portal-theme.css">
 <style>
   /* Renders knowledge/1.0_Primer.md (single source of truth) — no primer content lives in this file. */
-  body { max-width: 860px; margin: 0 auto; padding: 24px 28px 60px; font-size: 17px; line-height: 1.65; color: var(--portal-text-main, #1e293b); background: var(--portal-bg, #f8fafc); }
+  /* Dark palette matches Primer/index.html (the deck app this page links onward to). */
+  body { max-width: 860px; margin: 0 auto; padding: 24px 28px 60px; font-size: 17px; line-height: 1.65; color: #e2e8f0; background: #0f172a; font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
   header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
-  header h1 { font-size: 26px; margin: 0; }
-  .beta-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; padding: 2px 8px; }
-  .beta-note { font-size: 13px; color: var(--portal-text-muted, #64748b); margin: 4px 0 28px; }
-  #content h2 { font-size: 22px; margin: 2em 0 0.6em; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3em; }
-  #content h3 { font-size: 22px; margin: 2em 0 0.6em; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3em; }
+  header h1 { font-size: 26px; margin: 0; color: #e2e8f0; }
+  .portal-link { font-size: 12px; font-weight: 700; color: #94a3b8; background: #1e293b; border: 1px solid #334155; border-radius: 6px; padding: 6px 14px; text-decoration: none; letter-spacing: 0.02em; }
+  .portal-link:hover { background: #e2e8f0; color: #0f172a; border-color: #e2e8f0; }
+  .beta-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #1c1408; background: #f59e0b; border: 1px solid #d97706; border-radius: 4px; padding: 2px 8px; }
+  .beta-note { font-size: 13px; color: #94a3b8; margin: 4px 0 28px; }
+  #content h2 { font-size: 22px; margin: 2.2em 0 0.7em; border-bottom: 2px solid #334155; padding-bottom: 0.4em; color: #e2e8f0; }
+  #content h2:first-child { margin-top: 0; }
   #content p { margin: 1em 0; }
-  #content blockquote { border-left: 4px solid #cbd5e1; margin: 1.2em 0; padding: 0.4em 1.2em; color: #475569; background: #f1f5f9; border-radius: 0 6px 6px 0; }
-  #content table { border-collapse: collapse; margin: 1.2em 0; font-size: 15px; }
-  #content th { background: #1e293b; color: #fff; font-weight: 600; text-align: left; padding: 8px 14px; }
-  #content td { padding: 7px 14px; border-bottom: 1px solid #e2e8f0; }
-  #content tr:nth-child(even) td { background: #f8fafc; }
-  #content code { background: #eef2f7; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
-  #content a { color: #1a56db; }
-  .error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; }
-  .legacy-note { margin: 3em 0 1em; padding: 18px 22px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; color: #78350f; font-size: 14px; line-height: 1.6; }
-  .legacy-note h2 { margin: 0 0 0.5em; font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em; border: none; padding: 0; }
+  #content blockquote { border-left: 4px solid #475569; margin: 1.2em 0; padding: 0.4em 1.2em; color: #cbd5e1; background: #1e293b; border-radius: 0 6px 6px 0; }
+  #content table { border-collapse: collapse; margin: 1.2em 0; font-size: 15px; width: 100%; }
+  #content th { background: #1e293b; color: #e2e8f0; font-weight: 600; text-align: left; padding: 8px 14px; border: 1px solid #334155; }
+  #content td { padding: 7px 14px; border: 1px solid #334155; }
+  #content tr:nth-child(even) td { background: #16213a; }
+  #content code { background: #1e293b; color: #e2e8f0; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  #content ul { padding-left: 1.4em; }
+  #content li { margin: 0.4em 0; }
+  #content a { color: #38bdf8; }
+  #content a:hover { color: #f59e0b; }
+  .error { color: #fca5a5; background: #3f1d1d; border: 1px solid #7f1d1d; border-radius: 6px; padding: 16px; }
+  .legacy-note { margin: 3em 0 1em; padding: 18px 22px; background: #1c1408; border: 1px solid #7a5b12; border-radius: 8px; color: #facc78; font-size: 14px; line-height: 1.6; }
+  .legacy-note h2 { margin: 0 0 0.5em; font-size: 15px; text-transform: uppercase; letter-spacing: 0.04em; border: none; padding: 0; color: #facc78; }
   .legacy-note p { margin: 0.6em 0; }
-  .legacy-note a { color: #92400e; font-weight: 700; }
+  .legacy-note a { color: #38bdf8; font-weight: 700; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -54,15 +59,34 @@
     if (!resp.ok) throw new Error(`Failed to load primer content: ${resp.statusText}`);
     const md = await resp.text();
 
-    // Reader-facing slice: from "## Purpose" up to the "### Remaining chapters" working notes.
-    const start = md.indexOf('## Purpose');
-    let end = md.indexOf('### Remaining chapters');
+    // Reader-facing slice: whole file (title, TOC, Purpose, chapters) up to the
+    // "## Remaining chapters" working notes, which stay engineering-only.
+    let end = md.indexOf('## Remaining chapters');
     if (end === -1) end = md.indexOf('## Dependencies');
-    if (start === -1) throw new Error('Primer content markers not found');
-    let body = md.slice(start, end === -1 ? undefined : end);
-    body = body.replace(/^## Content\s*$/m, '');
+    let body = md.slice(0, end === -1 ? undefined : end);
+    body = body.replace(/^# .*(\r?\n)+/, ''); // drop the file's own H1 - the header above already has one
 
     contentEl.innerHTML = marked.parse(body);
+
+    // marked doesn't add heading ids by default; assign them so the Table of
+    // Contents links (written as GitHub-style slugs) resolve to something.
+    contentEl.querySelectorAll('h2, h3').forEach(h => {
+      h.id = h.textContent.toLowerCase().replace(/[^a-z0-9 _-]/g, '').trim().replace(/\s+/g, '-');
+    });
+
+    // The Table of Contents also links to engineering sections that this
+    // reader-facing slice deliberately excludes; drop those entries so the
+    // TOC only lists what's actually on this page.
+    const tocHeading = Array.from(contentEl.querySelectorAll('h2')).find(h => h.textContent.trim() === 'Table of Contents');
+    const tocList = tocHeading && tocHeading.nextElementSibling;
+    if (tocList && tocList.tagName === 'UL') {
+      tocList.querySelectorAll('a[href^="#"]').forEach(a => {
+        const id = a.getAttribute('href').slice(1);
+        if (!contentEl.querySelector('#' + CSS.escape(id))) {
+          a.closest('li')?.remove();
+        }
+      });
+    }
   } catch (err) {
     contentEl.innerHTML = `<div class="error">Error loading the primer: ${err.message}</div>`;
   }
