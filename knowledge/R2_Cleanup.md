@@ -11,7 +11,7 @@ Audit run 2026-04-30. Cleanup executed 2026-05-21.
 | Prefix | Files |
 |--------|-------|
 | `TIPS/` | `RefCPI.csv`, `TipsRef.csv`, `RefCpiNsaSa.csv`, `tentative_tips.json`, `Tentative-Auction-Schedule.xml`, `YieldsSaSao.csv` |
-| `Treasuries/` | `YieldsFromFedInvestPrices.csv`, `Auctions.csv`, `FidelityTips.csv`, `FidelityTreasuries.csv`, `yield-history/*.json` (14 files) |
+| `Treasuries/` | `YieldsFromFedInvestPrices.csv`, `Auctions.csv`, `FidelityTreasuriesTips.csv`, `yield-history/*.json` (14 files) |
 | `bls/` | `CPI.csv`, `CPI_history.csv`, `CpiReleaseSchedule2025.csv`, `CpiReleaseSchedule2026.csv` |
 | `misc/` | `BondHolidaysSifma.csv` |
 | `schwab/` | `SchwabHoldings-SCHP.csv` (written by external ScrapeSchwabHoldings project) |
@@ -74,3 +74,34 @@ its progress via `console.error`, and `run-fidelity.cmd`'s `2>&1` pipe makes Pow
 wrap any native stderr as a `NativeCommandError` and flip the exit code. Progress logging
 was moved to `console.log` (stdout); `console.error` + `exit(1)` is now reserved for real
 failures only.
+
+---
+
+## Correction (2026-07-19)
+
+`fidelityDownload.js` was changed (~2026-06-23) to download one combined
+`FidelityTreasuriesTips.csv` (Treasury + TIPS rows in a single export, split by a
+`Product` column) instead of two separate files, and `uploadFidelityDownload.js` was
+updated to upload only the combined file to `Treasuries/FidelityTreasuriesTips.csv`.
+The old R2 keys `Treasuries/FidelityTreasuries.csv` and `Treasuries/FidelityTips.csv`
+stopped being written at that point, but several consumers kept reading them directly
+and were never repointed at the combined file:
+
+- **Admin Dashboard** (`Dashboard/server.js`, `Dashboard/index.html`) — two pipeline
+  rows/nodes (`broker-nominals`/`S7a`, `broker-tips`/`S7b`) monitored the dead keys, so
+  the dashboard silently showed ~1-month-stale data instead of flagging staleness (the
+  keys still existed in R2 from before the cutover, just frozen). Consolidated to one
+  `broker-quotes`/`S7` pipeline pointing at `Treasuries/FidelityTreasuriesTips.csv`.
+- **FundHoldings** (`FundHoldings/enrichHoldings.js`) — fetched
+  `Treasuries/FidelityTreasuries.csv` directly for nominal Ask Yield/Coupon enrichment,
+  so nominal fund holdings (e.g. VBIL) were enriched from a frozen June 23 snapshot for
+  about a month. Repointed at the combined file, filtering to non-TIPS rows by `Product`.
+
+`YieldCurves/src/app.js` itself was already reading the combined file correctly — it was
+not affected.
+
+**Old keys to delete** (superseded, no longer written by any script):
+- `Treasuries/FidelityTreasuries.csv`
+- `Treasuries/FidelityTips.csv`
+
+See [DataStores.md#s7](./DataStores.md#s7) and [DATA_DICTIONARY.md#s7](./DATA_DICTIONARY.md#s7) for the current combined-file schema.

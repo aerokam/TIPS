@@ -7,18 +7,19 @@ Public pipeline architecture is in `knowledge/Data_Pipeline.md`.
 
 ## Automated Broker Download Pipeline (LOCAL MACHINE ONLY)
 
-**Script:** `YieldCurves/scripts/fidelityDownload.js` (gitignored)
+**Script:** `YieldCurves/scripts/fidelityDownload.js` (tracked in git — not gitignored; credentials live in `.env`, which is gitignored)
 
 ### How it works
+- Skips the run on weekends and SIFMA bond market holidays (checked against `misc/BondHolidaysSifma.csv`)
 - Spawns real `chrome.exe` with `--remote-debugging-port=9222` and a dedicated Chrome profile at `YieldCurves/.chrome-profile/`
 - Connects Playwright via CDP (`chromium.connectOverCDP`) — no Playwright/Chromium automation flags, bypasses Fidelity bot detection
 - Navigates to Fidelity signin; if session active, skips login
 - If login needed: fills `#dom-username-input` / `#dom-pswd-input`, clicks `#dom-login-button`
-- MFA: handled manually in the headed browser window; script waits up to 5 min
-- Navigates to Treasuries and TIPS search URLs, grabs `a[href*="CSVDOWNLOAD"]` href
-- Downloads CSVs via `fetch` with session cookies (more reliable than Playwright download events over CDP)
-- Saves to `~/Downloads/FidelityTreasuries.csv` and `FidelityTips.csv`
-- Spawns `uploadFidelityDownload.js` to push both files to R2
+- MFA: switches the Okta-style challenge to SMS ("Try another way" → "Text me the code"), reads the OTP from Phone Link (paired to the account owner's phone) via Windows UI Automation (`readPhoneLinkOtp.ps1`), submits it. Falls back to a 5-minute manual wait (dumping page state to `logs/mfa-debug/`) if the automated flow doesn't match what's on screen.
+- Navigates to the Fixed Income secondary market page, opens the **Product type** filter, checks **Treasury** + **TIPS**, clicks **Apply**
+- Opens the three-dot menu → **Download Offerings** (Playwright intercepts the browser download event)
+- Saves the single combined file to `~/Downloads/FidelityTreasuriesTips.csv`
+- Spawns `uploadFidelityDownload.js` to push it to R2, which in turn triggers `updateSaSaoYields.js` to refresh `TIPS/YieldsSaSao.csv`
 
 ### Why CDP (not Playwright launch)
 - `launchPersistentContext` (Chromium or real Chrome) sets `navigator.webdriver = true` — Fidelity detects and blocks

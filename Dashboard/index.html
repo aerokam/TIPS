@@ -221,7 +221,7 @@ const NODES = [
    reads:['E5','S6'],writes:['S6']},
   {id:'P7',type:'process',label:'fidelityDownload',short:'Fidelity\nDL', sub:'P7',cx:265,cy:690,
    script:'YieldCurves/scripts/fidelityDownload.js',localJobId:'fidelity-download',
-   reads:['E6'],writes:['S7a','S7b']},
+   reads:['E6'],writes:['S7']},
   {id:'P8',type:'process',label:'updateHolidaysSifma',short:'Bond\nHolidays',sub:'P8',cx:265,cy:815,
    script:'BondHolidays/updateHolidaysSifma.js',localJobId:'bond-holidays-update',
    reads:['E7'],writes:['S8']},
@@ -254,14 +254,10 @@ const NODES = [
    r2Key:'Treasuries/yields-history/history.json',
    schema:'{Symbol + [{Timestamp + Yield_Value}]}',
    r2Note:'14 symbol files; US10Y shown as representative'},
-  {id:'S7a',type:'store',label:'FidelityTreasuries',sub:'S7a',cx:468,cy:660,
-   r2Key:'Treasuries/FidelityTreasuries.csv',
-   schema:'{CUSIP + Maturity + Coupon + Ask_Price + Bid_Price + Ask_Yield + Bid_Yield}',
-   r2Note:'Nominal Treasuries broker quotes (bills, notes, bonds, STRIPS)'},
-  {id:'S7b',type:'store',label:'FidelityTips',   sub:'S7b',cx:468,cy:725,
-   r2Key:'Treasuries/FidelityTips.csv',
-   schema:'{CUSIP + Maturity + Coupon + Ask_Price + Bid_Price + Ask_Yield + Bid_Yield}',
-   r2Note:'TIPS broker quotes (all maturities)'},
+  {id:'S7',type:'store',label:'FidelityTreasuriesTips',sub:'S7',cx:468,cy:690,
+   r2Key:'Treasuries/FidelityTreasuriesTips.csv',
+   schema:'{Product + CUSIP + Maturity + Coupon + Ask_Price + Bid_Price + Ask_Yield + Bid_Yield}',
+   r2Note:'Combined Treasury + TIPS broker quotes; Product column distinguishes rows (bills, notes, bonds, STRIPS, TIPS)'},
   {id:'S8',type:'store',label:'BondHolidaysSifma',sub:'S8',cx:468,cy:815,
    r2Key:'misc/BondHolidaysSifma.csv',
    schema:'{Date + Holiday_Name}',
@@ -303,8 +299,7 @@ const EDGES = [
   {id:'eP4S4',from:'P4',to:'S4',style:'solid',  desc:'Writes RefCpiNsaSa.csv'},
   {id:'eP5S5',from:'P5',to:'S5',style:'solid',  desc:'Writes Auctions.csv'},
   {id:'eP6S6',from:'P6',to:'S6',style:'solid',  desc:'Refreshes yields-history/'},
-  {id:'eP7S7a',from:'P7',to:'S7a',style:'solid', desc:'Writes FidelityTreasuries.csv'},
-  {id:'eP7S7b',from:'P7',to:'S7b',style:'solid', desc:'Writes FidelityTips.csv'},
+  {id:'eP7S7',from:'P7',to:'S7',style:'solid', desc:'Writes FidelityTreasuriesTips.csv'},
   {id:'eP8S8', from:'P8',to:'S8', style:'solid', desc:'Writes BondHolidaysSifma.csv'},
   {id:'eP9S9',from:'P9',to:'S9',style:'solid',  desc:'Writes tentative_tips.json'},
   // S \u2192 A consumption (solid)
@@ -313,8 +308,7 @@ const EDGES = [
   {id:'eS2A2',from:'S2',to:'A2',style:'solid',  desc:'TipsRef.csv \u2192 coupon + dated-date lookups'},
   {id:'eS3A2',from:'S3',to:'A2',style:'solid',  desc:'RefCPI.csv \u2192 index ratio calculations'},
   {id:'eS4A1',from:'S4',to:'A1',style:'solid',  desc:'RefCpiNsaSa.csv \u2192 CPI seasonal adjustment overlay'},
-  {id:'eS7aA1',from:'S7a',to:'A1',style:'solid', desc:'FidelityTreasuries.csv \u2192 Market tab (nominals)'},
-  {id:'eS7bA1',from:'S7b',to:'A1',style:'solid', desc:'FidelityTips.csv \u2192 Market tab (TIPS)'},
+  {id:'eS7A1',from:'S7',to:'A1',style:'solid', desc:'FidelityTreasuriesTips.csv \u2192 Market tab (nominals + TIPS)'},
   {id:'eS8A1', from:'S8', to:'A1',style:'dashed',desc:'BondHolidaysSifma.csv \u2192 business-day calculations in YieldCurves'},
   {id:'eS5A4',from:'S5',to:'A4',style:'solid',  desc:'Auctions.csv \u2192 all auction tabs'},
   {id:'eS9A4',from:'S9',to:'A4',style:'solid',  desc:'tentative_tips.json \u2192 TIPS identification in Upcoming'},
@@ -325,7 +319,7 @@ const EDGES = [
 ];
 
 // \u2500\u2500 Mappings for status overlay \u2500\u2500
-const R2_TO_NODE  = {'Treasuries/YieldsFromFedInvestPrices.csv':'S1','TIPS/RefCPI.csv':'S3','Treasuries/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yields-history/history.json':'S6','Treasuries/FidelityTreasuries.csv':'S7a','Treasuries/FidelityTips.csv':'S7b','misc/BondHolidaysSifma.csv':'S8','TIPS/tentative_tips.json':'S9'};
+const R2_TO_NODE  = {'Treasuries/YieldsFromFedInvestPrices.csv':'S1','TIPS/RefCPI.csv':'S3','Treasuries/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yields-history/history.json':'S6','Treasuries/FidelityTreasuriesTips.csv':'S7','misc/BondHolidaysSifma.csv':'S8','TIPS/tentative_tips.json':'S9'};
 const APPID_TO_NODE = {'yieldcurves':'A1','tipsladder':'A2','auctions':'A4','yieldsmonitor':'A3'};
 
 const nodeMap = Object.fromEntries(NODES.map(n=>[n.id,n]));
@@ -392,13 +386,9 @@ function edgePath(edge){
     // live fetch: E3(82,385) \u2192 A4(672,480): arc below all nodes
     return `M 82,403 C 200,865 560,865 639,495`;
   }
-  if(edge.id==='eS7aA1'){
-    // FidelityTreasuries(468,660) \u2192 A1(672,175): arc up right side
-    return `M 514,650 C 620,480 650,280 639,205`;
-  }
-  if(edge.id==='eS7bA1'){
-    // FidelityTips(468,725) \u2192 A1(672,175): arc up right side
-    return `M 514,715 C 630,500 655,285 639,205`;
+  if(edge.id==='eS7A1'){
+    // FidelityTreasuriesTips(468,690) \u2192 A1(672,175): arc up right side
+    return `M 514,680 C 625,485 650,282 639,205`;
   }
   if(edge.id==='eS8A1'){
     // BondHolidaysSifma(468,815) \u2192 A1(672,175): arc up right side

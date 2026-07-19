@@ -33,7 +33,7 @@ External Sources (E)  →  Ingestion Jobs (P)  →  Cloudflare R2 (S)  →  Brow
 
 All apps fetch data directly from Cloudflare R2 at runtime using public HTTPS URLs. No server-side rendering; no authentication.
 
-**Exception**: Fund Holdings (A9) does not fit this pipeline for its primary data. Its raw holdings feed (E7/E8) is fetched by a manually-run script and committed to the repo directly (not R2, not a scheduled ingestion job) — see [FundHoldings/knowledge/1.0_FundHoldings.md](../FundHoldings/knowledge/1.0_FundHoldings.md). It does still read Cloudflare R2 (S10, S7b) for yield enrichment, same as any other app.
+**Exception**: Fund Holdings (A9) does not fit this pipeline for its primary data. Its raw holdings feed (E7/E8) is fetched by a manually-run script and committed to the repo directly (not R2, not a scheduled ingestion job) — see [FundHoldings/knowledge/1.0_FundHoldings.md](../FundHoldings/knowledge/1.0_FundHoldings.md). It does still read Cloudflare R2 (S10, S7) for yield enrichment, same as any other app.
 
 ---
 
@@ -47,7 +47,7 @@ All apps fetch data directly from Cloudflare R2 at runtime using public HTTPS UR
 | [S4](./DataStores.md#s4) | RefCpiNsaSa.csv | A2 (SA factor computation) |
 | [S5](./DataStores.md#s5) | Auctions.csv | A4 (historical auction data) |
 | [S6](./DataStores.md#s6) | YieldHistory/ | A3 (historical yield time series) |
-| [S7a/b](./DataStores.md#s7a) | FidelityQuotes | A2 (broker bid/ask quotes), A9 (nominal fund holdings enrichment) |
+| [S7](./DataStores.md#s7) | FidelityTreasuriesTips.csv | A2 (broker bid/ask quotes), A9 (nominal fund holdings enrichment) |
 | [S8](./DataStores.md#s8) | CPI_history.csv | A5 (full monthly CPI history 1913+) |
 | [S9](./DataStores.md#s9) | tentative_tips.json | A4 (flag TIPS in upcoming auctions) |
 | [S10](./DataStores.md#s10) | YieldsSaSao.csv | A9 (TIPS fund holdings enrichment) |

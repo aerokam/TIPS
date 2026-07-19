@@ -95,13 +95,13 @@ This document provides the technical schemas and field-level specifications for 
 
 ---
 
-## <a id="s7"></a>S7: FidelityQuotes
-**Description**: Broker market quotes from Fidelity.
+## <a id="s7"></a>S7: FidelityTreasuriesTips.csv
+**Description**: Combined broker market quotes from Fidelity — Treasury and TIPS rows in one file, distinguished by the `Product` column (`Treasury` / `TIPS`).
 **Update Frequency**: 3× Daily (Local Windows Task).
 
-**Fields**: `CUSIP`, `Maturity`, `Coupon`, `Ask_Price`, `Bid_Price`, `Ask_Yield`, `Bid_Yield`.
+**Fields**: `Product`, `CUSIP`, `Maturity`, `Coupon`, `Ask_Price`, `Bid_Price`, `Ask_Yield`, `Bid_Yield`.
 
-**Live Sample**: [View FidelityTreasuries.csv](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/FidelityTreasuries.csv)
+**Live Sample**: [View FidelityTreasuriesTips.csv](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/FidelityTreasuriesTips.csv)
 
 ---
 

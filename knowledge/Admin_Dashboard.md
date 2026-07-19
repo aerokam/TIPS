@@ -72,8 +72,7 @@ Each app has a set of named pipelines. The server's `APP_CONFIGS` is the authori
 | Pipeline label | R2 file | Local job | Feeds |
 |---|---|---|---|
 | FedInvest daily prices | `YieldsFromFedInvestPrices.csv` | FedInvest Download | All yield curves |
-| Broker quotes — Treasuries | `FidelityTreasuries.csv` | Fidelity Download + Upload to R2 | Market tab (nominals) |
-| Broker quotes — TIPS | `FidelityTips.csv` | Fidelity Download + Upload to R2 | Market tab (TIPS) |
+| Broker quotes — Treasury + TIPS | `FidelityTreasuriesTips.csv` | Fidelity Download + Upload to R2 | Market tab (nominals + TIPS) |
 | CPI seasonal adjustment factors | `RefCpiNsaSa.csv` | SA Factor Update | CPI overlay |
 | SIFMA bond market holidays | `misc/BondHolidaysSifma.csv` | *(Manual Upload)* | Business-day calculations |
 

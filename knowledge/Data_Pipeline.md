@@ -29,7 +29,7 @@ These jobs run on the host machine via Windows Task Scheduler.
 | Task Name | Schedule | Script | Primary Output |
 |---|---|---|---|
 | **FedInvest Download** | Weekdays 1:05pm ET | `scripts/getYieldsFedInvest.js` | `YieldsFromFedInvestPrices.csv` |
-| **Fidelity Quotes** | 3× Daily | *(Windows Task)* | `FidelityTreasuries.csv` |
+| **Fidelity Quotes** | 3× Daily | *(Windows Task)* | `FidelityTreasuriesTips.csv` (combined Treasury + TIPS) |
 | **Auction Refresh** | Weekdays 8:05/10:35am PT | `scripts/getAuctions.js` | `Auctions.csv` |
 | **TIPS Ref Refresh** | Mondays 7am PT | `scripts/fetchTipsRef.js` | `TipsRef.csv` |
 | **Update Yields History** | Weekdays 2:00pm PT | `YieldsMonitor/scripts/updateYieldsHistory.js` | `yields-history/history.json` |

@@ -1,4 +1,4 @@
-﻿import express from 'express';
+import express from 'express';
 import { spawn, execSync } from 'child_process';
 import { existsSync, readFileSync } from 'fs';
 import { resolve, dirname, join, relative, isAbsolute } from 'path';
@@ -61,22 +61,14 @@ const APP_CONFIGS = [
         weekdayOnly: true,
       },
       {
-        id: 'broker-nominals',
-        label: 'Broker quotes — Treasuries',
-        feeds: 'Market tab (nominals)',
-        r2Key: 'Treasuries/FidelityTreasuries.csv',
+        id: 'broker-quotes',
+        label: 'Broker quotes — Treasury + TIPS',
+        feeds: 'Market tab (nominals + TIPS)',
+        r2Key: 'Treasuries/FidelityTreasuriesTips.csv',
         localJobIds: ['fidelity-download', 'upload-fidelity'],
         stalenessHours: 24,
         weekdayOnly: true,
-      },
-      {
-        id: 'broker-tips',
-        label: 'Broker quotes — TIPS',
-        feeds: 'Market tab (TIPS)',
-        r2Key: 'Treasuries/FidelityTips.csv',
-        localJobIds: ['fidelity-download', 'upload-fidelity'],
-        stalenessHours: 24,
-        weekdayOnly: true,
+        r2Note: 'Combined file — Treasury and TIPS rows distinguished by the Product column',
       },
       {
         id: 'cpi-seasonal',

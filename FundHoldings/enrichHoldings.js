@@ -9,7 +9,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "data");
 
 const YIELDS_SA_SAO_URL = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/YieldsSaSao.csv";
-const FIDELITY_TREASURIES_URL = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/FidelityTreasuries.csv";
+const FIDELITY_URL = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/FidelityTreasuriesTips.csv";
 
 async function fetchCsv(url) {
   const res = await fetch(url);
@@ -23,13 +23,16 @@ function parseDate(isoDate) {
 }
 
 async function loadYieldSources() {
-  const [tipsRows, nominalRows] = await Promise.all([
+  const [tipsRows, fidRows] = await Promise.all([
     fetchCsv(YIELDS_SA_SAO_URL),
-    fetchCsv(FIDELITY_TREASURIES_URL)
+    fetchCsv(FIDELITY_URL)
   ]);
 
   const tipsByCusip = new Map(tipsRows.map(r => [r.cusip, r]));
-  const nominalByCusip = new Map(nominalRows.map(r => [r.Cusip, r]));
+  // FIDELITY_URL is a combined file (Treasury + TIPS rows); nominals are the non-TIPS rows.
+  const nominalByCusip = new Map(
+    fidRows.filter(r => (r.Product || "").toLowerCase() !== "tips").map(r => [r.Cusip, r])
+  );
   return { tipsByCusip, nominalByCusip };
 }
 
@@ -75,7 +78,7 @@ function enrichRow(row, settle, { tipsByCusip, nominalByCusip }) {
     enriched["SA Yield"] = Number(tips.sa_yield);
     enriched["SAO Yield"] = Number(tips.sao_yield);
   } else if (nominal) {
-    askYield = Number(nominal["Ask Yield to Maturity"]) / 100;
+    askYield = Number(nominal["Ask yield to maturity"]) / 100;
     coupon = Number(nominal.Coupon) / 100;
     enriched["Ask Yield"] = askYield;
   }
