@@ -583,6 +583,13 @@ function parseFidelityNominals(text) {
   const bonds = [];
   const seen = new Set();
 
+  // FedInvest's Type column (Bill/Note/Bond) is Treasury's own official
+  // classification — prefer it by CUSIP over guessing from Fidelity's free-text
+  // description, which drops all "NOTE"/"BILL" wording once a security is close
+  // to maturity (Fidelity renames it to "TREAS SER <code>-YYYY"), silently
+  // misclassifying near-maturity Notes as Bonds.
+  const fedTypeByCusip = new Map((rawNominalsData || []).map(r => [r.cusip, r.type]));
+
   for (const row of rows) {
     const n = {};
     for (const k in row) n[k.toLowerCase().trim()] = row[k];
@@ -615,9 +622,10 @@ function parseFidelityNominals(text) {
     const yld = parseFloat(yldStr) / 100;
     if (!maturityDate || isNaN(yld)) continue;
 
-    let type = /BILL/.test(desc) ? 'MARKET BASED BILL'
+    let type = fedTypeByCusip.get(cusip)
+             || (/BILL/.test(desc) ? 'MARKET BASED BILL'
              : /\bNOTE\b/.test(desc) ? 'MARKET BASED NOTE'
-             : 'MARKET BASED BOND';
+             : 'MARKET BASED BOND');
     if (isActuallyStrip) type = 'MARKET BASED STRIP';
 
     seen.add(cusip);
