@@ -1,4 +1,4 @@
-// broker-import.js -- Parses broker export CSVs (Fidelity, Schwab)
+// broker-import.js -- Parses broker export CSVs (Fidelity, Schwab, Vanguard)
 // Extracts TIPS holdings and aggregates them into a single list.
 
 function parseCSVLine(str) {
