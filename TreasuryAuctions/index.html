@@ -53,7 +53,6 @@
 
   #row-count { font-size: 11px; color: var(--tab-inactive-text); white-space: nowrap; flex-shrink: 0; padding: 0 12px 5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; align-self: center; }
 
-  .tab-toolbar { padding: 6px 12px; border-bottom: 1px solid #f1f5f9; background: #fff; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
   /* ── Table ── */
   .table-wrap { overflow: auto; flex: 1; min-height: 0; position: relative; background: #fff; }
@@ -123,6 +122,28 @@
   .filter-input { display: block; width: 100%; padding: 2px 5px; font-size: 11px; border: 1px solid var(--border-light); border-radius: 3px; outline: none; background: #fff; min-width: 0; }
   .filter-input:focus { border-color: #1a56db; }
   .filter-input.active { border-color: #f59e0b; background: #fffbeb; }
+  .filter-input.has-range { padding-right: 20px; }
+
+  /* ── Per-column date range toggle + popover ── */
+  .filter-cell { position: relative; }
+  .range-toggle {
+    position: absolute; right: 1px; top: 1px;
+    width: 17px; height: 17px; line-height: 15px; font-size: 12px; text-align: center;
+    border: 1px solid var(--border-light); border-radius: 3px; cursor: pointer;
+    background: #fff; color: var(--portal-text-muted); padding: 0;
+  }
+  .range-toggle:hover { border-color: #1a56db; color: #1a56db; }
+  .range-toggle.active { border-color: #f59e0b; background: #fffbeb; color: #f59e0b; }
+  .range-popover {
+    position: fixed; z-index: 100; background: #fff; border: 1px solid var(--border-light);
+    border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); padding: 10px;
+    display: none; flex-direction: column; gap: 6px; font-size: 11px; min-width: 170px;
+  }
+  .range-popover.open { display: flex; }
+  .range-popover .range-title { font-weight: 700; color: var(--portal-text-main); margin-bottom: 2px; }
+  .range-popover label { display: flex; flex-direction: column; gap: 2px; font-weight: 600; color: #64748b; }
+  .range-popover input[type="date"] { font-size: 11px; padding: 3px 4px; }
+  .range-popover .range-actions { display: flex; justify-content: space-between; gap: 6px; margin-top: 4px; }
 
   /* ── Sidebar Drag and Drop ── */
   .col-item { cursor: move; user-select: none; overflow: hidden; }
@@ -230,20 +251,21 @@
         <div class="tab-content">
           <!-- Historical Tab -->
           <div id="tab-historical" class="tab-pane active">
-            <div class="tab-toolbar">
-              <div id="date-range" style="display:flex;align-items:center;gap:6px;">
-                <label style="font-size:11px;color:#64748b;font-weight:600;">From</label>
-                <input type="date" id="dateFrom" class="date-picker">
-                <label style="font-size:11px;color:#64748b;font-weight:600;">To</label>
-                <input type="date" id="dateTo" class="date-picker">
-                <button id="clearDateBtn" style="font-size:11px;padding:1px 6px;border:1px solid #cbd5e1;border-radius:4px;background:#fff;cursor:pointer;color:#475569;">✕</button>
-              </div>
-            </div>
             <div class="table-wrap" id="tableWrap">
               <table id="mainTable">
                 <thead id="mainThead"></thead>
                 <tbody id="mainTbody"></tbody>
               </table>
+            </div>
+          </div>
+
+          <div class="range-popover" id="rangePopover">
+            <div class="range-title" id="rangePopoverTitle"></div>
+            <label>From <input type="date" id="rangeFrom" class="date-picker"></label>
+            <label>To <input type="date" id="rangeTo" class="date-picker"></label>
+            <div class="range-actions">
+              <button class="btn btn-sm" id="rangeClearBtn" type="button" style="background:var(--portal-text-muted);">Clear</button>
+              <button class="btn btn-sm" id="rangeDoneBtn" type="button">Done</button>
             </div>
           </div>
 

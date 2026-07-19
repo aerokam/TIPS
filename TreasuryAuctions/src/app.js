@@ -1,5 +1,7 @@
 // Treasury Auctions - app.js
 
+import { initDatePicker } from '../../shared/src/date-picker.js';
+
 const R2_CSV_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/Auctions.csv';
 const TENTATIVE_TIPS_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json';
 const TENTATIVE_XML_URL = 'https://home.treasury.gov/system/files/221/Tentative-Auction-Schedule.xml';
@@ -156,8 +158,8 @@ let activeView = 'all';
 let sortCol = null;
 let sortAsc = false;
 let filters = {};              // field -> filter string
-let dateFrom = '';
-let dateTo = '';
+let dateRanges = {};           // field -> { from, to } (ISO yyyy-mm-dd), any date field
+let rangePopoverField = null;  // field the range popover is currently open for, or null
 let tentativeAuctions = [];    // Parsed from Treasury's Tentative Auction Schedule XML
 let tentSortCol = null;
 let tentSortAsc = true;
@@ -252,9 +254,11 @@ function getActiveRows() {
   const filter = VIEW_FILTER[activeView];
   let rows = filter ? allData.filter(filter) : allData;
 
-  // Apply date range filter on auction_date
-  if (dateFrom) rows = rows.filter(r => r.auction_date >= dateFrom);
-  if (dateTo)   rows = rows.filter(r => r.auction_date <= dateTo);
+  // Apply per-field date range filters (from range popovers)
+  Object.entries(dateRanges).forEach(([f, r]) => {
+    if (r.from) rows = rows.filter(row => (row[f] || '') >= r.from);
+    if (r.to)   rows = rows.filter(row => (row[f] || '') <= r.to);
+  });
 
   // Apply column filters
   const activeFilters = Object.entries(filters).filter(([, v]) => v.trim());
@@ -328,9 +332,10 @@ function getActiveRows() {
     });
   }
 
-  // Pagination: cap at ROW_LIMIT unless TIPS view or date range is active
+  // Pagination: cap at ROW_LIMIT unless TIPS view or a date range is active
   const totalRows = rows.length;
-  const capped = activeView !== 'tips' && !dateFrom && !dateTo;
+  const anyRangeActive = Object.values(dateRanges).some(r => r.from || r.to);
+  const capped = activeView !== 'tips' && !anyRangeActive;
   const displayRows = capped ? rows.slice(0, ROW_LIMIT) : rows;
 
   return { displayRows, totalRows, capped };
@@ -378,7 +383,12 @@ function renderTable() {
       ${cols.map(f => {
         const val = filters[f] || '';
         const width = colWidths[f] ? `style="width:${colWidths[f]}px;min-width:${colWidths[f]}px;"` : '';
-        return `<td ${width}><input class="filter-input${val ? ' active' : ''}" type="text" data-field="${f}" value="${val}" placeholder="…" size="1"></td>`;
+        const isDate = detectFmt(f) === 'date';
+        const rangeActive = isDate && dateRanges[f] && (dateRanges[f].from || dateRanges[f].to);
+        const toggle = isDate
+          ? `<button class="range-toggle${rangeActive ? ' active' : ''}" data-field="${f}" type="button" title="Filter by range">\u{1F4C5}</button>`
+          : '';
+        return `<td ${width}><div class="filter-cell"><input class="filter-input${val ? ' active' : ''}${isDate ? ' has-range' : ''}" type="text" data-field="${f}" value="${val}" placeholder="…" size="1">${toggle}</div></td>`;
       }).join('')}
     </tr>
   `;
@@ -457,7 +467,41 @@ function renderTable() {
     });
   });
 
+  // Range toggle handlers — open/close the range popover for a given field
+  thead.querySelectorAll('.range-toggle').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const f = btn.dataset.field;
+      if (rangePopoverField === f) closeRangePopover();
+      else openRangePopover(f, btn);
+    });
+  });
+  if (rangePopoverField && !cols.includes(rangePopoverField)) closeRangePopover();
+
   renderBody(cols);
+}
+
+// ── Per-field date range popover ─────────────────────────────────────────────
+function openRangePopover(field, anchorEl) {
+  rangePopoverField = field;
+  const pop = document.getElementById('rangePopover');
+  const range = dateRanges[field] || {};
+  document.getElementById('rangePopoverTitle').textContent = fieldLabel(field) + ' range';
+  document.getElementById('rangeFrom').value = range.from || '';
+  document.getElementById('rangeTo').value = range.to || '';
+
+  const rect = anchorEl.getBoundingClientRect();
+  pop.classList.add('open');
+  const popRect = pop.getBoundingClientRect();
+  let left = rect.left;
+  if (left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = (rect.bottom + 4) + 'px';
+}
+
+function closeRangePopover() {
+  rangePopoverField = null;
+  document.getElementById('rangePopover').classList.remove('open');
 }
 
 function renderBody(cols) {
@@ -782,9 +826,8 @@ function init() {
       filters = {};
       sortCol = null;
       sortAsc = false;
-      dateFrom = ''; dateTo = '';
-      document.getElementById('dateFrom').value = '';
-      document.getElementById('dateTo').value = '';
+      dateRanges = {};
+      closeRangePopover();
       renderColList();
       renderTable();
     });
@@ -821,18 +864,36 @@ function init() {
   // Clear filters
   document.getElementById('clearFiltersBtn').addEventListener('click', () => {
     filters = {};
+    dateRanges = {};
+    closeRangePopover();
     renderTable();
   });
 
-  // Date range
-  document.getElementById('dateFrom').addEventListener('change', e => { dateFrom = e.target.value; renderTable(); });
-  document.getElementById('dateTo').addEventListener('change', e => { dateTo = e.target.value; renderTable(); });
-  document.getElementById('clearDateBtn').addEventListener('click', () => {
-    dateFrom = ''; dateTo = '';
-    document.getElementById('dateFrom').value = '';
-    document.getElementById('dateTo').value = '';
+  // Range popover: From/To inputs use the shared canonical date-picker styling
+  initDatePicker(document.getElementById('rangeFrom'));
+  initDatePicker(document.getElementById('rangeTo'));
+  document.getElementById('rangeFrom').addEventListener('change', e => {
+    if (!rangePopoverField) return;
+    dateRanges[rangePopoverField] = { ...dateRanges[rangePopoverField], from: e.target.value };
     renderTable();
   });
+  document.getElementById('rangeTo').addEventListener('change', e => {
+    if (!rangePopoverField) return;
+    dateRanges[rangePopoverField] = { ...dateRanges[rangePopoverField], to: e.target.value };
+    renderTable();
+  });
+  document.getElementById('rangeClearBtn').addEventListener('click', () => {
+    if (!rangePopoverField) return;
+    delete dateRanges[rangePopoverField];
+    document.getElementById('rangeFrom').value = '';
+    document.getElementById('rangeTo').value = '';
+    renderTable();
+  });
+  document.getElementById('rangeDoneBtn').addEventListener('click', () => closeRangePopover());
+  document.getElementById('rangePopover').addEventListener('click', e => e.stopPropagation());
+  document.addEventListener('click', () => { if (rangePopoverField) closeRangePopover(); });
+  document.getElementById('tableWrap').addEventListener('scroll', () => { if (rangePopoverField) closeRangePopover(); });
+  window.addEventListener('resize', () => { if (rangePopoverField) closeRangePopover(); });
 
   // Tab switching
   document.getElementById('tabHeader').addEventListener('click', e => {
