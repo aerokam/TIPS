@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury Securities — A Primer (Beta)</title>
+<link rel="stylesheet" href="../shared/src/portal-theme.css">
+<style>
+  /* Renders knowledge/1.0_Primer.md (single source of truth) — no primer content lives in this file. */
+  body { max-width: 860px; margin: 0 auto; padding: 24px 28px 60px; font-size: 17px; line-height: 1.65; color: var(--portal-text-main, #1e293b); background: var(--portal-bg, #f8fafc); }
+  header { display: flex; align-items: baseline; gap: 14px; margin-bottom: 6px; }
+  header h1 { font-size: 26px; margin: 0; }
+  .beta-tag { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #b45309; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 4px; padding: 2px 8px; }
+  .beta-note { font-size: 13px; color: var(--portal-text-muted, #64748b); margin: 4px 0 28px; }
+  #content h2 { font-size: 22px; margin: 2em 0 0.6em; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3em; }
+  #content h3 { font-size: 22px; margin: 2em 0 0.6em; border-bottom: 2px solid #e2e8f0; padding-bottom: 0.3em; }
+  #content p { margin: 1em 0; }
+  #content blockquote { border-left: 4px solid #cbd5e1; margin: 1.2em 0; padding: 0.4em 1.2em; color: #475569; background: #f1f5f9; border-radius: 0 6px 6px 0; }
+  #content table { border-collapse: collapse; margin: 1.2em 0; font-size: 15px; }
+  #content th { background: #1e293b; color: #fff; font-weight: 600; text-align: left; padding: 8px 14px; }
+  #content td { padding: 7px 14px; border-bottom: 1px solid #e2e8f0; }
+  #content tr:nth-child(even) td { background: #f8fafc; }
+  #content code { background: #eef2f7; padding: 1px 5px; border-radius: 3px; font-size: 0.9em; }
+  #content a { color: #1a56db; }
+  .error { color: #b91c1c; background: #fef2f2; border: 1px solid #fecaca; border-radius: 6px; padding: 16px; }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+  <header>
+    <a href="../" class="portal-link">&#8592; Portal</a>
+    <h1>Treasury Securities &mdash; A Primer</h1>
+    <span class="beta-tag">Beta</span>
+  </header>
+  <p class="beta-note">This is a draft under active revision. It currently covers the portal home page, Yields Monitor, and Yield Curves; more chapters are being added.</p>
+  <main id="content">Loading&hellip;</main>
+
+<script>
+(async () => {
+  const contentEl = document.getElementById('content');
+  try {
+    const resp = await fetch('knowledge/1.0_Primer.md');
+    if (!resp.ok) throw new Error(`Failed to load primer content: ${resp.statusText}`);
+    const md = await resp.text();
+
+    // Reader-facing slice: from "## Purpose" up to the "### Remaining chapters" working notes.
+    const start = md.indexOf('## Purpose');
+    let end = md.indexOf('### Remaining chapters');
+    if (end === -1) end = md.indexOf('## Dependencies');
+    if (start === -1) throw new Error('Primer content markers not found');
+    let body = md.slice(start, end === -1 ? undefined : end);
+    body = body.replace(/^## Content\s*$/m, '');
+
+    contentEl.innerHTML = marked.parse(body);
+  } catch (err) {
+    contentEl.innerHTML = `<div class="error">Error loading the primer: ${err.message}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
