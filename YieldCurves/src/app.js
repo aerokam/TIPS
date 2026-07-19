@@ -1453,6 +1453,22 @@ function _rescaleSpread(chartInst) {
   chartInst.update('none');
 }
 
+// Centered moving average over a series sorted by maturity date, used to draw a
+// smoothed trend line through the spread scatter (window scales with sample size).
+function _movingAverageTrend(points) {
+  const n = points.length;
+  if (n < 5) return null;
+  const sorted = [...points].sort((a, b) => a.x - b.x);
+  const window = Math.min(51, Math.max(5, Math.round(n * 0.1)));
+  const half = Math.floor(window / 2);
+  return sorted.map((p, i) => {
+    const lo = Math.max(0, i - half), hi = Math.min(n - 1, i + half);
+    let sum = 0;
+    for (let j = lo; j <= hi; j++) sum += sorted[j].y;
+    return { x: p.x, y: sum / (hi - lo + 1) };
+  });
+}
+
 function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
   const allPoints = seriesDef.flatMap(s => s.data);
   if (allPoints.length === 0) return null;
@@ -1482,11 +1498,24 @@ function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
   const newChart = new Chart(ctx, {
     type: 'scatter',
     data: {
-      datasets: seriesDef.map(s => ({
-        label: s.label, data: s.data,
-        backgroundColor: s.color,
-        pointRadius: s.r, pointHoverRadius: s.r + 1.5,
-      }))
+      datasets: [
+        ...seriesDef.map(s => ({
+          label: s.label, data: s.data,
+          backgroundColor: s.color,
+          pointRadius: s.r, pointHoverRadius: s.r + 1.5,
+        })),
+        ...seriesDef.filter(s => s.trend).map(s => ({
+          type: 'line',
+          label: `${s.label} (Avg)`,
+          data: s.trend,
+          borderColor: s.color,
+          backgroundColor: 'transparent',
+          borderWidth: 2,
+          pointRadius: 0, pointHoverRadius: 0,
+          tension: 0.15,
+          order: -1,
+        })),
+      ]
     },
     options: {
       responsive: true, maintainAspectRatio: false, animation: false,
@@ -1543,12 +1572,16 @@ function renderSpreadCharts(bonds, tab) {
   const ctx2 = document.getElementById('spreadPriceChart').getContext('2d');
   const toPt = (b, key) => ({ x: b.maturityDate.getTime(), y: parseFloat(b[key].toFixed(4)) });
 
+  const pushSeries = (arr, label, data, color, r) => {
+    if (data.length) arr.push({ label, data, color, r, trend: _movingAverageTrend(data) });
+  };
+
   const yieldSeries = [], priceSeries = [];
   if (tab === 'tips') {
     const valid = bonds.filter(b => !isNaN(b.yieldSpreadBps));
     const validP = bonds.filter(b => !isNaN(b.priceSpreadPct));
-    if (valid.length)  yieldSeries.push({ label: 'Yield Spread', data: valid.map(b => toPt(b, 'yieldSpreadBps')), color: '#1a56db', r: 1.5 });
-    if (validP.length) priceSeries.push({ label: 'Price Spread', data: validP.map(b => toPt(b, 'priceSpreadPct')), color: '#059669', r: 1.5 });
+    pushSeries(yieldSeries, 'Yield Spread', valid.map(b => toPt(b, 'yieldSpreadBps')), '#1a56db', 1.5);
+    pushSeries(priceSeries, 'Price Spread', validP.map(b => toPt(b, 'priceSpreadPct')), '#059669', 1.5);
   } else {
     const types = [
       { type: 'MARKET BASED BILL',  label: 'Bills',  yc: '#0ea5e9', pc: '#38bdf8', r: 1.25 },
@@ -1559,8 +1592,8 @@ function renderSpreadCharts(bonds, tab) {
     for (const { type, label, yc, pc, r } of types) {
       const yb = bonds.filter(b => b.type === type && !isNaN(b.yieldSpreadBps));
       const pb = bonds.filter(b => b.type === type && !isNaN(b.priceSpreadPct));
-      if (yb.length) yieldSeries.push({ label, data: yb.map(b => toPt(b, 'yieldSpreadBps')), color: yc, r });
-      if (pb.length) priceSeries.push({ label, data: pb.map(b => toPt(b, 'priceSpreadPct')), color: pc, r });
+      pushSeries(yieldSeries, label, yb.map(b => toPt(b, 'yieldSpreadBps')), yc, r);
+      pushSeries(priceSeries, label, pb.map(b => toPt(b, 'priceSpreadPct')), pc, r);
     }
   }
 
