@@ -69,6 +69,9 @@
   .filter-input { display: block; width: 100%; padding: 2px 5px; font-size: 11px; border: 1px solid var(--border-light); border-radius: 3px; outline: none; background: #fff; min-width: 40px; box-sizing: border-box; }
   .filter-input:focus { border-color: #1a56db; }
   .filter-input.active { border-color: #f59e0b; background: #fffbeb; }
+  .filter-input.has-range { padding-right: 20px; }
+  .range-toggle:hover { border-color: #1a56db !important; color: #1a56db !important; }
+  .range-toggle.active { border-color: #f59e0b !important; background: #fffbeb !important; color: #f59e0b !important; }
 
   /* ── Clickable coupon cells ── */
   td.cpn-clickable { cursor: pointer; color: #1a56db; }
@@ -125,6 +128,16 @@
 
 <div id="row-count"></div>
 
+<div id="dateRangePopover" style="position: fixed; z-index: 100; background: #fff; border: 1px solid var(--border-light); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); padding: 10px; display: none; flex-direction: column; gap: 6px; font-size: 11px; min-width: 170px;">
+  <div style="font-weight: 700; color: var(--portal-text-main); margin-bottom: 2px;" id="dateRangeTitle"></div>
+  <label style="display: flex; flex-direction: column; gap: 2px; font-weight: 600; color: #64748b;">From <input type="date" id="dateRangeFrom" class="date-picker" style="font-size: 11px; padding: 3px 4px;"></label>
+  <label style="display: flex; flex-direction: column; gap: 2px; font-weight: 600; color: #64748b;">To <input type="date" id="dateRangeTo" class="date-picker" style="font-size: 11px; padding: 3px 4px;"></label>
+  <div style="display: flex; justify-content: space-between; gap: 6px; margin-top: 4px;">
+    <button id="dateRangeClear" style="padding: 4px 8px; font-size: 10px; background: #64748b; color: #fff; border: none; border-radius: 3px; cursor: pointer;">Clear</button>
+    <button id="dateRangeDone" style="padding: 4px 8px; font-size: 10px; background: var(--tab-active-bg); color: #fff; border: none; border-radius: 3px; cursor: pointer;">Done</button>
+  </div>
+</div>
+
 <div class="table-wrap">
   <table>
     <thead>
@@ -167,15 +180,17 @@ var refCpiDateStr = '';
 var sortCol = 'maturity';
 var sortDir = 'asc';
 var filters = {};
+var dateRanges = {};
+var rangePopoverField = null;
 
 var COLS = [
   { key: 'cusip',      label: 'CUSIP',             align: 'left',  sortType: 'str',
     fmt: function(v) { return v != null ? String(v) : ''; } },
-  { key: 'maturity',   label: 'Maturity',           align: 'left',  sortType: 'str',
+  { key: 'maturity',   label: 'Maturity',          align: 'left',  sortType: 'str', isDate: true,
     fmt: function(v) { return v != null ? String(v) : ''; } },
   { key: 'coupon',     label: 'Coupon',             align: 'right', sortType: 'num',
     fmt: function(v) { return v != null ? (v * 100).toFixed(3) + '%' : '—'; } },
-  { key: 'datedDate',  label: 'Dated Date',         align: 'left',  sortType: 'str',
+  { key: 'datedDate',  label: 'Dated Date',         align: 'left',  sortType: 'str', isDate: true,
     fmt: function(v) { return v != null ? String(v) : ''; } },
   { key: 'baseCpi',    label: 'Dated Date Ref CPI', align: 'right', sortType: 'num', wrapHeader: true,
     fmt: function(v) { return v != null ? v.toFixed(5) : '—'; } },
@@ -193,7 +208,7 @@ var COLS = [
     fmt: function(v) { return v != null ? v.toFixed(2) : '—'; } },
   { key: 'modDuration', label: 'Mod Duration',        align: 'right', sortType: 'num',
     fmt: function(v) { return v != null ? v.toFixed(2) : '—'; } },
-  { key: 'nextCoupon',  label: 'Cpn Date',             align: 'left',  sortType: 'str',
+  { key: 'nextCoupon',  label: 'Cpn Date',             align: 'left',  sortType: 'str', isDate: true,
     title: 'Coupon payment date on or after the selected Ref CPI Date',
     fmt: function(v) { return v != null ? fmtDate(v) : '—'; } },
   { key: 'cpnDateIR',   label: 'Cpn Date IR',        align: 'right', sortType: 'num', wrapHeader: true,
@@ -311,6 +326,19 @@ function cellDisplay(row, col) {
 
 function getFilteredSorted() {
   var rows = allRows.slice();
+
+  // Apply date range filters
+  Object.entries(dateRanges).forEach(function(entry) {
+    var key = entry[0];
+    var range = entry[1];
+    if (range.from) {
+      rows = rows.filter(function(r) { return (r[key] || '') >= range.from; });
+    }
+    if (range.to) {
+      rows = rows.filter(function(r) { return (r[key] || '') <= range.to; });
+    }
+  });
+
   Object.keys(filters).forEach(function(key) {
     var val = filters[key].toLowerCase();
     var col = COLS.find(function(c) { return c.key === key; });
@@ -394,6 +422,7 @@ function buildHeader() {
     headerRow.appendChild(th);
 
     var td = document.createElement('td');
+    td.style.position = 'relative';
     var inp = document.createElement('input');
     inp.type = 'text';
     inp.size = 1;
@@ -401,6 +430,7 @@ function buildHeader() {
     inp.placeholder = '\u2026';
     inp.value = filters[col.key] || '';
     if (filters[col.key]) inp.classList.add('active');
+    if (col.isDate) inp.classList.add('has-range');
     (function(colKey, input) {
       input.addEventListener('input', function() {
         var v = input.value.trim();
@@ -410,6 +440,23 @@ function buildHeader() {
       });
     })(col.key, inp);
     td.appendChild(inp);
+    if (col.isDate) {
+      var rangeActive = dateRanges[col.key] && (dateRanges[col.key].from || dateRanges[col.key].to);
+      var btn = document.createElement('button');
+      btn.className = 'range-toggle' + (rangeActive ? ' active' : '');
+      btn.style.cssText = 'position:absolute;right:1px;top:1px;width:17px;height:17px;line-height:15px;font-size:12px;text-align:center;border:1px solid var(--border-light);border-radius:3px;cursor:pointer;background:#fff;color:var(--portal-text-muted);padding:0;';
+      btn.innerHTML = '\ud83d\udcc5';
+      btn.type = 'button';
+      btn.dataset.field = col.key;
+      (function(field, btn) {
+        btn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (rangePopoverField === field) _closeRangePopover();
+          else _openRangePopover(field, btn);
+        });
+      })(col.key, btn);
+      td.appendChild(btn);
+    }
     filterRow.appendChild(td);
   });
 
@@ -418,6 +465,29 @@ function buildHeader() {
   document.querySelectorAll('thead tr.filter-row td').forEach(function(td) {
     td.style.top = headerHeight + 'px';
   });
+}
+
+function _openRangePopover(field, anchorEl) {
+  rangePopoverField = field;
+  var pop = document.getElementById('dateRangePopover');
+  var range = dateRanges[field] || {};
+  var col = COLS.find(function(c) { return c.key === field; });
+  document.getElementById('dateRangeTitle').textContent = (col ? col.label : field) + ' range';
+  document.getElementById('dateRangeFrom').value = range.from || '';
+  document.getElementById('dateRangeTo').value = range.to || '';
+
+  var rect = anchorEl.getBoundingClientRect();
+  pop.style.display = 'flex';
+  var popRect = pop.getBoundingClientRect();
+  var left = rect.left;
+  if (left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
+  pop.style.left = Math.max(8, left) + 'px';
+  pop.style.top = (rect.bottom + 4) + 'px';
+}
+
+function _closeRangePopover() {
+  rangePopoverField = null;
+  document.getElementById('dateRangePopover').style.display = 'none';
 }
 
 function renderTable() {
@@ -566,6 +636,37 @@ document.getElementById('cpn-modal-overlay').addEventListener('click', function(
 });
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') document.getElementById('cpn-modal').classList.remove('open');
+});
+
+// Date range popover handlers
+document.getElementById('dateRangeDone').addEventListener('click', function() {
+  if (!rangePopoverField) return;
+  var from = document.getElementById('dateRangeFrom').value;
+  var to = document.getElementById('dateRangeTo').value;
+  if (!from && !to) {
+    delete dateRanges[rangePopoverField];
+  } else {
+    dateRanges[rangePopoverField] = { from: from, to: to };
+  }
+  var btn = document.querySelector('[data-field="' + rangePopoverField + '"].range-toggle');
+  if (btn) btn.classList.toggle('active', from || to);
+  _closeRangePopover();
+  renderTable();
+});
+
+document.getElementById('dateRangeClear').addEventListener('click', function() {
+  if (!rangePopoverField) return;
+  delete dateRanges[rangePopoverField];
+  document.getElementById('dateRangeFrom').value = '';
+  document.getElementById('dateRangeTo').value = '';
+  var btn = document.querySelector('[data-field="' + rangePopoverField + '"].range-toggle');
+  if (btn) btn.classList.remove('active');
+  _closeRangePopover();
+  renderTable();
+});
+
+document.getElementById('dateRangePopover').addEventListener('click', function(e) {
+  if (e.target === document.getElementById('dateRangePopover')) _closeRangePopover();
 });
 
 loadData();
