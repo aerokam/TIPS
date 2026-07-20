@@ -99,13 +99,24 @@ function unionHeaders(h1, h2) {
 }
 
 // ── FiscalData fetch ──────────────────────────────────────────────────────────
+const PAGE_SIZE = 10000; // FiscalData API max is 10000; larger values return HTTP 400
+
 async function fetchAuctions(sinceDate) {
   // No &fields= param → returns all available columns
-  const url = `${FISCALDATA_URL}?format=csv&page[size]=20000&filter=auction_date:gte:${sinceDate}&sort=-auction_date,security_term`;
   console.error(`Fetching FiscalData auctions since ${sinceDate}...`);
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`FiscalData HTTP ${r.status}`);
-  return parseCSV(await r.text());
+  let headers = [];
+  const rows = [];
+  for (let page = 1; ; page++) {
+    const url = `${FISCALDATA_URL}?format=csv&page[size]=${PAGE_SIZE}&page[number]=${page}&filter=auction_date:gte:${sinceDate}&sort=-auction_date,security_term`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`FiscalData HTTP ${r.status}`);
+    const { headers: pageHeaders, rows: pageRows } = parseCSV(await r.text());
+    if (pageRows.length === 0) break;
+    headers = unionHeaders(headers, pageHeaders);
+    rows.push(...pageRows);
+    if (pageRows.length < PAGE_SIZE) break;
+  }
+  return { headers, rows };
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
