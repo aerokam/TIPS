@@ -166,6 +166,8 @@ import { lookupRefCpi, indexRatio } from '../shared/src/ref-cpi.js';
 import { calculateDuration, _nextCouponOnOrAfter } from '../shared/src/bond-math.js';
 // Shared date picker (the canonical native type=date; projects/CLAUDE.md §2a).
 import { initDatePicker } from '../shared/src/date-picker.js';
+// Shared date range filter manager (projects/CLAUDE.md §2a).
+import { createDateRangeFilter } from '../shared/src/date-range-filter.js';
 
 const R2_ROOT = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const BASE_URL = R2_ROOT + '/Treasuries';
@@ -180,8 +182,7 @@ var refCpiDateStr = '';
 var sortCol = 'maturity';
 var sortDir = 'asc';
 var filters = {};
-var dateRanges = {};
-var rangePopoverField = null;
+var dateRangeFilter = null;
 
 var COLS = [
   { key: 'cusip',      label: 'CUSIP',             align: 'left',  sortType: 'str',
@@ -328,16 +329,18 @@ function getFilteredSorted() {
   var rows = allRows.slice();
 
   // Apply date range filters
-  Object.entries(dateRanges).forEach(function(entry) {
-    var key = entry[0];
-    var range = entry[1];
-    if (range.from) {
-      rows = rows.filter(function(r) { return (r[key] || '') >= range.from; });
-    }
-    if (range.to) {
-      rows = rows.filter(function(r) { return (r[key] || '') <= range.to; });
-    }
-  });
+  if (dateRangeFilter) {
+    Object.entries(dateRangeFilter.getAllRanges()).forEach(function(entry) {
+      var key = entry[0];
+      var range = entry[1];
+      if (range.from) {
+        rows = rows.filter(function(r) { return (r[key] || '') >= range.from; });
+      }
+      if (range.to) {
+        rows = rows.filter(function(r) { return (r[key] || '') <= range.to; });
+      }
+    });
+  }
 
   Object.keys(filters).forEach(function(key) {
     var val = filters[key].toLowerCase();
@@ -441,20 +444,26 @@ function buildHeader() {
     })(col.key, inp);
     td.appendChild(inp);
     if (col.isDate) {
-      var rangeActive = dateRanges[col.key] && (dateRanges[col.key].from || dateRanges[col.key].to);
+      var range = dateRangeFilter ? dateRangeFilter.getDateRange(col.key) : {};
+      var rangeActive = range.from || range.to;
       var btn = document.createElement('button');
       btn.className = 'range-toggle' + (rangeActive ? ' active' : '');
       btn.style.cssText = 'position:absolute;right:1px;top:1px;width:17px;height:17px;line-height:15px;font-size:12px;text-align:center;border:1px solid var(--border-light);border-radius:3px;cursor:pointer;background:#fff;color:var(--portal-text-muted);padding:0;';
       btn.innerHTML = '\ud83d\udcc5';
       btn.type = 'button';
       btn.dataset.field = col.key;
-      (function(field, btn) {
+      (function(field, fieldLabel, btn) {
         btn.addEventListener('click', function(e) {
           e.stopPropagation();
-          if (rangePopoverField === field) _closeRangePopover();
-          else _openRangePopover(field, btn);
+          if (dateRangeFilter) {
+            if (dateRangeFilter.isOpen() && dateRangeFilter.getCurrentField() === field) {
+              dateRangeFilter.close();
+            } else {
+              dateRangeFilter.open(field, fieldLabel, btn);
+            }
+          }
         });
-      })(col.key, btn);
+      })(col.key, col.label, btn);
       td.appendChild(btn);
     }
     filterRow.appendChild(td);
@@ -465,29 +474,6 @@ function buildHeader() {
   document.querySelectorAll('thead tr.filter-row td').forEach(function(td) {
     td.style.top = headerHeight + 'px';
   });
-}
-
-function _openRangePopover(field, anchorEl) {
-  rangePopoverField = field;
-  var pop = document.getElementById('dateRangePopover');
-  var range = dateRanges[field] || {};
-  var col = COLS.find(function(c) { return c.key === field; });
-  document.getElementById('dateRangeTitle').textContent = (col ? col.label : field) + ' range';
-  document.getElementById('dateRangeFrom').value = range.from || '';
-  document.getElementById('dateRangeTo').value = range.to || '';
-
-  var rect = anchorEl.getBoundingClientRect();
-  pop.style.display = 'flex';
-  var popRect = pop.getBoundingClientRect();
-  var left = rect.left;
-  if (left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
-  pop.style.left = Math.max(8, left) + 'px';
-  pop.style.top = (rect.bottom + 4) + 'px';
-}
-
-function _closeRangePopover() {
-  rangePopoverField = null;
-  document.getElementById('dateRangePopover').style.display = 'none';
 }
 
 function renderTable() {
@@ -596,6 +582,26 @@ async function loadData() {
       onChange: recomputeWithRefCpi,
     });
 
+    // Initialize date range filter manager
+    dateRangeFilter = createDateRangeFilter({
+      popperId: 'dateRangePopover',
+      fromInputId: 'dateRangeFrom',
+      toInputId: 'dateRangeTo',
+      titleId: 'dateRangeTitle',
+      doneButtonId: 'dateRangeDone',
+      clearButtonId: 'dateRangeClear',
+      onApply: function() {
+        // Update toggle button styles and re-render when range is applied
+        var toggles = document.querySelectorAll('.range-toggle');
+        toggles.forEach(function(btn) {
+          var field = btn.dataset.field;
+          var range = dateRangeFilter.getDateRange(field);
+          btn.classList.toggle('active', !!(range.from || range.to));
+        });
+        renderTable();
+      }
+    });
+
     buildHeader();
     recomputeWithRefCpi(settlementDateStr);
   } catch (err) {
@@ -636,37 +642,6 @@ document.getElementById('cpn-modal-overlay').addEventListener('click', function(
 });
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') document.getElementById('cpn-modal').classList.remove('open');
-});
-
-// Date range popover handlers
-document.getElementById('dateRangeDone').addEventListener('click', function() {
-  if (!rangePopoverField) return;
-  var from = document.getElementById('dateRangeFrom').value;
-  var to = document.getElementById('dateRangeTo').value;
-  if (!from && !to) {
-    delete dateRanges[rangePopoverField];
-  } else {
-    dateRanges[rangePopoverField] = { from: from, to: to };
-  }
-  var btn = document.querySelector('[data-field="' + rangePopoverField + '"].range-toggle');
-  if (btn) btn.classList.toggle('active', from || to);
-  _closeRangePopover();
-  renderTable();
-});
-
-document.getElementById('dateRangeClear').addEventListener('click', function() {
-  if (!rangePopoverField) return;
-  delete dateRanges[rangePopoverField];
-  document.getElementById('dateRangeFrom').value = '';
-  document.getElementById('dateRangeTo').value = '';
-  var btn = document.querySelector('[data-field="' + rangePopoverField + '"].range-toggle');
-  if (btn) btn.classList.remove('active');
-  _closeRangePopover();
-  renderTable();
-});
-
-document.getElementById('dateRangePopover').addEventListener('click', function(e) {
-  if (e.target === document.getElementById('dateRangePopover')) _closeRangePopover();
 });
 
 loadData();
