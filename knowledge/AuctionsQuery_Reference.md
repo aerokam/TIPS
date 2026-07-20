@@ -17,7 +17,7 @@ No auth required. All values returned as strings (including nulls → `"null"`).
 | `sort` | `sort=-auction_date` | `-` prefix = descending |
 | `format` | `format=json` | `json` (default), `csv`, `xml` — use `json` to strip columns before uploading |
 | `page[number]` | `page[number]=1` | 1-indexed |
-| `page[size]` | `page[size]=500` | Default 100; increase if expected rows > 100 |
+| `page[size]` | `page[size]=500` | Default 100; increase if expected rows > 100. **Hard max 10000** — values above that return HTTP 400 (`Invalid Query Param`). Paginate with `page[number]` if more rows are needed. |
 
 ### Filter Operators
 `eq` `neq` `lt` `lte` `gt` `gte` `in` `nin`  
@@ -88,6 +88,12 @@ No auth required. All values returned as strings (including nulls → `"null"`).
 
 `security_type:eq:TIPS` returns 0 results. FiscalData changed this.  
 **Correct filter:** `inflation_index_security:eq:Yes`
+
+---
+
+## ⚠️ Known Gotcha: `page[size]` Hard Cap
+
+FiscalData silently tightened the max `page[size]` at some point before 2026-07-16 (previously larger values, e.g. `20000`, worked). Any request above 10000 now returns HTTP 400. This broke `scripts/getAuctions.js` for several days with no visible error, because its scheduled task (`TreasuryAuctions`) invokes `node` directly via `conhost.exe --headless` rather than through the logging wrapper `run-auctions.cmd`, so stdout/stderr from the failure went nowhere. The script now paginates at 10000 to stay under the cap.
 
 ---
 
