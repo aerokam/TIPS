@@ -7,6 +7,12 @@
 <link rel="stylesheet" href="../shared/src/portal-theme.css">
 <style>
   body { font-size: 13px; padding: 20px; }
+  /* Chrome's scroll anchoring picks a node inside the sticky #top-row as the anchor while scrolled;
+     when #top-row then grows (e.g. expanding Per-Year DARA), the browser "corrects" scrollY to keep
+     that node's viewport position stable — but a sticky element doesn't move, so the correction just
+     slides #table-controls/#output underneath it instead. Disabling anchoring for the whole document
+     stops that auto-scroll compensation. */
+  html { overflow-anchor: none; }
   /* ── Tab bar overrides ── */
   .tab-group { justify-content: center; }
   /* ── Layout ── */
@@ -43,6 +49,9 @@
   .dara-plan-card-hdr { position: relative; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--portal-card-text); opacity: 0.85; padding: 2px 0; cursor: pointer; user-select: none; }
   .dara-plan-card-hdr:hover { opacity: 1; }
   #dara-plan-body { padding-top: 8px; }
+  /* Fixed cap (not viewport-fill like the main output tables) so expanding this panel never pushes
+     the main data table almost entirely below the fold — it gets its own internal scrollbar instead. */
+  #dara-by-year-scroll { max-height: 320px; }
   .dara-plan-card .badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #e05252; display: none; }
   .dara-plan-card-hdr.needs-attention .badge-dot { display: block; }
   .dara-plan-card, .dara-plan-card label, .dara-plan-card span, .dara-plan-card b { color: var(--portal-card-text); }
@@ -1133,7 +1142,7 @@ function _renderDurationLinks() {
     const topRow = document.getElementById('top-row');
     if (!topRow) return;
     const used = topRow.offsetHeight + 32;
-    ['simple-scroll', 'build-scroll', 'dara-by-year-scroll'].forEach(id => {
+    ['simple-scroll', 'build-scroll'].forEach(id => {
       const el = document.getElementById(id);
       if (el) el.style.maxHeight = (window.innerHeight - used) + 'px';
     });
