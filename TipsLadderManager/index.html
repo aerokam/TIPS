@@ -2634,7 +2634,9 @@ async function _showTipsRefModal(type) {
   document.getElementById('tipsref-mode-ref').classList.toggle('active', type === 'Ref');
   document.getElementById('tipsref-mode-mkt').classList.toggle('active', type === 'Mkt');
   
-  const rows = type === 'Ref' ? Array.from(tipsRefMap.values()) : Array.from(tipsMap.values());
+  const rows = type === 'Ref'
+    ? Array.from(tipsMap.values()).map(r => ({...r, ...tipsRefMap.get(r.cusip)}))
+    : Array.from(tipsMap.values());
   if (type === 'Mkt') rows.sort((a,b) => a.maturity - b.maturity);
 
   let html = '<thead><tr><th>CUSIP</th><th>Maturity</th><th>Coupon</th>';

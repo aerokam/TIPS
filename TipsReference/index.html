@@ -480,26 +480,30 @@ async function loadData() {
     var tipsRefMap = {};
     tipsRefRows.forEach(function(r) { tipsRefMap[r.cusip] = r; });
 
+    // Create yields map for quick lookup
+    var yieldsMap = {};
+    yieldsRows.forEach(function(r) { yieldsMap[r.cusip] = r; });
+
     var settlDate = new Date(settlementDateStr + 'T12:00:00Z');
 
-    allRows = yieldsRows.map(function(r) {
-      var ref = tipsRefMap[r.cusip];
-      var baseCpi = ref ? ref.baseCpi : null;
-      var matDate = r.maturity ? new Date(r.maturity + 'T12:00:00Z') : null;
+    // Primary source: TipsRef.csv (all TIPS). Enrich with yields where available.
+    allRows = tipsRefRows.map(function(ref) {
+      var yields = yieldsMap[ref.cusip];
+      var matDate = ref.maturity ? new Date(ref.maturity + 'T12:00:00Z') : null;
       var term = (matDate && matDate > settlDate) ? (matDate - settlDate) / (365.25 * 86400000) : null;
-      var macDur = (matDate && r.coupon != null && r.yield != null && !isNaN(r.yield))
-        ? calculateDuration(settlDate, matDate, r.coupon, r.yield) : null;
-      var modDur = (macDur != null) ? macDur / (1 + r.yield / 2) : null;
+      var macDur = (matDate && ref.coupon != null && yields && yields.yield != null && !isNaN(yields.yield))
+        ? calculateDuration(settlDate, matDate, ref.coupon, yields.yield) : null;
+      var modDur = (macDur != null && yields) ? macDur / (1 + yields.yield / 2) : null;
       return {
-        cusip:       r.cusip,
-        maturity:    r.maturity,
-        coupon:      r.coupon,
-        datedDate:   ref ? ref.datedDate : '',
-        baseCpi:     baseCpi,
-        price:       r.price,
+        cusip:       ref.cusip,
+        maturity:    ref.maturity,
+        coupon:      ref.coupon,
+        datedDate:   ref.datedDate,
+        baseCpi:     ref.baseCpi,
+        price:       yields ? yields.price : null,
         indexRatio:  null,
         adjPrice:    null,
-        yield:       r.yield,
+        yield:       yields ? yields.yield : null,
         term:        term,
         macDuration: macDur,
         modDuration: modDur,
@@ -507,35 +511,6 @@ async function loadData() {
         cpnDateIR:   null,
         cpnPayment:  null,
       };
-    });
-
-    // FedInvest stops pricing a TIPS once it matures, so it drops out of yieldsRows the
-    // moment today's fetch runs. Re-add it for the rest of maturity day (from TipsRef.csv,
-    // which has no price data) so brokerage interest/principal can still be checked.
-    var todayStr = todayET();
-    var presentCusips = {};
-    allRows.forEach(function(r) { presentCusips[r.cusip] = true; });
-    tipsRefRows.forEach(function(ref) {
-      if (ref.maturity === todayStr && !presentCusips[ref.cusip]) {
-        allRows.push({
-          cusip:       ref.cusip,
-          maturity:    ref.maturity,
-          coupon:      ref.coupon,
-          datedDate:   ref.datedDate,
-          baseCpi:     ref.baseCpi,
-          price:       100,
-          indexRatio:  null,
-          adjPrice:    null,
-          yield:       null,
-          term:        null,
-          macDuration: null,
-          modDuration: null,
-          nextCoupon:  null,
-          cpnDateIR:   null,
-          cpnPayment:  null,
-          maturedToday: true,
-        });
-      }
     });
 
     document.getElementById('meta-price-date').textContent = fmtDate(priceDateStr);
