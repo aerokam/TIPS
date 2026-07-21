@@ -133,7 +133,7 @@ Interest rate means the annual percentage rate of interest paid on the par amoun
 "Interest is expressed as a percentage of the par amount and accrues daily on the basis of the actual number of days elapsed in a half-year period." [[356.30:§356.30(a)]]
 
 ### Notes
-Interest rate is fixed at auction and does not change. Yield (see next card) is not fixed — it depends on price, per the Appendix B §II/§III formulas covered in Chapters 6–7.
+Interest rate is fixed at auction and does not change. Yield (see next card) is not fixed — it depends on price, per the Appendix B §II/§III formulas.
 
 ## Yield
 ### CFR
@@ -336,124 +336,6 @@ Appendix B §I.A.3 and §I.A.4 give separate day-count formulas for a short or l
 **Floating Rate Notes** work differently: instead of a fixed semiannual coupon, they accrue interest *daily* at a rate that resets off each week's 13-week bill auction, and pay out quarterly. Out of scope for this primer beyond this mention.
 :::
 
-# accrued-interest
-ch: 5 · STRIPS & Interest Accrual
-title: Accrued Interest
-
-## Accrued interest
-An amount that bidders must pay to us for interest income as part of the settlement amount. Accrued interest compensates us up front for interest that bidders will be paid but did not earn because it is attributable to a period of time prior to the issue date.
-
-:::lead
-The mechanics are the same daily-proration idea as the last page, run in reverse: a daily interest amount (the semiannual coupon spread evenly over however many days are in that half-year) multiplied by the number of days since the last coupon date.
-:::
-
-:::example
-A 6.75% note pays $33.75 every half-year on $1,000 par. Reopened 92 days into a 184-day half-year: accrued interest = ($33.75 ÷ 184) × 92 = **$16.875** per $1,000 — added to the price to get the settlement amount.
-:::
-
-:::aside
-For TIPS, accrued interest is computed the same way but on the *inflation-adjusted* principal, not the original par amount (Chapter 4). For Floating Rate Notes, it's the sum of actual daily accrual amounts over the elapsed days — a different mechanism, out of scope here.
-:::
-
-# meet-symbols
-ch: 6 · From Yield to Price
-title: Meet P, C, i, n
-
-:::lead
-Appendix B §II's definitions:
-:::
-
-:::grid2
-## P
-Price per 100 (dollars), rounded to six places, using normal rounding procedures.
-
-## C
-The regular annual interest per $100, payable semiannually, e.g. 6.125 (the decimal equivalent of a 6⅛% interest rate).
-
-## i
-Nominal annual rate of return or yield to maturity, based on semiannual interest payments, expressed in decimals, e.g. .0719.
-
-## n
-Number of full semiannual periods from the issue date to maturity, except that, if the issue date is a coupon frequency date, n is one less than the number of full semiannual periods remaining to maturity.
-
-## v<sup>n</sup>
-1 / [1 + (i/2)]<sup>n</sup> = present value of 1 due at the end of n periods.
-
-## a<sub>n</sub>
-(1 − v<sup>n</sup>) / (i/2) = present value of 1 per period for n periods.
-:::
-
-:::lead
-§II.A — non-indexed securities with a regular first interest payment period, where r = days from the issue date to the first interest payment and s = days in that full semiannual period (so r = s = a full period, r/s = 1, for this regular case):
-:::
-
-:::example
-P[1 + (r/s)(i/2)] = (C/2)(r/s) + (C/2)a<sub>n</sub> + 100v<sup>n</sup>
-:::
-
-:::lead
-§II.B–G give six further variants of this same formula for short first payment periods, long first payment periods, and reopenings (where r/s take the other values listed in their definitions above) — out of scope for this pass.
-:::
-
 # price-vs-yield-calc
 ch: 6 · From Yield to Price
 title: Calculator: Price vs. Yield
-
-# price-function
-ch: 7 · The Practical Formula
-title: The PRICE Function
-
-:::lead
-The spreadsheet function **PRICE(settlement, maturity, rate, yield, redemption, frequency, basis)**, with redemption = 100 and basis = 1 (actual/actual), reproduces the §II/§III formulas for Notes and Bonds — non-indexed (§I.A/§II) or inflation-protected (§I.B/§III, using the real yield) — either way.
-:::
-
-:::card-table The one setting that actually matters: frequency
-| Security | Frequency |
-| Notes and Bonds (non-indexed or inflation-protected), any maturity | **2** (semiannual coupons) |
-| Bills, > 26 weeks to maturity | **2** |
-| Bills, ≤ 26 weeks to maturity | **1** |
-:::
-
-:::lead
-This frequency assignment was checked numerically against both of Appendix B §VI.D's own worked examples (Chapter 8), and matches what this suite's shared pricing code (`shared/src/bond-math.js`) already does.
-:::
-
-:::callout
-**Naming collision, take two:** §III labels the settlement-amount-with-accrued-interest total "SA" (short for Settlement Amount) — the same two letters this whole app suite otherwise reserves for **Seasonally Adjusted**. This primer avoids the abbreviation entirely except to flag the collision.
-:::
-
-# price-calc
-ch: 7 · The Practical Formula
-title: Calculator: PRICE
-
-# bill-formulas
-ch: 8 · Treasury Bills in Practice
-title: Bill Pricing Formulas
-
-## Discount rate
-A rate of return, on an annual basis, on bills held until they mature. The discount rate is expressed in percentage terms and based on a 360-day year. It is also referred to as the "bank discount rate."
-
-:::lead
-Two formulas convert between discount rate and price (§VI.A/§VI.C); a third (§VI.D) converts either one into an investment rate.
-:::
-
-## Discount rate → Price (§VI.A)
-`Price = 100 × (1 − d × r / 360)`, where d = discount rate (decimal), r = days to maturity.
-
-## Price → Discount rate (§VI.C)
-`d = [(100 − Price) / 100] × (360 / r)` — just the first formula solved for d.
-
-## Investment rate / coupon-equivalent yield (§VI.D)
-Splits into two cases:
-
-**≤ 26 weeks to maturity:** a simple day-count formula, `i = [(100 − P)/P] × (y/r)`, where y = 365 (or 366 if the year ahead spans Feb 29).
-
-**> 26 weeks to maturity:** a compounding (quadratic) formula — because more than one semiannual period stands between settlement and maturity.
-
-:::callout
-In practice, this suite doesn't implement the §VI.D quadratic directly. **PRICE/YIELD with frequency = 2** already compounds correctly for >26-week bills, and for ≤26-week bills, frequency = 2 collapses to a single period with a simple day-count formula that's *almost* identical to §VI.D's simple case using frequency = 1 — except when that single period spans a Feb 29: frequency = 1's own annual period is 365 or 366 days depending on the leap day, and §VI.D's formula makes that same adjustment, so the two agree when there's no leap day in the span and diverge slightly when there is. Verified against both of Appendix B's own worked examples (Chapter 8's calculator uses the same math this suite's other apps do).
-:::
-
-# bill-calc
-ch: 8 · Treasury Bills in Practice
-title: Calculator: Bill Pricing

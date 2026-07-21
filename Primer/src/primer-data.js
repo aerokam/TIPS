@@ -80,30 +80,6 @@ export function pickFeaturedNote(data, targetYears = 10) {
   return closestByTerm(rows, data.settlementDate, targetYears);
 }
 
-// Shortest bill with MORE than 26 weeks (182 days) to maturity — the smallest
-// live example of the "frequency = 2" bill case.
-export function pickFeaturedLongBill(data) {
-  const settle = new Date(data.settlementDate);
-  const rows = data.yieldsRows
-    .filter(r => r.type === 'MARKET BASED BILL')
-    .map(r => ({ ...r, days: Math.round((new Date(r.maturity) - settle) / 86400000) }))
-    .filter(r => r.days > 182)
-    .sort((a, b) => a.days - b.days);
-  return rows[0] || null;
-}
-
-// Longest bill with 26 weeks (182 days) or less to maturity — the largest
-// live example of the "frequency = 1" bill case.
-export function pickFeaturedShortBill(data) {
-  const settle = new Date(data.settlementDate);
-  const rows = data.yieldsRows
-    .filter(r => r.type === 'MARKET BASED BILL')
-    .map(r => ({ ...r, days: Math.round((new Date(r.maturity) - settle) / 86400000) }))
-    .filter(r => r.days > 0 && r.days <= 182)
-    .sort((a, b) => b.days - a.days);
-  return rows[0] || null;
-}
-
 // Ref CPI on a given date for a given TIPS: base CPI at dated date, from
 // TipsRef.csv (authoritative dated-date CPI), falling back to the yields row.
 export function baseCpiFor(data, cusip) {

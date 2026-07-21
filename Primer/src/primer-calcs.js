@@ -2,9 +2,8 @@
 // inputs, event wiring). No page prose lives here — every calculator page's
 // intro text is a block in content/deck.md, rendered by deck-manager.js
 // before the matching function below mounts its widget into the page.
-import { lookupRefCpi, pickFeaturedTips, baseCpiFor, fmtDate, pickFeaturedNote, pickFeaturedShortBill, pickFeaturedLongBill } from './primer-data.js';
-import { priceFromYield, yieldFromPrice } from '../../shared/src/bond-math.js';
-import { discountRateToPrice, priceToDiscountRate } from './primer-bills.js';
+import { lookupRefCpi, pickFeaturedTips, baseCpiFor, fmtDate, pickFeaturedNote } from './primer-data.js';
+import { priceFromYield } from '../../shared/src/bond-math.js';
 
 function wireIndexRatioCalc(el, data) {
   const rows = data.refCpiRows;
@@ -136,103 +135,10 @@ function wirePriceVsYieldCalc(el, data) {
   recompute();
 }
 
-function wirePriceCalc(el, data) {
-  const tips = pickFeaturedTips(data, 10);
-  const settle = new Date(data.settlementDate);
-  const maturity = new Date(tips.maturity);
-  el.innerHTML = `
-    <p class="lead">Live example: a real TIPS (CUSIP ${tips.cusip}, ${(tips.coupon * 100).toFixed(3)}%
-    coupon, matures ${fmtDate(tips.maturity)}). Enter any real yield and get the unadjusted (real)
-    price — frequency 2, exactly as the table on the previous page says.</p>
-    <div class="calc">
-      <div class="inputs">
-        <label>Settlement date</label>
-        <input id="pcSettle" type="text" value="${data.settlementDate}" disabled/>
-        <label>Maturity date</label>
-        <input id="pcMat" type="text" value="${tips.maturity}" disabled/>
-        <label>Coupon (real, %)</label>
-        <input id="pcCoupon" type="number" value="${(tips.coupon * 100).toFixed(3)}" step="0.001"/>
-        <label>Real yield (%)</label>
-        <input id="pcYield" type="number" value="${((tips.yield || 0.02) * 100).toFixed(3)}" step="0.001"/>
-      </div>
-      <div class="outputs" id="pcOut"></div>
-    </div>
-  `;
-  const couponInp = el.querySelector('#pcCoupon');
-  const yieldInp = el.querySelector('#pcYield');
-  const out = el.querySelector('#pcOut');
-  function recompute() {
-    const coupon = (parseFloat(couponInp.value) || 0) / 100;
-    const yld = (parseFloat(yieldInp.value) || 0) / 100;
-    const price = priceFromYield(yld, coupon, settle, maturity);
-    out.innerHTML = price == null ? `<p class="err">Can't price this combination.</p>` : `
-      <div class="row"><span>Frequency</span><b>2 (semiannual)</b></div>
-      <div class="row"><span>Unadjusted (real) price</span><b>${price.toFixed(6)}</b></div>
-      <div class="row"><span>Per $1,000 par (real)</span><b>$${(price / 100 * 1000).toFixed(2)}</b></div>
-      <div class="row"><span class="muted">Multiply by the Index Ratio (Ch. 4) to get the actual inflation-adjusted price paid.</span></div>
-    `;
-  }
-  couponInp.addEventListener('input', recompute);
-  yieldInp.addEventListener('input', recompute);
-  recompute();
-}
-
-function wireBillCalc(el, data) {
-  const shortBill = pickFeaturedShortBill(data);
-  const longBill = pickFeaturedLongBill(data);
-  const options = [shortBill, longBill].filter(Boolean);
-  const settle = new Date(data.settlementDate);
-
-  el.innerHTML = `
-    <p class="lead">Two real, currently-outstanding bills — one on each side of the 26-week line.
-    Pick one, then adjust the discount rate and watch price and investment rate follow.</p>
-    <div class="calc">
-      <div class="inputs">
-        <label>Bill</label>
-        <select id="bcSel">
-          ${options.map((b, i) => `<option value="${i}">${b.cusip} — matures ${fmtDate(b.maturity)} (${b.days} days)</option>`).join('')}
-        </select>
-        <label>Discount rate (%)</label>
-        <input id="bcRate" type="number" step="0.001"/>
-      </div>
-      <div class="outputs" id="bcOut"></div>
-    </div>
-  `;
-  const sel = el.querySelector('#bcSel');
-  const rateInp = el.querySelector('#bcRate');
-  const out = el.querySelector('#bcOut');
-
-  function loadBill() {
-    const b = options[+sel.value];
-    if (!b || b.price == null) { rateInp.value = ''; return; }
-    rateInp.value = (priceToDiscountRate(b.price, b.days) * 100).toFixed(3);
-    recompute();
-  }
-  function recompute() {
-    const b = options[+sel.value];
-    if (!b) return;
-    const d = (parseFloat(rateInp.value) || 0) / 100;
-    const price = discountRateToPrice(d, b.days);
-    const invRate = yieldFromPrice(price, 0, settle, new Date(b.maturity));
-    out.innerHTML = `
-      <div class="row"><span>Days to maturity</span><b>${b.days}</b></div>
-      <div class="row"><span>Frequency (per Ch. 7 rule)</span><b>${b.days > 182 ? '2' : '1'}</b></div>
-      <div class="row"><span>Price</span><b>${price.toFixed(6)}</b></div>
-      <div class="row"><span>Discount amount (per $1,000)</span><b>$${((100 - price) / 100 * 1000).toFixed(2)}</b></div>
-      <div class="row"><span>Investment rate</span><b>${invRate == null ? '—' : (invRate * 100).toFixed(3) + '%'}</b></div>
-    `;
-  }
-  sel.addEventListener('change', loadBill);
-  rateInp.addEventListener('input', recompute);
-  loadBill();
-}
-
 // Page id -> widget wiring function. index.html mounts a page's calculator
 // (if any) into a container appended after that page's rendered deck.md blocks.
 export const CALCS = {
   'index-ratio-calc': wireIndexRatioCalc,
   'inflation-adjusted-principal': wireInflAdjPrincipal,
   'price-vs-yield-calc': wirePriceVsYieldCalc,
-  'price-calc': wirePriceCalc,
-  'bill-calc': wireBillCalc,
 };
