@@ -140,15 +140,58 @@ function isUpperBracket(d, summary, mode) {
     : d.fundedYear === summary.upperYear;
 }
 
-function renderGroupHeader(cols, fy, rows, isBracketGroup) {
+// Which bracket/cover slot this funded-year group occupies, for the hover explainer's heading.
+function bracketRoleLabel(fy, groupRows, mode, summary) {
+  if (groupRows.some(d => d.isFuture30yCover)) {
+    if (fy === summary.future30yLowerYear) return 'Lower cover year';
+    if (fy === summary.future30yUpperYear) return 'Upper cover year';
+    return 'Cover year';
+  }
+  if (mode === 'rebal') {
+    const b = summary.brackets || {};
+    if (summary.bracketMode === '3bracket' && summary.newLowerYear != null) {
+      if (fy === b.lowerYear)        return 'Original lower bracket year';
+      if (fy === summary.newLowerYear) return 'New lower bracket year';
+      if (fy === b.upperYear)        return 'Upper bracket year';
+    } else {
+      if (fy === b.lowerYear) return 'Lower bracket year';
+      if (fy === b.upperYear) return 'Upper bracket year';
+    }
+  } else {
+    if (fy === summary.lowerYear) return 'Lower bracket year';
+    if (fy === summary.upperYear) return 'Upper bracket year';
+  }
+  return 'Bracket year';
+}
+
+function bracketTipHTML(fy, groupRows, mode, summary) {
+  const role = bracketRoleLabel(fy, groupRows, mode, summary);
+  return `<b>${esc(role)}:</b>`
+    + '<ul>'
+    + '<li>The values in bold are the totals for the funded year. Amount (short for Annual Real Amount, or ARA) '
+    + 'is only relevant at the funded year level, since it includes the interest paid this year by all TIPS in '
+    + 'the ladder (click the Amount value to see the breakdown). Each other value in this row is the sum of the '
+    + 'values for the TIPS that contribute to ARA for this funded year, which are in the non-italicized row(s) below.</li>'
+    + '<li>Each non-italicized row shows values for a TIPS that contributes to ARA for this funded year. '
+    + 'Click any underlined value to see how it is calculated.</li>'
+    + '<li>The <i>italicized</i> row for this maturity year shows values for the excess TIPS that are held to '
+    + 'contribute to the duration-matched coverage for the gap years or future 30Y TIPS (the latter is only '
+    + 'relevant for ladders that extend beyond the current longest-maturity TIPS).</li>'
+    + '</ul>';
+}
+
+function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary) {
   const groupRows  = rows.map(r => r.d);
   const labelCount = cols.filter(c => c.fmt === 'str' || c.fmt === 'yld').length;
   const valueCols  = cols.filter(c => c.fmt !== 'str' && c.fmt !== 'yld');
   const cls = 'fy-group-header' + (isBracketGroup ? ' bracket' : '');
   const label = String(fy) + (isBracketGroup ? '*' : '');
+  const labelTd = isBracketGroup
+    ? `<td colspan="${labelCount}" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}"><span class="formula-var bracket-tip-target">${esc(label)}</span></td>`
+    : `<td colspan="${labelCount}">${esc(label)}</td>`;
 
   let html = `<tr class="${cls}" data-fy="${fy}" data-expanded="true">`;
-  html += `<td colspan="${labelCount}">${esc(label)}</td>`;
+  html += labelTd;
   for (const col of valueCols) {
     let agg = null, drillKey = null, drillRi = null;
     if (col.fyLevel) {
@@ -211,7 +254,7 @@ export function renderTable({ details, mode, summary }) {
 
   const bodyRows = groups.map(({ fy, rows }) => {
     const isBracketGroup = rows.some(({ d }) => isBracket(d, mode));
-    let html = renderGroupHeader(cols, fy, rows, isBracketGroup);
+    let html = renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary);
 
     for (const { d, ri } of rows) {
       const bt    = isBracket(d, mode);
