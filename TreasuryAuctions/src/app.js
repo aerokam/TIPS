@@ -734,6 +734,20 @@ async function loadData() {
         orderedColumns[v] = [...defs, ...rest];
       }
     });
+
+    // Initialize date range filter (if not already initialized)
+    if (!dateRangeFilter) {
+      dateRangeFilter = createDateRangeFilter({
+        popperId: 'rangePopover',
+        fromInputId: 'rangeFrom',
+        toInputId: 'rangeTo',
+        titleId: 'rangePopoverTitle',
+        doneButtonId: 'rangeDoneBtn',
+        clearButtonId: 'rangeClearBtn',
+        onApply: (field, from, to) => renderTable(),
+      });
+    }
+
     renderColList();
     renderTable();
   } else {
@@ -744,19 +758,6 @@ async function loadData() {
 
   renderUpcoming(upcomingResult.status === 'fulfilled' ? upcomingResult.value : null);
   if (upcomingResult.status === 'rejected') console.warn('Upcoming fetch failed:', upcomingResult.reason);
-
-  // Initialize date range filter (if not already initialized)
-  if (!dateRangeFilter) {
-    dateRangeFilter = createDateRangeFilter({
-      popperId: 'rangePopover',
-      fromInputId: 'rangeFrom',
-      toInputId: 'rangeTo',
-      titleId: 'rangePopoverTitle',
-      doneButtonId: 'rangeDoneBtn',
-      clearButtonId: 'rangeClearBtn',
-      onApply: (field, from, to) => renderTable(),
-    });
-  }
 
   setStatus(`Updated: ${new Date().toLocaleTimeString()}`);
 }
