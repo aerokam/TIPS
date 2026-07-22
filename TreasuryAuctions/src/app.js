@@ -1,6 +1,6 @@
 // Treasury Auctions - app.js
 
-import { initDatePicker } from '../../shared/src/date-picker.js';
+import { createDateRangeFilter } from '../../shared/src/date-range-filter.js';
 
 const R2_CSV_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/Auctions.csv';
 const TENTATIVE_TIPS_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json';
@@ -158,8 +158,7 @@ let activeView = 'all';
 let sortCol = null;
 let sortAsc = false;
 let filters = {};              // field -> filter string
-let dateRanges = {};           // field -> { from, to } (ISO yyyy-mm-dd), any date field
-let rangePopoverField = null;  // field the range popover is currently open for, or null
+let dateRangeFilter = null;    // shared date range filter manager instance
 let tentativeAuctions = [];    // Parsed from Treasury's Tentative Auction Schedule XML
 let tentSortCol = null;
 let tentSortAsc = true;
@@ -254,11 +253,13 @@ function getActiveRows() {
   const filter = VIEW_FILTER[activeView];
   let rows = filter ? allData.filter(filter) : allData;
 
-  // Apply per-field date range filters (from range popovers)
-  Object.entries(dateRanges).forEach(([f, r]) => {
-    if (r.from) rows = rows.filter(row => (row[f] || '') >= r.from);
-    if (r.to)   rows = rows.filter(row => (row[f] || '') <= r.to);
-  });
+  // Apply per-field date range filters (from range filter manager)
+  if (dateRangeFilter) {
+    Object.entries(dateRangeFilter.getAllRanges()).forEach(([f, r]) => {
+      if (r.from) rows = rows.filter(row => (row[f] || '') >= r.from);
+      if (r.to)   rows = rows.filter(row => (row[f] || '') <= r.to);
+    });
+  }
 
   // Apply column filters
   const activeFilters = Object.entries(filters).filter(([, v]) => v.trim());
@@ -334,7 +335,7 @@ function getActiveRows() {
 
   // Pagination: cap at ROW_LIMIT unless TIPS view or a date range is active
   const totalRows = rows.length;
-  const anyRangeActive = Object.values(dateRanges).some(r => r.from || r.to);
+  const anyRangeActive = dateRangeFilter && Object.values(dateRangeFilter.getAllRanges()).some(r => r.from || r.to);
   const capped = activeView !== 'tips' && !anyRangeActive;
   const displayRows = capped ? rows.slice(0, ROW_LIMIT) : rows;
 
@@ -384,7 +385,7 @@ function renderTable() {
         const val = filters[f] || '';
         const width = colWidths[f] ? `style="width:${colWidths[f]}px;min-width:${colWidths[f]}px;"` : '';
         const isDate = detectFmt(f) === 'date';
-        const rangeActive = isDate && dateRanges[f] && (dateRanges[f].from || dateRanges[f].to);
+        const rangeActive = isDate && dateRangeFilter && dateRangeFilter.getDateRange(f) && (dateRangeFilter.getDateRange(f).from || dateRangeFilter.getDateRange(f).to);
         const toggle = isDate
           ? `<button class="range-toggle${rangeActive ? ' active' : ''}" data-field="${f}" type="button" title="Filter by range">\u{1F4C5}</button>`
           : '';
@@ -468,41 +469,20 @@ function renderTable() {
   });
 
   // Range toggle handlers — open/close the range popover for a given field
-  thead.querySelectorAll('.range-toggle').forEach(btn => {
-    btn.addEventListener('click', e => {
-      e.stopPropagation();
-      const f = btn.dataset.field;
-      if (rangePopoverField === f) closeRangePopover();
-      else openRangePopover(f, btn);
+  if (dateRangeFilter) {
+    thead.querySelectorAll('.range-toggle').forEach(btn => {
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        const f = btn.dataset.field;
+        if (dateRangeFilter.getCurrentField() === f) dateRangeFilter.close();
+        else dateRangeFilter.open(f, fieldLabel(f), btn);
+      });
     });
-  });
-  if (rangePopoverField && !cols.includes(rangePopoverField)) closeRangePopover();
+  }
 
   renderBody(cols);
 }
 
-// ── Per-field date range popover ─────────────────────────────────────────────
-function openRangePopover(field, anchorEl) {
-  rangePopoverField = field;
-  const pop = document.getElementById('rangePopover');
-  const range = dateRanges[field] || {};
-  document.getElementById('rangePopoverTitle').textContent = fieldLabel(field) + ' range';
-  document.getElementById('rangeFrom').value = range.from || '';
-  document.getElementById('rangeTo').value = range.to || '';
-
-  const rect = anchorEl.getBoundingClientRect();
-  pop.classList.add('open');
-  const popRect = pop.getBoundingClientRect();
-  let left = rect.left;
-  if (left + popRect.width > window.innerWidth - 8) left = window.innerWidth - popRect.width - 8;
-  pop.style.left = Math.max(8, left) + 'px';
-  pop.style.top = (rect.bottom + 4) + 'px';
-}
-
-function closeRangePopover() {
-  rangePopoverField = null;
-  document.getElementById('rangePopover').classList.remove('open');
-}
 
 function renderBody(cols) {
   const { displayRows, totalRows, capped } = getActiveRows();
@@ -765,6 +745,19 @@ async function loadData() {
   renderUpcoming(upcomingResult.status === 'fulfilled' ? upcomingResult.value : null);
   if (upcomingResult.status === 'rejected') console.warn('Upcoming fetch failed:', upcomingResult.reason);
 
+  // Initialize date range filter (if not already initialized)
+  if (!dateRangeFilter) {
+    dateRangeFilter = createDateRangeFilter({
+      popperId: 'rangePopover',
+      fromInputId: 'rangeFrom',
+      toInputId: 'rangeTo',
+      titleId: 'rangePopoverTitle',
+      doneButtonId: 'rangeDoneBtn',
+      clearButtonId: 'rangeClearBtn',
+      onApply: (field, from, to) => renderTable(),
+    });
+  }
+
   setStatus(`Updated: ${new Date().toLocaleTimeString()}`);
 }
 
@@ -826,8 +819,12 @@ function init() {
       filters = {};
       sortCol = null;
       sortAsc = false;
-      dateRanges = {};
-      closeRangePopover();
+      if (dateRangeFilter) {
+        dateRangeFilter.close();
+        // Reset all ranges
+        dateRangeFilter.getAllRanges();
+        Object.keys(dateRangeFilter.getAllRanges()).forEach(f => dateRangeFilter.setDateRange(f, '', ''));
+      }
       renderColList();
       renderTable();
     });
@@ -864,36 +861,13 @@ function init() {
   // Clear filters
   document.getElementById('clearFiltersBtn').addEventListener('click', () => {
     filters = {};
-    dateRanges = {};
-    closeRangePopover();
+    if (dateRangeFilter) {
+      dateRangeFilter.close();
+      Object.keys(dateRangeFilter.getAllRanges()).forEach(f => dateRangeFilter.setDateRange(f, '', ''));
+    }
     renderTable();
   });
 
-  // Range popover: From/To inputs use the shared canonical date-picker styling
-  initDatePicker(document.getElementById('rangeFrom'));
-  initDatePicker(document.getElementById('rangeTo'));
-  document.getElementById('rangeFrom').addEventListener('change', e => {
-    if (!rangePopoverField) return;
-    dateRanges[rangePopoverField] = { ...dateRanges[rangePopoverField], from: e.target.value };
-    renderTable();
-  });
-  document.getElementById('rangeTo').addEventListener('change', e => {
-    if (!rangePopoverField) return;
-    dateRanges[rangePopoverField] = { ...dateRanges[rangePopoverField], to: e.target.value };
-    renderTable();
-  });
-  document.getElementById('rangeClearBtn').addEventListener('click', () => {
-    if (!rangePopoverField) return;
-    delete dateRanges[rangePopoverField];
-    document.getElementById('rangeFrom').value = '';
-    document.getElementById('rangeTo').value = '';
-    renderTable();
-  });
-  document.getElementById('rangeDoneBtn').addEventListener('click', () => closeRangePopover());
-  document.getElementById('rangePopover').addEventListener('click', e => e.stopPropagation());
-  document.addEventListener('click', () => { if (rangePopoverField) closeRangePopover(); });
-  document.getElementById('tableWrap').addEventListener('scroll', () => { if (rangePopoverField) closeRangePopover(); });
-  window.addEventListener('resize', () => { if (rangePopoverField) closeRangePopover(); });
 
   // Tab switching
   document.getElementById('tabHeader').addEventListener('click', e => {
