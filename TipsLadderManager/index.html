@@ -145,19 +145,22 @@
   .info-link-btn { display:inline-block; background:#1e293b; color:#fff !important; padding:1px 8px; border-radius:4px; border-bottom:none !important; font-weight:700; font-size:11px; letter-spacing:.02em; }
   .info-link-btn:hover { background:#334155; }
 
-  /* ── Purchase List modal ── */
-  #purchase-list-modal { background:#fff;max-width:460px;margin:60px auto;border-radius:8px;padding:24px 28px;position:relative;font-size:13px;line-height:1.5; }
-  #purchase-list-modal table { border-collapse:collapse;width:100%;font-size:13px; }
-  #purchase-list-modal th { text-align:left;padding:4px 10px 4px 0;border-bottom:2px solid #334155;color:#334155;font-weight:600;white-space:nowrap; }
-  #purchase-list-modal th:last-child { text-align:right;padding-right:0; }
-  #purchase-list-modal td { padding:3px 10px 3px 0;border-bottom:1px solid #eee;white-space:nowrap;font-variant-numeric:tabular-nums; }
-  #purchase-list-modal td:last-child { text-align:right;padding-right:0; }
-  #purchase-list-modal tfoot td { font-weight:700;border-top:2px solid #334155;border-bottom:none;padding-top:5px; }
-  #purchase-list-modal td.pl-cusip { font-family:monospace;font-size:12px; }
-  .pl-section-head { font-weight:700;margin-bottom:6px;font-size:13px; }
-  .pl-section-head + table { margin-bottom:0; }
-  .pl-buys { color:#16a34a; }
-  .pl-sells { color:#dc2626; }
+  /* ── Trade Ticket modal ── */
+  #trade-ticket-modal { background:#fff;max-width:640px;margin:60px auto;border-radius:8px;padding:24px 28px;position:relative;font-size:13px;line-height:1.5; }
+  #trade-ticket-modal table { border-collapse:collapse;width:100%;font-size:13px; }
+  #trade-ticket-modal th { text-align:left;padding:4px 10px 4px 0;border-bottom:2px solid #334155;color:#334155;font-weight:600;white-space:nowrap; }
+  #trade-ticket-modal th:nth-child(n+3) { text-align:right; }
+  #trade-ticket-modal th:last-child { padding-right:0; }
+  #trade-ticket-modal td { padding:3px 10px 3px 0;border-bottom:1px solid #eee;white-space:nowrap;font-variant-numeric:tabular-nums; }
+  #trade-ticket-modal td:nth-child(n+3) { text-align:right; }
+  #trade-ticket-modal td:last-child { padding-right:0; }
+  #trade-ticket-modal tfoot td { font-weight:700;border-top:2px solid #334155;border-bottom:none;padding-top:5px; }
+  #trade-ticket-modal td.tt-cusip { font-family:monospace;font-size:12px; }
+  #trade-ticket-modal td.tt-drill { cursor:pointer;text-decoration:underline dotted #94a3b8; }
+  .tt-section-head { font-weight:700;margin-bottom:6px;font-size:13px; }
+  .tt-section-head + table { margin-bottom:0; }
+  .tt-buys { color:#16a34a; }
+  .tt-sells { color:#dc2626; }
   
   #net-cash-inline { display:none; flex-direction:row; gap:5px; align-items:baseline; white-space:nowrap; }
   #net-cash-inline .nc-label { font-size:13px; font-weight:700; color: var(--portal-card-text); text-transform:uppercase; letter-spacing:.06em; }
@@ -265,15 +268,15 @@
   </div>
 </div>
 
-<!-- Purchase List modal -->
-<div id="purchase-list-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow-y:auto;">
-  <div id="purchase-list-modal">
-    <button id="purchase-list-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;">×</button>
-    <div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;border-bottom:2px solid #1e293b;padding-bottom:6px;">Purchase List</div>
-    <div style="font-size:11px;color:#94a3b8;margin-bottom:14px;" id="purchase-list-subtitle"></div>
-    <div id="purchase-list-content"></div>
+<!-- Trade Ticket modal -->
+<div id="trade-ticket-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow-y:auto;">
+  <div id="trade-ticket-modal">
+    <button id="trade-ticket-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;">×</button>
+    <div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;border-bottom:2px solid #1e293b;padding-bottom:6px;">Trade Ticket</div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:14px;" id="trade-ticket-subtitle"></div>
+    <div id="trade-ticket-content"></div>
     <div style="margin-top:16px;text-align:right;">
-      <button id="purchase-list-copy" style="padding:3px 12px;font-size:11px;" title="Copy CUSIP and Qty as CSV">Copy CSV</button>
+      <button id="trade-ticket-copy" style="padding:3px 12px;font-size:11px;" title="Copy CUSIP and Qty as CSV">Copy CSV</button>
     </div>
   </div>
 </div>
@@ -368,7 +371,7 @@
       <button id="run-btn" disabled style="align-self:flex-end">Run Rebalance</button>
       <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
       <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
-      <button id="purchase-list-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show consolidated order quantities">Purchase List</button>
+      <button id="trade-ticket-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show trade ticket with cost breakdown">Trade Ticket</button>
       <div id="duration-links" style="align-self:flex-end"></div>
       <div id="ladder-stats-display" style="display:none;align-self:flex-end;flex-direction:column;gap:2px;align-items:flex-end">
         <span id="avg-yld-display" class="info-stat">Avg Yld <span id="avg-yld-val" class="info-stat-val"></span></span>
@@ -482,8 +485,9 @@ import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAF
 import { segmentRanges, constantMap, applySegmentMap } from './src/segment-dara.js';
 import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable, COLS } from './src/render.js';
-import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill } from './src/drill.js';
+import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
+import { accruedInterest } from '../shared/src/bond-math.js';
 import { fetchTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
@@ -734,7 +738,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     document.getElementById('build-output').style.display = !isRebalance && buildRendered     ? 'block' : 'none';
     document.getElementById('export-csv-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
     document.getElementById('export-cusip-qty-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
-    document.getElementById('purchase-list-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'inline-block' : 'none';
+    document.getElementById('trade-ticket-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'inline-block' : 'none';
     document.getElementById('table-controls').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'flex' : 'none';
     if (isRebalance ? rebalanceRendered : buildRendered) _updateExpandCollapseLabels();
 
@@ -965,50 +969,85 @@ document.getElementById('expand-collapse-bracket-btn').addEventListener('click',
   _setBracketGroupsExpanded(!bracketExpanded, tbl);
 });
 
-// ─── Purchase List modal ──────────────────────────────────────────────────────
-function _plTable(rows, totalLabel, qtyClass) {
-  let html = '<table><thead><tr><th>CUSIP</th><th>Maturity</th><th>Qty</th></tr></thead><tbody>';
+// ─── Trade Ticket modal ────────────────────────────────────────────────────────
+function _ttFm(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+
+// Per-row cost breakdown. qty is always positive (Sells pass Math.abs(delta) so
+// Cost / Accrued Interest / Total read as positive proceeds).
+// "cost" (not "principal") — Principal already means the inflation-adjusted FACE value
+// (1,000 × index ratio); this is the dollar amount paid, which also reflects market price.
+function _ttRowCost(d, qty) {
+  const bond = tipsMap?.get(d.cusip);
+  const { accrued, A, E } = bond?.maturity
+    ? accruedInterest(d.coupon ?? 0, settlementDate, bond.maturity)
+    : { accrued: 0, A: 0, E: 0 };
+  const accruedPerBond = accrued / 100 * (d.indexRatio ?? 0) * 1000;
+  const cost = qty * (d.costPerBond ?? 0);
+  const rowAccruedInterest = qty * accruedPerBond;
+  return {
+    price: d.price ?? 0, indexRatio: d.indexRatio ?? 0, costPerBond: d.costPerBond ?? 0,
+    coupon: d.coupon ?? 0, A, E, accruedPerBond, qty,
+    cost, accruedInterest: rowAccruedInterest, totalCost: cost + rowAccruedInterest,
+  };
+}
+
+let _ttDrillRows = [];
+
+function _ttTable(rows, totalLabel, qtyClass, costLabel) {
+  let html = '<table><thead><tr><th>CUSIP</th><th>Maturity</th><th>Qty</th>'
+           + `<th>Cost</th><th>Accrued Interest</th><th>${esc(costLabel)}</th></tr></thead><tbody>`;
   for (const r of rows) {
-    html += `<tr><td class="pl-cusip">${esc(r.cusip)}</td><td>${esc(r.maturity)}</td>`
-          + `<td class="${qtyClass}">${r.qty}</td></tr>`;
+    const idx = _ttDrillRows.push({ ...r.cost, totalLabel: costLabel }) - 1;
+    html += `<tr><td class="tt-cusip">${esc(r.cusip)}</td><td>${esc(r.maturity)}</td>`
+          + `<td class="${qtyClass}">${r.qty}</td>`
+          + `<td class="tt-drill ${qtyClass}" data-tt-idx="${idx}" data-tt-key="cost">${_ttFm(r.cost.cost)}</td>`
+          + `<td class="tt-drill ${qtyClass}" data-tt-idx="${idx}" data-tt-key="accrued">${_ttFm(r.cost.accruedInterest)}</td>`
+          + `<td class="tt-drill ${qtyClass}" data-tt-idx="${idx}" data-tt-key="total">${_ttFm(r.cost.totalCost)}</td></tr>`;
   }
-  const total = rows.reduce((s, r) => s + Math.abs(r.rawQty), 0);
-  html += `</tbody><tfoot><tr><td colspan="2">${totalLabel}</td><td class="${qtyClass}">${total}</td></tr></tfoot></table>`;
+  const totQty = rows.reduce((s, r) => s + Math.abs(r.rawQty), 0);
+  const totCost = rows.reduce((s, r) => s + r.cost.cost, 0);
+  const totAcc = rows.reduce((s, r) => s + r.cost.accruedInterest, 0);
+  const totTot = rows.reduce((s, r) => s + r.cost.totalCost, 0);
+  html += `</tbody><tfoot><tr><td colspan="2">${totalLabel}</td><td class="${qtyClass}">${totQty}</td>`
+        + `<td>${_ttFm(totCost)}</td><td>${_ttFm(totAcc)}</td><td>${_ttFm(totTot)}</td></tr></tfoot></table>`;
   return html;
 }
 
-function buildPurchaseListHTML(mode) {
+function buildTradeTicketHTML(mode) {
   const details = mode === 'build' ? buildDetails : rebalDetails;
   if (!details) return { html: '', csvRows: [] };
 
+  _ttDrillRows = [];
   const csvRows = [];
   let html = '';
 
   if (mode === 'build') {
     const rows = details
-      .map(d => ({ cusip: d.cusip, maturity: d.maturityStr, rawQty: (d.fundedYearQty || 0) + (d.excessQty || 0) }))
-      .filter(r => r.rawQty > 0)
-      .map(r => ({ ...r, qty: String(r.rawQty) }));
+      .map(d => {
+        const rawQty = (d.fundedYearQty || 0) + (d.excessQty || 0);
+        return { cusip: d.cusip, maturity: d.maturityStr, rawQty, qty: String(rawQty), cost: _ttRowCost(d, rawQty) };
+      })
+      .filter(r => r.rawQty > 0);
     rows.forEach(r => csvRows.push(`${r.cusip},${r.rawQty}`));
-    html = _plTable(rows, 'Total', '');
+    html = _ttTable(rows, 'Total', '', 'Total Cost');
   } else {
     const buys = [], sells = [];
     for (const d of details) {
       const delta = (d.qtyAfter || 0) - (d.qtyBefore || 0);
       if (delta === 0) continue;
-      const row = { cusip: d.cusip, maturity: d.maturityStr, rawQty: delta, qty: delta > 0 ? String(delta) : String(delta) };
+      const row = { cusip: d.cusip, maturity: d.maturityStr, rawQty: delta, qty: String(delta), cost: _ttRowCost(d, Math.abs(delta)) };
       (delta > 0 ? buys : sells).push(row);
     }
     buys.forEach(r => csvRows.push(`${r.cusip},${r.rawQty}`));
     sells.forEach(r => csvRows.push(`${r.cusip},${r.rawQty}`));
 
     if (buys.length) {
-      html += '<div class="pl-section-head pl-buys">Buys</div>' + _plTable(buys, 'Total', 'pl-buys');
+      html += '<div class="tt-section-head tt-buys">Buys</div>' + _ttTable(buys, 'Total', 'tt-buys', 'Total Cost');
     }
     if (sells.length) {
       html += (buys.length ? '<div style="height:16px"></div>' : '')
-            + '<div class="pl-section-head pl-sells">Sells</div>'
-            + _plTable(sells, 'Total', 'pl-sells');
+            + '<div class="tt-section-head tt-sells">Sells</div>'
+            + _ttTable(sells, 'Total', 'tt-sells', 'Total Proceeds');
     }
     if (!html) html = '<p style="color:#94a3b8;margin:0">No trades.</p>';
   }
@@ -1016,33 +1055,43 @@ function buildPurchaseListHTML(mode) {
   return { html, csvRows };
 }
 
-let _plCsvRows = [];
+let _ttCsvRows = [];
 
-document.getElementById('purchase-list-btn').addEventListener('click', () => {
+document.getElementById('trade-ticket-btn').addEventListener('click', () => {
   const mode = currentMode === 'build' ? 'build' : 'rebal';
-  const { html, csvRows } = buildPurchaseListHTML(mode);
-  _plCsvRows = csvRows;
+  const { html, csvRows } = buildTradeTicketHTML(mode);
+  _ttCsvRows = csvRows;
   const summary = mode === 'build' ? buildSummary : rebalSummary;
   const subtitle = summary
     ? (mode === 'build'
         ? `Build · ${summary.firstYear}–${summary.lastYear}`
         : `Rebalance · ${summary.firstYear}–${summary.lastYear}`)
     : '';
-  document.getElementById('purchase-list-subtitle').textContent = subtitle;
-  document.getElementById('purchase-list-content').innerHTML = html;
-  document.getElementById('purchase-list-overlay').style.display = 'block';
+  document.getElementById('trade-ticket-subtitle').textContent = subtitle;
+  document.getElementById('trade-ticket-content').innerHTML = html;
+  document.getElementById('trade-ticket-overlay').style.display = 'block';
 });
 
-document.getElementById('purchase-list-close').addEventListener('click', () => {
-  document.getElementById('purchase-list-overlay').style.display = 'none';
+document.getElementById('trade-ticket-close').addEventListener('click', () => {
+  document.getElementById('trade-ticket-overlay').style.display = 'none';
 });
-document.getElementById('purchase-list-overlay').addEventListener('click', e => {
+document.getElementById('trade-ticket-overlay').addEventListener('click', e => {
   if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
 });
-document.getElementById('purchase-list-copy').addEventListener('click', () => {
-  const text = 'cusip,qty\n' + _plCsvRows.join('\n');
+document.getElementById('trade-ticket-content').addEventListener('click', e => {
+  const cell = e.target.closest('td.tt-drill');
+  if (!cell) return;
+  const r = _ttDrillRows[parseInt(cell.dataset.ttIdx, 10)];
+  if (!r) return;
+  const key = cell.dataset.ttKey;
+  if (key === 'cost') showPopup(cell, 'Cost', buildTradeTicketCostDrill(r));
+  else if (key === 'accrued') showPopup(cell, 'Accrued Interest', buildTradeTicketAccruedDrill(r));
+  else if (key === 'total') showPopup(cell, r.totalLabel, buildTradeTicketTotalDrill(r, r.totalLabel));
+});
+document.getElementById('trade-ticket-copy').addEventListener('click', () => {
+  const text = 'cusip,qty\n' + _ttCsvRows.join('\n');
   navigator.clipboard.writeText(text).then(() => {
-    const btn = document.getElementById('purchase-list-copy');
+    const btn = document.getElementById('trade-ticket-copy');
     const prev = btn.textContent;
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = prev; }, 1500);
@@ -1096,7 +1145,7 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
   document.getElementById('output').style.display = 'block';
   document.getElementById('export-csv-btn').style.display = 'block';
   document.getElementById('export-cusip-qty-btn').style.display = 'block';
-  document.getElementById('purchase-list-btn').style.display = 'inline-block';
+  document.getElementById('trade-ticket-btn').style.display = 'inline-block';
   document.getElementById('table-controls').style.display = 'flex';
 }
 
@@ -1144,7 +1193,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
   document.getElementById('build-output').style.display = 'block';
   document.getElementById('export-csv-btn').style.display = 'block';
   document.getElementById('export-cusip-qty-btn').style.display = 'block';
-  document.getElementById('purchase-list-btn').style.display = 'inline-block';
+  document.getElementById('trade-ticket-btn').style.display = 'inline-block';
   document.getElementById('table-controls').style.display = 'flex';
 }
 
@@ -1611,7 +1660,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   document.getElementById('table-controls').style.display = 'none';
   document.getElementById('export-csv-btn').style.display = 'none';
   document.getElementById('export-cusip-qty-btn').style.display = 'none';
-  document.getElementById('purchase-list-btn').style.display = 'none';
+  document.getElementById('trade-ticket-btn').style.display = 'none';
   // Clear all form fields and per-year DARA state for fresh file
   document.getElementById('dara').value = '';
   _daraAutoInferred = false;

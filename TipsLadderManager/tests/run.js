@@ -9,6 +9,7 @@ import { segmentRanges, constantMap, applySegmentMap } from '../src/segment-dara
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
 import { nextBondTradingDay, parseBondHolidays, lookupRefCpi } from '../src/data.js';
+import { accruedInterest } from '../../shared/src/bond-math.js';
 
 // ── CSV helpers (match index.html exactly) ────────────────────────────────────
 function parseCsv(text) {
@@ -1289,6 +1290,30 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
   assert('Infer LMP (last inside gap): whole-portfolio net cash small & non-negative',
     result.summary.costDeltaSum >= -50 && result.summary.costDeltaSum <= 3000, true);
   console.log(`        flat DARA: ${Math.round(scaledMedian).toLocaleString()}  whole-portfolio net cash: ${Math.round(result.summary.costDeltaSum).toLocaleString()}`);
+}
+
+// ── Test: accruedInterest — day-count proration (2.1 TIPS Basics, Trade Ticket) ──
+console.log('\naccruedInterest — day-count proration');
+{
+  const coupon = 0.02; // 2% annual → 1.0 per $100 semiannual
+  const maturity = new Date(2036, 0, 15); // Jan 15, 2036 — coupon dates Jan15/Jul15
+  const periodStart = new Date(2025, 6, 15); // Jul 15, 2025
+  const E_expected = (new Date(2026, 0, 15) - periodStart) / 86400000; // 184 days
+
+  // One day after the coupon date: A=1, accrued is a thin sliver of the semiannual coupon.
+  const early = accruedInterest(coupon, new Date(2025, 6, 16), maturity);
+  assert('accruedInterest: E matches period length', early.E, E_expected);
+  assert('accruedInterest: A=1 the day after a coupon', early.A, 1);
+  assert('accruedInterest: accrued ≈ semiCoupon × 1/E', early.accrued, 1.0 * (1 / E_expected), 1e-9);
+
+  // One day before the next coupon: A=E-1, accrued is nearly the full semiannual coupon —
+  // NOT the flat cpn/2×par the app used to describe before switching to day-count proration.
+  const late = accruedInterest(coupon, new Date(2026, 0, 14), maturity);
+  assert('accruedInterest: A=E-1 the day before the next coupon', late.A, E_expected - 1);
+  assert('accruedInterest: accrued ≈ semiCoupon × (E-1)/E', late.accrued, 1.0 * (E_expected - 1) / E_expected, 1e-9);
+  assert('accruedInterest: accrued strictly below the full semiannual coupon', late.accrued < 1.0, true);
+
+  console.log(`        E=${early.E} days   early(A=1) accrued=${early.accrued.toFixed(5)}   late(A=E-1) accrued=${late.accrued.toFixed(5)}`);
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────

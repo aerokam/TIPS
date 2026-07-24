@@ -559,6 +559,47 @@ export function buildIndexRatioDrill(d) {
   ];
 }
 
+// ─── Trade Ticket popups (5.0 §Trade Ticket) ──────────────────────────────────
+// r: { price, indexRatio, costPerBond, coupon, A, E, accruedPerBond, qty,
+//      cost, accruedInterest, totalCost } — built per-row in index.html.
+// "Cost" (not "Principal") deliberately — Principal already means the inflation-adjusted
+// FACE value (1,000 × index ratio, see bond-math.js principalPerBond); this is the dollar
+// amount paid, which additionally reflects market price. Matches the main table's existing
+// Cost / Cost Before / Cost After columns and "Cost per TIPS" popup wording.
+export function buildTradeTicketCostDrill(r) {
+  return [
+    { label: 'Price', note: 'quoted, % of par', value: fd(r.price, 3) },
+    { label: 'Index Ratio', note: 'settlement Ref CPI ÷ dated Ref CPI', value: fd(r.indexRatio, 5) },
+    { sep: true },
+    { label: 'Cost per TIPS', note: 'price/100 \xd7 index ratio \xd7 1,000', value: fm2(r.costPerBond) },
+    { label: 'Quantity', value: r.qty },
+    { sep: true },
+    { label: 'Cost', note: 'cost per TIPS \xd7 quantity', value: fm(r.cost), total: true },
+  ];
+}
+
+export function buildTradeTicketAccruedDrill(r) {
+  return [
+    { label: 'Days since last coupon (A)', value: fd(r.A, 0) },
+    { label: 'Days in coupon period (E)', value: fd(r.E, 0) },
+    { label: 'Coupon ÷ 2', note: 'semiannual rate', value: fd(r.coupon / 2 * 100, 5) + '%' },
+    { sep: true },
+    { label: 'Accrued Interest per TIPS', note: '(A ÷ E) \xd7 (coupon/2 \xd7 1,000 \xd7 index ratio)', value: fm2(r.accruedPerBond) },
+    { label: 'Quantity', value: r.qty },
+    { sep: true },
+    { label: 'Accrued Interest', note: 'accrued interest per TIPS \xd7 quantity', value: fm(r.accruedInterest), total: true },
+  ];
+}
+
+export function buildTradeTicketTotalDrill(r, label) {
+  return [
+    { label: 'Cost', value: fm(r.cost) },
+    { label: 'Accrued Interest', value: fm(r.accruedInterest) },
+    { sep: true },
+    { label: label || 'Total Cost', value: fm(r.totalCost), total: true },
+  ];
+}
+
 export function buildRefCpiDrill(d, complexity = 'quant', refCpiRows = null) {
   const date = new Date(d.settlementDate || d.settlementDateStr || new Date());
   const day = date.getDate();

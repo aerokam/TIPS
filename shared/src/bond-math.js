@@ -115,6 +115,23 @@ export function termYears(settle, maturity) {
   return daysToMat / 365.25;
 }
 
+// ─── Accrued interest (actual/actual day count) ───────────────────────────────
+// Spec: 2.1 TIPS Basics §Accrued Interest, 4.0 Computation Modules §bond-math.js
+// Prorates the current coupon period by days elapsed since the last coupon date.
+// Returns accrued interest per $100 par (nominal — no index ratio applied), plus
+// the day-count components (A = days since last coupon, E = days in period).
+// settle: Date object. mature: Date object.
+export function accruedInterest(coupon, settle, mature) {
+  const nextCoupon = _nextCouponOnOrAfter(settle, mature);
+  if (!nextCoupon) return { accrued: 0, A: 0, E: 0, lastCoupon: null, nextCoupon: null };
+  const lastCoupon = addSemiannualPeriods(nextCoupon, -1, mature.getDate());
+  const days = (a, b) => (b.getTime() - a.getTime()) / 86400000;
+  const E = days(lastCoupon, nextCoupon);
+  const A = days(lastCoupon, settle);
+  const semiCoupon = (coupon / 2) * 100;
+  return { accrued: semiCoupon * (A / E), A, E, lastCoupon, nextCoupon };
+}
+
 // ─── Yield from price (actual/actual, matches Excel YIELD(...,2,1)) ───────────
 // Spec: 2.1 TIPS Basics (yield calculations)
 // cleanPrice: percentage of par (e.g. 99.5)
@@ -156,11 +173,8 @@ export function yieldFromPrice(cleanPrice, coupon, settle, mature) {
 
   const nextCoupon = nextCouponOnOrAfter(settle);
   if (!nextCoupon) return null;
-  const lastCoupon = addSemiannualPeriods(nextCoupon, -1, mature.getDate());
-  const E = days(lastCoupon, nextCoupon);
-  const A = days(lastCoupon, settle);
+  const { accrued, E } = accruedInterest(coupon, settle, mature);
   const DSC = days(settle, nextCoupon);
-  const accrued = semiCoupon * (A / E);
   const dirtyPrice = cleanPrice + accrued;
   const w = DSC / E;
 
@@ -236,13 +250,10 @@ export function priceFromYield(yld, coupon, settle, mature) {
 
   const nextCoupon = nextCouponOnOrAfter(settle);
   if (!nextCoupon) return null;
-  const lastCoupon = addSemiannualPeriods(nextCoupon, -1, mature.getDate());
 
   const days = (a, b) => (b.getTime() - a.getTime()) / 86400000;
-  const E = days(lastCoupon, nextCoupon);
-  const A = days(lastCoupon, settle);
+  const { accrued, E } = accruedInterest(coupon, settle, mature);
   const DSC = days(settle, nextCoupon);
-  const accrued = semiCoupon * (A / E);
   const w = DSC / E;
 
   const coupons = [];
