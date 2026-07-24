@@ -42,12 +42,13 @@ let fidelityNominalsData = null;  // processed bond objects from Fidelity CSV
 let fidelityNominalsDate = null;  // download date string extracted from CSV footer
 let nominalsShowStrips = false;
 let nominalsClipOutliers = true;
+let beiClipOutliers = true;
 let chart = null;
 let chartTab = null;
 let spreadChart1 = null, spreadChart2 = null;
 let spreadModeActive = false;
-const savedZoom = { tips: null, treasuries: null };
-const savedDateRange = { tips: null, treasuries: null };
+const savedZoom = { tips: null, treasuries: null, bei: null };
+const savedDateRange = { tips: null, treasuries: null, bei: null };
 
 // classifyByCusipRoot() returns 'Bill'/'Note'/'Bond'/'STRIPS'; map to the
 // app's internal type strings (which mirror FedInvest's own Type column).
@@ -74,6 +75,13 @@ function isoToMDY(iso) {
   return `${m}/${d}/${y}`;
 }
 
+// Convert YYYY-MM-DD → MM/DD/YY (2-digit year) for compact table display
+function isoToMDY2(iso) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-');
+  return `${m}/${d}/${y.slice(2)}`;
+}
+
 // Format a Date object → MM/DD/YYYY
 function fmtDateMDY(date) {
   return String(date.getMonth() + 1).padStart(2, '0') + '/' +
@@ -93,12 +101,23 @@ function ttmLabel(ms) {
   return `${Math.round(days / 365.25)}y`;
 }
 
-// Broker timestamp "MM/DD/YYYY HH:MM AM/PM" → "MM/DD HH:MM AM/PM" (drop year)
+// Broker timestamp "MM/DD/YYYY HH:MM AM/PM" is Fidelity's stamp of the local
+// system clock, which on this machine is Pacific. Convert to Eastern (+3h,
+// always exact since PT/ET share the same US DST schedule) and drop the year.
 function fmtBrokerTime(s) {
   if (!s) return s;
-  const [datePart, ...rest] = s.split(' ');
-  const [m, d] = datePart.split('/');
-  return `${m}/${d} ${rest.join(' ')}`;
+  const [datePart, timePart, ampm] = s.split(' ');
+  const [mo, dy, yr] = datePart.split('/').map(Number);
+  let [hh, mm] = timePart.split(':').map(Number);
+  if (ampm === 'PM' && hh !== 12) hh += 12;
+  if (ampm === 'AM' && hh === 12) hh = 0;
+  const dt = new Date(yr, mo - 1, dy, hh, mm);
+  dt.setHours(dt.getHours() + 3);
+  let h2 = dt.getHours();
+  const ap2 = h2 >= 12 ? 'PM' : 'AM';
+  h2 = h2 % 12; if (h2 === 0) h2 = 12;
+  const min2 = String(dt.getMinutes()).padStart(2, '0');
+  return `${dt.getMonth() + 1}/${dt.getDate()} ${h2}:${min2} ${ap2}`;
 }
 // Parse a native date input's ISO value (YYYY-MM-DD) → Date (or null if empty/invalid)
 function parseIsoInput(iso) {
@@ -526,6 +545,8 @@ function calculateSAO(bonds) {
 function processAndRender() {
   if (activeTab === 'treasuries') {
     processAndRenderNominals();
+  } else if (activeTab === 'bei') {
+    processAndRenderBei();
   } else {
     processAndRenderTips();
   }
@@ -543,13 +564,17 @@ function switchTab(tab) {
     btn.classList.toggle('active', btn.dataset.tab === tab);
   });
 
-  // Show/Hide Source UI groups
-  document.getElementById('tipsSourceUI').style.display = tab === 'tips' ? 'flex' : 'none';
+  // Show/Hide Source UI groups (BEI reuses the TIPS strip — it's Market-only, see switchChartMode)
+  document.getElementById('tipsSourceUI').style.display = (tab === 'tips' || tab === 'bei') ? 'flex' : 'none';
   document.getElementById('treasuriesSourceUI').style.display = tab === 'treasuries' ? 'flex' : 'none';
 
   // Table visibility
   document.getElementById('saTable').style.display = tab === 'tips' ? '' : 'none';
   document.getElementById('nominalsTable').style.display = tab === 'treasuries' ? '' : 'none';
+  document.getElementById('beiTable').style.display = tab === 'bei' ? '' : 'none';
+
+  // BEI has no spread concept — never enter the tab already in spread mode
+  if (tab === 'bei') spreadModeActive = false;
 
   // Sync chart mode + controls visibility for the new tab
   switchChartMode(spreadModeActive ? 'spread' : 'yield');
@@ -989,6 +1014,51 @@ function renderNominalsChart(fedBonds, fidBonds) {
 
 }
 
+// Build the processed TIPS bond set for one source (FedInvest or broker/Market).
+// Shared by the TIPS tab (both sources side-by-side) and the BEI tab (Market only).
+function buildProcessedTipsBonds(sourceMap, isBroker) {
+  return rawYieldsData.map(bond => {
+    const coupon = parseFloat(bond.coupon);
+    let price = parseFloat(bond.price);
+    let settleDateStr = bond.settlementDate;
+
+    let quote = null;
+    if (isBroker) {
+      if (!sourceMap.has(bond.cusip)) return null;
+      quote = sourceMap.get(bond.cusip);
+      price = quote.ask;
+      const fedSettleDate = localDate(bond.settlementDate);
+      const tPlus1 = nextBusinessDay(fedSettleDate, holidaySet);
+      settleDateStr = toIsoDate(tPlus1);
+    }
+
+    const saSettle = saFactorForDate(rawRefCpiData, settleDateStr);
+    const saMature = saFactorForDate(rawRefCpiData, bond.maturity);
+
+    if (saSettle == null || isNaN(saSettle) || saMature == null || isNaN(saMature)) return null;
+
+    const settleDate = localDate(settleDateStr);
+    const matureDate = localDate(bond.maturity);
+    const askYield = yieldFromPrice(price, coupon, settleDate, matureDate);
+    const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, settleDate, matureDate);
+
+    let bidPrice = NaN, bidYield = NaN, adjAskPrice = NaN, adjBidPrice = NaN;
+    let inflationFactor = NaN, yieldSpreadBps = NaN, priceSpreadPct = NaN;
+    if (isBroker && quote) {
+      bidPrice = quote.bid;
+      adjAskPrice = quote.adjAsk;
+      adjBidPrice = quote.adjBid;
+      inflationFactor = quote.inflationFactor;
+      bidYield = yieldFromPrice(bidPrice, coupon, settleDate, matureDate);
+      if (!isNaN(bidYield) && !isNaN(askYield)) yieldSpreadBps = (bidYield - askYield) * 10000;
+      if (!isNaN(adjAskPrice) && !isNaN(adjBidPrice) && adjAskPrice > 0)
+        priceSpreadPct = (adjAskPrice - adjBidPrice) / adjAskPrice * 100;
+    }
+
+    return { ...bond, coupon, price, askYield, saYield, bidPrice, bidYield, adjAskPrice, adjBidPrice, inflationFactor, yieldSpreadBps, priceSpreadPct, maturityDate: matureDate, settlementDate: settleDateStr, isBroker };
+  }).filter(Boolean).sort((a, b) => a.maturityDate - b.maturityDate);
+}
+
 function processAndRenderTips() {
   const statusEl = document.getElementById('status');
   const showFed = document.getElementById('chkTipsFed').checked;
@@ -1000,52 +1070,8 @@ function processAndRenderTips() {
   try {
     const fedSettleStr = rawYieldsData[0]?.settlementDate;
 
-    // Build the processed set for each active source
-    const getProcessed = (sourceMap, isBroker) => {
-      return rawYieldsData.map(bond => {
-        const coupon = parseFloat(bond.coupon);
-        let price = parseFloat(bond.price);
-        let settleDateStr = bond.settlementDate;
-        
-        let quote = null;
-        if (isBroker) {
-          if (!sourceMap.has(bond.cusip)) return null;
-          quote = sourceMap.get(bond.cusip);
-          price = quote.ask;
-          const fedSettleDate = localDate(bond.settlementDate);
-          const tPlus1 = nextBusinessDay(fedSettleDate, holidaySet);
-          settleDateStr = toIsoDate(tPlus1);
-        }
-
-        const saSettle = saFactorForDate(rawRefCpiData, settleDateStr);
-        const saMature = saFactorForDate(rawRefCpiData, bond.maturity);
-
-        if (saSettle == null || isNaN(saSettle) || saMature == null || isNaN(saMature)) return null;
-
-        const settleDate = localDate(settleDateStr);
-        const matureDate = localDate(bond.maturity);
-        const askYield = yieldFromPrice(price, coupon, settleDate, matureDate);
-        const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, settleDate, matureDate);
-
-        let bidPrice = NaN, bidYield = NaN, adjAskPrice = NaN, adjBidPrice = NaN;
-        let inflationFactor = NaN, yieldSpreadBps = NaN, priceSpreadPct = NaN;
-        if (isBroker && quote) {
-          bidPrice = quote.bid;
-          adjAskPrice = quote.adjAsk;
-          adjBidPrice = quote.adjBid;
-          inflationFactor = quote.inflationFactor;
-          bidYield = yieldFromPrice(bidPrice, coupon, settleDate, matureDate);
-          if (!isNaN(bidYield) && !isNaN(askYield)) yieldSpreadBps = (bidYield - askYield) * 10000;
-          if (!isNaN(adjAskPrice) && !isNaN(adjBidPrice) && adjAskPrice > 0)
-            priceSpreadPct = (adjAskPrice - adjBidPrice) / adjAskPrice * 100;
-        }
-
-        return { ...bond, coupon, price, askYield, saYield, bidPrice, bidYield, adjAskPrice, adjBidPrice, inflationFactor, yieldSpreadBps, priceSpreadPct, maturityDate: matureDate, settlementDate: settleDateStr, isBroker };
-      }).filter(Boolean).sort((a, b) => a.maturityDate - b.maturityDate);
-    };
-
-    let fedBonds = showFed ? getProcessed(null, false) : null;
-    let brokerBonds = showBroker ? getProcessed(brokerPrices, true) : null;
+    let fedBonds = showFed ? buildProcessedTipsBonds(null, false) : null;
+    let brokerBonds = showBroker ? buildProcessedTipsBonds(brokerPrices, true) : null;
 
     // Apply SAO to each set
     if (fedBonds) {
@@ -1172,6 +1198,80 @@ function getTipsSeriesVisibility(label) {
   return true;
 }
 
+// Shared x-scale builder for TIPS-maturity-keyed yield charts (TIPS tab, BEI tab):
+// linear term (weeks) scale in Term mode, calendar time scale in Maturity mode.
+function buildYieldXScale(allPoints) {
+  if (xAxisMode === 'ttm') {
+    const rawMaxW = Math.max(...allPoints.map(d => d.x));
+    const maxW = Math.ceil(rawMaxW / 52) * 52;
+    const ttmTickCb = (val) => {
+      if (val < 0) return '';
+      if (val >= 52) {
+        const wy = Math.floor(val / 52);
+        const rm = Math.round((val / 52 - wy) * 12);
+        if (rm === 0) return `${wy}y`;
+        if (rm === 12) return `${wy + 1}y`;
+        return `${wy}y ${rm}m`;
+      }
+      if (val >= 4) return `${Math.round(val / 4.348)}m`;
+      return `${Math.round(val)}w`;
+    };
+    return {
+      type: 'linear',
+      min: 0, max: maxW,
+      afterBuildTicks: scale => {
+        const span = scale.max - scale.min;
+        const ticks = [];
+        if (span > 260) {
+          const start = Math.ceil(Math.max(scale.min, 0) / 52) * 52;
+          for (let v = start; v <= scale.max; v += 52) ticks.push({ value: v });
+        } else if (span > 104) {
+          const start = Math.ceil(Math.max(scale.min, 0) / 26) * 26;
+          for (let v = start; v <= scale.max; v += 26) ticks.push({ value: v });
+        } else if (span > 52) {
+          const start = Math.ceil(Math.max(scale.min, 0) / 13) * 13;
+          for (let v = start; v <= scale.max; v += 13) ticks.push({ value: v });
+        } else if (span > 12) {
+          const start = Math.ceil(Math.max(scale.min, 0) / 4) * 4;
+          for (let v = start; v <= scale.max; v += 4) ticks.push({ value: v });
+        } else {
+          const start = Math.ceil(Math.max(scale.min, 0));
+          for (let v = start; v <= scale.max; v += 1) ticks.push({ value: v });
+        }
+        scale.ticks = ticks;
+      },
+      grid: { color: 'rgba(0,0,0,0.05)' },
+      ticks: { maxRotation: 0, callback: ttmTickCb }
+    };
+  }
+  const minDate = new Date(Math.min(...allPoints.map(d => d.x)));
+  const maxDate = new Date(Math.max(...allPoints.map(d => d.x)));
+  const _startDt = parseIsoInput(document.getElementById('startMaturity').value);
+  const _endDt   = parseIsoInput(document.getElementById('endMaturity').value);
+  const minX = _startDt
+    ? new Date(_startDt.getFullYear(), _startDt.getMonth(), 1).getTime()
+    : new Date(minDate.getFullYear(), 0, 1).getTime();
+  const maxX = _endDt
+    ? new Date(_endDt.getFullYear(), _endDt.getMonth() + 1, 1).getTime()
+    : new Date(maxDate.getFullYear() + 1, 0, 1).getTime();
+  return {
+    type: 'time',
+    min: minX, max: maxX,
+    time: { displayFormats: { year: 'yyyy', month: 'MMM yyyy' } },
+    ...calendarTimeAxis({ gridColor: 'rgba(0,0,0,0.05)' }),
+  };
+}
+
+// Nearest-maturity nominal (Bills/Notes/Bonds, no STRIPS) for a TIPS maturity date — the BEI tab's "closest maturity nominal".
+function findClosestNominal(nominals, maturityDate) {
+  let best = null, bestDiff = Infinity;
+  for (const n of nominals) {
+    const diff = Math.abs(n.maturityDate.getTime() - maturityDate.getTime());
+    if (diff < bestDiff) { bestDiff = diff; best = n; }
+  }
+  return best;
+}
+
 function renderChart(fedBonds, brokerBonds) {
   const ctx = document.getElementById('yieldChart').getContext('2d');
   const allBonds = [...(fedBonds || []), ...(brokerBonds || [])];
@@ -1203,67 +1303,7 @@ function renderChart(fedBonds, brokerBonds) {
 
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
-  let xScale;
-  if (xAxisMode === 'ttm') {
-    const rawMaxW = Math.max(...allPoints.map(d => d.x));
-    const maxW = Math.ceil(rawMaxW / 52) * 52;
-    const ttmTickCb = (val) => {
-      if (val < 0) return '';
-      if (val >= 52) {
-        const wy = Math.floor(val / 52);
-        const rm = Math.round((val / 52 - wy) * 12);
-        if (rm === 0) return `${wy}y`;
-        if (rm === 12) return `${wy + 1}y`;
-        return `${wy}y ${rm}m`;
-      }
-      if (val >= 4) return `${Math.round(val / 4.348)}m`;
-      return `${Math.round(val)}w`;
-    };
-    xScale = {
-      type: 'linear',
-      min: 0, max: maxW,
-      afterBuildTicks: scale => {
-        const span = scale.max - scale.min;
-        const ticks = [];
-        if (span > 260) {
-          const start = Math.ceil(Math.max(scale.min, 0) / 52) * 52;
-          for (let v = start; v <= scale.max; v += 52) ticks.push({ value: v });
-        } else if (span > 104) {
-          const start = Math.ceil(Math.max(scale.min, 0) / 26) * 26;
-          for (let v = start; v <= scale.max; v += 26) ticks.push({ value: v });
-        } else if (span > 52) {
-          const start = Math.ceil(Math.max(scale.min, 0) / 13) * 13;
-          for (let v = start; v <= scale.max; v += 13) ticks.push({ value: v });
-        } else if (span > 12) {
-          const start = Math.ceil(Math.max(scale.min, 0) / 4) * 4;
-          for (let v = start; v <= scale.max; v += 4) ticks.push({ value: v });
-        } else {
-          const start = Math.ceil(Math.max(scale.min, 0));
-          for (let v = start; v <= scale.max; v += 1) ticks.push({ value: v });
-        }
-        scale.ticks = ticks;
-      },
-      grid: { color: 'rgba(0,0,0,0.05)' },
-      ticks: { maxRotation: 0, callback: ttmTickCb }
-    };
-  } else {
-    const minDate = new Date(Math.min(...allPoints.map(d => d.x)));
-    const maxDate = new Date(Math.max(...allPoints.map(d => d.x)));
-    const _startDt = parseIsoInput(document.getElementById('startMaturity').value);
-    const _endDt   = parseIsoInput(document.getElementById('endMaturity').value);
-    const minX = _startDt
-      ? new Date(_startDt.getFullYear(), _startDt.getMonth(), 1).getTime()
-      : new Date(minDate.getFullYear(), 0, 1).getTime();
-    const maxX = _endDt
-      ? new Date(_endDt.getFullYear(), _endDt.getMonth() + 1, 1).getTime()
-      : new Date(maxDate.getFullYear() + 1, 0, 1).getTime();
-    xScale = {
-      type: 'time',
-      min: minX, max: maxX,
-      time: { displayFormats: { year: 'yyyy', month: 'MMM yyyy' } },
-      ...calendarTimeAxis({ gridColor: 'rgba(0,0,0,0.05)' }),
-    };
-  }
+  const xScale = buildYieldXScale(allPoints);
   const allY = allPoints.map(d => d.y);
   const minY = Math.floor(Math.min(...allY) * 4) / 4;
   const maxY = Math.ceil(Math.max(...allY) * 4) / 4;
@@ -1368,6 +1408,14 @@ function rescaleToVisible(chart) {
     }
   }
 
+  if (beiClipOutliers && chartTab === 'bei' && allVisibleY.length >= 4) {
+    const bounds = iqrClipBounds(allVisibleY);
+    if (bounds) {
+      const clipped = allVisibleY.filter(y => y >= bounds.lo && y <= bounds.hi);
+      if (clipped.length > 0) allVisibleY = clipped;
+    }
+  }
+
   const visibleMinY = Math.min(...allVisibleY);
   const visibleMaxY = Math.max(...allVisibleY);
   const bounds = snapYBounds(visibleMinY, visibleMaxY);
@@ -1378,14 +1426,215 @@ function rescaleToVisible(chart) {
 }
 
 
+// ─── BEI (Breakeven Inflation) ───────────────────────────────────────────────
+// BEI = closest-maturity nominal yield (Market, no STRIPS) − TIPS yield, for each of the
+// TIPS Ask/SA/SAO variants. Market-only: BEI needs both legs quoted the same way (broker
+// ask), so it doesn't mix in FedInvest's bid/ask-midpoint pricing the way the TIPS tab does.
+
+function processAndRenderBei() {
+  const statusEl = document.getElementById('status');
+
+  if (!brokerPrices || !fidelityNominalsData) {
+    statusEl.textContent = 'BEI requires Market (Fidelity) TIPS and nominal data.';
+    statusEl.className = '';
+    if (chart) { chart.destroy(); chart = null; }
+    document.getElementById('beiTableBody').innerHTML = '';
+    return;
+  }
+  if (!rawYieldsData || rawYieldsData.length === 0 || !rawRefCpiData) return;
+
+  try {
+    const tipsBonds = buildProcessedTipsBonds(brokerPrices, true);
+    const smoothed = calculateSAO(tipsBonds);
+    tipsBonds.forEach((b, i) => { b.saoYield = smoothed[i]; });
+
+    const nominalCandidates = fidelityNominalsData.filter(b => b.type !== 'MARKET BASED STRIP');
+    if (nominalCandidates.length === 0) {
+      statusEl.textContent = 'No market nominal data available for BEI.';
+      if (chart) { chart.destroy(); chart = null; }
+      document.getElementById('beiTableBody').innerHTML = '';
+      return;
+    }
+
+    tipsBonds.forEach(b => {
+      const nom = findClosestNominal(nominalCandidates, b.maturityDate);
+      b.nominalCusip = nom.cusip;
+      b.nominalMaturity = nom.maturity;
+      b.nominalCoupon = nom.coupon;
+      b.nominalYield = nom.yield;
+      b.beiAsk = nom.yield - b.askYield;
+      b.beiSa = nom.yield - b.saYield;
+      b.beiSao = nom.yield - b.saoYield;
+    });
+
+    const startEl = document.getElementById('startMaturity');
+    const endEl = document.getElementById('endMaturity');
+    if (!startEl.value && tipsBonds.length > 0) {
+      startEl.value = tipsBonds[0].maturity;
+      endEl.value = tipsBonds[tipsBonds.length - 1].maturity;
+    }
+    const startDate = parseIsoInput(startEl.value) || new Date(0);
+    const endDate = parseIsoInput(endEl.value) || new Date(9999, 0);
+    const filtered = tipsBonds.filter(b => b.maturityDate >= startDate && b.maturityDate <= endDate);
+
+    renderBeiTable(filtered);
+    renderBeiChart(filtered);
+
+    if (brokerDownloadDate) {
+      const loadDate = parseFidelityDateStr(brokerDownloadDate);
+      const t1 = nextBusinessDay(loadDate, holidaySet);
+      document.getElementById('tipsMktMeta').textContent = `${fmtBrokerTime(brokerDownloadDate)} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`;
+    } else {
+      document.getElementById('tipsMktMeta').textContent = '';
+    }
+    document.getElementById('tipsBrokerCount').textContent = filtered.length;
+    document.getElementById('tipsFedMeta').textContent = '';
+    document.getElementById('tipsFedCount').textContent = '';
+    statusEl.textContent = '';
+    statusEl.className = '';
+  } catch (err) {
+    statusEl.textContent = `Error: ${err.message}`;
+    statusEl.className = 'error';
+    console.error('processAndRenderBei failed:', err);
+  }
+}
+
+function getBeiSeriesVisibility(label) {
+  if (label === 'Ask BEI') return document.getElementById('showBeiAsk').checked;
+  if (label === 'SA BEI') return document.getElementById('showBeiSa').checked;
+  if (label === 'SAO BEI') return document.getElementById('showBeiSao').checked;
+  return true;
+}
+
+function renderBeiChart(bonds) {
+  const ctx = document.getElementById('yieldChart').getContext('2d');
+  if (!bonds || bonds.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
+
+  const now = Date.now();
+  const toPt = xAxisMode === 'ttm'
+    ? (b, key) => ({ x: (b.maturityDate.getTime() - now) / (7 * 86400000), y: parseFloat((b[key] * 100).toFixed(3)) })
+    : (b, key) => ({ x: b.maturityDate.getTime(), y: parseFloat((b[key] * 100).toFixed(3)) });
+
+  const seriesDef = [
+    { label: 'Ask BEI', data: bonds.map(b => toPt(b, 'beiAsk')), color: '#f97316', style: 'circle', w: 1.5, r: 1.25 },
+    { label: 'SA BEI',  data: bonds.map(b => toPt(b, 'beiSa')),  color: '#dc2626', style: 'circle', w: 1.8, r: 1.25 },
+    { label: 'SAO BEI', data: bonds.map(b => toPt(b, 'beiSao')), color: '#059669', style: 'circle', w: 2.2, r: 1.25 },
+  ];
+
+  const activeSeries = seriesDef.filter(s => s.data.length > 0);
+  const allPoints = activeSeries.flatMap(s => s.data);
+  const xScale = buildYieldXScale(allPoints);
+  const allY = allPoints.map(d => d.y);
+  let scaleY = allY;
+  if (beiClipOutliers && allY.length >= 4) {
+    const bounds = iqrClipBounds(allY);
+    if (bounds) {
+      const clipped = allY.filter(y => y >= bounds.lo && y <= bounds.hi);
+      if (clipped.length > 0) scaleY = clipped;
+    }
+  }
+  const minY = Math.floor(Math.min(...scaleY) * 4) / 4;
+  const maxY = Math.ceil(Math.max(...scaleY) * 4) / 4;
+
+  const zoomToRestore = savedZoom['bei'];
+  if (chart && chartTab && savedZoom[chartTab] !== null) savedZoom[chartTab] = {
+    xMin: chart.scales.x.min, xMax: chart.scales.x.max,
+    yMin: chart.scales.y.min, yMax: chart.scales.y.max
+  };
+  if (chart) chart.destroy();
+  chartTab = 'bei';
+  chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      datasets: activeSeries.map(s => ({
+        label: s.label,
+        data: s.data,
+        borderColor: s.color,
+        backgroundColor: s.color,
+        borderWidth: s.w,
+        pointRadius: s.r,
+        pointStyle: s.style,
+        tension: 0.1,
+        hidden: !getBeiSeriesVisibility(s.label)
+      }))
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      scales: {
+        x: xScale,
+        y: { type: 'linear', title: { display: true, text: 'Breakeven Inflation (%)' }, min: minY, max: maxY, ticks: { stepSize: 0.25, callback: (v) => v.toFixed(2) } }
+      },
+      plugins: {
+        legend: {
+          labels: { filter: (item) => !item.hidden, usePointStyle: true, boxWidth: 8, padding: 15, font: { size: 13, weight: '500' } },
+          onClick: null
+        },
+        zoom: {
+          pan: { enabled: true, mode: 'xy' },
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'xy', onZoomComplete: ({chart}) => rescaleToVisible(chart) }
+        },
+        tooltip: {
+          backgroundColor: 'rgba(255,255,255,0.95)', titleColor: '#1e293b', bodyColor: '#475569', borderColor: '#e2e8f0', borderWidth: 1, padding: 8, cornerRadius: 6, displayColors: false,
+          callbacks: {
+            title: (items) => {
+              const ms = xAxisMode === 'ttm'
+                ? now + items[0].parsed.x * 7 * 86400000
+                : items[0].parsed.x;
+              return `${fmtDateMDY(new Date(ms))} (${ttmLabel(ms)})`;
+            },
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}%`
+          }
+        }
+      }
+    }
+  });
+
+  if (zoomToRestore) {
+    chart.options.scales.x.min = zoomToRestore.xMin;
+    chart.options.scales.x.max = zoomToRestore.xMax;
+    chart.options.scales.y.min = zoomToRestore.yMin;
+    chart.options.scales.y.max = zoomToRestore.yMax;
+    chart.update('none');
+  } else {
+    rescaleToVisible(chart);
+  }
+
+  setupAxisWheelZoom(chart.canvas, ({chart}) => rescaleToVisible(chart), ({chart, factor}) => snapYAfterZoom(chart, factor));
+}
+
+function renderBeiTable(bonds) {
+  const tbody = document.getElementById('beiTableBody');
+  const fmtY = y => (y != null && !isNaN(y)) ? (y * 100).toFixed(3) + '%' : '—';
+  tbody.innerHTML = bonds.map(b => `
+    <tr>
+      <td>${isoToMDY2(b.maturity)}</td>
+      <td>${(b.coupon * 100).toFixed(3)}%</td>
+      <td>${fmtY(b.askYield)}</td>
+      <td>${fmtY(b.saYield)}</td>
+      <td>${fmtY(b.saoYield)}</td>
+      <td>${isoToMDY2(b.nominalMaturity)}</td>
+      <td>${(b.nominalCoupon * 100).toFixed(3)}%</td>
+      <td>${fmtY(b.nominalYield)}</td>
+      <td>${fmtY(b.beiAsk)}</td>
+      <td>${fmtY(b.beiSa)}</td>
+      <td style="font-weight:700; color:#1a56db;">${fmtY(b.beiSao)}</td>
+    </tr>`).join('');
+}
+
+
 // ─── Spread Mode ─────────────────────────────────────────────────────────────
 
 function updateModeToggle() {
+  const isBei = activeTab === 'bei';
   const hasMarket = activeTab === 'tips' ? !!brokerPrices : !!fidelityNominalsData;
   const spreadBtn = document.querySelector('#chart-mode-tabs .tab-btn[data-mode="spread"]');
   if (!spreadBtn) return;
-  spreadBtn.disabled = !hasMarket;
-  if (!hasMarket && spreadModeActive) {
+  // BEI has no bid/ask-spread concept — always disabled there, regardless of Market data.
+  spreadBtn.disabled = isBei || !hasMarket;
+  if ((isBei || !hasMarket) && spreadModeActive) {
     spreadModeActive = false;
     switchChartMode('yield');
   }
@@ -1404,19 +1653,22 @@ function switchChartMode(mode) {
     if (spreadChart1) { spreadChart1.destroy(); spreadChart1 = null; }
     if (spreadChart2) { spreadChart2.destroy(); spreadChart2 = null; }
   }
+  const isBei = activeTab === 'bei';
   document.getElementById('tipsControls').style.display     = (activeTab === 'tips' && !isSpread) ? 'flex' : 'none';
   document.getElementById('nominalsControls').style.display = (activeTab === 'treasuries') ? 'flex' : 'none';
+  document.getElementById('beiControls').style.display      = isBei ? 'flex' : 'none';
 
-  // FedInvest is irrelevant in spread mode (spread uses Market data only)
-  const fedId = activeTab === 'tips' ? 'chkTipsFed' : 'chkFedInvest';
+  // FedInvest is irrelevant in spread mode AND on the BEI tab (both use Market data only)
+  const fedId = activeTab === 'treasuries' ? 'chkFedInvest' : 'chkTipsFed';
   const chkFed = document.getElementById(fedId);
+  const lockFed = isSpread || isBei;
   if (chkFed) {
     const fedLabel = chkFed.closest('label');
-    if (isSpread) {
-      // Only save the original checked state when first entering spread mode.
-      // switchChartMode('spread') is re-called on every tab switch while spread is
+    if (lockFed) {
+      // Only save the original checked state when first entering a locked mode.
+      // switchChartMode() is re-called on every tab switch while spread/BEI is
       // active, so we must not overwrite _savedChecked with the already-forced-false
-      // value, or restoration on spread exit will incorrectly leave FedInvest unchecked.
+      // value, or restoration on exit will incorrectly leave FedInvest unchecked.
       if (!chkFed.disabled) {
         chkFed._savedChecked = chkFed.checked;
       }
@@ -1424,8 +1676,8 @@ function switchChartMode(mode) {
       chkFed.disabled = true;
       if (fedLabel) fedLabel.style.opacity = '0.4';
     } else {
-      // Only restore checked state when actually leaving spread mode (chkFed.disabled
-      // means spread had forced it off). A plain tab switch must never touch checked —
+      // Only restore checked state when actually leaving a locked mode (chkFed.disabled
+      // means spread/BEI had forced it off). A plain tab switch must never touch checked —
       // that's how the user's FedInvest/Market selection carries over between tabs.
       if (chkFed.disabled) {
         chkFed.checked = chkFed._savedChecked !== undefined ? chkFed._savedChecked : false;
@@ -1436,6 +1688,24 @@ function switchChartMode(mode) {
     }
   }
 
+  // BEI's Market/broker checkbox is locked ON too — it's the tab's sole data source
+  // (both TIPS and nominal legs), not a toggle. Spread mode never touches this checkbox,
+  // so any disabled state found here on entry/exit is BEI's own lock.
+  const chkBroker = document.getElementById('chkTipsBroker');
+  if (chkBroker) {
+    const brokerLabel = chkBroker.closest('label');
+    if (isBei) {
+      if (!chkBroker.disabled) chkBroker._savedChecked = chkBroker.checked;
+      chkBroker.checked = !!brokerPrices;
+      chkBroker.disabled = true;
+      if (brokerLabel) brokerLabel.style.opacity = '0.4';
+    } else if (chkBroker._savedChecked !== undefined) {
+      chkBroker.checked = chkBroker._savedChecked;
+      chkBroker.disabled = !brokerPrices;
+      if (brokerLabel) brokerLabel.style.opacity = brokerPrices ? '' : '0.4';
+      chkBroker._savedChecked = undefined;
+    }
+  }
 }
 
 function _rescaleSpread(chartInst) {
@@ -1721,6 +1991,36 @@ document.getElementById('tipsShowNone').onclick = (e) => {
   });
 };
 
+// BEI 'Show' Checkboxes & Links
+['showBeiAsk', 'showBeiSa', 'showBeiSao'].forEach((id) => {
+  document.getElementById(id).addEventListener('change', (e) => {
+    if (!chart || activeTab !== 'bei') return;
+    const seriesKey = id === 'showBeiAsk' ? 'Ask BEI' : id === 'showBeiSa' ? 'SA BEI' : 'SAO BEI';
+    chart.data.datasets.forEach((ds, i) => {
+      if (ds.label === seriesKey) chart.setDatasetVisibility(i, e.target.checked);
+    });
+    chart.update('none');
+    rescaleToVisible(chart);
+  });
+});
+
+document.getElementById('beiShowAll').onclick = (e) => {
+  e.preventDefault();
+  ['showBeiAsk', 'showBeiSa', 'showBeiSao'].forEach(id => {
+    const el = document.getElementById(id);
+    el.checked = true;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+};
+document.getElementById('beiShowNone').onclick = (e) => {
+  e.preventDefault();
+  ['showBeiAsk', 'showBeiSa', 'showBeiSao'].forEach(id => {
+    const el = document.getElementById(id);
+    el.checked = false;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+};
+
 // Nominals 'All/None' Links
 document.getElementById('nominalsShowAll').onclick = (e) => {
   e.preventDefault();
@@ -1852,6 +2152,12 @@ document.getElementById('nominalsControls').addEventListener('change', (e) => {
   document.getElementById('startMaturity').value = '';
   document.getElementById('endMaturity').value = '';
   processAndRenderNominals();
+});
+
+document.getElementById('beiClipOutliers').addEventListener('change', (e) => {
+  beiClipOutliers = e.target.checked;
+  savedZoom['bei'] = null;
+  processAndRenderBei();
 });
 
 init();

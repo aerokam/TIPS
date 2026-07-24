@@ -45,6 +45,15 @@
   table.main td { padding: 6px 12px; border-bottom: 1px solid #eee; white-space: nowrap; font-variant-numeric: tabular-nums; }
   table.main td:not(:first-child):not(:nth-child(2)) { text-align: right; }
   table.main tr:hover td { background: #fffde7; }
+
+  /* ── BEI table: 2-row grouped header (TIPS / Nominal / BEI) ── */
+  #beiTable thead tr:first-child th { position: sticky; top: 0; z-index: 11; text-align: center; background: #0f172a; }
+  #beiTable thead tr:first-child th:not(:last-child) { border-right: 2px solid #334155; }
+  #beiTable thead tr:nth-child(2) th { position: sticky; top: 33px; z-index: 10; }
+  #beiTable thead tr:nth-child(2) th:nth-child(5), #beiTable tbody td:nth-child(5),
+  #beiTable thead tr:nth-child(2) th:nth-child(8), #beiTable tbody td:nth-child(8) { border-right: 2px solid #cbd5e1; }
+  #beiTable thead tr:nth-child(2) th:nth-child(2), #beiTable tbody td:nth-child(2) { text-align: right; }
+  #beiTable thead tr:nth-child(2) th:nth-child(6), #beiTable tbody td:nth-child(6) { text-align: left; }
   
   .pos { color: #16a34a; font-weight: 600; } 
   .neg { color: #dc2626; font-weight: 600; }
@@ -91,6 +100,7 @@
       <div class="tab-group">
         <button class="tab-btn active" data-tab="tips">TIPS</button>
         <button class="tab-btn" data-tab="treasuries">Treasuries</button>
+        <button class="tab-btn" data-tab="bei">BEI</button>
       </div>
       <div id="src-info">
         <!-- TIPS Source UI -->
@@ -180,6 +190,17 @@
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
           <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="clipOutliers" checked> Clip Outliers</label>
         </div>
+        <div id="beiControls" style="display:none; padding:6px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; gap:18px; align-items:center; font-size:13px;">
+          <span style="font-weight:700; color:#475569; text-transform:uppercase; font-size:11px;">Show:</span>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showBeiAsk" checked> Ask</label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showBeiSa" checked> SA</label>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showBeiSao" checked> SAO</label>
+          <span style="color:#cbd5e1; margin: 0 4px;">|</span>
+          <a href="#" id="beiShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">All</a>
+          <a href="#" id="beiShowNone" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">None</a>
+          <span style="color:#cbd5e1; margin: 0 4px;">|</span>
+          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="beiClipOutliers" checked> Clip Outliers</label>
+        </div>
         <div class="table-scroll-wrap">
           <table class="main" id="saTable">
             <thead>
@@ -210,6 +231,29 @@
               </tr>
             </thead>
             <tbody id="nominalsTableBody"></tbody>
+          </table>
+          <table class="main" id="beiTable" style="display:none;">
+            <thead>
+              <tr>
+                <th colspan="5">TIPS</th>
+                <th colspan="3">Nominal</th>
+                <th colspan="3">BEI</th>
+              </tr>
+              <tr>
+                <th>Maturity</th>
+                <th>Cpn</th>
+                <th>Ask</th>
+                <th>SA</th>
+                <th>SAO</th>
+                <th>Maturity</th>
+                <th>Cpn</th>
+                <th>Yield</th>
+                <th>Ask</th>
+                <th>SA</th>
+                <th>SAO</th>
+              </tr>
+            </thead>
+            <tbody id="beiTableBody"></tbody>
           </table>
         </div>
       </div>
