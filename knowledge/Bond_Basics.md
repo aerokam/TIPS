@@ -21,6 +21,15 @@ In this specification, "Treasury" refers to U.S. Treasury securities (bills, not
   ```
   *(See 2.1 TIPS Basics for inflation-adjusted interest formulas)*
 - **[Price](./DATA_DICTIONARY.md#price):** Market value expressed as percentage of par (e.g., 102.5 = 102.5% of par).
+- **[Clean Price](./DATA_DICTIONARY.md#clean-price):** Quoted market price, excluding accrued interest.
+- **[Accrued Interest](./DATA_DICTIONARY.md#accrued-interest-nominal):** Interest earned by the current holder since the last coupon payment, owed by the buyer to the seller at settlement — **Actual/Actual day count**, not a flat half-coupon.
+  ```
+  A = days elapsed since the last coupon date
+  E = days in the current coupon period
+  accruedInterest = (couponRate/2 × 100) × (A / E)   // per $100 par
+  ```
+  A bond bought the day after a coupon date owes almost no accrued interest; one bought the day before the next coupon owes nearly the full semiannual coupon. Dirty price (what the buyer actually pays) = Clean Price + Accrued Interest.
+  *(See 2.1 TIPS Basics for the inflation-adjusted extension.)*
 - **[Settlement Date](./DATA_DICTIONARY.md#settlement-date):** Trade date + 1 business day (T+1) for secondary market trades.
 - **Maturity Date:** Date when principal is repaid to bondholder.
 - **Last-Year Interest Payments:**

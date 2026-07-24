@@ -95,6 +95,10 @@
 ### Clean Price
 `Clean_Price` = *Quoted market price excluding accrued interest and (for TIPS) before inflation adjustment. Canty (2009) formal notation: CP.*
 
+<a id="accrued-interest-nominal"></a>
+### Accrued Interest (Nominal)
+`Accrued_Interest_Nominal` = `(Coupon_Rate / 2 × 100) × (A / E)` *(interest owed to the seller since the last coupon date, per $100 par — Actual/Actual day count: A = days since last coupon, E = days in the current coupon period. NOT a flat half-coupon. For TIPS, index-ratio adjusted: see [Accrued Interest (Adjusted)](#accrued-interest-adjusted).)*
+
 <a id="settlement-date"></a>
 ### Settlement Date
 `Settlement_Date` = *The date on which a bond trade is settled. Standard system logic: [ Trade_Date + 1 Bond Trading Day (T+1) | Manual_Override ]. T+1 excludes weekends and US bond market holidays (source: BondHolidaysSifma.csv). Exception: For FedInvest price ingestion, yield calculations use T=0 (Price Date = Settlement Date) to match FedInvest reported yields empirically. However, the default Ref CPI date is still set to T+1 bond trading day of the FedInvest price date, to match broker convention (where the Ref CPI used is that of the actual settlement date).*
@@ -201,6 +205,10 @@
 <a id="cost-per-tips"></a>
 ### Cost per TIPS
 `Cost_per_TIPS` = `(Price / 100) × Index_Ratio × 1000` *(nominal cost to purchase one $1,000 face-value unit)*
+
+<a id="accrued-interest-adjusted"></a>
+### Accrued Interest (Adjusted)
+`Accrued_Interest_Adjusted` = `Accrued_Interest_Nominal / 100 × Index_Ratio × 1000` *(index-ratio-adjusted accrued interest per TIPS, real dollars — extends [Accrued Interest (Nominal)](#accrued-interest-nominal) the same way [Par Value (Adjusted)](#par-value-adjusted) extends [Par Value (Nominal)](#par-value-nominal). See TIPS_Basics.md §Accrued Interest.)*
 
 ---
 

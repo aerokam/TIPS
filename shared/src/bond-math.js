@@ -116,7 +116,7 @@ export function termYears(settle, maturity) {
 }
 
 // ─── Accrued interest (actual/actual day count) ───────────────────────────────
-// Spec: 2.1 TIPS Basics §Accrued Interest, 4.0 Computation Modules §bond-math.js
+// Spec: 1.0 Bond Basics §Accrued Interest, 4.0 Computation Modules §accruedInterest
 // Prorates the current coupon period by days elapsed since the last coupon date.
 // Returns accrued interest per $100 par (nominal — no index ratio applied), plus
 // the day-count components (A = days since last coupon, E = days in period).
