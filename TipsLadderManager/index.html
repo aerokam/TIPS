@@ -978,8 +978,9 @@ function _ttFm(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
 // (1,000 × index ratio); this is the dollar amount paid, which also reflects market price.
 function _ttRowCost(d, qty) {
   const bond = tipsMap?.get(d.cusip);
+  const ttSettlementDate = localDate(activeRefCpiDateStr ?? _defaultRefCpiDateStr);
   const { accrued, A, E } = bond?.maturity
-    ? accruedInterest(d.coupon ?? 0, settlementDate, bond.maturity)
+    ? accruedInterest(d.coupon ?? 0, ttSettlementDate, bond.maturity)
     : { accrued: 0, A: 0, E: 0 };
   const accruedPerBond = accrued / 100 * (d.indexRatio ?? 0) * 1000;
   const cost = qty * (d.costPerBond ?? 0);
