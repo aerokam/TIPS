@@ -1,9 +1,12 @@
 // data.js -- CSV fetch and parse (4.0_Computation_Modules.md)
-// Exports: parseCsv, fetchTipsData, lookupRefCpi (re-exported from shared)
+// Exports: parseCsv, fetchTipsData, fetchFidelityTipsData, lookupRefCpi (re-exported from shared)
 
 // Ref CPI lookup is defined once in shared/src/ref-cpi.js (no-redundancy directive,
 // projects/CLAUDE.md §2a). Re-exported here so existing `from './data.js'` imports resolve.
 export { lookupRefCpi } from '../../shared/src/ref-cpi.js';
+import { parseFidelityTipsRows, parseFidelityDownloadDate, fidelityDownloadDateIso } from '../../shared/src/fidelity-parse.js';
+import { yieldFromPrice } from '../../shared/src/bond-math.js';
+import { localDate } from '../../shared/src/settlement.js';
 
 const R2_ROOT = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const BASE_URL = R2_ROOT + '/Treasuries';
@@ -51,21 +54,18 @@ export function parseCsv(text) {
   });
 }
 
-// Fetches YieldsFromFedInvestPrices.csv and RefCPI.csv from R2, parses and types the rows.
-// Returns: { yieldsRows, refCpiRows }
-// Throws on HTTP errors.
-
-export async function fetchTipsData() {
-  const [yieldsRes, refCpiRes, tipsRefRes] = await Promise.all([
-    fetch(BASE_URL + '/YieldsFromFedInvestPrices.csv', { cache: 'no-cache' }),
+// Fetches RefCPI.csv, TipsRef.csv, and BondHolidaysSifma.csv from R2 — shared by both
+// fetchTipsData() (FedInvest) and fetchFidelityTipsData() (Fidelity) so the parsing
+// isn't duplicated between the two sources (projects/CLAUDE.md §2a).
+// Throws on HTTP errors for RefCPI/TipsRef; holidays are optional (3s timeout).
+async function fetchAuxTipsData() {
+  const [refCpiRes, tipsRefRes] = await Promise.all([
     fetch(TIPS_URL + '/RefCPI.csv', { cache: 'no-cache' }),
     fetch(TIPS_URL + '/TipsRef.csv', { cache: 'no-cache' }),
   ]);
-  if (!yieldsRes.ok) throw new Error('YieldsFromFedInvestPrices.csv: HTTP ' + yieldsRes.status);
   if (!refCpiRes.ok) throw new Error('RefCPI.csv: HTTP ' + refCpiRes.status);
   if (!tipsRefRes.ok) throw new Error('TipsRef.csv: HTTP ' + tipsRefRes.status);
 
-  // Holiday fetch is optional — 3s timeout so it never blocks required data
   let bondHolidays = new Set();
   try {
     const ctrl = new AbortController();
@@ -74,6 +74,35 @@ export async function fetchTipsData() {
     clearTimeout(timer);
     if (holidayRes.ok) bondHolidays = parseBondHolidays(await holidayRes.text());
   } catch (_) { /* unavailable — T+1 falls back to weekend-skip only */ }
+
+  const refCpiRows = parseCsv(await refCpiRes.text()).map(r => ({
+    date:   r.date,
+    refCpi: parseFloat(r.refCpi),
+  }));
+
+  const tipsRefRows = parseCsv(await tipsRefRes.text()).map(r => ({
+    cusip:     r.cusip,
+    maturity:  r.maturity,
+    datedDate: r.datedDate,
+    coupon:    parseFloat(r.coupon),
+    baseCpi:   parseFloat(r.baseCpi),
+    term:      r.term,
+  }));
+
+  return { refCpiRows, tipsRefRows, bondHolidays };
+}
+
+// Fetches YieldsFromFedInvestPrices.csv and RefCPI.csv from R2, parses and types the rows.
+// Returns: { yieldsRows, refCpiRows }
+// Throws on HTTP errors.
+
+export async function fetchTipsData() {
+  const [yieldsRes, aux] = await Promise.all([
+    fetch(BASE_URL + '/YieldsFromFedInvestPrices.csv', { cache: 'no-cache' }),
+    fetchAuxTipsData(),
+  ]);
+  if (!yieldsRes.ok) throw new Error('YieldsFromFedInvestPrices.csv: HTTP ' + yieldsRes.status);
+  const { refCpiRows, tipsRefRows, bondHolidays } = aux;
 
   // YieldsFromFedInvestPrices.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
   const yieldsText = await yieldsRes.text();
@@ -91,19 +120,56 @@ export async function fetchTipsData() {
       yield:    parseFloat(r.yield)  || null,
     }));
 
-  const refCpiRows = parseCsv(await refCpiRes.text()).map(r => ({
-    date:   r.date,
-    refCpi: parseFloat(r.refCpi),
-  }));
-
-  const tipsRefRows = parseCsv(await tipsRefRes.text()).map(r => ({
-    cusip:     r.cusip,
-    maturity:  r.maturity,
-    datedDate: r.datedDate,
-    coupon:    parseFloat(r.coupon),
-    baseCpi:   parseFloat(r.baseCpi),
-    term:      r.term,
-  }));
-
   return { yieldsRows, refCpiRows, tipsRefRows, bondHolidays };
+}
+
+// Fetches FidelityTreasuriesTips.csv from R2 (ask price; yield is computed from that price
+// via the shared yieldFromPrice(), not read from Fidelity's own quoted yield column — verified
+// more accurate than Fidelity's own figure, see 3.1_Data_Pipeline.md). baseCpi comes from
+// TipsRef.csv (Fidelity's export doesn't carry it). Settlement is T+1 from Fidelity's download
+// date (real broker trade settlement), unlike FedInvest's T=0 (needed for its own price->yield
+// math) — see 3.1_Data_Pipeline.md "Settlement Date Conventions".
+// Returns the same shape as fetchTipsData(): { yieldsRows, refCpiRows, tipsRefRows, bondHolidays }
+// Throws on HTTP errors.
+//
+// Returns both `asOfDate` (the raw Fidelity download date -- "today", analogous to
+// FedInvest's own settlementDate row) and each yieldsRow's `settlementDate` (asOfDate's
+// T+1, used for the yield/duration math). Callers deriving a "next trading day from
+// today" default (e.g. the Trade Ticket's Ref CPI date) must use `asOfDate`, not
+// yieldsRows[].settlementDate -- that's already T+1 and would double-advance.
+export async function fetchFidelityTipsData() {
+  const [fidRes, aux] = await Promise.all([
+    fetch(BASE_URL + '/FidelityTreasuriesTips.csv', { cache: 'no-cache' }),
+    fetchAuxTipsData(),
+  ]);
+  if (!fidRes.ok) throw new Error('FidelityTreasuriesTips.csv: HTTP ' + fidRes.status);
+  const { refCpiRows, tipsRefRows, bondHolidays } = aux;
+  const tipsRefByCusip = new Map(tipsRefRows.map(r => [r.cusip, r]));
+
+  const fidText = await fidRes.text();
+  const asOfDate = fidelityDownloadDateIso(parseFidelityDownloadDate(fidText));
+  if (!asOfDate) throw new Error('FidelityTreasuriesTips.csv: no "Date downloaded" footer found');
+  const settlementDate = nextBondTradingDay(asOfDate, bondHolidays);
+  const settlementDateObj = localDate(settlementDate);
+
+  const yieldsRows = parseFidelityTipsRows(fidText).map(r => {
+    const ref = tipsRefByCusip.get(r.cusip);
+    const maturity = r.maturity || ref?.maturity;
+    const maturityDateObj = localDate(maturity);
+    const price = isNaN(r.askPrice) ? null : r.askPrice;
+    const yld = (price != null && maturityDateObj)
+      ? yieldFromPrice(price, r.coupon, settlementDateObj, maturityDateObj)
+      : null;
+    return {
+      settlementDate,
+      cusip:    r.cusip,
+      maturity,
+      coupon:   r.coupon,
+      baseCpi:  ref?.baseCpi ?? null,
+      price,
+      yield:    yld,
+    };
+  });
+
+  return { yieldsRows, refCpiRows, tipsRefRows, bondHolidays, asOfDate };
 }

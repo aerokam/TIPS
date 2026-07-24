@@ -29,6 +29,20 @@ function yieldsWithTodaySettlement() {
   return lines.join('\n');
 }
 
+// Fidelity CSV with the "Date downloaded" footer replaced by today's actual date (not T+1 —
+// the app derives T+1 itself from this date, same as a real download would settle T+1 from
+// today). Numerically mirrors YieldsFromFedInvestPrices.csv's TIPS rows (see
+// tests/e2e/FidelityTreasuriesTips.csv provenance) so switching sources doesn't change any
+// computed ladder numbers in tests that don't care which source is active.
+function fidelityWithTodayDownloadDate() {
+  const raw = csv('FidelityTreasuriesTips.csv');
+  const now = new Date();
+  const mo = String(now.getMonth() + 1).padStart(2, '0');
+  const dy = String(now.getDate()).padStart(2, '0');
+  const footer = `Date downloaded   ${mo}/${dy}/${now.getFullYear()} 12:00 PM`;
+  return raw.replace(/Date downloaded.*$/m, footer);
+}
+
 // Holdings CSV for rebalance tests (Format 3: cusip,qty) — single canonical copy in data/
 const HOLDINGS_PATH = path.join(ROOT, 'data', 'SampleHoldings.csv');
 
@@ -57,6 +71,8 @@ test.beforeEach(async ({ page }) => {
   const yieldsBody = yieldsWithTodaySettlement();
   await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r =>
     r.fulfill({ body: yieldsBody, contentType: 'text/csv' }));
+  await page.route('**/Treasuries/FidelityTreasuriesTips.csv', r =>
+    r.fulfill({ body: fidelityWithTodayDownloadDate(), contentType: 'text/csv' }));
   await page.route('**/TIPS/RefCPI.csv', r =>
     r.fulfill({ body: csv('RefCPI.csv'), contentType: 'text/csv' }));
   await page.route('**/TIPS/TipsRef.csv', r =>
@@ -70,9 +86,10 @@ test.beforeEach(async ({ page }) => {
 });
 
 // ── 1. Data load ──────────────────────────────────────────────────────────────
-test('data loads: info strip shows FedInvest prices and Ref CPI date, run button enabled', async ({ page }) => {
-  await expect(page.locator('#info-source')).toContainText('FedInvest prices');
-  await expect(page.locator('#info-refcpi')).toContainText('Ref CPI:');
+test('data loads: info strip shows Trade/Settle/Ref CPI dates, run button enabled', async ({ page }) => {
+  await expect(page.locator('#info-source')).toContainText('Trade:');
+  await expect(page.locator('#info-source')).toContainText('Settle:');
+  await expect(page.locator('#info-source')).toContainText('Ref CPI:');
   await expect(page.locator('#run-btn')).not.toBeDisabled();
 });
 

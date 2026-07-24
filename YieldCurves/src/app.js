@@ -7,6 +7,7 @@ import { handleChartKeydown, setupAxisWheelZoom, snapYBounds, snapYAfterZoom } f
 import { initDatePicker } from '../../shared/src/date-picker.js';
 import { calendarTimeAxis } from '../../shared/src/chart-time-axis.js';
 import { classifyByCusipRoot, isStrip } from '../../shared/src/treasury-cusip.js';
+import { cleanFidelityField as clean, fidPriceField, fidParseMaturity, parseFidelityDownloadDate, parseFidelityTipsRows } from '../../shared/src/fidelity-parse.js';
 
 console.log("YieldCurves app.js loading...");
 
@@ -349,7 +350,6 @@ async function init() {
 
     if (fidRes.ok) {
       const fidText = await fidRes.text();
-      const clean = val => (val || '').replace(/^=?["']*/, '').replace(/["']*$/, '').trim();
 
       // Nominals (Treasuries)
       const { bonds, downloadDate } = parseFidelityNominals(fidText);
@@ -364,33 +364,21 @@ async function init() {
       }
 
       // TIPS prices
-      const rows = parseCsv(fidText);
       const priceMap = new Map();
-      const seenCusips = new Set();
-      rows.forEach(row => {
-        const n = {};
-        for (const k in row) n[k.toLowerCase().trim()] = row[k];
-        const product = (n['product'] || '').toLowerCase();
-        if (product && product !== 'tips') return;
-        const cusip = clean(n['cusip'] || n['cusip|state']);
-        if (!cusip || seenCusips.has(cusip)) return;
-        if (!rawYieldsData || !rawYieldsData.some(r => r.cusip === cusip)) return;
-        const askPrice = parseFloat(fidPriceField(n['price ask'] || n['ask price'] || n['ask price/quantity (min)'] || n['price'] || ''));
-        if (!isNaN(askPrice)) {
-          priceMap.set(cusip, {
-            ask: askPrice,
-            bid: parseFloat(fidPriceField(n['price bid'] || n['bid price/quantity (min)'] || '')),
-            adjAsk: parseFloat(clean(n['adjusted price ask'] || n['adjusted ask price'] || '').replace(/,/g, '')),
-            adjBid: parseFloat(clean(n['adjusted price bid'] || n['adjusted bid price'] || '').replace(/,/g, '')),
-            inflationFactor: parseFloat(clean(n['inflation factor'] || '')),
-          });
-        }
-        seenCusips.add(cusip);
+      parseFidelityTipsRows(fidText).forEach(r => {
+        if (isNaN(r.askPrice)) return;
+        if (!rawYieldsData || !rawYieldsData.some(y => y.cusip === r.cusip)) return;
+        priceMap.set(r.cusip, {
+          ask: r.askPrice,
+          bid: r.bidPrice,
+          adjAsk: r.adjAskPrice,
+          adjBid: r.adjBidPrice,
+          inflationFactor: r.inflationFactor,
+        });
       });
       if (priceMap.size > 0) {
         brokerPrices = priceMap;
-        const m = fidText.match(/Date downloaded\s+([\d/]+ [\d:]+ [AP]M)/i);
-        brokerDownloadDate = m ? m[1] : null;
+        brokerDownloadDate = parseFidelityDownloadDate(fidText);
         const chkBroker = document.getElementById('chkTipsBroker');
         chkBroker.disabled = false;
         chkBroker.checked = true;
@@ -588,24 +576,9 @@ function switchTab(tab) {
   processAndRender();
 }
 
-// Extract price from "price/qty(min)" (new format) or plain "price" (old format).
-function fidPriceField(raw) {
-  return (raw || '').split('/')[0].replace(/,/g, '').trim();
-}
-
-// Parse maturity from YYYY-MM-DD (new) or MM/DD/YYYY (old) → ISO string.
-function fidParseMaturity(s) {
-  if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const [mo, dy, yr] = s.split('/');
-  return yr ? `${yr}-${mo.padStart(2,'0')}-${dy.padStart(2,'0')}` : null;
-}
-
 // Pure parser — works with text from file upload or R2 fetch
 function parseFidelityNominals(text) {
-  const clean = val => (val || '').replace(/^=?["']*/, '').replace(/["']*$/, '').trim();
-  const m = text.match(/Date downloaded\s+([\d/]+ [\d:]+ [AP]M)/i);
-  const downloadDate = m ? m[1] : null;
+  const downloadDate = parseFidelityDownloadDate(text);
   const rows = parseCsv(text);
   const bonds = [];
   const seen = new Set();

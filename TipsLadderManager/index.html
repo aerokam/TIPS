@@ -385,8 +385,6 @@
       <span class="info-stat"><span class="info-stat-label">Range</span> <span id="val-range" class="info-stat-val">—</span></span>
       <div class="info-links-group">
         <span id="info-tips-count"></span>
-        <span class="info-sep">·</span>
-        <span id="info-refcpi" class="info-muted"></span>
       </div>
       <div id="net-cash-inline">
         <span class="nc-label" id="nc-label">Net Cash</span>
@@ -488,7 +486,7 @@ import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { accruedInterest } from '../shared/src/bond-math.js';
-import { fetchTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
+import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
 
@@ -569,18 +567,30 @@ document.getElementById('help-overlay').addEventListener('click', e => {
 
 // ─── Load data CSVs ───────────────────────────────────────────────────────────
 let tipsMap = null, refCpiRows = null, settlementDate = null, tipsRefMap = null;
+let _tradeDateStr = null, _settleDateStr = null; // Trade = "today" (asOfDate); Settle = T+1 (or T for dormant FedInvest)
+
+// Market (Fidelity) ask prices/yields are the only source surfaced to users. FedInvest
+// stays available as a dormant cross-check path (matches tipsladder.com) via
+// fetchTipsData() in data.js -- flip this constant to 're-enable it; no UI control
+// exposes the choice (3.1_Data_Pipeline.md §4.0).
+const YIELD_SOURCE = 'fidelity';
 
 async function loadData() {
   console.log('loadData() started');
   try {
-    const { yieldsRows, refCpiRows: rows, tipsRefRows, bondHolidays } = await fetchTipsData();
+    const { yieldsRows, refCpiRows: rows, tipsRefRows, bondHolidays, asOfDate } =
+      YIELD_SOURCE === 'fedinvest' ? await fetchTipsData() : await fetchFidelityTipsData();
     refCpiRows = rows;
     _maxRefCpiDate = rows.length ? rows[rows.length - 1].date : null;
     tipsRefMap = new Map(tipsRefRows.map(r => [r.cusip, r]));
     const settleDateStr = yieldsRows[0]?.settlementDate;
-    if (!settleDateStr) throw new Error('YieldsFromFedInvestPrices.csv has no settlementDate');
+    if (!settleDateStr) throw new Error('No market data returned for source: ' + YIELD_SOURCE);
     settlementDate = localDate(settleDateStr);
-    _defaultRefCpiDateStr = nextBondTradingDay(settleDateStr, bondHolidays);
+    _settleDateStr = settleDateStr;
+    // FedInvest's settleDateStr IS "today" (T), so trade === settle there; Market's
+    // settleDateStr is already T+1, so its "today"/trade reference is asOfDate.
+    _tradeDateStr = YIELD_SOURCE === 'fedinvest' ? settleDateStr : asOfDate;
+    _defaultRefCpiDateStr = nextBondTradingDay(_tradeDateStr, bondHolidays);
     tipsMap = buildTipsMapFromYields(yieldsRows);
 
     const bfsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity && b.maturity > settlementDate).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
@@ -609,7 +619,6 @@ async function loadData() {
     });
     firstYearSel.value = bfsYears[0] || '';
 
-    _staticInfoPrefix = 'FedInvest prices · ' + _fmtMDY(settleDateStr);
     _staticInfoSuffix = yieldsRows.length + ' TIPS: <a class="info-link tips-ref-link">Ref</a> <a class="info-link tips-mkt-link">Mkt</a>';
     _buildRows();
     
@@ -662,7 +671,7 @@ let buildSummary = null;
 let lastHDR = null, lastResults = null;
 let lastBuildHDR = null, lastBuildResults = null;
 let lastRebalHDR = null, lastRebalResults = null;
-let _staticInfoPrefix = '', _staticInfoSuffix = '';
+let _staticInfoSuffix = '';
 let activeRefCpiDateStr = null;
 let _defaultRefCpiDateStr = null;
 let _maxRefCpiDate = null;
@@ -2591,8 +2600,9 @@ document.getElementById('run-btn').addEventListener('click', async () => {
 function _fmtMDY(iso) { if (!iso) return ''; const [y,m,d] = iso.split('-'); return `${m}/${d}/${y}`; }
 function _buildRows() {
   const date = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
-  document.getElementById('info-source').textContent = _staticInfoPrefix;
-  document.getElementById('info-refcpi').innerHTML = `<span class="info-const">Ref CPI: </span><span id="refcpi-link" class="info-link">${_fmtMDY(date)}</span>`;
+  document.getElementById('info-source').innerHTML =
+    `Trade: ${_fmtMDY(_tradeDateStr)} · Settle: ${_fmtMDY(_settleDateStr)} · ` +
+    `<span class="info-const">Ref CPI: </span><span id="refcpi-link" class="info-link">${_fmtMDY(date)}</span>`;
   document.getElementById('info-tips-count').innerHTML = _staticInfoSuffix;
 }
 
