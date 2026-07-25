@@ -424,8 +424,13 @@ function buildHeader() {
     });
     headerRow.appendChild(th);
 
+    // Wrap the filter input (and, for date columns, the range-toggle button) in an inner
+    // positioning context rather than setting position:relative on the td itself — the td
+    // must stay position:sticky (from CSS) for the filter row to pin under the header;
+    // an inline style on the td would override that sticky rule (inline beats stylesheet).
     var td = document.createElement('td');
-    td.style.position = 'relative';
+    var wrap = document.createElement('div');
+    wrap.style.position = 'relative';
     var inp = document.createElement('input');
     inp.type = 'text';
     inp.size = 1;
@@ -442,7 +447,7 @@ function buildHeader() {
         renderTable();
       });
     })(col.key, inp);
-    td.appendChild(inp);
+    wrap.appendChild(inp);
     if (col.isDate) {
       var range = dateRangeFilter ? dateRangeFilter.getDateRange(col.key) : {};
       var rangeActive = range.from || range.to;
@@ -464,12 +469,21 @@ function buildHeader() {
           }
         });
       })(col.key, col.label, btn);
-      td.appendChild(btn);
+      wrap.appendChild(btn);
     }
+    td.appendChild(wrap);
     filterRow.appendChild(td);
   });
 
-  // Sync filter row top to actual header height
+  syncFilterRowTop();
+}
+
+// Header row height depends on the table's actual rendered width (wrap-header columns
+// wrap to 2 lines when narrow), which itself depends on tbody cell content since the
+// table has no fixed layout. Must be re-measured after tbody has real rows, not just
+// after buildHeader() — otherwise the empty-table measurement (from before data loads)
+// stays baked into the filter row's sticky top and leaves a gap / overlaps the first row.
+function syncFilterRowTop() {
   var headerHeight = document.querySelector('thead tr:first-child').offsetHeight;
   document.querySelectorAll('thead tr.filter-row td').forEach(function(td) {
     td.style.top = headerHeight + 'px';
@@ -493,6 +507,7 @@ function renderTable() {
     html += '</tr>';
   });
   tbody.innerHTML = html;
+  syncFilterRowTop();
   rc.textContent = rows.length + ' of ' + allRows.length + ' TIPS';
   rc.style.display = 'block';
 }

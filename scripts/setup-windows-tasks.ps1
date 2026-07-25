@@ -134,10 +134,15 @@ Register-NodeTask "TreasuryAuctions" `
     ) `
     "scripts/getAuctions.js"
 
-# TipsRef  -  Mondays 7:00am PT
+# TipsRef  -  Weekdays 8:35am and 10:05am PT (same cadence as TreasuryAuctions,
+# same underlying FiscalData auctions_query endpoint; catches int_rate as soon as
+# it's posted post-auction instead of waiting up to a week on the old Monday-only run).
 Register-NodeTask "TipsRef" `
     "Fetch TIPS reference metadata from FiscalData, upload TipsRef.csv" `
-    @(New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday -At "7:00am") `
+    @(
+        (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "8:35am"),
+        (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "10:05am")
+    ) `
     "scripts/fetchTipsRef.js"
 
 # YieldsHistory  -  Weekdays 2:00pm PT (bond market closes at 5pm ET / 2pm PT)
