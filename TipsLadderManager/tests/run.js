@@ -1254,6 +1254,48 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
   assert('gap-free pristine mirror: net cash ~0', Math.abs(res.summary.costDeltaSum) <= 3000, true);
 }
 
+// ── Test: runFundedRebalance — gap/Future-30Y block: scale actually applies ─────────────────────
+// Companion to the gap-free no-op test above: a portfolio that DOES have a gap-year/Future-30Y
+// block to duration-match, so isPristineMirror must trigger the scale (not skip it). This is the
+// exact reproduction the user found manually (2026-07-25): load the app with the pre-populated
+// SampleHoldings.csv and click Run Rebalance — net cash came back a large negative number instead
+// of ~0, because the whole scale-application branch had been silently deleted from
+// runFundedRebalance in commit c0d233b (2026-07-16, an unrelated Ref CPI/Index Ratio refactor) —
+// isPristineMirror kept getting computed and passed in from index.html, but nothing acted on it
+// anymore, so funded years were never sold down to fund the bracket excess. The gap-free no-op
+// test above didn't catch this because it only exercises the branch where the scale is correctly
+// SKIPPED — it can't tell "skipped because gap-free" apart from "skipped because deleted". This
+// test exercises the branch where the scale must actually fire.
+{
+  const fp = path.resolve('./data/SampleHoldings.csv');
+  if (existsSync(fp)) {
+    console.log('\nrunFundedRebalance — SampleHoldings pristine mirror: scale must apply and self-finance');
+    const rawHoldings = parseHoldings(readFileSync(fp, 'utf8'));
+
+    // Build the load mirror exactly as the UI does at file load (range form fills empty years w/ LMI).
+    const heldARA = computePortfolioARAByYear(rawHoldings, tipsMap, refCPI);
+    const heldYears = Object.keys(heldARA).map(Number);
+    const firstYear = Math.min(...heldYears), lastYear = Math.max(...heldYears);
+    const fullARA = computePortfolioARAByYear(rawHoldings, tipsMap, refCPI, { firstYear, lastYear });
+    const { median, daraMap } = derivePerYearDara(heldARA, getGapYearBracketCandidates(tipsMap));
+    const gapSet = new Set(getGapYears(tipsMap));
+    const mirror = new Map();
+    for (let y = firstYear; y <= lastYear; y++) {
+      mirror.set(y, daraMap.has(y) ? daraMap.get(y) : (gapSet.has(y) ? median : Math.round(fullARA[y] ?? 0)));
+    }
+
+    const res = runFundedRebalance({
+      dara: median, holdings: rawHoldings, tipsMap, refCPI, settlementDate,
+      daraByYear: mirror, isPristineMirror: true,
+    });
+    const hasFundingBlock = res.summary.gapYears.length > 0 || res.summary.future30yYears.length > 0;
+    assert('SampleHoldings: portfolio actually has a gap/Future-30Y block to fund (else this test proves nothing)', hasFundingBlock, true);
+    assert('SampleHoldings pristine mirror: net cash is small and non-negative (self-financing scale applied)',
+      res.summary.costDeltaSum >= -50 && res.summary.costDeltaSum <= 3000, true);
+    console.log(`        net cash: ${Math.round(res.summary.costDeltaSum).toLocaleString()}`);
+  }
+}
+
 // ── Test: Infer LMP DARA when lastYear lands inside the gap — orphaned bracket trade ────────────
 // Regression: when lastYearOverride sits inside the structural gap (2037-2039), the upper bracket
 // (2040) is NOT a funded rung, but the rebalance still emits a trade for it (3.0 §lastYear as a Gap

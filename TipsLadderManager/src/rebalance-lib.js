@@ -1796,11 +1796,25 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   return { results, HDR, summary: { settleDateDisp, refCPI, DARA, daraByYearResolved, inferredDARA, daraIsInferred: dara === null, firstYear, lastYear, derivedFirstYear, rungCount, gapYears, future30yYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, newLowerWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalPreviousExcessCost, totalExcessCost, araByYear, future30yLowerYear, future30yUpperYear, future30yLowerCoverCUSIP: future30yLowerCoverBond?.cusip, future30yUpperCoverCUSIP: future30yUpperCoverBond?.cusip, future30yParams, future30yLowerDuration, future30yUpperDuration, future30yUpperWeight, future30yLowerWeight, future30yUpperExQty, future30yLowerExQty, future30yFellBack, future30yUpperAnnualAmdByYear, future30yLMITotal, preLadderInterest, maturityPref, preLadderPool, preLadderCouponPool, preLadderAmdPool, preLadderRollCouponPool, zeroedFundedYears: [...zeroedFundedYears].sort((a, b) => a - b), weightedAvgDuration, weightedAvgYield }, details };
 }
 
-// Execute a rebalance on the given per-year DARA map directly (3.0 §Per-Year DARA from Portfolio).
-// Honors the map as-is — including intentional empty rungs (a year the user holds none of stays a
-// hole) and any user-reshaped / our-export shape. All DARA inference (including the shape-preserving
-// self-financing scale for a gap-year / Future-30Y block) is user-initiated via the segment Infer
-// buttons (3.0 §Two-Segment DARA — "All inference is user-initiated") — never automatic at Run.
+// Execute a rebalance with shape-preserving self-financing FUNDING (3.0 §Funding the rebalance).
+// This is the orchestration the Run button performs, lifted out of the UI so it has one home and is
+// unit-testable:
+//   1. Run the rebalance on the given per-year DARA map directly. This honors the map as-is —
+//      including intentional empty rungs (a year the user holds none of stays a hole) and any
+//      user-reshaped / our-export shape.
+//   2. ONLY if that map is the untouched load mirror (`isPristineMirror`) AND the ladder actually
+//      has a gap-year / Future-30Y block to duration-match (learned from the engine's own
+//      `summary.gapYears` / `summary.future30yYears`), re-run with the shape-preserving scaled map so
+//      the funded rungs sell down to fund the bracket excess. With no such block there is nothing to
+//      buy — the direct run already nets to ≈0 and is returned unchanged (no spurious sell-down).
+//
+// REGRESSION HISTORY: this scale-application step was accidentally deleted in commit c0d233b
+// (2026-07-16, an unrelated Ref CPI/Index Ratio rounding refactor) — `isPristineMirror` kept being
+// computed and passed in from index.html, but this function silently stopped acting on it, so every
+// default-mirror Run with a gap/Future-30Y block produced large non-self-financing net cash (funded
+// years weren't sold down at all). It went undetected for 9 days because the only unit test covering
+// this function exercised the gap-free NO-OP path, never the actual scale-application path — see the
+// paired test below ("runFundedRebalance — gap/Future-30Y block: scale actually applies").
 export function runFundedRebalance({
   dara, bracketMode = '2bracket', holdings, tipsMap, refCPI, settlementDate,
   daraByYear = null, isPristineMirror = false,
@@ -1808,5 +1822,16 @@ export function runFundedRebalance({
 }) {
   const base = { dara, bracketMode, holdings, tipsMap, refCPI, settlementDate,
     lastYearOverride, firstYearOverride, preLadderInterest, maturityPref };
-  return runRebalance({ ...base, daraByYear });
+  let result = runRebalance({ ...base, daraByYear });
+  const needsFunding = result.summary.gapYears.length > 0 || result.summary.future30yYears.length > 0;
+  if (isPristineMirror && needsFunding) {
+    const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
+    const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap, result.summary.lastYear));
+    const { scaledMap, scaledMedian } = inferScaledDARAFromPortfolio({
+      daraMap, holdings, tipsMap, refCPI, settlementDate,
+      bracketMode, lastYearOverride, firstYearOverride, preLadderInterest, flat: false,
+    });
+    result = runRebalance({ ...base, dara: scaledMedian, daraByYear: scaledMap });
+  }
+  return result;
 }

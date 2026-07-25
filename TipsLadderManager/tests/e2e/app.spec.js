@@ -663,6 +663,14 @@ function parseNetCash(text) {
 // ── 16. Net cash small and NON-NEGATIVE after rebalance with portfolio-derived DARA ────
 test('rebalance: net cash is non-negative and small (self-financing scale)', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  // The #holdings-file 'change' handler has one async gap (`await file.text()`); everything after
+  // it — parsing, currentHoldingsArray, the rebal-first/last-year dropdowns, auto-inferred DARA —
+  // is synchronous but doesn't land until that gap resolves. Clicking Run immediately can race
+  // ahead of it and run against stale pre-upload state (e.g. the page-load sample-holdings
+  // preload), producing a holdings/DARA mismatch that isn't self-financing. rebal-last-year is
+  // cleared to '' right before the post-await population runs, so waiting for it to be non-empty
+  // is a reliable "this upload's handler has finished" signal.
+  await expect(page.locator('#rebal-last-year')).not.toHaveValue('', { timeout: 3_000 });
 
   // Default mirror shape — run without any manual override. The Run-time shape-preserving
   // self-financing scale (3.0 §Funding the rebalance) must drive net cash to small, ≥ 0:
@@ -850,9 +858,14 @@ test('rebalance: pressing Enter in RefCPI date picker applies date but does not 
   expect(await daraDisplay(page), 'DARA was unexpectedly cleared after RefCPI Enter').not.toBe('');
 });
 
-test('build variable DARA then rebalance: per-year panel shows proportional values, not constant', async ({ page }) => {
-  // Regression for variable-DARA ladders: build with 2026=20K, 2029=50K,
-  // export, load in rebalance, verify per-year DARA preserves the ordering (not constant).
+test('build variable DARA then rebalance: per-year panel round-trips exactly', async ({ page }) => {
+  // Regression for variable-DARA ladders: build with first-year=20K, 2029=50K, export, load in
+  // rebalance. Build's export embeds an explicit `#fundedYear,dara` block (added 2026-06-04,
+  // index.html "Explicit per-year DARA round-trip"), and Rebalance honors that block directly on
+  // import instead of inferring DARA from holdings (index.html ~1395: "no inference"). So this is
+  // NOT the best-effort `inferScaledDARAFromPortfolio` proportional-scaling path (that only runs
+  // for files with no DARA block — broker/legacy/tipsladder imports) — it's a literal read-back,
+  // and the per-year values must reproduce exactly, not just preserve ordering.
   await page.locator('.tab-btn[data-mode="build"]').click();
 
   // Select last year 2029 and default first year (settlement year ≈ 2026)
@@ -884,30 +897,31 @@ test('build variable DARA then rebalance: per-year panel shows proportional valu
   const exportPath = await download.path();
   expect(exportPath, 'export file should exist').toBeTruthy();
 
-  // Switch to Rebalance and load the exported file
+  // Switch to Rebalance and load the exported file. Tab-switch synchronously restores the
+  // Rebalance panel's STASHED state from the page-load sample-preload (index.html ~709,
+  // `_daraByYearStore = _daraByYearStoreRebal`) — so #dara-by-year is already visible with stale
+  // sample-derived values the instant the tab click happens, before the just-uploaded file's async
+  // parse (single `await file.text()` in the #holdings-file 'change' handler) has resolved and
+  // overwritten it. A one-shot inputValue() read here can race ahead of that overwrite and observe
+  // the stale snapshot instead — use auto-retrying toHaveValue() assertions, which poll until the
+  // real value lands (or the timeout expires), rather than a point-in-time read.
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
   await page.locator('#holdings-file').setInputFiles(exportPath);
   await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
 
-  // Per-year values must preserve ordering: firstYear < 2029 (proportional, not constant).
-  const vFirst = parseFloat(await page.locator(`#dara-by-year-table input[data-year="${firstYear}"]`).inputValue());
-  const vLast  = parseFloat(await page.locator('#dara-by-year-table input[data-year="2029"]').inputValue());
-  expect(vFirst, 'first-year DARA should be a number').not.toBeNaN();
-  expect(vLast,  'last-year (2029) DARA should be a number').not.toBeNaN();
-  expect(vFirst, 'first-year DARA should be less than 2029 DARA (proportional, not constant)').toBeLessThan(vLast);
-  // Ratio check: 50K/20K = 2.5; allow 20% tolerance (2.0–3.0)
-  const ratio = vLast / vFirst;
-  // Core invariant: values are NOT constant — lower-target year < higher-target year.
-  // Exact ratio depends on LMI compression; just verify ordering is preserved.
-  expect(vFirst, 'first-year DARA should be less than last-year (proportional, not constant)').toBeLessThan(vLast);
+  // Explicit-block honor path: values must reproduce the exact typed inputs, not just an ordering.
+  await expect(page.locator(`#dara-by-year-table input[data-year="${firstYear}"]`),
+    'first-year DARA should round-trip to exactly 20000').toHaveValue('20000', { timeout: 3_000 });
+  await expect(page.locator('#dara-by-year-table input[data-year="2029"]'),
+    '2029 DARA should round-trip to exactly 50000').toHaveValue('50000', { timeout: 3_000 });
 
-  // Run rebalance — net cash should be near zero (self-financing from proportional scaling)
+  // Run rebalance — reconstructing the same targets reproduces the same ladder, so net cash is
+  // near zero (not a proportional-scaling self-financing search; see comment above).
   await page.locator('#run-btn').click();
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 6_000 });
   const raw = await page.locator('#net-cash-val').textContent();
   const netCash = parseFloat(raw.replace(/[^0-9.-]/g, ''));
-  // Binary search guarantees self-funding: net cash must be non-negative and small
-  expect(netCash, 'net cash must be non-negative (self-funding)').toBeGreaterThanOrEqual(0);
+  expect(netCash, 'net cash must be non-negative').toBeGreaterThanOrEqual(0);
   expect(netCash, 'net cash must be small (within $2,000)').toBeLessThan(2000);
 });
 

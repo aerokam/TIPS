@@ -1651,6 +1651,13 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 let currentHoldingsArray = null;
 let currentImportedDaraByYear = null; // explicit per-year DARA from our own export's #fundedYear,dara block (null for broker/legacy)
 let currentImportedParams = null; // construction params from our own export's #params line ({preLadderInterest, maturityPref}); null for broker/legacy
+// Generation token guarding the #holdings-file 'change' handler's single await (file.text()). The
+// startup auto-preload of data/SampleHoldings.csv (loadData()) dispatches this same 'change' event;
+// if a user (or test) uploads their own file before that preload's text() promise has settled, both
+// invocations are in flight, and without this guard whichever resolves LAST wins — silently
+// overwriting the newer, real upload with stale sample data. Each invocation captures its own token
+// and drops its result if a newer load has started by the time its await resumes.
+let _holdingsLoadToken = 0;
 
 document.getElementById('holdings-file-btn').addEventListener('click', () => {
   const fi = document.getElementById('holdings-file');
@@ -1659,6 +1666,7 @@ document.getElementById('holdings-file-btn').addEventListener('click', () => {
 });
 
 document.getElementById('holdings-file').addEventListener('change', async (e) => {
+  const myLoadToken = ++_holdingsLoadToken;
   const file = e.target.files[0];
   document.getElementById('holdings-file-name').textContent = file ? file.name : 'No file chosen';
   currentHoldingsArray = null;
@@ -1695,6 +1703,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   
   try {
     const text = await e.target.files[0].text();
+    if (myLoadToken !== _holdingsLoadToken) return; // a newer load started while this one was reading — stale, drop it
     const rawLines = text.trim().split('\n').filter(l => l.trim());
     if (rawLines.length === 0) { setStatus('Holdings CSV is empty.', true); return; }
 
