@@ -1491,7 +1491,9 @@ console.log('\naccruedInterest — day-count proration');
     ];
     const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
     assert('over-allocated: sold something', w.sold, true);
-    assert('over-allocated: oldest depleted first', w.retainedWeights[0], 0, 1e-12);
+    assert('over-allocated: earliest sold, not fully depleted when a partial sale suffices',
+      w.retainedWeights[0] > 0 && w.retainedWeights[0] < 260000/300000, true);
+    assert('over-allocated: sold only down to where the match is restored', w.activeWeight, 0, 1e-9);
     assert('over-allocated: newer retained leg survives', w.retainedWeights[1] > 0, true);
     assert('over-allocated: blend still matches dGap', blend(retained, w), dGap, 1e-9);
   }

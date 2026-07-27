@@ -76,22 +76,30 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
 
   let { wAct, wUp } = solve();
 
-  // Sell the oldest retained maturity down until the solve is feasible again.
+  // wAct < 0 means the lower side is carrying more than the block needs — you would have to hold
+  // a negative amount of the latest 10Y to come back to dGap. Sell the EARLIEST maturity, and only
+  // as much as it takes to bring wAct to 0; if depleting it entirely still is not enough, move to
+  // the next earliest. Selling a whole leg when a partial sale would do forces needless trading.
+  //
+  // Holding every other leg fixed, the weight of leg i that lands exactly on wAct = 0 is
+  //   wᵢ = [dGap − D_fixed − (1 − R_fixed)·d_up] / (dᵢ − d_up)
+  // from the same two equations with w_act dropped. dᵢ < d_up, so the denominator is negative.
   let sold = false;
-  for (let i = 0; i < n && (wAct < 0 || wUp < 0); i++) {
-    w[i] = 0;                               // deplete this maturity fully, then re-check
-    sold = true;
+  for (let i = 0; i < n && wAct < 0; i++) {
+    const R_fixed = w.reduce((s, x, j) => j === i ? s : s + x, 0);
+    const D_fixed = w.reduce((s, x, j) => j === i ? s : s + x * (retained[j].duration ?? 0), 0);
+    const di      = retained[i].duration ?? 0;
+    const den     = di - dUpper;
+    const wanted  = Math.abs(den) < 0.0001 ? 0 : (dGap - D_fixed - (1 - R_fixed) * dUpper) / den;
+    const next    = Math.min(w[i], Math.max(0, wanted));   // never increase, never below zero
+    if (next !== w[i]) { w[i] = next; sold = true; }
     ({ wAct, wUp } = solve());
   }
 
-  // Still infeasible with every retained leg sold: clamp to the plain two-sided answer.
-  let feasible = wAct >= 0 && wUp >= 0;
-  if (!feasible) {
-    const b = bracketWeights(dActive, dUpper, dGap);
-    wAct = b.lowerWeight; wUp = b.upperWeight;
-    for (let i = 0; i < n; i++) w[i] = 0;
-  }
-
+  // With every retained leg sold off this reduces to the plain two-sided case, which always has a
+  // solution when the gap average sits between the two bracket durations. `feasible` stays as a
+  // signal for the degenerate inputs (coincident durations, dGap outside the bracket span).
+  const feasible = wAct >= -1e-9 && wUp >= -1e-9;
   return { retainedWeights: w, activeWeight: wAct, upperWeight: wUp, feasible, sold };
 }
 
