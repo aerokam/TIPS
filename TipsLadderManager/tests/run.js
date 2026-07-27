@@ -6,6 +6,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
 import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, inferDARAFromCash, inferScaledDARAFromPortfolio, inferSegmentedDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings } from '../src/rebalance-lib.js';
 import { segmentRanges, constantMap, applySegmentMap } from '../src/segment-dara.js';
+import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
 import { nextBondTradingDay, parseBondHolidays, lookupRefCpi } from '../src/data.js';
@@ -1358,6 +1359,80 @@ console.log('\naccruedInterest — day-count proration');
   assert('accruedInterest: accrued strictly below the full semiannual coupon', late.accrued < 1.0, true);
 
   console.log(`        E=${early.E} days   early(A=1) accrued=${early.accrued.toFixed(5)}   late(A=E-1) accrued=${late.accrued.toFixed(5)}`);
+}
+
+
+// ── Gap duration matching with retained lower-side maturities ─────────────────
+// The invariant nothing asserted before 463b07a removed the 3-way solve: the COST-WEIGHTED
+// duration of every leg actually held must equal the gap block's average duration. Spec 2.0
+// §Retained Bracket Excess.
+{
+  console.log('');
+  console.log('Gap duration match — retained lower-side maturities');
+
+  // Gap average sits BETWEEN the two brackets — the normal case. (If dGap crowds dUpper,
+  // a short retained leg can make the match unsolvable at any non-negative weight; the solver
+  // then sells it, which is the only lever available and is exercised in case 4 below.)
+  const dGap = 10.5, dAct = 9.2, dUp = 12.9;
+  const blend = (retained, w) =>
+    retained.reduce((s, r, i) => s + w.retainedWeights[i] * r.duration, 0)
+    + w.activeWeight * dAct + w.upperWeight * dUp;
+
+  // 1. No retained legs → must reproduce the plain two-sided answer exactly.
+  {
+    const base = bracketWeights(dAct, dUp, dGap);
+    const w = bracketWeightsN({ retained: [], dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
+    assert('no retained: activeWeight == two-sided lowerWeight', w.activeWeight, base.lowerWeight, 1e-12);
+    assert('no retained: upperWeight == two-sided upperWeight', w.upperWeight, base.upperWeight, 1e-12);
+    assert('no retained: blend matches dGap', blend([], w), dGap, 1e-9);
+  }
+
+  // 2. One retained (shorter) leg, frozen at its held cost → blend still lands on dGap.
+  //    This is the case the shipped code got wrong: it priced the retained leg at dAct.
+  {
+    const retained = [{ duration: 7.4, excessCost: 60000 }];
+    const total = 300000;
+    const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: total });
+    assert('one retained: feasible', w.feasible, true);
+    assert('one retained: retained weight is its held share', w.retainedWeights[0], 60000/total, 1e-12);
+    assert('one retained: blend matches dGap', blend(retained, w), dGap, 1e-9);
+    assert('one retained: weights sum to 1',
+      w.retainedWeights[0] + w.activeWeight + w.upperWeight, 1, 1e-12);
+
+    // The old two-sided treatment, for contrast: retained dollars priced at dAct.
+    const base = bracketWeights(dAct, dUp, dGap);
+    const wRet = 60000/total;
+    const oldBlend = wRet * 7.4 + (base.lowerWeight - wRet) * dAct + base.upperWeight * dUp;
+    assert('one retained: old two-sided treatment really did fall short of dGap', oldBlend < dGap - 0.1, true);
+    console.log('        old blend: ' + oldBlend.toFixed(3) + '  vs dGap ' + dGap + '  (short by ' + (dGap - oldBlend).toFixed(3) + ')');
+  }
+
+  // 3. Three retained legs (the Jan 2034 / Jan 2036 / Jul 2036 shape) → still exact.
+  {
+    const retained = [
+      { duration: 6.1, excessCost: 30000 },
+      { duration: 7.4, excessCost: 25000 },
+      { duration: 8.6, excessCost: 20000 },
+    ];
+    const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
+    assert('three retained: feasible', w.feasible, true);
+    assert('three retained: blend matches dGap', blend(retained, w), dGap, 1e-9);
+    assert('three retained: weights sum to 1',
+      w.retainedWeights.reduce((s,x)=>s+x,0) + w.activeWeight + w.upperWeight, 1, 1e-12);
+  }
+
+  // 4. Over-allocated → sell the OLDEST first, and only as far as needed.
+  {
+    const retained = [
+      { duration: 6.1, excessCost: 260000 },   // oldest, grossly oversized
+      { duration: 7.4, excessCost: 20000 },
+    ];
+    const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
+    assert('over-allocated: sold something', w.sold, true);
+    assert('over-allocated: oldest depleted first', w.retainedWeights[0], 0, 1e-12);
+    assert('over-allocated: newer retained leg survives', w.retainedWeights[1] > 0, true);
+    assert('over-allocated: blend still matches dGap', blend(retained, w), dGap, 1e-9);
+  }
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────
