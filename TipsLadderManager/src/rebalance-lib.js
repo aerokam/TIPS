@@ -1092,14 +1092,14 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     }
   }
 
-  let lowerWeight = 0, upperWeight = 0, origLowerWeight = null, newLowerWeight3 = null, upperWeight3 = null;
+  let lowerWeight = 0, upperWeight = 0, origLowerWeight = null, latest10yWeight3 = null, upperWeight3 = null;
   let bracketFellBack3to2 = false;
   const bracketExcessTargetCost = {};
   if (gapYears.length > 0) {
     if (is3Bracket) {
       // Retained lower-side maturities are frozen at the excess already held and enter the
-      // duration solve at their OWN duration; only the active lower bracket and the upper
-      // bracket are solved. Pricing retained excess at the ACTIVE bracket's duration (as this
+      // duration solve at their OWN duration; only the latest 10Y and the upper
+      // bracket are solved. Pricing retained excess at the latest 10Y's duration (as this
       // did from 463b07a) leaves the block under-matched, because an older maturity is shorter.
       // Spec 2.0 §Retained Bracket Excess; 3.0 §Lower-side priority rule.
       const _excessCostOf = (year, cusip) => {
@@ -1120,27 +1120,27 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
 
       const wN = bracketWeightsN({
         retained: retainedList,
-        dActive: newLowerDuration,
+        dLatest10y: newLowerDuration,
         dUpper:  upperDuration,
         dGap:    gapParams.avgDuration,
         totalBlockCost: gapParams.totalCost,
       });
 
-      // lowerWeight now carries the ACTIVE bracket's own share, not the whole lower side, so
+      // lowerWeight now carries the latest 10Y's own share, not the whole lower side, so
       // retained + active + upper sum to exactly 1 (they previously double-counted the retained
       // share in the gap-LMI allocation below).
-      lowerWeight = wN.activeWeight; upperWeight = wN.upperWeight; upperWeight3 = wN.upperWeight;
+      lowerWeight = wN.latest10yWeight; upperWeight = wN.upperWeight; upperWeight3 = wN.upperWeight;
       bracketFellBack3to2 = !wN.feasible;
 
       retainedList.forEach((r, i) => {
         bracketExcessTargetCost[r.year] = gapParams.totalCost * wN.retainedWeights[i];
       });
-      bracketExcessTargetCost[newLowerYear]       = gapParams.totalCost * wN.activeWeight;
+      bracketExcessTargetCost[newLowerYear]       = gapParams.totalCost * wN.latest10yWeight;
       bracketExcessTargetCost[brackets.upperYear] = gapParams.totalCost * wN.upperWeight;
 
       // Effective weights for summary reporting.
       origLowerWeight = wN.retainedWeights[0] ?? 0;
-      newLowerWeight3 = wN.activeWeight;
+      latest10yWeight3 = wN.latest10yWeight;
     }
     if (!is3Bracket) {
       const weights2Bracket = bracketWeights(lowerDuration, upperDuration, gapParams.avgDuration);
@@ -1797,7 +1797,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const daraByYearResolved = new Map();
   for (let y = firstYear; y <= lastYear; y++) daraByYearResolved.set(y, daraByYear?.get(y) ?? DARA);
 
-  return { results, HDR, summary: { settleDateDisp, refCPI, DARA, daraByYearResolved, inferredDARA, daraIsInferred: dara === null, firstYear, lastYear, derivedFirstYear, rungCount, gapYears, future30yYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, newLowerWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalPreviousExcessCost, totalExcessCost, araByYear, future30yLowerYear, future30yUpperYear, future30yLowerCoverCUSIP: future30yLowerCoverBond?.cusip, future30yUpperCoverCUSIP: future30yUpperCoverBond?.cusip, future30yParams, future30yLowerDuration, future30yUpperDuration, future30yUpperWeight, future30yLowerWeight, future30yUpperExQty, future30yLowerExQty, future30yFellBack, future30yUpperAnnualAmdByYear, future30yLMITotal, preLadderInterest, maturityPref, preLadderPool, preLadderCouponPool, preLadderAmdPool, preLadderRollCouponPool, zeroedFundedYears: [...zeroedFundedYears].sort((a, b) => a - b), weightedAvgDuration, weightedAvgYield }, details };
+  return { results, HDR, summary: { settleDateDisp, refCPI, DARA, daraByYearResolved, inferredDARA, daraIsInferred: dara === null, firstYear, lastYear, derivedFirstYear, rungCount, gapYears, future30yYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, latest10yWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalPreviousExcessCost, totalExcessCost, araByYear, future30yLowerYear, future30yUpperYear, future30yLowerCoverCUSIP: future30yLowerCoverBond?.cusip, future30yUpperCoverCUSIP: future30yUpperCoverBond?.cusip, future30yParams, future30yLowerDuration, future30yUpperDuration, future30yUpperWeight, future30yLowerWeight, future30yUpperExQty, future30yLowerExQty, future30yFellBack, future30yUpperAnnualAmdByYear, future30yLMITotal, preLadderInterest, maturityPref, preLadderPool, preLadderCouponPool, preLadderAmdPool, preLadderRollCouponPool, zeroedFundedYears: [...zeroedFundedYears].sort((a, b) => a - b), weightedAvgDuration, weightedAvgYield }, details };
 }
 
 // Execute a rebalance with shape-preserving self-financing FUNDING (3.0 §Funding the rebalance).

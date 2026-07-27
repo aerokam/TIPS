@@ -36,7 +36,7 @@ npx serve .
 
 **Phase 4 Ladder Rebuild** (rebalance): single longest-to-shortest sweep over ALL years including brackets. Maintains `rebuildLaterMatInt` running pool. Phase 3 only produces weights; Phase 4 does all computation.
 
-**Retained Bracket Excess** (rebalance): lower-side excess in maturities older than the *active lower bracket* (the latest-maturing ladder-eligible TIPS below `minGapYear` — **not** "the latest January"). Never increased; sold **oldest maturity first**, and only when the lower side is over-allocated. Any number of generations may accumulate — do NOT name this by a bracket count. Spec: 2.0 §Retained Bracket Excess.
+**Retained Bracket Excess** (rebalance): lower-side excess in maturities older than the *latest 10Y* (the latest-maturing ladder-eligible TIPS below `minGapYear` — **not** "the latest January"). Never increased; sold **earliest maturity first**, and only by as much as restoring the gap duration match requires. Any number of generations may accumulate — do NOT name this by a bracket count. Spec: 2.0 §Retained Bracket Excess.
 
 **Full Rebalance**: `inferDARAFromCash()` binary-searches DARA until `costDeltaSum ≈ 0`.
 
@@ -98,8 +98,8 @@ Playwright + real Chrome via CDP (`fidelityDownload.js`):
 | **gap year** | — | A calendar year with no TIPS issuance (currently 2037–2039) |
 | **synthetic TIPS** | synthetic bond | Hypothetical TIPS for gap years — never purchased |
 | **LMI** | — | Later Maturity Interest — annual coupon from ALL TIPS maturing after the funded year |
-| **retained bracket excess** | 3-bracket, orig lower, "retain brackets" | Excess in a lower-bracket maturity older than the active one. Never name it by a bracket count — the count grows as TIPS are issued. It's the *excess* that's retained, not the holding |
-| **active lower bracket** | new lower, canonical lower, Jan 2036 | The latest-maturing ladder-eligible TIPS below the first gap year — the only lower-side maturity a rebalance buys. A rule, not a fixed month or CUSIP |
+| **retained bracket excess** | 3-bracket, orig lower, "retain brackets" | Excess in a lower-bracket maturity older than the latest 10Y. Never name it by a bracket count — the count grows as TIPS are issued. It's the *excess* that's retained, not the holding |
+| **latest 10Y** | new lower, canonical lower, Jan 2036 | The latest-maturing ladder-eligible TIPS below the first gap year — the only lower-side maturity a rebalance buys. A rule, not a fixed month or CUSIP |
 
 ### Windows / Tooling Note
 

@@ -33,29 +33,28 @@ export function bracketWeights(lowerDuration, upperDuration, avgGapDuration) {
 // Spec: 2.0 §Retained Bracket Excess; 3.0 §Lower-side priority rule.
 //
 // The plain two-sided `bracketWeights` above assumes EVERY lower-side dollar sits at the
-// active lower bracket's duration. That is false once excess is retained in older maturities:
+// latest 10Y's duration. That is false once excess is retained in older maturities:
 // they are shorter, so the realized blend lands short of `dGap` and the gap is under-matched.
 // (That was the shipped behavior from 463b07a until this function replaced it.)
 //
 // Here the retained maturities are FROZEN at the excess the portfolio already holds — never
-// increased — so their weights are inputs, not unknowns. Only the active lower bracket and the
+// increased — so their weights are inputs, not unknowns. Only the latest 10Y and the
 // upper bracket are solved, and they absorb whatever the retained legs leave over:
 //
-//   Σ wᵣ·dᵣ + w_act·d_act + w_up·d_up = dGap        (duration match, all legs counted)
-//   Σ wᵣ    + w_act       + w_up      = 1
+//   Σ wᵣ·dᵣ + w_l10·d_l10 + w_up·d_up = dGap        (duration match, all legs counted)
+//   Σ wᵣ    + w_l10       + w_up      = 1
 //
 // Let R = Σ wᵣ (retained share of the block) and D_R = Σ wᵣ·dᵣ. Then
-//   w_up  = ((dGap − D_R) − (1 − R)·d_act) / (d_up − d_act)
-//   w_act = (1 − R) − w_up
+//   w_up  = ((dGap − D_R) − (1 − R)·d_l10) / (d_up − d_l10)
+//   w_l10 = (1 − R) − w_up
 //
-// **Over-allocated → sell oldest first.** If no non-negative (w_act, w_up) exists, the retained
-// legs are carrying more than the block needs. Sell down the OLDEST maturity first, taking it to
-// zero before touching the next, re-solving after each step — exactly the ordering rule, now
-// driven by feasibility of the duration match rather than by a separate cost comparison.
+// **Too much in the lower side → sell earliest first.** A negative w_l10 means the retained legs
+// carry more than the block needs. The sell-down below handles it; see the comment there for how
+// much of each leg goes.
 //
 // `retained` is oldest → newest. Returns weights as shares of the total block cost.
-export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlockCost }) {
-  const degenerate = Math.abs(dUpper - dActive) < 0.0001;
+export function bracketWeightsN({ retained = [], dLatest10y, dUpper, dGap, totalBlockCost }) {
+  const degenerate = Math.abs(dUpper - dLatest10y) < 0.0001;
   const n = retained.length;
 
   // Retained weights as held (frozen). Zero block cost → nothing to allocate.
@@ -70,7 +69,7 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
       const rest = Math.max(0, 1 - R);
       return { wAct: rest / 2, wUp: rest / 2 };
     }
-    const wUp  = ((dGap - D_R) - (1 - R) * dActive) / (dUpper - dActive);
+    const wUp  = ((dGap - D_R) - (1 - R) * dLatest10y) / (dUpper - dLatest10y);
     return { wAct: (1 - R) - wUp, wUp };
   };
 
@@ -83,7 +82,7 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
   //
   // Holding every other leg fixed, the weight of leg i that lands exactly on wAct = 0 is
   //   wᵢ = [dGap − D_fixed − (1 − R_fixed)·d_up] / (dᵢ − d_up)
-  // from the same two equations with w_act dropped. dᵢ < d_up, so the denominator is negative.
+  // from the same two equations with w_l10 dropped. dᵢ < d_up, so the denominator is negative.
   let sold = false;
   for (let i = 0; i < n && wAct < 0; i++) {
     const R_fixed = w.reduce((s, x, j) => j === i ? s : s + x, 0);
@@ -100,7 +99,7 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
   // solution when the gap average sits between the two bracket durations. `feasible` stays as a
   // signal for the degenerate inputs (coincident durations, dGap outside the bracket span).
   const feasible = wAct >= -1e-9 && wUp >= -1e-9;
-  return { retainedWeights: w, activeWeight: wAct, upperWeight: wUp, feasible, sold };
+  return { retainedWeights: w, latest10yWeight: wAct, upperWeight: wUp, feasible, sold };
 }
 
 // ─── Bracket excess quantities ────────────────────────────────────────────────

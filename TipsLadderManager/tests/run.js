@@ -1,8 +1,6 @@
-// Regression tests — must pass after every refactor phase
-// Replicates browser data loading + parsing, then runs rebalance and build.
 // Any refactor must produce identical output for all assertions here.
 
-import { readFileSync, readdirSync, existsSync } from 'fs';
+import { readFileSync, readdirSync, existsSync, writeFileSync } from 'fs';
 import path from 'path';
 import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, inferDARAFromCash, inferScaledDARAFromPortfolio, inferSegmentedDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings } from '../src/rebalance-lib.js';
 import { segmentRanges, constantMap, applySegmentMap } from '../src/segment-dara.js';
@@ -359,17 +357,17 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
 
     // THE invariant that was missing: with a retained (orig lower) maturity held, the
     // cost-weighted duration across ALL THREE legs must equal the gap block's average.
-    // Before the bracketWeightsN fix the retained leg was priced at the active bracket's
+    // Before the bracketWeightsN fix the retained leg was priced at the latest 10Y's
     // duration, so this landed short and nothing noticed. Spec 2.0 §Retained Bracket Excess.
     {
       const blend = (summary.origLowerWeight ?? 0) * summary.lowerDuration
-                  + (summary.newLowerWeight3 ?? 0) * summary.newLowerDuration
+                  + (summary.latest10yWeight3 ?? 0) * summary.newLowerDuration
                   + (summary.upperWeight     ?? 0) * summary.upperDuration;
-      const wSum  = (summary.origLowerWeight ?? 0) + (summary.newLowerWeight3 ?? 0) + (summary.upperWeight ?? 0);
+      const wSum  = (summary.origLowerWeight ?? 0) + (summary.latest10yWeight3 ?? 0) + (summary.upperWeight ?? 0);
       assert('3B real: bracket weights sum to 1 across all three legs', wSum, 1, 1e-9);
       assert('3B real: realized duration matches the gap block average', blend, summary.gapParams.avgDuration, 1e-6);
       console.log('        legs: retained ' + (summary.origLowerWeight ?? 0).toFixed(4) + '@' + summary.lowerDuration.toFixed(3)
-        + '  active ' + (summary.newLowerWeight3 ?? 0).toFixed(4) + '@' + summary.newLowerDuration.toFixed(3)
+        + '  active ' + (summary.latest10yWeight3 ?? 0).toFixed(4) + '@' + summary.newLowerDuration.toFixed(3)
         + '  upper ' + (summary.upperWeight ?? 0).toFixed(4) + '@' + summary.upperDuration.toFixed(3));
       console.log('        blend ' + blend.toFixed(6) + '  vs dGap ' + summary.gapParams.avgDuration.toFixed(6));
     }
@@ -387,21 +385,31 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
       const olCpb     = olRow?.costPerBond ?? 0;
       const retainQty = Math.max(1, Math.round(0.25 * summary.gapParams.totalCost / olCpb));
       const fat = holdings.map(h => h.cusip === olCusip ? { ...h, qty: olFyQty + retainQty } : h);
+      // EMIT_FIXTURE=1 writes this exact portfolio out as a loadable holdings file, so the
+      // retained-excess case can be inspected by hand in the app rather than only in tests.
+      if (process.env.EMIT_FIXTURE) {
+        writeFileSync('data/RetainedBracketExcess.csv',
+          ['cusip,qty', ...fat.map(h => h.cusip + ',' + h.qty)].join(String.fromCharCode(10)) + String.fromCharCode(10));
+        console.log('        WROTE data/RetainedBracketExcess.csv  retained=' + olCusip +
+          ' FY' + summary.brackets.lowerYear + ' qty=' + (olFyQty + retainQty) +
+          ' (funded ' + olFyQty + ' + excess ' + retainQty + ')  latest10Y=' + summary.newLowerCUSIP +
+          ' FY' + summary.newLowerYear + '  DARA=' + Math.round(dara));
+      }
       // Hold DARA at the base run's level: re-inferring would raise the target and absorb the
       // retained bonds as funded-year quantity instead of excess.
       const { summary: s2, details: dt2 } = runRebalance({ dara, bracketMode: '3bracket', holdings: fat, tipsMap, refCPI, settlementDate });
 
       assert('3B retained: retained leg actually carries excess', (s2.origLowerWeight ?? 0) > 0, true);
       const blend2 = (s2.origLowerWeight ?? 0) * s2.lowerDuration
-                   + (s2.newLowerWeight3 ?? 0) * s2.newLowerDuration
+                   + (s2.latest10yWeight3 ?? 0) * s2.newLowerDuration
                    + (s2.upperWeight     ?? 0) * s2.upperDuration;
       assert('3B retained: weights sum to 1',
-        (s2.origLowerWeight ?? 0) + (s2.newLowerWeight3 ?? 0) + (s2.upperWeight ?? 0), 1, 1e-9);
+        (s2.origLowerWeight ?? 0) + (s2.latest10yWeight3 ?? 0) + (s2.upperWeight ?? 0), 1, 1e-9);
       assert('3B retained: realized duration matches the gap block average',
         blend2, s2.gapParams.avgDuration, 1e-6);
 
       // What the pre-fix code would have produced on this same portfolio: retained dollars
-      // priced at the ACTIVE bracket's duration, upper weight never recompensated.
+      // priced at the latest 10Y's duration, upper weight never recompensated.
       const old = bracketWeights(s2.newLowerDuration, s2.upperDuration, s2.gapParams.avgDuration);
       const wRet = s2.origLowerWeight ?? 0;
       const oldBlend = wRet * s2.lowerDuration
@@ -410,7 +418,7 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
       assert('3B retained: pre-fix treatment really did under-match this portfolio',
         oldBlend < s2.gapParams.avgDuration - 1e-4, true);
       console.log('        retained ' + wRet.toFixed(4) + '@' + s2.lowerDuration.toFixed(3)
-        + '  active ' + (s2.newLowerWeight3 ?? 0).toFixed(4) + '@' + s2.newLowerDuration.toFixed(3)
+        + '  active ' + (s2.latest10yWeight3 ?? 0).toFixed(4) + '@' + s2.newLowerDuration.toFixed(3)
         + '  upper ' + (s2.upperWeight ?? 0).toFixed(4) + '@' + s2.upperDuration.toFixed(3));
       console.log('        fixed blend ' + blend2.toFixed(6) + '   pre-fix blend ' + oldBlend.toFixed(6)
         + '   dGap ' + s2.gapParams.avgDuration.toFixed(6)
@@ -1438,13 +1446,13 @@ console.log('\naccruedInterest — day-count proration');
   const dGap = 10.5, dAct = 9.2, dUp = 12.9;
   const blend = (retained, w) =>
     retained.reduce((s, r, i) => s + w.retainedWeights[i] * r.duration, 0)
-    + w.activeWeight * dAct + w.upperWeight * dUp;
+    + w.latest10yWeight * dAct + w.upperWeight * dUp;
 
   // 1. No retained legs → must reproduce the plain two-sided answer exactly.
   {
     const base = bracketWeights(dAct, dUp, dGap);
-    const w = bracketWeightsN({ retained: [], dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
-    assert('no retained: activeWeight == two-sided lowerWeight', w.activeWeight, base.lowerWeight, 1e-12);
+    const w = bracketWeightsN({ retained: [], dLatest10y: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
+    assert('no retained: latest10yWeight == two-sided lowerWeight', w.latest10yWeight, base.lowerWeight, 1e-12);
     assert('no retained: upperWeight == two-sided upperWeight', w.upperWeight, base.upperWeight, 1e-12);
     assert('no retained: blend matches dGap', blend([], w), dGap, 1e-9);
   }
@@ -1454,12 +1462,12 @@ console.log('\naccruedInterest — day-count proration');
   {
     const retained = [{ duration: 7.4, excessCost: 60000 }];
     const total = 300000;
-    const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: total });
+    const w = bracketWeightsN({ retained, dLatest10y: dAct, dUpper: dUp, dGap, totalBlockCost: total });
     assert('one retained: feasible', w.feasible, true);
     assert('one retained: retained weight is its held share', w.retainedWeights[0], 60000/total, 1e-12);
     assert('one retained: blend matches dGap', blend(retained, w), dGap, 1e-9);
     assert('one retained: weights sum to 1',
-      w.retainedWeights[0] + w.activeWeight + w.upperWeight, 1, 1e-12);
+      w.retainedWeights[0] + w.latest10yWeight + w.upperWeight, 1, 1e-12);
 
     // The old two-sided treatment, for contrast: retained dollars priced at dAct.
     const base = bracketWeights(dAct, dUp, dGap);
@@ -1476,11 +1484,11 @@ console.log('\naccruedInterest — day-count proration');
       { duration: 7.4, excessCost: 25000 },
       { duration: 8.6, excessCost: 20000 },
     ];
-    const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
+    const w = bracketWeightsN({ retained, dLatest10y: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
     assert('three retained: feasible', w.feasible, true);
     assert('three retained: blend matches dGap', blend(retained, w), dGap, 1e-9);
     assert('three retained: weights sum to 1',
-      w.retainedWeights.reduce((s,x)=>s+x,0) + w.activeWeight + w.upperWeight, 1, 1e-12);
+      w.retainedWeights.reduce((s,x)=>s+x,0) + w.latest10yWeight + w.upperWeight, 1, 1e-12);
   }
 
   // 4. Over-allocated → sell the OLDEST first, and only as far as needed.
@@ -1489,11 +1497,11 @@ console.log('\naccruedInterest — day-count proration');
       { duration: 6.1, excessCost: 260000 },   // oldest, grossly oversized
       { duration: 7.4, excessCost: 20000 },
     ];
-    const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
+    const w = bracketWeightsN({ retained, dLatest10y: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
     assert('over-allocated: sold something', w.sold, true);
     assert('over-allocated: earliest sold, not fully depleted when a partial sale suffices',
       w.retainedWeights[0] > 0 && w.retainedWeights[0] < 260000/300000, true);
-    assert('over-allocated: sold only down to where the match is restored', w.activeWeight, 0, 1e-9);
+    assert('over-allocated: sold only down to where the match is restored', w.latest10yWeight, 0, 1e-9);
     assert('over-allocated: newer retained leg survives', w.retainedWeights[1] > 0, true);
     assert('over-allocated: blend still matches dGap', blend(retained, w), dGap, 1e-9);
   }
