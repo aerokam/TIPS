@@ -356,6 +356,68 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
     const { details, summary } = runRebalance({ dara, bracketMode: '3bracket', holdings, tipsMap, refCPI, settlementDate });
 
     assert('3B real: genuine 3-bracket (newLowerCUSIP present)', summary.newLowerCUSIP != null, true);
+
+    // THE invariant that was missing: with a retained (orig lower) maturity held, the
+    // cost-weighted duration across ALL THREE legs must equal the gap block's average.
+    // Before the bracketWeightsN fix the retained leg was priced at the active bracket's
+    // duration, so this landed short and nothing noticed. Spec 2.0 §Retained Bracket Excess.
+    {
+      const blend = (summary.origLowerWeight ?? 0) * summary.lowerDuration
+                  + (summary.newLowerWeight3 ?? 0) * summary.newLowerDuration
+                  + (summary.upperWeight     ?? 0) * summary.upperDuration;
+      const wSum  = (summary.origLowerWeight ?? 0) + (summary.newLowerWeight3 ?? 0) + (summary.upperWeight ?? 0);
+      assert('3B real: bracket weights sum to 1 across all three legs', wSum, 1, 1e-9);
+      assert('3B real: realized duration matches the gap block average', blend, summary.gapParams.avgDuration, 1e-6);
+      console.log('        legs: retained ' + (summary.origLowerWeight ?? 0).toFixed(4) + '@' + summary.lowerDuration.toFixed(3)
+        + '  active ' + (summary.newLowerWeight3 ?? 0).toFixed(4) + '@' + summary.newLowerDuration.toFixed(3)
+        + '  upper ' + (summary.upperWeight ?? 0).toFixed(4) + '@' + summary.upperDuration.toFixed(3));
+      console.log('        blend ' + blend.toFixed(6) + '  vs dGap ' + summary.gapParams.avgDuration.toFixed(6));
+    }
+
+    // The fixture above holds NO excess in the older lower maturity, so its retained weight is
+    // 0 and the invariant holds trivially. This portfolio's 2034 also carries far MORE excess
+    // than the gap block needs, so old and new code alike just sell it down — the over-allocated
+    // regime, where the bug is invisible. It bites in the UNDER-allocated regime: a retained leg
+    // small enough to be kept and frozen, whose shorter duration then has to be compensated for.
+    // Size one to about a quarter of the block and rebuild the holding around it.
+    {
+      const olCusip   = summary.brackets.lowerCUSIP;
+      const olRow     = details.find(d => d.cusip === olCusip);
+      const olFyQty   = olRow?.fundedYearQtyBefore ?? 0;
+      const olCpb     = olRow?.costPerBond ?? 0;
+      const retainQty = Math.max(1, Math.round(0.25 * summary.gapParams.totalCost / olCpb));
+      const fat = holdings.map(h => h.cusip === olCusip ? { ...h, qty: olFyQty + retainQty } : h);
+      // Hold DARA at the base run's level: re-inferring would raise the target and absorb the
+      // retained bonds as funded-year quantity instead of excess.
+      const { summary: s2, details: dt2 } = runRebalance({ dara, bracketMode: '3bracket', holdings: fat, tipsMap, refCPI, settlementDate });
+
+      assert('3B retained: retained leg actually carries excess', (s2.origLowerWeight ?? 0) > 0, true);
+      const blend2 = (s2.origLowerWeight ?? 0) * s2.lowerDuration
+                   + (s2.newLowerWeight3 ?? 0) * s2.newLowerDuration
+                   + (s2.upperWeight     ?? 0) * s2.upperDuration;
+      assert('3B retained: weights sum to 1',
+        (s2.origLowerWeight ?? 0) + (s2.newLowerWeight3 ?? 0) + (s2.upperWeight ?? 0), 1, 1e-9);
+      assert('3B retained: realized duration matches the gap block average',
+        blend2, s2.gapParams.avgDuration, 1e-6);
+
+      // What the pre-fix code would have produced on this same portfolio: retained dollars
+      // priced at the ACTIVE bracket's duration, upper weight never recompensated.
+      const old = bracketWeights(s2.newLowerDuration, s2.upperDuration, s2.gapParams.avgDuration);
+      const wRet = s2.origLowerWeight ?? 0;
+      const oldBlend = wRet * s2.lowerDuration
+                     + Math.max(0, old.lowerWeight - wRet) * s2.newLowerDuration
+                     + old.upperWeight * s2.upperDuration;
+      assert('3B retained: pre-fix treatment really did under-match this portfolio',
+        oldBlend < s2.gapParams.avgDuration - 1e-4, true);
+      console.log('        retained ' + wRet.toFixed(4) + '@' + s2.lowerDuration.toFixed(3)
+        + '  active ' + (s2.newLowerWeight3 ?? 0).toFixed(4) + '@' + s2.newLowerDuration.toFixed(3)
+        + '  upper ' + (s2.upperWeight ?? 0).toFixed(4) + '@' + s2.upperDuration.toFixed(3));
+      console.log('        fixed blend ' + blend2.toFixed(6) + '   pre-fix blend ' + oldBlend.toFixed(6)
+        + '   dGap ' + s2.gapParams.avgDuration.toFixed(6)
+        + '   (pre-fix short by ' + (s2.gapParams.avgDuration - oldBlend).toFixed(4) + ' yrs)');
+      assertNoBuySell(dt2, '3B retained');
+      assertReconciles(dt2, '3B retained');
+    }
     assertNoBuySell(details, '3B real');
     assertReconciles(details, '3B real');
 
