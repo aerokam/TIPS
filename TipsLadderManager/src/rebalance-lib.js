@@ -84,7 +84,26 @@ function identifyBrackets(gapYears, holdings, yearInfo, tipsMap, araByYear, DARA
       }
     }
   }
-  return { lowerCUSIP, lowerYear, lowerMaturity, upperCUSIP, upperYear, upperMaturity };
+  // ── All retained lower-side maturities, oldest first ──────────────────────────
+  // Any number of earlier maturities may still carry excess: each rebalance buys the then-latest
+  // 10Y, and when a newer one is issued the previous becomes retained. 2034 + 2035 alongside a
+  // 2036 latest 10Y is the ordinary case, not an edge case. Every year in range with positive
+  // excess ARA qualifies — `lowerCUSIP` above is just the largest of them, kept for the callers
+  // that still want a single representative. Spec 3.0 §Retained Maturities (Holdings-Based).
+  const retained = [];
+  for (const [cusip, totalQty] of cusipTotals.entries()) {
+    const bond = tipsMap.get(cusip);
+    if (!bond || !bond.maturity || totalQty <= 0) continue;
+    const y = bond.maturity.getFullYear();
+    if (y < LOWEST_LOWER_BRACKET_YEAR || y >= minGapYear) continue;
+    if (((araByYear[y] || 0) - DARA) <= 0) continue;          // no spare capacity → not a bracket
+    retained.push({ cusip, year: y, maturity: bond.maturity });
+  }
+  // Oldest → newest: the order the lower-side priority rule sells them in. CUSIP breaks ties so
+  // the ordering is stable regardless of Map iteration order.
+  retained.sort((a, b) => (a.maturity - b.maturity) || String(a.cusip).localeCompare(String(b.cusip)));
+
+  return { lowerCUSIP, lowerYear, lowerMaturity, upperCUSIP, upperYear, upperMaturity, retained };
 }
 
 function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA, holdings, lastYear, extraLMIByYear = {}, pliCreditByGapYear = {}, daraByYear = null, amdByYear = null) {
@@ -1041,12 +1060,29 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     }
   }
 
+  // Retained maturities carrying lower-side excess, oldest first, excluding the latest 10Y itself.
+  // Empty when retention is off (2-bracket) or when the only qualifying maturity IS the latest 10Y.
+  const retainedLegs = (is3Bracket && gapYears.length > 0)
+    ? (brackets.retained ?? []).filter(r => r.year < newLowerYear)
+    : [];
+  const retainedYearSet = new Set(retainedLegs.map(r => r.year));
+
   const future30yCoverYearSet = future30yYears.length > 0 ? new Set([future30yLowerYear, future30yUpperYear]) : new Set();
   const bracketYearSet = gapYears.length === 0 ? new Set()
     : is3Bracket
-      ? new Set([brackets.lowerYear, brackets.upperYear, newLowerYear].filter(y => y != null))
+      ? new Set([...retainedLegs.map(r => r.year), brackets.upperYear, newLowerYear].filter(y => y != null))
       : new Set([brackets.lowerYear, brackets.upperYear].filter(y => y != null));
   for (const y of future30yCoverYearSet) bracketYearSet.add(y);
+  // year → the CUSIP/maturity that carries the bracket role for that year (any number of retained
+  // legs, plus the latest 10Y and the upper bracket). Replaces the old three-way if/else chain.
+  const bracketBondByYear = new Map();
+  for (const r of retainedLegs) bracketBondByYear.set(r.year, { cusip: r.cusip, maturity: r.maturity });
+  if (brackets.lowerYear != null && !bracketBondByYear.has(brackets.lowerYear))
+    bracketBondByYear.set(brackets.lowerYear, { cusip: brackets.lowerCUSIP, maturity: brackets.lowerMaturity });
+  if (brackets.upperYear != null)
+    bracketBondByYear.set(brackets.upperYear, { cusip: brackets.upperCUSIP, maturity: brackets.upperMaturity });
+  if (is3Bracket && newLowerYear != null)
+    bracketBondByYear.set(newLowerYear, { cusip: newLowerCUSIP, maturity: newLowerMaturity });
   const gapYearSet    = new Set(gapYears);
   const future30yYearSet = new Set(future30yYears);
 
@@ -1057,10 +1093,8 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   if (gapYears.length > 0) {
     for (const bYear of bracketYearSet) {
       if (future30yCoverYearSet.has(bYear)) continue;
-      let bCUSIP = null, bMat = null;
-      if (bYear === brackets.lowerYear) { bCUSIP = brackets.lowerCUSIP; bMat = brackets.lowerMaturity; }
-      else if (bYear === brackets.upperYear) { bCUSIP = brackets.upperCUSIP; bMat = brackets.upperMaturity; }
-      else if (is3Bracket && bYear === newLowerYear) { bCUSIP = newLowerCUSIP; bMat = newLowerMaturity; }
+      const bb = bracketBondByYear.get(bYear);
+      const bCUSIP = bb?.cusip ?? null, bMat = bb?.maturity ?? null;
       if (!bCUSIP) continue;
       if (!yearInfo[bYear]) yearInfo[bYear] = { holdings: [] };
       const yh = yearInfo[bYear].holdings;
@@ -1093,6 +1127,8 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   }
 
   let lowerWeight = 0, upperWeight = 0, origLowerWeight = null, latest10yWeight3 = null, upperWeight3 = null;
+  const retainedWeightByYear = new Map();   // year → that retained leg's share of the gap block
+  const retainedLegsSolved = [];            // [{ year, cusip, duration, weight }] oldest → newest
   let bracketFellBack3to2 = false;
   const bracketExcessTargetCost = {};
   if (gapYears.length > 0) {
@@ -1109,14 +1145,17 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         return Math.max(0, (h?.qty ?? 0) - (bracketTargetFundedYearQtyBefore[year] ?? 0)) * cpb;
       };
 
-      // Retained = lower-side bracket maturities older than the active one, OLDEST FIRST
-      // (the order the solver depletes them in when the match is otherwise unsolvable).
-      const retainedList = [
-        { year: brackets.lowerYear, cusip: brackets.lowerCUSIP, duration: lowerDuration },
-      ]
-        .filter(r => r.year != null && r.cusip != null && r.year < newLowerYear)
-        .sort((a, b) => a.year - b.year)
-        .map(r => ({ ...r, excessCost: _excessCostOf(r.year, r.cusip) }));
+      // Every retained maturity, oldest first — the order the priority rule sells them in. Two or
+      // three legs (2034 + 2035 alongside a 2036 latest 10Y) is ordinary once a ladder has been
+      // rebalanced across more than one 10Y issuance, not an edge case.
+      const retainedList = retainedLegs.map(r => {
+        const rb = tipsMap.get(r.cusip);
+        return {
+          year: r.year, cusip: r.cusip,
+          duration: calculateMDuration(settlementDate, r.maturity, rb?.coupon ?? 0, rb?.yield ?? 0),
+          excessCost: _excessCostOf(r.year, r.cusip),
+        };
+      });
 
       const wN = bracketWeightsN({
         retained: retainedList,
@@ -1139,7 +1178,11 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       bracketExcessTargetCost[brackets.upperYear] = gapParams.totalCost * wN.upperWeight;
 
       // Effective weights for summary reporting.
-      origLowerWeight = wN.retainedWeights[0] ?? 0;
+      retainedList.forEach((r, i) => {
+        retainedWeightByYear.set(r.year, wN.retainedWeights[i] ?? 0);
+        retainedLegsSolved.push({ year: r.year, cusip: r.cusip, duration: r.duration, weight: wN.retainedWeights[i] ?? 0 });
+      });
+      origLowerWeight = wN.retainedWeights[0] ?? 0;   // representative, for summary back-compat
       latest10yWeight3 = wN.latest10yWeight;
     }
     if (!is3Bracket) {
@@ -1160,7 +1203,9 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     if (future30yYears.length > 0 && year === future30yLowerYear)        return future30yLowerWeight * future30yLMITotal;
     if (gapYears.length > 0 && year === brackets.upperYear)              return upperWeight * (gapParams?.gapLMITotal ?? 0);
     if (gapYears.length > 0 && is3Bracket && year === newLowerYear)      return lowerWeight * (gapParams?.gapLMITotal ?? 0);
-    if (gapYears.length > 0 && year === brackets.lowerYear)              return (is3Bracket ? (origLowerWeight ?? 0) : lowerWeight) * (gapParams?.gapLMITotal ?? 0);
+    if (gapYears.length > 0 && is3Bracket && retainedWeightByYear.has(year))
+                                                                        return retainedWeightByYear.get(year) * (gapParams?.gapLMITotal ?? 0);
+    if (gapYears.length > 0 && year === brackets.lowerYear)              return (is3Bracket ? 0 : lowerWeight) * (gapParams?.gapLMITotal ?? 0);
     return 0;
   }
   function excessCoverageAmt(year, exQty, piPB) {
@@ -1216,7 +1261,8 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     for (const h of yi.holdings) piMap[h.cusip] = calculatePIPerBond(h.cusip, h.maturity, refCPI, tipsMap);
 
     if (isBracket) {
-      if (gapYears.length > 0 && year === brackets.lowerYear) targetCUSIP = brackets.lowerCUSIP;
+      if (gapYears.length > 0 && bracketBondByYear.has(year) && retainedYearSet.has(year)) targetCUSIP = bracketBondByYear.get(year).cusip;
+      else if (gapYears.length > 0 && year === brackets.lowerYear) targetCUSIP = brackets.lowerCUSIP;
       else if (gapYears.length > 0 && year === brackets.upperYear) targetCUSIP = brackets.upperCUSIP;
       else if (is3Bracket && year === newLowerYear) targetCUSIP = newLowerCUSIP;
       else if (future30yYears.length > 0 && year === future30yLowerYear) targetCUSIP = future30yLowerCoverBond.cusip;
@@ -1612,7 +1658,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       fundedYearQtyBefore: reallocFundedBefore,
       fundedYearQtyAfter: tFundedYearQty,
       isBracketTarget: isBT, isFuture30yCover: isBT && future30yCoverYearSet.has(h.year),
-      isGapBracket: gapYears.length > 0 && (h.year === brackets.lowerYear || h.year === brackets.upperYear || (is3Bracket && h.year === newLowerYear)),
+      isGapBracket: gapYears.length > 0 && (retainedYearSet.has(h.year) || h.year === brackets.lowerYear || h.year === brackets.upperYear || (is3Bracket && h.year === newLowerYear)),
       excessQtyBefore: reallocExcessBefore, excessQtyAfter: exA,
       reallocFundedBefore, reallocExcessBefore, fundedYearQtyDelta, excessQtyDelta,
       excessAmtBefore: excessCoverageAmt(h.year, reallocExcessBefore, piPB),
@@ -1684,7 +1730,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       qtyBefore: 0, qtyAfter: bst.targetQty,
       fundedYearQtyBefore: 0, fundedYearQtyAfter: bst.targetFundedYearQty,
       isBracketTarget: bst.isBracket, isFuture30yCover: bst.isBracket && future30yCoverYearSet.has(bYear),
-      isGapBracket: gapYears.length > 0 && (bYear === brackets.lowerYear || bYear === brackets.upperYear || (is3Bracket && bYear === newLowerYear)),
+      isGapBracket: gapYears.length > 0 && (retainedYearSet.has(bYear) || bYear === brackets.lowerYear || bYear === brackets.upperYear || (is3Bracket && bYear === newLowerYear)),
       excessQtyBefore: 0, excessQtyAfter: exA,
       // Nothing held yet, so there is nothing to reallocate — the whole target is a straight buy.
       reallocFundedBefore: 0, reallocExcessBefore: 0,
@@ -1750,7 +1796,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         principalPerBond: 1000 * ir, costPerBond: cpb, DARA: rowDARA,
         qtyBefore: 0, qtyAfter: 0, fundedYearQtyBefore: 0, fundedYearQtyAfter: 0,
         isBracketTarget: false, isFuture30yCover: false,
-        isGapBracket: gapYears.length > 0 && (year === brackets.lowerYear || year === brackets.upperYear || (is3Bracket && year === newLowerYear)),
+        isGapBracket: gapYears.length > 0 && (retainedYearSet.has(year) || year === brackets.lowerYear || year === brackets.upperYear || (is3Bracket && year === newLowerYear)),
         excessQtyBefore: 0, excessQtyAfter: 0,
         reallocFundedBefore: 0, reallocExcessBefore: 0, fundedYearQtyDelta: 0, excessQtyDelta: 0,
         excessAmtBefore: 0, excessAmtAfter: 0,
@@ -1797,7 +1843,8 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const daraByYearResolved = new Map();
   for (let y = firstYear; y <= lastYear; y++) daraByYearResolved.set(y, daraByYear?.get(y) ?? DARA);
 
-  return { results, HDR, summary: { settleDateDisp, refCPI, DARA, daraByYearResolved, inferredDARA, daraIsInferred: dara === null, firstYear, lastYear, derivedFirstYear, rungCount, gapYears, future30yYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, latest10yWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalPreviousExcessCost, totalExcessCost, araByYear, future30yLowerYear, future30yUpperYear, future30yLowerCoverCUSIP: future30yLowerCoverBond?.cusip, future30yUpperCoverCUSIP: future30yUpperCoverBond?.cusip, future30yParams, future30yLowerDuration, future30yUpperDuration, future30yUpperWeight, future30yLowerWeight, future30yUpperExQty, future30yLowerExQty, future30yFellBack, future30yUpperAnnualAmdByYear, future30yLMITotal, preLadderInterest, maturityPref, preLadderPool, preLadderCouponPool, preLadderAmdPool, preLadderRollCouponPool, zeroedFundedYears: [...zeroedFundedYears].sort((a, b) => a - b), weightedAvgDuration, weightedAvgYield }, details };
+  const retainedLegsOut = (typeof retainedLegsSolved !== 'undefined' ? retainedLegsSolved : []);
+  return { results, HDR, summary: { retainedLegs: retainedLegsOut, settleDateDisp, refCPI, DARA, daraByYearResolved, inferredDARA, daraIsInferred: dara === null, firstYear, lastYear, derivedFirstYear, rungCount, gapYears, future30yYears, brackets, lowerWeight, upperWeight, costDeltaSum, costForNewRungs, gapCoverageSurplus, gapParams, bracketMode, lowerDuration, upperDuration, newLowerYear, newLowerCUSIP, newLowerDuration, latest10yWeight3, origLowerWeight, bracketFellBack3to2, beforeLowerWeight, beforeUpperWeight, beforeNewLowerWeight, afterLowerWeight, afterUpperWeight, afterNewLowerWeight, totalPreviousExcessCost, totalExcessCost, araByYear, future30yLowerYear, future30yUpperYear, future30yLowerCoverCUSIP: future30yLowerCoverBond?.cusip, future30yUpperCoverCUSIP: future30yUpperCoverBond?.cusip, future30yParams, future30yLowerDuration, future30yUpperDuration, future30yUpperWeight, future30yLowerWeight, future30yUpperExQty, future30yLowerExQty, future30yFellBack, future30yUpperAnnualAmdByYear, future30yLMITotal, preLadderInterest, maturityPref, preLadderPool, preLadderCouponPool, preLadderAmdPool, preLadderRollCouponPool, zeroedFundedYears: [...zeroedFundedYears].sort((a, b) => a - b), weightedAvgDuration, weightedAvgYield }, details };
 }
 
 // Execute a rebalance with shape-preserving self-financing FUNDING (3.0 §Funding the rebalance).

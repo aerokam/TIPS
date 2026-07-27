@@ -170,6 +170,20 @@ function assert(name, actual, expected, tolerance = 0) {
 // targets on their own; that's exactly what the internal reallocation (3.0 §Named
 // Quantities) exists to net out before a trade is sized, so it's the delta fields, not a
 // naive Before/After subtraction, that must never disagree in sign.
+
+// Blend and weight-sum across every lower-side leg a rebalance produced: all retained maturities
+// (any number), the latest 10Y, and the upper bracket. Using summary.origLowerWeight alone was only
+// ever right when exactly one leg was retained.
+function legBlend(s) {
+  const legs = s.retainedLegs ?? [];
+  return legs.reduce((acc, l) => acc + l.weight * l.duration, 0)
+    + (s.latest10yWeight3 ?? 0) * s.newLowerDuration
+    + (s.upperWeight ?? 0) * s.upperDuration;
+}
+function legWeightSum(s) {
+  const legs = s.retainedLegs ?? [];
+  return legs.reduce((acc, l) => acc + l.weight, 0) + (s.latest10yWeight3 ?? 0) + (s.upperWeight ?? 0);
+}
 function assertNoBuySell(details, label) {
   const violations = details.filter(d => {
     if (!d.isBracketTarget) return false;
@@ -360,15 +374,13 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
     // Before the bracketWeightsN fix the retained leg was priced at the latest 10Y's
     // duration, so this landed short and nothing noticed. Spec 2.0 §Retained Bracket Excess.
     {
-      const blend = (summary.origLowerWeight ?? 0) * summary.lowerDuration
-                  + (summary.latest10yWeight3 ?? 0) * summary.newLowerDuration
-                  + (summary.upperWeight     ?? 0) * summary.upperDuration;
-      const wSum  = (summary.origLowerWeight ?? 0) + (summary.latest10yWeight3 ?? 0) + (summary.upperWeight ?? 0);
+      const blend = legBlend(summary);
+      const wSum  = legWeightSum(summary);
       assert('3B real: bracket weights sum to 1 across all three legs', wSum, 1, 1e-9);
       assert('3B real: realized duration matches the gap block average', blend, summary.gapParams.avgDuration, 1e-6);
-      console.log('        legs: retained ' + (summary.origLowerWeight ?? 0).toFixed(4) + '@' + summary.lowerDuration.toFixed(3)
-        + '  active ' + (summary.latest10yWeight3 ?? 0).toFixed(4) + '@' + summary.newLowerDuration.toFixed(3)
-        + '  upper ' + (summary.upperWeight ?? 0).toFixed(4) + '@' + summary.upperDuration.toFixed(3));
+      console.log('        legs: ' + (summary.retainedLegs ?? []).map(l => 'FY' + l.year + ' ' + l.weight.toFixed(4) + '@' + l.duration.toFixed(3)).join(' | ')
+        + (summary.retainedLegs?.length ? ' | ' : '') + 'latest10Y ' + (summary.latest10yWeight3 ?? 0).toFixed(4) + '@' + summary.newLowerDuration.toFixed(3)
+        + ' | upper ' + (summary.upperWeight ?? 0).toFixed(4) + '@' + summary.upperDuration.toFixed(3));
       console.log('        blend ' + blend.toFixed(6) + '  vs dGap ' + summary.gapParams.avgDuration.toFixed(6));
     }
 
@@ -399,30 +411,40 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
       // retained bonds as funded-year quantity instead of excess.
       const { summary: s2, details: dt2 } = runRebalance({ dara, bracketMode: '3bracket', holdings: fat, tipsMap, refCPI, settlementDate });
 
-      assert('3B retained: retained leg actually carries excess', (s2.origLowerWeight ?? 0) > 0, true);
-      const blend2 = (s2.origLowerWeight ?? 0) * s2.lowerDuration
-                   + (s2.latest10yWeight3 ?? 0) * s2.newLowerDuration
-                   + (s2.upperWeight     ?? 0) * s2.upperDuration;
-      assert('3B retained: weights sum to 1',
-        (s2.origLowerWeight ?? 0) + (s2.latest10yWeight3 ?? 0) + (s2.upperWeight ?? 0), 1, 1e-9);
+      assert('3B retained: retained leg actually carries excess',
+        (s2.retainedLegs ?? []).some(l => l.weight > 0), true);
+      const blend2 = legBlend(s2);
+      assert('3B retained: weights sum to 1', legWeightSum(s2), 1, 1e-9);
       assert('3B retained: realized duration matches the gap block average',
         blend2, s2.gapParams.avgDuration, 1e-6);
 
       // What the pre-fix code would have produced on this same portfolio: retained dollars
       // priced at the latest 10Y's duration, upper weight never recompensated.
       const old = bracketWeights(s2.newLowerDuration, s2.upperDuration, s2.gapParams.avgDuration);
-      const wRet = s2.origLowerWeight ?? 0;
-      const oldBlend = wRet * s2.lowerDuration
+      const wRet = (s2.retainedLegs ?? []).reduce((a, l) => a + l.weight, 0);
+      const dRet = wRet > 0 ? (s2.retainedLegs ?? []).reduce((a, l) => a + l.weight * l.duration, 0) / wRet : 0;
+      const oldBlend = wRet * dRet
                      + Math.max(0, old.lowerWeight - wRet) * s2.newLowerDuration
                      + old.upperWeight * s2.upperDuration;
       assert('3B retained: pre-fix treatment really did under-match this portfolio',
         oldBlend < s2.gapParams.avgDuration - 1e-4, true);
-      console.log('        retained ' + wRet.toFixed(4) + '@' + s2.lowerDuration.toFixed(3)
+      console.log('        retained ' + wRet.toFixed(4) + '@' + dRet.toFixed(3)
         + '  active ' + (s2.latest10yWeight3 ?? 0).toFixed(4) + '@' + s2.newLowerDuration.toFixed(3)
         + '  upper ' + (s2.upperWeight ?? 0).toFixed(4) + '@' + s2.upperDuration.toFixed(3));
       console.log('        fixed blend ' + blend2.toFixed(6) + '   pre-fix blend ' + oldBlend.toFixed(6)
         + '   dGap ' + s2.gapParams.avgDuration.toFixed(6)
         + '   (pre-fix short by ' + (s2.gapParams.avgDuration - oldBlend).toFixed(4) + ' yrs)');
+      // Multiple retained legs is the point: 2034 and 2035 both carrying excess alongside the
+      // 2036 latest 10Y. Identification used to return exactly one, so the others silently lost
+      // their excess to the ordinary sweep and never entered the duration match.
+      const legs2 = (s2.retainedLegs ?? []).filter(l => l.weight > 0);
+      assert('3B retained: more than one retained leg carries weight', legs2.length > 1, true);
+      assert('3B retained: legs span at least two maturity years',
+        new Set(legs2.map(l => l.year)).size > 1, true);
+      assert('3B retained: legs are ordered oldest first',
+        legs2.every((l, i) => i === 0 || l.year >= legs2[i-1].year), true);
+      console.log('        retained legs: ' + legs2.map(l => 'FY' + l.year + ' ' + l.weight.toFixed(4)).join('  '));
+
       assertNoBuySell(dt2, '3B retained');
       assertReconciles(dt2, '3B retained');
     }
