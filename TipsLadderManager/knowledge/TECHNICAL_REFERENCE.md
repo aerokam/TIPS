@@ -47,7 +47,7 @@ stretch of years whose TIPS have not yet been issued; each is duration-covered b
 | Concept | Code Symbol | Notes |
 |---|---|---|
 | First / Last Funded Year (ladder endpoints) | `firstYear` / `lastYear` | endpoints of the ladder, not bracket years |
-| Gap lower bracket / upper bracket (gap **bracket pair**) | `lowerYear`/`lowerCUSIP`, `upperYear`/`upperCUSIP` | latest Jan TIPS below the gap (canon. 2036) / 2040 |
+| Gap lower bracket / upper bracket (gap **bracket pair**) | `lowerYear`/`lowerCUSIP`, `upperYear`/`upperCUSIP` | most recently issued 10-year TIPS below the gap (Jan 2036 as of 2026-07-27) / 2040 |
 | Future-30Y lower cover / upper cover (Future-30Y **cover pair**) | `future30yLowerCoverBond` (2056) / `future30yUpperCoverBond` (2052) | longest actual TIPS / longest duration excl. 2056 |
 | Imported excess (cover/bracket excess from the file's excess column) | `h.excessQty` (Format 4/5 import) | a calculated field, only ever written by this app's export; records build intent, not user-edited |
 | First-funded-year recovery (reverse-engineer gap duration match) | `inferFirstYearFromHoldings` | gap side may use the excess→DARA ratio shortcut |

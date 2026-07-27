@@ -334,7 +334,7 @@ Some values are true only until Treasury issues more TIPS. Left inline as approx
 | Longest issued maturity year | Maturity year of the longest-dated issued TIPS | 2056 | A new 30-year TIPS is issued |
 | Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest ladder-eligible maturity before the first gap year | Jan 2036 (Jul 2036 auctioned, not yet issued) | The next pre-gap maturity is issued |
 
-`LOWEST_LOWER_BRACKET_YEAR` = 2026
+`LOWEST_LOWER_BRACKET_YEAR` = 2032 *(floor of the holdings search range for [retained bracket excess](#retained-bracket-excess): only maturity years in `[LOWEST_LOWER_BRACKET_YEAR, minGapYear)` are considered. Matches `rebalance-lib.js`.)*
 `REFCPI_CUSIP` = "912810FD5" *(3.625% TIPS, issued 1998, matures 2028-04-15)* — CUSIP used to pull the authoritative daily Ref CPI from TreasuryDirect ([E2](#e2)).
   **Selection principle (the rule, not the value):** Ref CPI is *market-wide* — identical across all TIPS on a given date — so the CUSIP only determines how far back history reaches. Use the **oldest TIPS not yet matured** to maximize available history. `912810FD5` fits today; **when it matures (2028-04-15), rotate to the next-oldest un-matured TIPS** and update `scripts/fetchRefCpi.js`. *(The stale value `912828V98` previously recorded here does not correspond to any TIPS.)*
 `SIFMA_HOLIDAYS` = *Calendar of bond market closures*
