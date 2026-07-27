@@ -260,6 +260,18 @@ L225: *When bracket or cover TIPS of a given maturity substitute for TIPS that h
 ### Bracket Year
 `Bracket_Year` = *Existing TIPS maturity used to fund or bracket a Gap Year*
 
+<a id="ladder-eligible-tips"></a>
+### Ladder-Eligible TIPS
+`Ladder_Eligible_TIPS` = *A TIPS that has been **issued** and is tradable at the market-data source the ladder prices against. A TIPS is issued on the last trading day of the month in which it is auctioned; between auction and issuance it exists in reference data but cannot be bought, so it is excluded from ladder construction, rebalancing, and maturity selection. Eligibility is a property of the security, not of a mode — it applies identically to Build and Rebalance.*
+
+<a id="active-lower-bracket"></a>
+### Active Lower Bracket
+`Active_Lower_Bracket` = *The latest-maturing [ladder-eligible](#ladder-eligible-tips) TIPS maturing before the first [Gap Year](#gap-years) — the only lower-side maturity a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower-side duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
+
+<a id="retained-bracket-excess"></a>
+### Retained Bracket Excess
+`Retained_Bracket_Excess` = *Excess held in a lower-bracket maturity older than the [Active Lower Bracket](#active-lower-bracket), carried forward from an earlier rebalance when that maturity was itself active. A rebalance **never increases** it. It is sold **only** when total lower-side excess exceeds the duration-matched target, **oldest maturity first**, and only until the overage is absorbed. Any number of older maturities may accumulate as successive maturities become active — the count is not fixed, so the structure is never named by how many brackets it contains.*
+
 ---
 
 **Seasonal Adjustment (SA) Elements**
@@ -303,6 +315,24 @@ L225: *When bracket or cover TIPS of a given maturity substitute for TIPS that h
 ---
 
 ## 5.0 Global Constants
+
+### 5.1 Issuance-Dependent Values
+
+Some values are true only until Treasury issues more TIPS. Left inline as approximations across specs, they go stale silently — "Jan/Jul ≤~2035" was accurate when written and gave no signal when a Jul 2036 was auctioned.
+
+**Protocol** (generalizes the [`REFCPI_CUSIP`](#5.0-global-constants) entry below, which already states a selection principle plus a rotation trigger):
+
+1. **Specs state the rule, not the value.** A value appears only as illustration, marked with the date it was true.
+2. **The volatile values live here**, each with the event that changes it — not scattered as inline approximations across 2.0, 3.0 and app help text.
+3. **A test derives each value from live data and asserts it matches this table.** Issuance drift then fails a test instead of rotting unnoticed. This is verifying redundancy (two independent derivations, gated by an assertion), not a duplicated definition.
+
+| Value | Rule | As of 2026-07-27 | Changes when |
+|---|---|---|---|
+| Gap years | Years in the ladder period with no issued TIPS | 2037, 2038, 2039 | A 10-year TIPS maturing in a gap year is issued |
+| Multi-maturity boundary | Years below it may hold more than one maturity month; at/above, 30-year February issues only | 2040 | 10-year issuance extends past the current boundary |
+| Maturity-month pattern | Quarterly at the short end, January/July for 10-year, February for 30-year | quarterly ≤~2030, Jan/Jul ≤~2036, Feb 2040+ | Issuance calendar changes |
+| Longest issued maturity year | Maturity year of the longest-dated issued TIPS | 2056 | A new 30-year TIPS is issued |
+| Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest ladder-eligible maturity before the first gap year | Jan 2036 (Jul 2036 auctioned, not yet issued) | The next pre-gap maturity is issued |
 
 `LOWEST_LOWER_BRACKET_YEAR` = 2026
 `REFCPI_CUSIP` = "912810FD5" *(3.625% TIPS, issued 1998, matures 2028-04-15)* — CUSIP used to pull the authoritative daily Ref CPI from TreasuryDirect ([E2](#e2)).
