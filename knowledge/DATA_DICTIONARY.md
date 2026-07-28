@@ -264,13 +264,13 @@ L225: *When bracket or cover TIPS of a given maturity substitute for TIPS that h
 ### Ladder-Eligible TIPS
 `Ladder_Eligible_TIPS` = *A TIPS that has been **issued** and is tradable at the market-data source the ladder prices against. A TIPS is issued on the last trading day of the month in which it is auctioned; between auction and issuance it exists in reference data but cannot be bought, so it is excluded from ladder construction, rebalancing, and maturity selection. Eligibility is a property of the security, not of a mode — it applies identically to Build and Rebalance.*
 
-<a id="latest-10y"></a>
-### Latest 10Y
-`Latest_10Y` = *The latest-maturing [ladder-eligible](#ladder-eligible-tips) TIPS maturing before the first [Gap Year](#gap-years) — the only lower-side maturity a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower-side duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
+<a id="active-lower-bracket"></a>
+### Active Lower Bracket
+`Active_Lower_Bracket` = *The latest-maturing [ladder-eligible](#ladder-eligible-tips) TIPS maturing before the first [Gap Year](#gap-years) — the only lower-side maturity a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower-side duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
 
 <a id="retained-bracket-excess"></a>
 ### Retained Bracket Excess
-`Retained_Bracket_Excess` = *Excess held in a lower-bracket maturity older than the [latest 10Y](#latest-10y), carried forward from an earlier rebalance when that maturity was itself the latest 10Y. A rebalance **never increases** it. It is sold **only** when the lower side carries more than the duration match needs, **earliest maturity first**, and only by as much as restoring the match requires. Any number of older maturities may accumulate as successive 10Y maturities are issued — the count is not fixed, so the structure is never named by how many brackets it contains.*
+`Retained_Bracket_Excess` = *Excess held in a lower-bracket maturity older than the [Active Lower Bracket](#active-lower-bracket), carried forward from an earlier rebalance when that maturity was itself active. A rebalance **never increases** it. It is sold **only** when total lower-side excess exceeds the duration-matched target, **oldest maturity first**, and only until the overage is absorbed. Any number of older maturities may accumulate as successive maturities become active — the count is not fixed, so the structure is never named by how many brackets it contains.*
 
 ---
 
@@ -332,7 +332,7 @@ Some values are true only until Treasury issues more TIPS. Left inline as approx
 | Multi-maturity boundary | Years below it may hold more than one maturity month; at/above, 30-year February issues only | 2040 | 10-year issuance extends past the current boundary |
 | Maturity-month pattern | Quarterly at the short end, January/July for 10-year, February for 30-year | quarterly ≤~2030, Jan/Jul ≤~2036, Feb 2040+ | Issuance calendar changes |
 | Longest issued maturity year | Maturity year of the longest-dated issued TIPS | 2056 | A new 30-year TIPS is issued |
-| Active lower bracket | [latest 10Y](#latest-10y) — latest ladder-eligible maturity before the first gap year | Jan 2036 (Jul 2036 auctioned, not yet issued) | The next pre-gap maturity is issued |
+| Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest ladder-eligible maturity before the first gap year | Jan 2036 (Jul 2036 auctioned, not yet issued) | The next pre-gap maturity is issued |
 
 `LOWEST_LOWER_BRACKET_YEAR` = 2032 *(floor of the holdings search range for [retained bracket excess](#retained-bracket-excess): only maturity years in `[LOWEST_LOWER_BRACKET_YEAR, minGapYear)` are considered. Matches `rebalance-lib.js`.)*
 `REFCPI_CUSIP` = "912810FD5" *(3.625% TIPS, issued 1998, matures 2028-04-15)* — CUSIP used to pull the authoritative daily Ref CPI from TreasuryDirect ([E2](#e2)).
