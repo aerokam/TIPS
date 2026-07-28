@@ -1284,16 +1284,28 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
           }
         }
       } else {
+        // Excess already held at this year's bracket maturity is committed to gap duration
+        // matching, not available to fund the year's own rung. Its coupon has already reduced
+        // `needed` above (excessLMI); counting its PRINCIPAL here as well made the year look
+        // over-funded, so the sell-down below dumped a perfectly good funded holding at this
+        // year's OTHER maturity, and the bracket maturity was bought back to replace it — a
+        // same-year sell of one maturity and buy of another with no net effect. Non-bracket years
+        // hold no excess, so this nets to zero for them. 3.0 §Named Quantities (funded-first rule).
+        const targetExcessHeld = isBracket
+          ? Math.max(0, targetCurrentQty - (bracketTargetFundedYearQtyBefore[year] ?? targetCurrentQty))
+          : 0;
+        const targetFundedHeld = targetCurrentQty - targetExcessHeld;
         const sortedH = [...yi.holdings].sort((a, b) => b.maturity - a.maturity);
         const nonTarget = sortedH.filter(h => h.cusip !== targetCUSIP).reverse();
-        let curPI = yi.holdings.reduce((s, h) => s + h.qty * piMap[h.cusip], 0);
+        let curPI = yi.holdings.reduce((s, h) => s + h.qty * piMap[h.cusip], 0)
+                  - targetExcessHeld * piMap[targetCUSIP];
         for (const h of nonTarget) {
           const sell = Math.min(h.qty, Math.max(0, Math.floor((curPI - needed) / piMap[h.cusip])));
           postRebalQtyMap[h.cusip] = h.qty - sell;
           curPI -= sell * piMap[h.cusip];
         }
         const diff = needed - curPI;
-        tFundedYearQty = Math.max(0, targetCurrentQty + Math.round(diff / piMap[targetCUSIP]));
+        tFundedYearQty = Math.max(0, targetFundedHeld + Math.round(diff / piMap[targetCUSIP]));
         for (const h of nonTarget) {
           if (postRebalQtyMap[h.cusip] !== h.qty) {
             const b = tipsMap.get(h.cusip);

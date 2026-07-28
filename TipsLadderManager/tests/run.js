@@ -182,6 +182,30 @@ function assertNoBuySell(details, label) {
   for (const v of violations) {
     console.error(`        violation FY ${v.fundedYear}: fundedDelta=${v.fundedYearQtyDelta} excessDelta=${v.excessQtyDelta}`);
   }
+
+  // A funded year can hold two maturities (currently every year below 2040 that isn't a single-issue
+  // year). Two CUSIPs in the SAME funded year should never trade opposite ways on the funded side —
+  // one bought while the other is sold nets to no real change and is a pointless pair of trades. This
+  // is the shape a real regression took: 23 sold from the January 2035 maturity, 23 bought into the
+  // July 2035 maturity, in the same run, for no reason.
+  const byYear = new Map();
+  for (const d of details) {
+    const fd = d.fundedYearQtyDelta ?? 0;
+    if (fd === 0) continue;
+    if (!byYear.has(d.fundedYear)) byYear.set(d.fundedYear, []);
+    byYear.get(d.fundedYear).push({ cusip: d.cusip, fundedYearQtyDelta: fd });
+  }
+  const crossSwaps = [];
+  for (const [year, rows] of byYear) {
+    const bought = rows.filter(r => r.fundedYearQtyDelta > 0);
+    const sold = rows.filter(r => r.fundedYearQtyDelta < 0);
+    if (bought.length > 0 && sold.length > 0) crossSwaps.push({ year, bought, sold });
+  }
+  assert(`${label}: no funded year buys one maturity while selling another`, crossSwaps.length, 0);
+  for (const s of crossSwaps) {
+    console.error(`        violation FY ${s.year}: bought ${s.bought.map(r => r.cusip + ' +' + r.fundedYearQtyDelta).join(', ')}`
+      + `  sold ${s.sold.map(r => r.cusip + ' ' + r.fundedYearQtyDelta).join(', ')}`);
+  }
 }
 
 // ── Helper: assert Before + Delta === After for every row, funded and excess bucket
@@ -357,6 +381,38 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
     assert('3B real: genuine 3-bracket (newLowerCUSIP present)', summary.newLowerCUSIP != null, true);
     assertNoBuySell(details, '3B real');
     assertReconciles(details, '3B real');
+
+    // Regression: this real ladder's 2034 orig-lower maturity holds genuine excess. Exporting this
+    // rebalanced ladder and reloading it — same holdings, same resolved DARA, nothing changed — must
+    // ask for zero trades. The bug this catches: bracket-year sizing was counting the year's OWN held
+    // excess as available to fund its rung (only the coupon had been netted out, not the principal),
+    // so a bracket year with real excess looked over-funded and got sold down, forcing a buy back
+    // into the bracket maturity to compensate — a same-maturity-year sell + rebuy with no purpose.
+    // 3.0 §Named Quantities (funded-first rule): excess committed to gap duration matching does not
+    // also fund the year's own rung.
+    {
+      const exportRows = ['cusip,qty,excess'];
+      for (const d of details) {
+        const f = d.fundedYearQtyAfter ?? d.qtyAfter ?? 0, e = d.excessQtyAfter ?? 0;
+        if (f + e > 0) exportRows.push(`${d.cusip},${f},${e}`);
+      }
+      exportRows.push('#fundedYear,dara');
+      for (const y of [...summary.daraByYearResolved.keys()].sort((a, b) => a - b)) {
+        exportRows.push(`${y},${Math.round(summary.daraByYearResolved.get(y))}`);
+      }
+      const exportText = exportRows.join('\n');
+      const lines = exportText.split('\n');
+      const reimported = parseHoldingsCSV(exportText, tipsMap);
+      const rtDara = parseFundedYearDaraBlock(lines);
+      const { details: rtDetails, summary: rtSummary } = runRebalance({
+        dara, bracketMode: '3bracket', holdings: reimported, tipsMap, refCPI, settlementDate, daraByYear: rtDara,
+      });
+      const churn = rtDetails.filter(d => (d.fundedYearQtyDelta || 0) !== 0 || (d.excessQtyDelta || 0) !== 0);
+      assert('3B real: export -> reimport -> rerun produces zero trades',
+        churn.map(d => `FY${d.fundedYear} ${d.cusip} f${d.fundedYearQtyDelta} x${d.excessQtyDelta}`).join(' | '), '');
+      assert('3B real: export -> reimport -> rerun nets zero cash', Math.round(rtSummary.costDeltaSum), 0);
+      assertNoBuySell(rtDetails, '3B real round-trip');
+    }
 
     // Regression: a custom per-year DARA plan (as "Apply saved DARA plan" installs) can legitimately
     // push a bracket year's funded target down while its excess target goes up — the funded and excess
