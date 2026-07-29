@@ -544,6 +544,15 @@ function _updateCouponFieldVisibility() {
   const pref = document.getElementById('build-maturity').value;
   const show = currentMode === 'build' && pref !== 'last' && pref !== 'select';
   document.getElementById('field-build-coupon').style.display = show ? '' : 'none';
+  // In Select mode the maturity picks dictate the ladder's range (2.0 §Picking Maturities for a
+  // Funded Year) — First/Last Year no longer drive anything, so hide them rather than leave
+  // controls on-screen that look live but are ignored. Only touch these in Build mode; Rebalance
+  // mode's own visibility rules (elsewhere) own these fields there.
+  if (currentMode === 'build') {
+    const hideYearFields = pref === 'select';
+    document.getElementById('field-first-year').style.display = hideYearFields ? 'none' : '';
+    document.getElementById('field-last-year').style.display = hideYearFields ? 'none' : '';
+  }
 }
 document.getElementById('build-maturity').addEventListener('change', _updateCouponFieldVisibility);
 
@@ -643,7 +652,9 @@ async function loadData() {
       opt.textContent = _bfsGapYears.has(y) ? `${y} (gap)` : y > _bfsMaxY ? `${y} (Future 30Y)` : String(y);
       lastYearSel.appendChild(opt);
     }
-    if (_bfsYearSet.has(2047)) lastYearSel.value = 2047;
+    // 2056 = the last actual/coverable 30Y TIPS year (same assumption as the Future 30Y lower
+    // cover in ladder-core.js/rebalance-lib.js) — a real default, not an arbitrary year.
+    lastYearSel.value = _bfsYearSet.has(2056) ? 2056 : _bfsMaxY;
 
     const firstYearSel = document.getElementById('first-year');
     while (firstYearSel.options.length > 1) firstYearSel.remove(1);
@@ -769,7 +780,6 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
 
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
     document.getElementById('field-build-maturity').style.display = isRebalance ? 'none' : '';
-    _updateCouponFieldVisibility();
     _updateMaturityOptionLabel('Select maturities…');
     _maturityListOpenPending = false;
     if (isRebalance) _closeMaturityPickerModal();
@@ -779,6 +789,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     document.getElementById('field-rebal-last-year').style.display = isRebalance ? '' : 'none';
     document.getElementById('field-last-year').style.display = isRebalance ? 'none' : '';
     document.getElementById('field-pre-ladder').style.display = '';
+    // Runs last: in Build+Select mode this re-hides First/Last Year, overriding the isRebalance-
+    // based sets just above (which always show them for Build regardless of maturity pref).
+    _updateCouponFieldVisibility();
 
 
     document.getElementById('run-btn').textContent = isRebalance ? 'Run Rebalance' : 'Build Ladder';
@@ -2706,11 +2719,29 @@ document.getElementById('dara').addEventListener('input', () => { _daraAutoInfer
 function _runBuildFromForm() {
   const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
   const dara = _getDefaultDara();
-  const lastYear = parseInt(document.getElementById('last-year').value);
+  const maturityPrefSel = document.getElementById('build-maturity').value;
+
+  // In Select mode the maturity picks are a dictate, not a preference (2.0 §Picking Maturities
+  // for a Funded Year): the ladder's actual last year is the latest year the user picked anything
+  // for — the (now-disabled) Last Year field is ignored — and any in-range funded year the user
+  // did NOT touch is intentionally left unfunded, the same precedence as a $0 per-year DARA entry.
+  const overrideYears = [..._yearMaturityOverrides.keys()];
+  const lastYear = maturityPrefSel === 'select' && overrideYears.length
+    ? Math.max(...overrideYears)
+    : parseInt(document.getElementById('last-year').value);
+
   if (!dara || !lastYear) { setStatus('DARA and Last Year required.', true); return false; }
   if (dara < 1000) { setStatus('DARA must be at least $1,000.', true); return false; }
 
-  const maturityPrefSel = document.getElementById('build-maturity').value;
+  let daraByYear = getDaraByYear();
+  if (maturityPrefSel === 'select') {
+    daraByYear = new Map(daraByYear ?? []);
+    for (const year of _pickerYears()) {
+      if (year > lastYear) continue;
+      if (!_yearMaturityOverrides.get(year)?.length) daraByYear.set(year, 0);
+    }
+  }
+
   const result = runBuild({
     dara,
     firstYear: parseInt(document.getElementById('first-year').value) || undefined,
@@ -2719,12 +2750,13 @@ function _runBuildFromForm() {
     refCPI,
     settlementDate,
     // 'select' isn't a real ladder-core policy — it just means "some/all years were hand-picked
-    // via the modal"; any year the user hasn't touched yet still needs a base pick, so fall back
-    // to 'last'. yearOverrides always wins per-year regardless of this fallback.
+    // via the modal"; a year without an override still needs A pick to resolve yearBondMap for
+    // structural purposes (brackets/gap detection), so this fallback stays — but its DARA is
+    // forced to 0 above, so nothing is actually funded there. yearOverrides always wins per-year.
     maturityPref: maturityPrefSel === 'select' ? 'last' : maturityPrefSel,
     couponPref: document.getElementById('build-coupon').value,
     preLadderInterest: document.getElementById('pre-ladder-interest').checked,
-    daraByYear: getDaraByYear(),
+    daraByYear,
     yearOverrides: _yearMaturityOverrides
   });
   _lastKnownDara = dara;
