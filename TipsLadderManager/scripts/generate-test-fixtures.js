@@ -19,6 +19,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'fs';
 import { fileURLToPath } from 'url';
 import path from 'path';
+import { execFileSync } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT  = path.resolve(__dirname, '..');
@@ -301,3 +302,33 @@ writeFileSync(holdingsOut, holdingsCsv, 'utf8');
 console.log(`Wrote ${schwabOut}   (${schwabCsv.split('\n').length} lines)`);
 console.log(`Wrote ${fidelityOut}  (${fidelityCsv.split('\n').length} lines)`);
 console.log(`Wrote ${holdingsOut} (${sampleTips.length} TIPS)`);
+
+// ─── Auto-commit + push ────────────────────────────────────────────────────
+// Regenerated fixtures never sit dirty across sessions (was causing repeated noise in
+// `git status`): commit them here immediately, then push -- the repo's pre-push hook
+// (.githooks/pre-push -> scripts/pre-push-tests.js) runs TipsLadderManager's test suites
+// and blocks the push if anything fails, so a bad regen never reaches the remote.
+const REPO_ROOT = execFileSync('git', ['rev-parse', '--show-toplevel']).toString().trim();
+const fixtureFiles = [schwabOut, fidelityOut, holdingsOut];
+
+const dirty = execFileSync('git', ['status', '--porcelain', '--', ...fixtureFiles], { cwd: REPO_ROOT }).toString().trim();
+if (!dirty) {
+  console.log('\nFixtures unchanged; nothing to commit.');
+} else {
+  const branch = execFileSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: REPO_ROOT }).toString().trim();
+
+  execFileSync('git', ['add', '--', ...fixtureFiles], { cwd: REPO_ROOT });
+  execFileSync('git', ['commit', '-m', 'TipsLadderManager: refresh sample/test holdings fixtures'], { cwd: REPO_ROOT, stdio: 'inherit' });
+
+  if (branch !== 'main') {
+    console.log(`\nCommitted on branch "${branch}" (not main) -- not auto-pushing. Merge to main and push manually.`);
+  } else {
+    try {
+      execFileSync('git', ['push'], { cwd: REPO_ROOT, stdio: 'inherit' });
+      console.log('\nPushed.');
+    } catch {
+      console.error('\nPush BLOCKED (pre-push hook failed, likely a broken fixture regen). The commit is local -- fix the failing test, then run `git push` manually.');
+      process.exitCode = 1;
+    }
+  }
+}
