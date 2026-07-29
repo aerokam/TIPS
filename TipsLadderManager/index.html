@@ -100,6 +100,21 @@
   td.drillable { cursor: pointer; text-decoration: underline dotted var(--tab-active-bg); }
   td.drillable:hover { background: #e8f5f5 !important; text-decoration: underline solid var(--tab-active-bg); }
 
+  /* ── Maturity picker modal (prototype) ── */
+  #maturity-picker-modal { background:#fff;width:820px;min-width:500px;min-height:250px;border-radius:8px;padding:20px 24px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;font-size:13px;line-height:1.5; }
+  #maturity-picker-body table { border-collapse:collapse;width:100%;font-size:12px;table-layout:fixed; }
+  #maturity-picker-body td { padding:3px 6px;vertical-align:middle; }
+  #maturity-picker-body tr.mp-year-last td { border-bottom:1px solid #eee; }
+  #maturity-picker-body td.mp-year { font-weight:700;white-space:nowrap;color:#1e293b;width:52px;padding-left:0;vertical-align:top;padding-top:6px; }
+  #maturity-picker-body td.mp-col { text-align:center;white-space:nowrap; }
+  #maturity-picker-body label { display:inline-flex;align-items:center;gap:3px;cursor:pointer;font-weight:400;white-space:nowrap; }
+  #maturity-picker-body tr.mp-hdr-row td { border-bottom:2px solid #cbd5e1;padding-bottom:8px;text-align:center; }
+  #maturity-picker-body .mp-col-label { font-weight:700;font-size:12px;color:#1e293b;margin-bottom:5px; }
+  #maturity-picker-body .mp-col-actions { margin-top:3px; }
+  #maturity-picker-body .mp-col-actions button { font-size:10px;padding:2px 9px;margin:0 4px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:3px;cursor:pointer; }
+  #maturity-picker-body .mp-col-actions .mp-col-low, #maturity-picker-body .mp-col-actions .mp-col-high { background:#eef6f6;border-color:#5ba4a4;color:#2f6363; }
+  #maturity-picker-body .mp-col-actions button:hover { background:#e2e8f0; }
+
   /* ── Formula inspector ── */
   .source-highlight { background: #d4edec !important; transition: background 0.15s; }
   .drill-l3:hover { background: #e8f5f5 !important; }
@@ -281,6 +296,21 @@
   </div>
 </div>
 
+<div id="maturity-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow:hidden;">
+  <div id="maturity-picker-modal">
+    <div class="resize-handle n"></div><div class="resize-handle s"></div><div class="resize-handle e"></div><div class="resize-handle w"></div>
+    <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
+    <button id="maturity-picker-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">&times;</button>
+    <div id="maturity-picker-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;">Select Maturities</div>
+    <div style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Pick which TIPS fill each funded year. A year left as-is keeps whatever it's currently holding. All/None above a column applies to that month across every year.</div>
+    <div id="maturity-picker-body" style="overflow-y:auto;flex:1;"></div>
+    <div style="margin-top:16px;text-align:right;flex-shrink:0;">
+      <button id="maturity-picker-cancel" style="padding:4px 12px;font-size:11px;margin-right:8px;">Cancel</button>
+      <button id="maturity-picker-apply" style="padding:4px 12px;font-size:11px;">Apply</button>
+    </div>
+  </div>
+</div>
+
 <div id="top-row">
   <div class="tab-bar">
     <div class="tab-bar-title">
@@ -349,6 +379,7 @@
           <option value="first">First to mature</option>
           <option value="semiannual">Semiannual (Jan + Jul)</option>
           <option value="all">All maturity months</option>
+          <option value="select">Select maturities&hellip;</option>
         </select>
       </div>
       <div class="field" id="field-build-coupon" style="display:none">
@@ -485,6 +516,7 @@ import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
+import { makeDraggableResizable } from './src/modal.js';
 import { accruedInterest } from '../shared/src/bond-math.js';
 import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
@@ -494,6 +526,10 @@ const toIso = d => d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart
 
 const simpleEl = document.getElementById('simple-table');
 const tableEl  = document.getElementById('build-table');
+
+// Per-year maturity picks (prototype — 2.0 §Picking Maturities for a Funded Year, Build only).
+// Map<fundedYear, cusip[]>. A year absent from this map keeps following the global maturityPref.
+const _yearMaturityOverrides = new Map();
 
 // ─── Help modal ───────────────────────────────────────────────────────────────
 document.getElementById('help-btn').addEventListener('click', () => {
@@ -505,7 +541,8 @@ document.getElementById('help-btn').addEventListener('click', () => {
 // alongside Maturity pick for 'first'/'semiannual'/'all'; stays hidden (and irrelevant) for 'last'
 // and for Rebalance mode entirely.
 function _updateCouponFieldVisibility() {
-  const show = currentMode === 'build' && document.getElementById('build-maturity').value !== 'last';
+  const pref = document.getElementById('build-maturity').value;
+  const show = currentMode === 'build' && pref !== 'last' && pref !== 'select';
   document.getElementById('field-build-coupon').style.display = show ? '' : 'none';
 }
 document.getElementById('build-maturity').addEventListener('change', _updateCouponFieldVisibility);
@@ -733,6 +770,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
     document.getElementById('field-build-maturity').style.display = isRebalance ? 'none' : '';
     _updateCouponFieldVisibility();
+    _updateMaturityOptionLabel('Select maturities…');
+    _maturityListOpenPending = false;
+    if (isRebalance) _closeMaturityPickerModal();
 
     document.getElementById('field-rebal-first-year').style.display = isRebalance && currentHoldingsArray ? '' : 'none';
     document.getElementById('field-first-year').style.display = isRebalance ? 'none' : '';
@@ -938,6 +978,188 @@ function _updateExpandCollapseLabels() {
     _setGroupExpanded(tbl, hdr.dataset.fy, hdr.dataset.expanded !== 'true');
     _updateExpandCollapseLabels();
   });
+});
+
+// ─── Maturity picker modal (prototype — reached via "Select maturities…" in the ─────────────────
+// Maturity preference dropdown, 2.0 §Picking Maturities for a Funded Year) ──────────────────────
+// Candidate TIPS for a funded year: same "maturing after settlement, in year" gathering
+// selectLadderBonds uses internally, just re-derived here for the modal's checkbox lists.
+function _pickerCandidates(year) {
+  const cands = [];
+  for (const bond of tipsMap.values()) {
+    if (!bond.maturity || bond.maturity <= settlementDate) continue;
+    if (bond.maturity.getFullYear() !== year) continue;
+    cands.push(bond);
+  }
+  return cands.sort((a, b) => a.maturity - b.maturity);
+}
+
+// Every funded year currently in range (mirrors the year gathering in selectLadderBonds).
+function _pickerYears() {
+  const firstYear = parseInt(document.getElementById('first-year').value) || settlementDate.getFullYear();
+  const lastYear = parseInt(document.getElementById('last-year').value);
+  const years = new Set();
+  for (const bond of tipsMap.values()) {
+    if (!bond.maturity || bond.maturity <= settlementDate) continue;
+    const yr = bond.maturity.getFullYear();
+    if (yr < firstYear || yr > lastYear) continue;
+    years.add(yr);
+  }
+  return [...years].sort((a, b) => a - b);
+}
+
+// One column per maturity MONTH (calendar order — Jan, Feb, Apr, Jul, Oct), derived from the
+// actual data in range rather than hardcoded. Some months carry two issues at different coupons
+// in a given year (Jan 2027/28/29, Apr 2028/29 — 2.0 §Maturity Selection Within a Funded Year);
+// rather than splitting those into extra columns, a year needing two rows for the same month gets
+// a second stacked row (lower coupon first), so "Jan" (say) always means the same column.
+const MP_MONTH_LABEL = { 1: 'Jan', 2: 'Feb', 4: 'Apr', 7: 'Jul', 10: 'Oct' };
+function _pickerColumns(years) {
+  const months = new Set();
+  for (const year of years) for (const b of _pickerCandidates(year)) months.add(b.maturity.getMonth() + 1);
+  return [...months].sort((a, b) => a - b);
+}
+
+function _openMaturityPickerModal() {
+  const years = _pickerYears();
+  const cols = _pickerColumns(years);   // array of month numbers, e.g. [1, 2, 4, 7, 10]
+  // A column needs Low/High buttons only if some year actually carries two issues in that month
+  // (Jan 2027/28/29, Apr 2028/29) — otherwise there's no low/high distinction to act on.
+  const colHasDup = cols.map(mo => years.some(year =>
+    _pickerCandidates(year).filter(b => b.maturity.getMonth() + 1 === mo).length > 1));
+
+  const headerRow = '<tr class="mp-hdr-row"><td></td>' + cols.map((mo, i) =>
+    `<td class="mp-col-hdr">`
+      + `<div class="mp-col-label">${MP_MONTH_LABEL[mo] || mo}</div>`
+      + `<div class="mp-col-actions"><button type="button" class="mp-col-all" data-col="${i}">All</button>`
+      + `<button type="button" class="mp-col-none" data-col="${i}">None</button></div>`
+      + (colHasDup[i]
+          ? `<div class="mp-col-actions"><button type="button" class="mp-col-low" data-col="${i}">Low</button>`
+            + `<button type="button" class="mp-col-high" data-col="${i}">High</button></div>`
+          : '')
+      + `</td>`
+  ).join('') + '</tr>';
+
+  const rowsHtml = years.map(year => {
+    const cands = _pickerCandidates(year);
+    const override = _yearMaturityOverrides.get(year);
+    const checkedCusips = new Set(
+      override?.length ? override : buildDetails?.filter(d => d.fundedYear === year).map(d => d.cusip) ?? []
+    );
+    // Per column, the candidates for this year's month, lower coupon first (so row 0 is always
+    // the lower-coupon issue when a month has two).
+    const byCol = cols.map(mo => cands.filter(b => b.maturity.getMonth() + 1 === mo)
+      .sort((a, b) => (a.coupon ?? 0) - (b.coupon ?? 0)));
+    const subRows = Math.max(1, ...byCol.map(list => list.length));
+
+    let html = '';
+    for (let r = 0; r < subRows; r++) {
+      const yearCell = r === 0 ? `<td class="mp-year" rowspan="${subRows}">${year}</td>` : '';
+      const cellsHtml = byCol.map((list, i) => {
+        const b = list[r];
+        if (!b) return `<td class="mp-col" data-col="${i}"></td>`;
+        const id = 'mp-' + year + '-' + b.cusip;
+        const checked = checkedCusips.has(b.cusip) ? 'checked' : '';
+        const coupon = (b.coupon != null) ? (b.coupon * 100).toFixed(3) + '%' : '';
+        const title = b.cusip + ' · ' + (b.maturity.getMonth() + 1) + '/' + b.maturity.getFullYear();
+        return `<td class="mp-col" data-col="${i}"><label for="${id}" title="${title}"><input type="checkbox" id="${id}" data-year="${year}" value="${b.cusip}" ${checked}>${coupon}</label></td>`;
+      }).join('');
+      html += `<tr class="${r === subRows - 1 ? 'mp-year-last' : ''}">${yearCell}${cellsHtml}</tr>`;
+    }
+    return html;
+  }).join('');
+
+  document.getElementById('maturity-picker-body').innerHTML =
+    '<table><tbody>' + headerRow + rowsHtml + '</tbody></table>';
+  document.getElementById('maturity-picker-overlay').style.display = 'block';
+}
+
+function _closeMaturityPickerModal() {
+  document.getElementById('maturity-picker-overlay').style.display = 'none';
+  _updateMaturityOptionLabel('Select maturities…');
+  _maturityListOpenPending = false;
+}
+
+// Confirmed via real-browser console logging: a plain click on a closed <select> fires its
+// 'click' event IMMEDIATELY (synchronously with mousedown, before any option is actually picked)
+// — there is no separate later event when the list closes. So "click A" (opening the list) and
+// "click B" (reselecting the value already active) are the SAME single click event; they cannot
+// be told apart by inspecting that one event in isolation. Two distinct paths open the modal:
+//  (A) The value genuinely changes INTO 'select' (from some other policy) — opens the modal
+//      immediately, on 'change'. The option's own text never relabels for this path. A one-shot
+//      flag swallows the trailing click that this same 'change' also produces.
+//  (B) The value is ALREADY 'select' (e.g. right after a Build). Since every click looks
+//      identical at the event level, distinguishing "just opened it" from "confirming it" needs
+//      a persistent toggle, not per-event state: the FIRST click while on 'select' relabels (via
+//      'mousedown') and flips `_maturityListOpenPending` on without opening anything; a SEPARATE,
+//      later click — a new physical click, not a second event from the same gesture — finds the
+//      toggle already on and opens the modal, then resets the toggle for next time.
+let _maturitySelectJustChosen = false;
+let _maturityListOpenPending = false;
+function _updateMaturityOptionLabel(text) {
+  document.querySelector('#build-maturity option[value="select"]').textContent = text;
+}
+
+document.getElementById('build-maturity').addEventListener('mousedown', () => {
+  if (document.getElementById('build-maturity').value === 'select') _updateMaturityOptionLabel('Edit maturities');
+});
+document.getElementById('build-maturity').addEventListener('change', () => {
+  if (document.getElementById('build-maturity').value === 'select') {
+    _maturitySelectJustChosen = true;   // swallow the trailing click that follows THIS change
+    _openMaturityPickerModal();
+  } else {
+    _updateMaturityOptionLabel('Select maturities…');
+    _yearMaturityOverrides.clear();     // picking a named policy replaces any custom picks
+    _closeMaturityPickerModal();        // otherwise the picker for the old policy is left stranded open
+    _maturityListOpenPending = false;
+  }
+});
+document.getElementById('build-maturity').addEventListener('click', () => {
+  if (document.getElementById('build-maturity').value !== 'select') return;
+  if (_maturitySelectJustChosen) { _maturitySelectJustChosen = false; return; }
+  if (!_maturityListOpenPending) { _maturityListOpenPending = true; return; }
+  _maturityListOpenPending = false;
+  _openMaturityPickerModal();
+});
+document.getElementById('maturity-picker-body').addEventListener('click', e => {
+  const btn = e.target.closest('.mp-col-all, .mp-col-none, .mp-col-low, .mp-col-high');
+  if (!btn) return;
+  const col = btn.dataset.col;
+  const cells = [...document.querySelectorAll(`#maturity-picker-body td.mp-col[data-col="${col}"] input[type=checkbox]`)];
+  if (btn.classList.contains('mp-col-all'))  { for (const cb of cells) cb.checked = true;  return; }
+  if (btn.classList.contains('mp-col-none')) { for (const cb of cells) cb.checked = false; return; }
+  // Low/High: group this column's boxes by year, then pick the first (lowest coupon) or last
+  // (highest coupon) box in each year's group — DOM order already follows coupon-ascending sort.
+  const byYear = new Map();
+  for (const cb of cells) {
+    const y = cb.dataset.year;
+    if (!byYear.has(y)) byYear.set(y, []);
+    byYear.get(y).push(cb);
+  }
+  const wantLow = btn.classList.contains('mp-col-low');
+  for (const list of byYear.values())
+    list.forEach((cb, i) => { cb.checked = wantLow ? i === 0 : i === list.length - 1; });
+});
+document.getElementById('maturity-picker-close').addEventListener('click', _closeMaturityPickerModal);
+document.getElementById('maturity-picker-cancel').addEventListener('click', _closeMaturityPickerModal);
+document.getElementById('maturity-picker-overlay').addEventListener('click', e => {
+  if (e.target.id === 'maturity-picker-overlay') _closeMaturityPickerModal();
+});
+document.getElementById('maturity-picker-apply').addEventListener('click', () => {
+  const byYear = new Map();
+  for (const cb of document.querySelectorAll('#maturity-picker-body input[type=checkbox]:checked')) {
+    const yr = parseInt(cb.dataset.year);
+    if (!byYear.has(yr)) byYear.set(yr, []);
+    byYear.get(yr).push(cb.value);
+  }
+  // The modal is authoritative for every year shown: a year with something checked gets that exact
+  // override; a year left with nothing checked (e.g. after Clear All) reverts to the base policy.
+  for (const year of _pickerYears()) {
+    if (byYear.has(year)) _yearMaturityOverrides.set(year, byYear.get(year));
+    else _yearMaturityOverrides.delete(year);
+  }
+  _closeMaturityPickerModal();
+  _runBuildFromForm();
 });
 
 // ─── Bracket/cover year hover explainer ───────────────────────────────────────
@@ -1783,6 +2005,8 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
         if (currentImportedParams.couponPref)
           document.getElementById('build-coupon').value = currentImportedParams.couponPref;
         _updateCouponFieldVisibility();
+        _updateMaturityOptionLabel('Select maturities…');
+        _maturityListOpenPending = false;
       }
     } else if (acctNames.length === 1) {
       currentHoldingsArray = parsedAccounts[acctNames[0]];
@@ -1874,61 +2098,9 @@ let _drillDragging = false;
   });
 }
 
-// ─── Draggable + resizable tipsref modal ─────────────────────────────────────
-{
-  const _modal = document.getElementById('tipsref-modal');
-  const _title = document.getElementById('tipsref-title');
-  let _dragging = false, _offX = 0, _offY = 0;
-
-  _title.addEventListener('mousedown', e => {
-    const rect = _modal.getBoundingClientRect();
-    _modal.style.transform = 'none';
-    _modal.style.left = rect.left + 'px';
-    _modal.style.top  = rect.top  + 'px';
-    _offX = e.clientX - rect.left;
-    _offY = e.clientY - rect.top;
-    _dragging = true;
-    e.preventDefault();
-  });
-
-  let _resizing = false, _resizeDir = '', _startX = 0, _startY = 0;
-  let _startLeft = 0, _startTop = 0, _startW = 0, _startH = 0;
-
-  _modal.addEventListener('mousedown', e => {
-    const handle = e.target.closest('.resize-handle');
-    if (!handle) return;
-    const rect = _modal.getBoundingClientRect();
-    _modal.style.transform = 'none';
-    _modal.style.left = rect.left + 'px';
-    _modal.style.top  = rect.top  + 'px';
-    _resizeDir = handle.className.replace('resize-handle ', '').trim();
-    _startX = e.clientX; _startY = e.clientY;
-    _startLeft = rect.left; _startTop = rect.top;
-    _startW = rect.width;   _startH = rect.height;
-    _resizing = true;
-    e.preventDefault();
-    e.stopPropagation();
-  });
-
-  document.addEventListener('mousemove', e => {
-    if (_dragging) {
-      _modal.style.left = (e.clientX - _offX) + 'px';
-      _modal.style.top  = (e.clientY - _offY) + 'px';
-    }
-    if (_resizing) {
-      const dx = e.clientX - _startX, dy = e.clientY - _startY;
-      if (_resizeDir.includes('e')) _modal.style.width = Math.max(400, _startW + dx) + 'px';
-      if (_resizeDir.includes('w')) { _modal.style.left = (_startLeft + dx) + 'px'; _modal.style.width = Math.max(400, _startW - dx) + 'px'; }
-      if (_resizeDir.includes('s')) _modal.style.maxHeight = Math.max(200, _startH + dy) + 'px';
-      if (_resizeDir.includes('n')) { _modal.style.top = (_startTop + dy) + 'px'; _modal.style.maxHeight = Math.max(200, _startH - dy) + 'px'; }
-    }
-  });
-
-  document.addEventListener('mouseup', () => {
-    if (_dragging) setTimeout(() => { _dragging = false; }, 0);
-    _resizing = false;
-  });
-}
+// ─── Draggable + resizable modals (shared — src/modal.js) ────────────────────
+makeDraggableResizable(document.getElementById('tipsref-modal'), document.getElementById('tipsref-title'), { minWidth: 400, minHeight: 200 });
+makeDraggableResizable(document.getElementById('maturity-picker-modal'), document.getElementById('maturity-picker-title'), { minWidth: 500, minHeight: 250 });
 
 // ─── Per-year DARA panel ──────────────────────────────────────────────────────
 let _daraByYearPanelDefault = null;
@@ -2529,38 +2701,49 @@ document.getElementById('dara-dec').addEventListener('click', () => { _daraStep(
 
 document.getElementById('dara').addEventListener('input', () => { _daraAutoInferred = false; renderDaraByYearPanel(); });
 
+// Runs Build with the current form inputs (+ any per-year maturity picks). Returns true on
+// success, false (with a status message set) if inputs are missing/invalid.
+function _runBuildFromForm() {
+  const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const dara = _getDefaultDara();
+  const lastYear = parseInt(document.getElementById('last-year').value);
+  if (!dara || !lastYear) { setStatus('DARA and Last Year required.', true); return false; }
+  if (dara < 1000) { setStatus('DARA must be at least $1,000.', true); return false; }
+
+  const maturityPrefSel = document.getElementById('build-maturity').value;
+  const result = runBuild({
+    dara,
+    firstYear: parseInt(document.getElementById('first-year').value) || undefined,
+    lastYear,
+    tipsMap,
+    refCPI,
+    settlementDate,
+    // 'select' isn't a real ladder-core policy — it just means "some/all years were hand-picked
+    // via the modal"; any year the user hasn't touched yet still needs a base pick, so fall back
+    // to 'last'. yearOverrides always wins per-year regardless of this fallback.
+    maturityPref: maturityPrefSel === 'select' ? 'last' : maturityPrefSel,
+    couponPref: document.getElementById('build-coupon').value,
+    preLadderInterest: document.getElementById('pre-ladder-interest').checked,
+    daraByYear: getDaraByYear(),
+    yearOverrides: _yearMaturityOverrides
+  });
+  _lastKnownDara = dara;
+  renderBuildOutput(result);
+
+  document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
+  document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
+  return true;
+}
+
 // ─── Run handler ──────────────────────────────────────────────────────────────
 document.getElementById('run-btn').addEventListener('click', async () => {
   setStatus('');
 
   try {
-    const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
-
     if (currentMode === 'build') {
-      const dara = _getDefaultDara();
-      const lastYear = parseInt(document.getElementById('last-year').value);
-      if (!dara || !lastYear) { setStatus('DARA and Last Year required.', true); return; }
-      if (dara < 1000) { setStatus('DARA must be at least $1,000.', true); return; }
-
-      const result = runBuild({
-        dara,
-        firstYear: parseInt(document.getElementById('first-year').value) || undefined,
-        lastYear,
-        tipsMap,
-        refCPI,
-        settlementDate,
-        maturityPref: document.getElementById('build-maturity').value,
-        couponPref: document.getElementById('build-coupon').value,
-        preLadderInterest: document.getElementById('pre-ladder-interest').checked,
-        daraByYear: getDaraByYear()
-      });
-      _lastKnownDara = dara;
-      renderBuildOutput(result);
-      
-      document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
-      document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
-
+      _runBuildFromForm();
     } else {
+      const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
       if (!currentHoldingsArray) { setStatus('Holdings required.', true); return; }
 
       let finalDara = _getDefaultDara();

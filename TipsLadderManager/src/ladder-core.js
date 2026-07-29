@@ -116,7 +116,11 @@ function selectYearTips(cands, pref, couponPref = 'higher') {
 //   yearBondMap[year]     — the single representative (latest of the list); every
 //                           bracket/gap/cover path keys off this and is unaffected,
 //                           and it equals the legacy pick when the list has length 1.
-export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref = 'last', couponPref = 'higher' }) {
+// `yearOverrides` (prototype, Build only — 2.0 §Picking Maturities for a Funded Year): a
+// Map<year, cusip[]> naming an explicit TIPS list for that year, bypassing `maturityPref` for
+// just that year. Every other year keeps following `maturityPref` as usual. An override whose
+// CUSIPs don't resolve to that year's candidates is ignored (falls back to the policy pick).
+export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref = 'last', couponPref = 'higher', yearOverrides = null }) {
   // 1. Gather candidate TIPS per year (maturing after settlement, in range), then apply the policy.
   const candsByYear = {};
   for (const bond of tipsMap.values()) {
@@ -128,7 +132,12 @@ export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate
   const yearBondMap = {};       // year → representative single TIPS (latest of the funded list)
   const yearTipsListMap = {};   // year → ordered funded-year TIPS list (≥1)
   for (const yr of Object.keys(candsByYear).map(Number)) {
-    const list = selectYearTips(candsByYear[yr], maturityPref, couponPref);
+    const overrideCusips = yearOverrides?.get(yr);
+    const overrideList = overrideCusips?.length
+      ? overrideCusips.map(c => candsByYear[yr].find(b => b.cusip === c)).filter(Boolean)
+          .sort((a, b) => a.maturity - b.maturity)
+      : null;
+    const list = overrideList?.length ? overrideList : selectYearTips(candsByYear[yr], maturityPref, couponPref);
     yearTipsListMap[yr] = list;
     yearBondMap[yr] = pickExtreme(list, 'last', couponPref);
   }

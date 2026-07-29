@@ -24,7 +24,7 @@ export const MAX_LAST_YEAR = 2066;
 // Returns: { results, HDR, summary }
 // Spec: knowledge/3.0_TIPS_Ladders.md and knowledge/4.0_TIPS_Ladder_Rebalancing.md §Full Rebalance
 // Variable naming note: fundedYearQty, excessQty, costPerBond (harmonized) — see §Code Variable Mapping
-export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', couponPref = 'higher', preLadderInterest = false, daraByYear = null }) {
+export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', couponPref = 'higher', preLadderInterest = false, daraByYear = null, yearOverrides = null }) {
   const firstYear      = firstYearOpt ?? settlementDate.getFullYear();
   const settleDateDisp = fmtDate(settlementDate);
   const settlementYear = settlementDate.getFullYear();
@@ -33,7 +33,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   const {
     yearBondMap, yearTipsListMap, rangeYears, gapYears, future30yYears,
     future30yLowerYear, future30yUpperYear, future30yLowerCoverBond, future30yUpperCoverBond,
-  } = selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref, couponPref });
+  } = selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref, couponPref, yearOverrides });
 
   if (!rangeYears.length) throw new Error('No TIPS bonds found in the specified year range');
 
