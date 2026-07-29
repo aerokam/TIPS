@@ -30,6 +30,7 @@ npx serve .
 | `src/render.js` | Table HTML from unified `COLS` schema |
 | `src/drill.js` | Popup builder: `buildDrillHTML(d, colKey, summary, mode)` |
 | `src/data.js` | CSV fetch/parse from R2 |
+| `src/modal.js` | `makeDraggableResizable(modalEl, dragHandleEl, opts)` — shared drag/resize frame for every modal (TipsRef, maturity picker) |
 | `index.html` | Thin shell: event wiring, calls render/drill, zero business logic |
 
 ### Key Algorithms
