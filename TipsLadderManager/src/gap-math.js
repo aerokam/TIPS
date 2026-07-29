@@ -29,6 +29,72 @@ export function bracketWeights(lowerDuration, upperDuration, avgGapDuration) {
   return { lowerWeight, upperWeight: 1 - lowerWeight };
 }
 
+// ─── Bracket weights with retained lower-side maturities ──────────────────────
+// Spec: 2.0 §Retained Bracket Excess; 3.0 §Lower-side priority rule.
+//
+// The plain two-sided `bracketWeights` above assumes EVERY lower-side dollar sits at the
+// active lower bracket's duration. That is false once excess is retained in older maturities:
+// they are shorter, so the realized blend lands short of `dGap` and the gap is under-matched.
+// (That was the shipped behavior from 463b07a until this function replaced it.)
+//
+// Here the retained maturities are FROZEN at the excess the portfolio already holds — never
+// increased — so their weights are inputs, not unknowns. Only the active lower bracket and the
+// upper bracket are solved, and they absorb whatever the retained legs leave over:
+//
+//   Σ wᵣ·dᵣ + w_act·d_act + w_up·d_up = dGap        (duration match, all legs counted)
+//   Σ wᵣ    + w_act       + w_up      = 1
+//
+// Let R = Σ wᵣ (retained share of the block) and D_R = Σ wᵣ·dᵣ. Then
+//   w_up  = ((dGap − D_R) − (1 − R)·d_act) / (d_up − d_act)
+//   w_act = (1 − R) − w_up
+//
+// **Over-allocated → sell oldest first.** If no non-negative (w_act, w_up) exists, the retained
+// legs are carrying more than the block needs. Sell down the OLDEST maturity first, taking it to
+// zero before touching the next, re-solving after each step — exactly the ordering rule, now
+// driven by feasibility of the duration match rather than by a separate cost comparison.
+//
+// `retained` is oldest → newest. Returns weights as shares of the total block cost.
+export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlockCost }) {
+  const degenerate = Math.abs(dUpper - dActive) < 0.0001;
+  const n = retained.length;
+
+  // Retained weights as held (frozen). Zero block cost → nothing to allocate.
+  const w = totalBlockCost > 0
+    ? retained.map(r => Math.max(0, (r.excessCost ?? 0) / totalBlockCost))
+    : retained.map(() => 0);
+
+  const solve = () => {
+    const R   = w.reduce((s, x) => s + x, 0);
+    const D_R = w.reduce((s, x, i) => s + x * (retained[i].duration ?? 0), 0);
+    if (degenerate) {                       // durations coincide: split the remainder evenly
+      const rest = Math.max(0, 1 - R);
+      return { wAct: rest / 2, wUp: rest / 2 };
+    }
+    const wUp  = ((dGap - D_R) - (1 - R) * dActive) / (dUpper - dActive);
+    return { wAct: (1 - R) - wUp, wUp };
+  };
+
+  let { wAct, wUp } = solve();
+
+  // Sell the oldest retained maturity down until the solve is feasible again.
+  let sold = false;
+  for (let i = 0; i < n && (wAct < 0 || wUp < 0); i++) {
+    w[i] = 0;                               // deplete this maturity fully, then re-check
+    sold = true;
+    ({ wAct, wUp } = solve());
+  }
+
+  // Still infeasible with every retained leg sold: clamp to the plain two-sided answer.
+  let feasible = wAct >= 0 && wUp >= 0;
+  if (!feasible) {
+    const b = bracketWeights(dActive, dUpper, dGap);
+    wAct = b.lowerWeight; wUp = b.upperWeight;
+    for (let i = 0; i < n; i++) w[i] = 0;
+  }
+
+  return { retainedWeights: w, activeWeight: wAct, upperWeight: wUp, feasible, sold };
+}
+
 // ─── Bracket excess quantities ────────────────────────────────────────────────
 // Spec: 4.0 Phase 3c, 4.0 Named Quantities excessQtyAfter
 export function bracketExcessQtys(totalCost, lowerWeight, upperWeight, lowerCostPerBond, upperCostPerBond) {

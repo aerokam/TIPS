@@ -4,7 +4,7 @@
 import { bondCalcs, calculateMDuration, yieldFromPrice, calcMktWtdAvg } from '../../shared/src/bond-math.js';
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 export { yieldFromPrice };
-import { interpolateYield, syntheticCoupon, bracketWeights, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
+import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
 import { sizeLadder, selectLadderBonds, fundedYearAmount } from './ladder-core.js';
 import { localDate, fmtDate, toDateStr } from './date-util.js';
 
@@ -1097,46 +1097,50 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const bracketExcessTargetCost = {};
   if (gapYears.length > 0) {
     if (is3Bracket) {
-      // 3-bracket lower bracket target: use newLower (2036) duration for 2-bracket formula.
-      // This is the optimal cost if 2036 were the sole lower bracket.
-      const { lowerWeight: lw_nl, upperWeight: uw_nl } = bracketWeights(newLowerDuration, upperDuration, gapParams.avgDuration);
-      lowerWeight = lw_nl; upperWeight = uw_nl; upperWeight3 = uw_nl;
-      const targetLowerCost = gapParams.totalCost * lw_nl;
+      // Retained lower-side maturities are frozen at the excess already held and enter the
+      // duration solve at their OWN duration; only the active lower bracket and the upper
+      // bracket are solved. Pricing retained excess at the ACTIVE bracket's duration (as this
+      // did from 463b07a) leaves the block under-matched, because an older maturity is shorter.
+      // Spec 2.0 §Retained Bracket Excess; 3.0 §Lower-side priority rule.
+      const _excessCostOf = (year, cusip) => {
+        const b   = tipsMap.get(cusip);
+        const cpb = (b?.price ?? 0) / 100 * calcIndexRatio(refCPI, b?.baseCpi ?? refCPI) * 1000;
+        const h   = yearInfo[year]?.holdings?.find(x => x.cusip === cusip);
+        return Math.max(0, (h?.qty ?? 0) - (bracketTargetFundedYearQtyBefore[year] ?? 0)) * cpb;
+      };
 
-      // Current excess cost for orig lower (2034).
-      const _olBond = tipsMap.get(brackets.lowerCUSIP);
-      const _olIR   = calcIndexRatio(refCPI, _olBond?.baseCpi ?? refCPI);
-      const _olCPB  = (_olBond?.price ?? 0) / 100 * _olIR * 1000;
-      const _olH    = yearInfo[brackets.lowerYear]?.holdings?.find(h => h.cusip === brackets.lowerCUSIP);
-      const _olCurrentExcessCost = Math.max(0, (_olH?.qty ?? 0) - (bracketTargetFundedYearQtyBefore[brackets.lowerYear] ?? 0)) * _olCPB;
+      // Retained = lower-side bracket maturities older than the active one, OLDEST FIRST
+      // (the order the solver depletes them in when the match is otherwise unsolvable).
+      const retainedList = [
+        { year: brackets.lowerYear, cusip: brackets.lowerCUSIP, duration: lowerDuration },
+      ]
+        .filter(r => r.year != null && r.cusip != null && r.year < newLowerYear)
+        .sort((a, b) => a.year - b.year)
+        .map(r => ({ ...r, excessCost: _excessCostOf(r.year, r.cusip) }));
 
-      // Current excess cost for new lower (2036).
-      const _nlBondObj = tipsMap.get(newLowerCUSIP);
-      const _nlIR      = calcIndexRatio(refCPI, _nlBondObj?.baseCpi ?? refCPI);
-      const _nlCPB     = (_nlBondObj?.price ?? 0) / 100 * _nlIR * 1000;
-      const _nlH       = yearInfo[newLowerYear]?.holdings?.find(h => h.cusip === newLowerCUSIP);
-      const _nlCurrentExcessCost = Math.max(0, (_nlH?.qty ?? 0) - (bracketTargetFundedYearQtyBefore[newLowerYear] ?? 0)) * _nlCPB;
+      const wN = bracketWeightsN({
+        retained: retainedList,
+        dActive: newLowerDuration,
+        dUpper:  upperDuration,
+        dGap:    gapParams.avgDuration,
+        totalBlockCost: gapParams.totalCost,
+      });
 
-      let olTargetCost, nlTargetCost;
-      if (_olCurrentExcessCost + _nlCurrentExcessCost > targetLowerCost) {
-        // Over-allocated: sell orig lower (2034) first; only sell new lower (2036) if still over.
-        const overage    = _olCurrentExcessCost + _nlCurrentExcessCost - targetLowerCost;
-        const sellFromOL = Math.min(_olCurrentExcessCost, overage);
-        olTargetCost     = Math.max(0, _olCurrentExcessCost - sellFromOL);
-        nlTargetCost     = Math.max(0, _nlCurrentExcessCost - (overage - sellFromOL));
-      } else {
-        // Under-allocated: freeze orig lower at current; buy new lower to cover remainder.
-        olTargetCost = _olCurrentExcessCost;
-        nlTargetCost = Math.max(0, targetLowerCost - _olCurrentExcessCost);
-      }
+      // lowerWeight now carries the ACTIVE bracket's own share, not the whole lower side, so
+      // retained + active + upper sum to exactly 1 (they previously double-counted the retained
+      // share in the gap-LMI allocation below).
+      lowerWeight = wN.activeWeight; upperWeight = wN.upperWeight; upperWeight3 = wN.upperWeight;
+      bracketFellBack3to2 = !wN.feasible;
 
-      bracketExcessTargetCost[brackets.lowerYear] = olTargetCost;
-      bracketExcessTargetCost[newLowerYear]        = nlTargetCost;
-      bracketExcessTargetCost[brackets.upperYear]  = gapParams.totalCost * uw_nl;
+      retainedList.forEach((r, i) => {
+        bracketExcessTargetCost[r.year] = gapParams.totalCost * wN.retainedWeights[i];
+      });
+      bracketExcessTargetCost[newLowerYear]       = gapParams.totalCost * wN.activeWeight;
+      bracketExcessTargetCost[brackets.upperYear] = gapParams.totalCost * wN.upperWeight;
 
       // Effective weights for summary reporting.
-      origLowerWeight = gapParams.totalCost > 0 ? olTargetCost / gapParams.totalCost : 0;
-      newLowerWeight3 = gapParams.totalCost > 0 ? nlTargetCost / gapParams.totalCost : 0;
+      origLowerWeight = wN.retainedWeights[0] ?? 0;
+      newLowerWeight3 = wN.activeWeight;
     }
     if (!is3Bracket) {
       const weights2Bracket = bracketWeights(lowerDuration, upperDuration, gapParams.avgDuration);
