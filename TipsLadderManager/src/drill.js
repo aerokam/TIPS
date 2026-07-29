@@ -725,21 +725,20 @@ export function buildDurationPopupRows(summary, mode) {
     const w1 = (origLowerWeight ?? 0), w2 = (newLowerWeight3 ?? 0), w3 = (summary.upperWeight3 ?? summary.upperWeight ?? 0);
     const fellBack = !!summary.bracketFellBack3to2;
     // bracketWeightsN (gap-math.js): retained leg (orig lower) is frozen at held excess/total
-    // cost, sold to zero first if the block is over-allocated; only the active (new) lower and
-    // upper legs are solved from the duration constraint, so this note must track that formula
-    // exactly rather than describe the pre-fix (463b07a-era) cost-split approximation.
-    const upperFml = fellBack
-      ? '(upper dur \u2212 avg dur) / (upper dur \u2212 new lower dur)'
-      : '((avg dur \u2212 w1\u00d7orig dur) \u2212 (1\u2212w1)\u00d7new lower dur) / (upper dur \u2212 new lower dur)';
+    // cost; if the block is over-allocated it is sold down only as far as the duration match
+    // requires (earliest leg first, clamped to [0, currently held]) \u2014 never depleted outright
+    // when a partial sale would restore the match. Only active (new) lower and upper are solved
+    // from the duration constraint, so this note must track that formula exactly.
+    const upperFml = '((avg dur \u2212 w1\u00d7orig dur) \u2212 (1\u2212w1)\u00d7new lower dur) / (upper dur \u2212 new lower dur)';
 
     rows.push(
       { label: 'Orig lower (' + lowerYear + ')',    note: 'mod. duration', value: lowerDuration.toFixed(2) + ' yr' },
       { label: 'New lower (' + newLowerYear + ')',  note: 'mod. duration', value: newLowerDuration.toFixed(2) + ' yr' },
       { label: 'Upper (' + upperYear + ')',         note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
       { sep: true },
-      { label: 'Orig lower weight (w1)', note: 'held excess / gap total cost (frozen; sold to zero first if over-allocated)', value: w1.toFixed(4) },
-      { label: 'Upper weight',           note: upperFml,                                                                       value: w3.toFixed(4) },
-      { label: 'New lower weight',       note: '(1 \u2212 w1) \u2212 upper weight',                                                     value: w2.toFixed(4) }
+      { label: 'Orig lower weight (w1)', note: 'held excess / gap total cost (frozen; sold down only as far as the match requires if over-allocated)', value: w1.toFixed(4) },
+      { label: 'Upper weight',           note: upperFml,                                                                                                value: w3.toFixed(4) },
+      { label: 'New lower weight',       note: '(1 \u2212 w1) \u2212 upper weight',                                                                                value: w2.toFixed(4) }
     );
     buckets.push({ dur: lowerDuration, weight: w1, label: String(lowerYear) });
     buckets.push({ dur: newLowerDuration, weight: w2, label: String(newLowerYear) });
@@ -750,7 +749,7 @@ export function buildDurationPopupRows(summary, mode) {
                 + ' + ' + w3.toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2)
                 + ' = ' + avg.toFixed(2);
     rows.push({ sep: true }, { label: 'Duration match', note: match, total: true });
-    if (fellBack) rows.push({ sep: true }, { label: '2-bracket fallback', note: 'Even after selling orig lower to zero, the duration match was still infeasible; new lower/upper solved as a plain 2-bracket pair (orig lower excluded).' });
+    if (fellBack) rows.push({ sep: true }, { label: 'Degenerate inputs', note: 'Bracket durations coincide, or the gap average falls outside the active-lower/upper span \u2014 the duration match has no ordinary solution.' });
 
   } else if (lowerYear == null) {
     // No lower bracket (firstYear is inside the gap \u2014 all coverage on upper bracket alone)

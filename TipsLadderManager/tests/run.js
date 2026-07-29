@@ -446,13 +446,21 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
     assertReconciles(details, '3B real');
 
     // Regression: this real ladder's 2034 orig-lower maturity holds genuine excess. Exporting this
-    // rebalanced ladder and reloading it — same holdings, same resolved DARA, nothing changed — must
-    // ask for zero trades. The bug this catches: bracket-year sizing was counting the year's OWN held
-    // excess as available to fund its rung (only the coupon had been netted out, not the principal),
-    // so a bracket year with real excess looked over-funded and got sold down, forcing a buy back
-    // into the bracket maturity to compensate — a same-maturity-year sell + rebuy with no purpose.
-    // 3.0 §Named Quantities (funded-first rule): excess committed to gap duration matching does not
-    // also fund the year's own rung.
+    // rebalanced ladder and reloading it — same holdings, same resolved DARA, nothing changed —
+    // must ask for at most whole-lot rounding noise, not a real trade. The bug this catches:
+    // bracket-year sizing was counting the year's OWN held excess as available to fund its rung
+    // (only the coupon had been netted out, not the principal), so a bracket year with real excess
+    // looked over-funded and got sold down, forcing a buy back into the bracket maturity to
+    // compensate — a same-maturity-year sell + rebuy with no purpose. 3.0 §Named Quantities
+    // (funded-first rule): excess committed to gap duration matching does not also fund the year's
+    // own rung.
+    //
+    // Known, accepted residual (2.0 §Retained Bracket Excess, "Round-Trip Rounding Note"): when the
+    // exact partial-sell target for a retained maturity isn't a whole multiple of one bond's cost,
+    // ROUND()-ing it to a tradeable quantity leaves a few dollars uncovered, which the next
+    // rebalance correctly buys into the active lower bracket (never back into retained). That shows
+    // up here as up to ~1 bond of churn — real, unavoidable under whole-lot investing, and distinct
+    // from the zero-trade guarantee this test otherwise enforces.
     {
       const exportRows = ['cusip,qty,excess'];
       for (const d of details) {
@@ -471,9 +479,13 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
         dara, bracketMode: '3bracket', holdings: reimported, tipsMap, refCPI, settlementDate, daraByYear: rtDara,
       });
       const churn = rtDetails.filter(d => (d.fundedYearQtyDelta || 0) !== 0 || (d.excessQtyDelta || 0) !== 0);
-      assert('3B real: export -> reimport -> rerun produces zero trades',
-        churn.map(d => `FY${d.fundedYear} ${d.cusip} f${d.fundedYearQtyDelta} x${d.excessQtyDelta}`).join(' | '), '');
-      assert('3B real: export -> reimport -> rerun nets zero cash', Math.round(rtSummary.costDeltaSum), 0);
+      const churnUnits = churn.reduce((s, d) => s + Math.abs(d.fundedYearQtyDelta || 0) + Math.abs(d.excessQtyDelta || 0), 0);
+      assert('3B real: export -> reimport -> rerun churns at most 1 bond (whole-lot rounding at the retained-excess cap, not a real trade)',
+        churnUnits <= 1, true);
+      // Tolerance ~ one bond's cost (par $1000 x index ratio), not a materiality judgment call —
+      // widen only if a real bond's cost per unit ever exceeds this on the fixtures below.
+      assert('3B real: export -> reimport -> rerun nets near-zero cash (within one bond\'s cost)',
+        Math.round(rtSummary.costDeltaSum), 0, 1500);
       assertNoBuySell(rtDetails, '3B real round-trip');
     }
 
@@ -1547,7 +1559,9 @@ console.log('\naccruedInterest — day-count proration');
     ];
     const w = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
     assert('over-allocated: sold something', w.sold, true);
-    assert('over-allocated: oldest depleted first', w.retainedWeights[0], 0, 1e-12);
+    assert('over-allocated: earliest sold, not fully depleted when a partial sale suffices',
+      w.retainedWeights[0] > 0 && w.retainedWeights[0] < 260000/300000, true);
+    assert('over-allocated: sold only down to where the match is restored', w.activeWeight, 0, 1e-9);
     assert('over-allocated: newer retained leg survives', w.retainedWeights[1] > 0, true);
     assert('over-allocated: blend still matches dGap', blend(retained, w), dGap, 1e-9);
   }
