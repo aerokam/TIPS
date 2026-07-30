@@ -521,19 +521,20 @@ test('build: no NaN in table cells or drill popup', async ({ page }) => {
   await page.locator('#drill-close').click();
 });
 
-// ── 11. Per-year DARA panel ───────────────────────────────────────────────────
-test('build: per-year DARA panel renders when DARA focused with last year selected', async ({ page }) => {
+// ── 11. Per-year DARA (table-integrated) ────────────────────────────────────────
+test('build: per-year DARA inputs render inline in the table once built', async ({ page }) => {
   await page.locator('.tab-btn[data-mode="build"]').click();
   const lastYearSel = page.locator('#last-year');
   const optionCount = await lastYearSel.locator('option').count();
   await lastYearSel.selectOption({ index: optionCount - 1 });
 
-  // Clicking DARA triggers focus handler → renderDaraByYearPanel (DARA already '40000')
-  await page.locator('#dara').click();
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 3_000 });
+  // Build mode has no pre-build preview (unlike Rebalance's before-state) — the inline per-year
+  // inputs only exist once a ladder has actually been built (DARA already '40000' by default).
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
 
   // Must have at least one row with a data-year input
-  const yearInputs = page.locator('#dara-by-year-table input[data-year]');
+  const yearInputs = page.locator('#build-table .fy-dara-input[data-year]');
   expect(await yearInputs.count()).toBeGreaterThan(0);
 });
 
@@ -543,14 +544,13 @@ test('build: editing a per-year DARA input blanks the DARA field to "by year"', 
   const optionCount = await lastYearSel.locator('option').count();
   await lastYearSel.selectOption({ index: optionCount - 1 });
 
-  await page.locator('#dara').click();
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 3_000 });
-  // Panel body starts collapsed — expand it
-  await page.locator('#dara-by-year-hdr').click();
-  await expect(page.locator('#dara-by-year-table input[data-year]').first()).toBeVisible({ timeout: 2_000 });
+  await page.locator('#run-btn').click();
+  // Scoped to #build-table — the Rebalance side's before-state preview (auto-loaded sample
+  // holdings) also has matching .fy-dara-input elements earlier in DOM order, just hidden.
+  await expect(page.locator('#build-table .fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
   // Change first year's target to something different from the default
-  const firstYearInput = page.locator('#dara-by-year-table input[data-year]').first();
+  const firstYearInput = page.locator('#build-table .fy-dara-input[data-year]').first();
   await firstYearInput.fill('20000');   // fires input event → updateDaraInput()
 
   // A single top-level number would now be misleading — the box goes blank with a "by year" hint
@@ -559,13 +559,14 @@ test('build: editing a per-year DARA input blanks the DARA field to "by year"', 
   await expect(page.locator('#dara')).toHaveAttribute('placeholder', 'by year');
 });
 
-test('rebalance: per-year DARA panel renders after loading holdings and entering DARA', async ({ page }) => {
+test('rebalance: per-year DARA inputs render inline after loading holdings and entering DARA', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  // Typing into DARA fires 'input' → renderDaraByYearPanel; holdings already loaded above
+  // Typing into DARA fires 'input' → renderDaraByYearPanel → refreshes the before-state preview;
+  // holdings already loaded above.
   await page.locator('#dara').fill('10000');
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 3_000 });
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 3_000 });
 
-  const yearInputs = page.locator('#dara-by-year-table input[data-year]');
+  const yearInputs = page.locator('.fy-dara-input[data-year]');
   expect(await yearInputs.count()).toBeGreaterThan(0);
 });
 
@@ -733,8 +734,7 @@ test('rebalance: gap-free portfolio with interior holes makes no large trades', 
 test('rebalance: Infer LMP fills an empty interior year to the segment DARA', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(path.join(FIXTURES, 'OfxInteriorHoles.csv'));
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 
@@ -742,7 +742,7 @@ test('rebalance: Infer LMP fills an empty interior year to the segment DARA', as
   await page.locator('#split-year-add').selectOption({ value: '2030' });
   await page.locator('#seg-rows .seg-infer-btn[data-idx="0"]').click();
   // Panel now shows a flat LMP DARA on 2029 (the empty year).
-  const lmp2029 = await page.locator('#dara-by-year-table input[data-year="2029"]').inputValue();
+  const lmp2029 = await page.locator('.fy-dara-input[data-year="2029"]').inputValue();
   expect(parseFloat(lmp2029.replace(/[^0-9.-]/g, '')), '2029 shows the LMP DARA in the panel').toBeGreaterThan(1000);
 
   await page.locator('#run-btn').click();
@@ -870,23 +870,24 @@ test('build variable DARA then rebalance: per-year panel round-trips exactly', a
 
   // Select last year 2029 and default first year (settlement year ≈ 2026)
   await page.locator('#last-year').selectOption('2029');
-
-  // Set scalar DARA to 40000 then open per-year panel via click/focus
   await page.locator('#dara').fill('40000');
-  await page.locator('#dara').click();
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 3_000 });
-  // Panel body starts collapsed — expand it
-  await page.locator('#dara-by-year-hdr').click();
-  await expect(page.locator('#dara-by-year-table input[data-year]').first()).toBeVisible({ timeout: 2_000 });
 
-  // Set first available year to 20000 and last year (2029) to 50000
-  const firstInput = page.locator('#dara-by-year-table input[data-year]').first();
+  // Build once to materialize the table's inline per-year DARA inputs (Build mode has no
+  // pre-build preview the way Rebalance does — nothing to value before a ladder exists). Scoped
+  // to #build-table — the Rebalance side's auto-loaded sample holdings also has matching
+  // .fy-dara-input elements earlier in DOM order, just hidden.
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#build-table .fy-dara-input[data-year]').first()).toBeVisible({ timeout: 6_000 });
+
+  // Set first available year to 20000 and last year (2029) to 50000 — Build-mode per-rung edits
+  // auto-rebuild the already-built table on commit (blur), same live behavior as Rebalance.
+  const firstInput = page.locator('#build-table .fy-dara-input[data-year]').first();
   const firstYear = await firstInput.getAttribute('data-year');
   await firstInput.fill('20000');
-  await page.locator('#dara-by-year-table input[data-year="2029"]').fill('50000');
-
-  // Build the ladder
-  await page.locator('#run-btn').click();
+  await firstInput.blur();
+  const lastYearInput = page.locator('#build-table .fy-dara-input[data-year="2029"]');
+  await lastYearInput.fill('50000');
+  await lastYearInput.blur();
   await expect(page.locator('#build-table tbody tr').first()).toBeVisible({ timeout: 6_000 });
 
   // Export CUSIP/qty
@@ -899,7 +900,7 @@ test('build variable DARA then rebalance: per-year panel round-trips exactly', a
 
   // Switch to Rebalance and load the exported file. Tab-switch synchronously restores the
   // Rebalance panel's STASHED state from the page-load sample-preload (index.html ~709,
-  // `_daraByYearStore = _daraByYearStoreRebal`) — so #dara-by-year is already visible with stale
+  // `_daraByYearStore = _daraByYearStoreRebal`) — so the inline per-year inputs already show stale
   // sample-derived values the instant the tab click happens, before the just-uploaded file's async
   // parse (single `await file.text()` in the #holdings-file 'change' handler) has resolved and
   // overwritten it. A one-shot inputValue() read here can race ahead of that overwrite and observe
@@ -907,12 +908,14 @@ test('build variable DARA then rebalance: per-year panel round-trips exactly', a
   // real value lands (or the timeout expires), rather than a point-in-time read.
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
   await page.locator('#holdings-file').setInputFiles(exportPath);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+  await expect(page.locator('#simple-table .fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
   // Explicit-block honor path: values must reproduce the exact typed inputs, not just an ordering.
-  await expect(page.locator(`#dara-by-year-table input[data-year="${firstYear}"]`),
+  // Scoped to #simple-table — #build-table still holds the just-built ladder from above, and a
+  // year like 2029 exists (with a coincidentally matching value) in both tables at this point.
+  await expect(page.locator(`#simple-table .fy-dara-input[data-year="${firstYear}"]`),
     'first-year DARA should round-trip to exactly 20000').toHaveValue('20000', { timeout: 3_000 });
-  await expect(page.locator('#dara-by-year-table input[data-year="2029"]'),
+  await expect(page.locator('#simple-table .fy-dara-input[data-year="2029"]'),
     '2029 DARA should round-trip to exactly 50000').toHaveValue('50000', { timeout: 3_000 });
 
   // Run rebalance — reconstructing the same targets reproduces the same ladder, so net cash is
@@ -982,14 +985,15 @@ async function _twoSegSetup(page, name) {
 
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
   await page.locator('#holdings-file').setInputFiles(csvPath);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 }
 
-const _lmpVals  = (page) => page.locator('#dara-by-year-table input[data-year]').evaluateAll(els => els.filter(e => +e.dataset.year <= 2047).map(e => e.value));
-const _specVals = (page) => page.locator('#dara-by-year-table input[data-year]').evaluateAll(els => els.filter(e => +e.dataset.year >  2047).map(e => e.value));
+// Scoped to #simple-table — #build-table still holds the ladder _twoSegSetup built to produce the
+// import file, and its leftover .fy-dara-input elements would otherwise pollute these lists.
+const _lmpVals  = (page) => page.locator('#simple-table .fy-dara-input[data-year]').evaluateAll(els => els.filter(e => +e.dataset.year <= 2047).map(e => e.value));
+const _specVals = (page) => page.locator('#simple-table .fy-dara-input[data-year]').evaluateAll(els => els.filter(e => +e.dataset.year >  2047).map(e => e.value));
 
 test('two-segment DARA: split does not auto-infer; inferring the top segment cascades down, never up', async ({ page }) => {
   test.setTimeout(20_000);
@@ -1025,7 +1029,7 @@ test('two-segment DARA: split does not auto-infer; inferring the top segment cas
   //    that the whole portfolio nets to zero; net-cash-to-zero is covered by the infer-based test.)
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').fill('55000');
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').blur();
-  await expect(page.locator('#dara-by-year-table input[data-year="2050"]')).toHaveValue('55000');
+  await expect(page.locator('#simple-table .fy-dara-input[data-year="2050"]')).toHaveValue('55000');
   const lmp3 = await _lmpVals(page);
   expect(new Set(lmp3).size, 'LMP stays flat after the speculative constant cascades down').toBe(1);
 
@@ -1040,7 +1044,7 @@ test('two-segment DARA: a hand-typed rung survives a segment infer that would ot
   await expect(page.locator('#seg-rows .seg-row')).toHaveCount(2);
 
   // Hand-type one specific LMP year — this is the user's stated intent for that rung.
-  const pinnedRung = page.locator('#dara-by-year-table input[data-year="2030"]');
+  const pinnedRung = page.locator('#simple-table .fy-dara-input[data-year="2030"]');
   await pinnedRung.fill('12345');
   await pinnedRung.blur();
   await expect(pinnedRung).toHaveValue('12345');
@@ -1114,7 +1118,7 @@ test('per-year DARA: Undo and Revert restore prior values and blank the inferred
   test.setTimeout(20_000);
   await _twoSegSetup(page, 'undo.csv');
 
-  const rung = page.locator('#dara-by-year-table input[data-year="2030"]');
+  const rung = page.locator('#simple-table .fy-dara-input[data-year="2030"]');
   const lmpConst = page.locator('#seg-rows .seg-const-input[data-idx="0"]');
   const loaded = await rung.inputValue();
 
@@ -1150,8 +1154,7 @@ test('per-year DARA: Undo and Revert restore prior values and blank the inferred
 test('per-year DARA: opt-in Remember caches the plan across a reload; banner requires Apply', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-remember-row')).toBeVisible({ timeout: 2_000 });
 
@@ -1159,7 +1162,7 @@ test('per-year DARA: opt-in Remember caches the plan across a reload; banner req
   await expect(cb).not.toBeChecked();
   await expect(page.locator('#dara-plan-banner')).not.toBeVisible();
 
-  const rung = page.locator('#dara-by-year-table input[data-year]').first();
+  const rung = page.locator('.fy-dara-input[data-year]').first();
   const rungYear = await rung.getAttribute('data-year');
 
   // Opt in, then make an edit — the edit is what gets remembered. The per-rung commit save runs
@@ -1183,12 +1186,11 @@ test('per-year DARA: opt-in Remember caches the plan across a reload; banner req
   await page.reload();
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
   await expect(page.locator('#dara-remember-cb')).toBeChecked();
   await expect(page.locator('#dara-plan-banner')).toBeVisible({ timeout: 2_000 });
-  const freshRung = page.locator(`#dara-by-year-table input[data-year="${rungYear}"]`);
+  const freshRung = page.locator(`.fy-dara-input[data-year="${rungYear}"]`);
   expect(await freshRung.inputValue(), 'load mirror shows fresh portfolio value, not the saved one, until Apply').not.toBe('123456');
   await expect(page.locator('#seg-rows .seg-row'), 'fresh reload has no split years yet').toHaveCount(1);
 
@@ -1207,8 +1209,7 @@ test('per-year DARA: opt-in Remember caches the plan across a reload; banner req
 test('per-year DARA: Apply restores the saved last-year even when the fresh reload infers a different one', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-remember-row')).toBeVisible({ timeout: 2_000 });
 
@@ -1221,9 +1222,9 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
 
   // Narrow the range and save under it.
   await lySel.selectOption(String(savedLY));
-  await expect(page.locator(`#dara-by-year-table input[data-year="${inferredLY}"]`)).toHaveCount(0);
+  await expect(page.locator(`.fy-dara-input[data-year="${inferredLY}"]`)).toHaveCount(0);
   await page.locator('#dara-remember-cb').check();
-  const rung = page.locator('#dara-by-year-table input[data-year]').first();
+  const rung = page.locator('.fy-dara-input[data-year]').first();
   await rung.fill('77777');
   await rung.blur();
   await page.waitForFunction(() =>
@@ -1233,8 +1234,7 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
   await page.reload();
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   // No explicit _openDaraPlan here — the banner assertion below only passes if the dropdown
   // auto-opened on its own (a saved plan was found), which is itself the thing being verified.
   await expect(page.locator('#dara-plan-banner')).toBeVisible({ timeout: 2_000 });
@@ -1242,7 +1242,7 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
 
   await page.locator('#dara-plan-apply').click();
   await expect(lySel, 'Apply must snap last-year back to the saved range').toHaveValue(String(savedLY));
-  await expect(page.locator(`#dara-by-year-table input[data-year="${inferredLY}"]`),
+  await expect(page.locator(`.fy-dara-input[data-year="${inferredLY}"]`),
     'years outside the saved range must not reappear in the table').toHaveCount(0);
 });
 
@@ -1253,13 +1253,12 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
 test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closing without acting', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-plan-hdr')).not.toHaveClass(/needs-attention/);
 
   await page.locator('#dara-remember-cb').check();
-  const rung = page.locator('#dara-by-year-table input[data-year]').first();
+  const rung = page.locator('.fy-dara-input[data-year]').first();
   await rung.fill('99999');
   await rung.blur();
   await page.waitForFunction(() =>
@@ -1268,10 +1267,10 @@ test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closi
   await page.reload();
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
-  // No click on #dara-plan-hdr or #dara-by-year-hdr here — the dropdown (and its banner) must
-  // already be open on its own.
+  // No click on #dara-plan-hdr here — the dropdown (and its banner) must already be open on its
+  // own.
   await expect(page.locator('#dara-plan-banner'), 'dropdown auto-opens with no click needed').toBeVisible({ timeout: 2_000 });
   await expect(page.locator('#dara-plan-hdr')).toHaveClass(/needs-attention/);
 
@@ -1292,8 +1291,7 @@ test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closi
 test('per-year DARA: standalone plan file exports and re-imports split years + per-year values', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 
@@ -1308,8 +1306,8 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').blur();
   await page.locator('#seg-rows .seg-const-input[data-idx="0"]').fill('33000');
   await page.locator('#seg-rows .seg-const-input[data-idx="0"]').blur();
-  const rungYear = await page.locator('#dara-by-year-table input[data-year]').first().getAttribute('data-year');
-  const rung = page.locator(`#dara-by-year-table input[data-year="${rungYear}"]`);
+  const rungYear = await page.locator('.fy-dara-input[data-year]').first().getAttribute('data-year');
+  const rung = page.locator(`.fy-dara-input[data-year="${rungYear}"]`);
   await expect(rung, 'segment 0 rung reflects its flat constant before export').toHaveValue('33000');
 
   const downloadPromise = page.waitForEvent('download');
@@ -1323,8 +1321,8 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   // mirroring the production Browse-button handler's own workaround for this browser quirk.)
   await page.evaluate(() => { document.getElementById('holdings-file').value = ''; });
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  // Panel stays expanded from the earlier header click (collapse state isn't reset per load) — no need to click again.
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+  // Inline inputs render as soon as the before-state preview renders — no expand step needed.
   expect(await rung.inputValue(), 'fresh reload is the plain mirror again').not.toBe('33000');
   await expect(page.locator('#seg-rows .seg-row'), 'fresh reload has no split years').toHaveCount(1);
 
@@ -1344,8 +1342,13 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
 async function _buildSegSetup(page, lastYear = '2055') {
   await page.locator('.tab-btn[data-mode="build"]').click();
   await page.locator('#last-year').selectOption({ value: lastYear });
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
-  await page.locator('#dara-by-year-hdr').click();
+  // Build mode has no pre-build preview — build once so the table's inline per-year DARA inputs
+  // exist; segment infer/const/Apply auto-rebuild this table from then on (index.html
+  // _runSegmentInfer/_runSegmentConst/dara-plan-apply's `wasBuilt` check).
+  await page.locator('#run-btn').click();
+  // Scoped to #build-table — the Rebalance side's auto-loaded sample holdings also has matching
+  // .fy-dara-input elements earlier in DOM order, just hidden.
+  await expect(page.locator('#build-table .fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 }
@@ -1366,7 +1369,7 @@ test('build: segment split + "$ each" stamping works; no Infer DARA button ever 
   // "$ each" stamping is Build's batch-entry mechanism — stamp the earlier (idx 0) segment flat.
   await page.locator('#seg-rows .seg-const-input[data-idx="0"]').fill('25000');
   await page.locator('#seg-rows .seg-const-input[data-idx="0"]').blur();
-  const firstRung = page.locator('#dara-by-year-table input[data-year]').first();
+  const firstRung = page.locator('#build-table .fy-dara-input[data-year]').first();
   await expect(firstRung).toHaveValue('25000');
 });
 
@@ -1382,7 +1385,8 @@ test('mode toggle: switching Build <-> Rebalance does not leak split years betwe
   // Build's split year.
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await expect(page.locator('#dara-by-year')).toBeVisible({ timeout: 4_000 });
+  // Scoped to #simple-table — #build-table still holds the ladder _buildSegSetup built above.
+  await expect(page.locator('#simple-table .fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
   await expect(page.locator('#seg-rows .seg-row'), 'fresh rebalance load has no split years of its own').toHaveCount(1);
@@ -1401,7 +1405,7 @@ test('per-year DARA: opt-in Remember caches the plan across a reload in Build mo
   await expect(cb).not.toBeChecked();
   await expect(page.locator('#dara-plan-banner')).not.toBeVisible();
 
-  const rung = page.locator('#dara-by-year-table input[data-year]').first();
+  const rung = page.locator('#build-table .fy-dara-input[data-year]').first();
   const rungYear = await rung.getAttribute('data-year');
 
   await cb.check();
@@ -1423,7 +1427,7 @@ test('per-year DARA: opt-in Remember caches the plan across a reload in Build mo
 
   await expect(page.locator('#dara-remember-cb')).toBeChecked();
   await expect(page.locator('#dara-plan-banner')).toBeVisible({ timeout: 2_000 });
-  const freshRung = page.locator(`#dara-by-year-table input[data-year="${rungYear}"]`);
+  const freshRung = page.locator(`#build-table .fy-dara-input[data-year="${rungYear}"]`);
   expect(await freshRung.inputValue(), 'fresh Build mirror shows the plain default, not the saved value, until Apply').not.toBe('54321');
   await expect(page.locator('#seg-rows .seg-row'), 'fresh Build load has no split years yet').toHaveCount(1);
 
@@ -1445,8 +1449,8 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').blur();
   await page.locator('#seg-rows .seg-const-input[data-idx="0"]').fill('33000');
   await page.locator('#seg-rows .seg-const-input[data-idx="0"]').blur();
-  const rungYear = await page.locator('#dara-by-year-table input[data-year]').first().getAttribute('data-year');
-  const rung = page.locator(`#dara-by-year-table input[data-year="${rungYear}"]`);
+  const rungYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const rung = page.locator(`#build-table .fy-dara-input[data-year="${rungYear}"]`);
   await expect(rung, 'segment 0 rung reflects its flat constant before export').toHaveValue('33000');
 
   const downloadPromise = page.waitForEvent('download');
