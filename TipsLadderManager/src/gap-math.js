@@ -55,10 +55,21 @@ export function bracketWeights(lowerDuration, upperDuration, avgGapDuration) {
 // still not enough does the next-earliest leg get the same treatment. Selling a whole leg when a
 // partial sale would do is needless trading, not the rule.
 //
-// `retained` is oldest → newest. Returns weights as shares of the total block cost.
-export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlockCost }) {
+// `retained` is oldest → newest. `activeFloorWeight` (optional, default 0) is the active lower
+// bracket's OWN currently-held excess, expressed as a share of totalBlockCost — the active bracket
+// is "the only lower-side maturity a rebalance buys" (DATA_DICTIONARY §Active Lower Bracket); it is
+// never sold to make room for a duration match the way retained legs may be. When the unconstrained
+// solve would require shrinking active BELOW what it already holds, that is over-allocation exactly
+// as much as a negative wAct is — the retained legs (oldest first) are sold down further to make
+// room, so active never loses ground to an older, already-retained leg. Passing the default 0
+// reproduces the exact old behavior (only a literal negative wAct triggers selling), so every
+// existing caller/test that doesn't pass this is unaffected.
+//
+// Returns weights as shares of the total block cost.
+export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlockCost, activeFloorWeight = 0 }) {
   const degenerate = Math.abs(dUpper - dActive) < 0.0001;
   const n = retained.length;
+  const floor = Math.max(0, activeFloorWeight || 0);
 
   // Retained weights as held (frozen). Zero block cost → nothing to allocate.
   const w = totalBlockCost > 0
@@ -78,30 +89,34 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
 
   let { wAct, wUp } = solve();
 
-  // wAct < 0 means the lower side is carrying more than the block needs — you would have to hold
-  // a negative amount of the latest 10Y to come back to dGap. Sell the EARLIEST maturity, and only
-  // as much as it takes to bring wAct to 0; if depleting it entirely still is not enough, move to
-  // the next earliest. Selling a whole leg when a partial sale would do forces needless trading.
+  // wAct < floor means the lower side is carrying more than the block needs while still leaving
+  // room for the active bracket's own current holding — you would have to shrink active below what
+  // it already holds (floor=0: a literal negative amount) to come back to dGap. Sell the EARLIEST
+  // retained maturity, and only as much as it takes to bring wAct back up to exactly `floor`; if
+  // depleting it entirely still is not enough, move to the next earliest. Selling a whole leg when
+  // a partial sale would do forces needless trading.
   //
-  // Holding every other leg fixed, the weight of leg i that lands exactly on wAct = 0 is
-  //   wᵢ = [dGap − D_fixed − (1 − R_fixed)·d_up] / (dᵢ − d_up)
-  // from the same two equations with w_act dropped. dᵢ < d_up, so the denominator is negative.
+  // Holding every other leg fixed, the weight of leg i that lands exactly on wAct = floor is
+  //   wᵢ = [dGap − D_fixed − floor·d_act − (1 − R_fixed − floor)·d_up] / (dᵢ − d_up)
+  // from the same two equations with w_act fixed at `floor` instead of dropped entirely; floor = 0
+  // reduces this to the original formula exactly.
   let sold = false;
-  for (let i = 0; i < n && wAct < 0; i++) {
+  for (let i = 0; i < n && wAct < floor; i++) {
     const R_fixed = w.reduce((s, x, j) => j === i ? s : s + x, 0);
     const D_fixed = w.reduce((s, x, j) => j === i ? s : s + x * (retained[j].duration ?? 0), 0);
     const di      = retained[i].duration ?? 0;
     const den     = di - dUpper;
-    const wanted  = Math.abs(den) < 0.0001 ? 0 : (dGap - D_fixed - (1 - R_fixed) * dUpper) / den;
+    const wanted  = Math.abs(den) < 0.0001 ? 0 : (dGap - D_fixed - floor * dActive - (1 - R_fixed - floor) * dUpper) / den;
     const next    = Math.min(w[i], Math.max(0, wanted));   // never increase, never below zero
     if (next !== w[i]) { w[i] = next; sold = true; }
     ({ wAct, wUp } = solve());
   }
 
-  // With every retained leg sold off this reduces to the plain two-sided case, which always has a
-  // solution when the gap average sits between the two bracket durations. `feasible` stays as a
-  // signal for the degenerate inputs (coincident durations, dGap outside the bracket span).
-  const feasible = wAct >= -1e-9 && wUp >= -1e-9;
+  // With every retained leg sold off this reduces to the plain two-sided case (activeFloorWeight
+  // permitting), which always has a solution when the gap average sits between the two bracket
+  // durations. `feasible` stays as a signal for the degenerate inputs (coincident durations, dGap
+  // outside the bracket span, or a floor too high for even zero retained to satisfy).
+  const feasible = wAct >= floor - 1e-9 && wUp >= -1e-9;
   return { retainedWeights: w, activeWeight: wAct, upperWeight: wUp, feasible, sold };
 }
 

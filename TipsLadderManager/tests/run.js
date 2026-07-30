@@ -398,6 +398,39 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
       console.log('        blend ' + blend.toFixed(6) + '  vs dGap ' + summary.gapParams.avgDuration.toFixed(6));
     }
 
+    // ── Regression: retained (older) leg sold before the active (newer) bracket ──────────────
+    // (financial-correctness bug #7, real-holdings repro). 2.0 §Retained Bracket Excess / §Active
+    // Lower Bracket: the active lower bracket (2036 here) is "the only lower-side maturity a
+    // rebalance buys" — retained excess (2034, older) is what gets sold, oldest first, when the
+    // lower side is over-allocated. Before the bracketWeightsN activeFloorWeight fix (gap-math.js),
+    // this exact real portfolio did the opposite: 2036's excess got wiped from 36 to 0 while 2034
+    // kept 75 of its 83 excess bonds — because the unconstrained duration solve let the active
+    // bracket's weight fall toward its literal zero floor (a short, oversized retained leg forces
+    // the rest of the block toward the longest-duration leg to hit the average), and nothing kept
+    // the active leg from being sold below what it already held. The fix floors the solve at the
+    // active bracket's own current excess, so shrinking below that now sells more of the retained
+    // leg instead — sell-oldest-first genuinely wins even when the unconstrained solve alone would
+    // not have flagged it as "over-allocated" (activeWeight landing at/near 0, not negative).
+    {
+      const row2034 = details.find(d => d.fundedYear === 2034 && d.isBracketTarget);
+      const row2036 = details.find(d => d.fundedYear === 2036 && d.isBracketTarget);
+      assert('3B real: retained (2034) and active (2036) bracket rows both present',
+        row2034 != null && row2036 != null, true);
+      if (row2034 && row2036) {
+        console.log('        2034 (retained) excess: ' + row2034.excessQtyBefore + ' -> ' + row2034.excessQtyAfter
+          + '  (' + row2034.excessQtyDelta + ')');
+        console.log('        2036 (active)   excess: ' + row2036.excessQtyBefore + ' -> ' + row2036.excessQtyAfter
+          + '  (' + row2036.excessQtyDelta + ')');
+        // The active bracket's excess must never be sold below what it currently holds.
+        assert('3B real: active (2036) bracket excess is not sold below its current holding',
+          row2036.excessQtyAfter >= row2036.excessQtyBefore, true);
+        // The retained (older) leg absorbs the lower-side reduction the block's duration match
+        // requires — it sells strictly more (in absolute terms) than the active leg.
+        assert('3B real: retained (2034) excess is sold down further than active (2036)',
+          Math.abs(row2034.excessQtyDelta) > Math.abs(row2036.excessQtyDelta), true);
+      }
+    }
+
     // The fixture above holds NO excess in the older lower maturity, so its retained weight is
     // 0 and the invariant holds trivially. This portfolio's 2034 also carries far MORE excess
     // than the gap block needs, so old and new code alike just sell it down — the over-allocated
@@ -1564,6 +1597,42 @@ console.log('\naccruedInterest — day-count proration');
     assert('over-allocated: sold only down to where the match is restored', w.activeWeight, 0, 1e-9);
     assert('over-allocated: newer retained leg survives', w.retainedWeights[1] > 0, true);
     assert('over-allocated: blend still matches dGap', blend(retained, w), dGap, 1e-9);
+  }
+
+  // 5. activeFloorWeight — the active bracket must never be sold below what it currently holds,
+  // even when the unconstrained solve (activeFloorWeight omitted / 0) would land its weight at or
+  // near zero without ever going literally negative (financial-correctness bug #7: a real
+  // portfolio hit exactly this — a large, short-duration retained leg pulled the whole remainder
+  // toward the upper bracket, computing an active-bracket target of ~0 and wiping out excess the
+  // "over-allocated, sell retained" branch never triggered on because the raw solve wasn't
+  // negative). A retained leg sized/durationed to squeeze active toward its floor must instead
+  // sell down further — oldest first, same mechanism as case 4 — to make room.
+  {
+    // Without a floor: this retained leg (short duration, large share) squeezes active to ~0.
+    const retained = [{ duration: 6.9, excessCost: 180000 }];
+    const total = 223000;
+    const noFloor = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: total });
+    assert('activeFloorWeight: without a floor, active is squeezed to ~0 (not negative)',
+      Math.abs(noFloor.activeWeight) < 1e-6, true);
+
+    // With a floor requiring active to keep at least a 10% share, the retained leg must sell down
+    // further instead — active lands exactly on its floor, not below it.
+    const activeFloorWeight = 0.10;
+    const withFloor = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: total, activeFloorWeight });
+    assert('activeFloorWeight: active lands exactly on its floor, not below it',
+      withFloor.activeWeight, activeFloorWeight, 1e-9);
+    assert('activeFloorWeight: retained leg sold down further than the no-floor case',
+      withFloor.retainedWeights[0] < noFloor.retainedWeights[0], true);
+    assert('activeFloorWeight: retained leg was actually sold (flagged)', withFloor.sold, true);
+    assert('activeFloorWeight: blend still matches dGap with the floor applied',
+      blend(retained, withFloor), dGap, 1e-9);
+    assert('activeFloorWeight: weights still sum to 1',
+      withFloor.retainedWeights[0] + withFloor.activeWeight + withFloor.upperWeight, 1, 1e-12);
+
+    // Omitting activeFloorWeight entirely must reproduce the exact old (floor=0) behavior —
+    // existing callers/tests that never pass it are unaffected.
+    const omitted = bracketWeightsN({ retained, dActive: dAct, dUpper: dUp, dGap, totalBlockCost: total });
+    assert('activeFloorWeight: omitting it entirely matches an explicit 0', omitted.activeWeight, noFloor.activeWeight, 1e-12);
   }
 }
 
