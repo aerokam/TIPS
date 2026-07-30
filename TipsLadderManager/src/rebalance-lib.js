@@ -1118,12 +1118,22 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         .sort((a, b) => a.year - b.year)
         .map(r => ({ ...r, excessCost: _excessCostOf(r.year, r.cusip) }));
 
+      // The active lower bracket is "the only lower-side maturity a rebalance buys"
+      // (DATA_DICTIONARY §Active Lower Bracket) — it is never sold to make room for an older,
+      // already-retained leg. Floor the duration solve at whatever excess it currently holds, so a
+      // retained leg large/short enough to otherwise squeeze the active leg toward (or below) zero
+      // gets sold down further instead (3.0 §Lower-side priority rule; the sell-oldest-first branch
+      // now triggers on "would shrink active below its current holding", not just "solves negative").
+      const activeFloorCost = _excessCostOf(newLowerYear, newLowerCUSIP);
+      const activeFloorWeight = gapParams.totalCost > 0 ? activeFloorCost / gapParams.totalCost : 0;
+
       const wN = bracketWeightsN({
         retained: retainedList,
         dActive: newLowerDuration,
         dUpper:  upperDuration,
         dGap:    gapParams.avgDuration,
         totalBlockCost: gapParams.totalCost,
+        activeFloorWeight,
       });
 
       // lowerWeight now carries the ACTIVE bracket's own share, not the whole lower side, so
