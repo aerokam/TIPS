@@ -30,7 +30,7 @@ production impact go here.
   existed) — same bug, unreachable from build but live via rebalance. Extracted the whole
   duration-match → cover-excess-quantity computation out of `sizeLadder` into a standalone
   `sizeFuture30yCover()` (`ladder-core.js`), which both `sizeLadder` and `rebalance-lib.js` now
-  call — single source of truth, no separate fix needed on the rebalance side. Commit `<pending>`.
+  call — single source of truth, no separate fix needed on the rebalance side. Commit `bd05a15`.
 
 ### 2036 (active lower bracket) excess not previewable before Run
 
