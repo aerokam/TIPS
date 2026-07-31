@@ -8,6 +8,29 @@ production impact go here.
 
 ## FIXED
 
+### Future 30Y duration match: negative weight/quantity on a short single-year block
+
+- **Found:** 2026-07-31, build mode, `lastYear=2057` (a single-year Future 30Y block).
+- **Symptom:** the 2052 upper cover solved to a negative duration-match weight, producing a
+  negative excess quantity for it.
+- **Root cause:** `bracketWeights()` (`gap-math.js`) solved `lowerWeight`/`upperWeight` from the
+  raw two-sided formula with no bound. The deep-discount, near-zero-coupon 2052 cover carries an
+  unusually long duration for its maturity, while a higher-coupon single-year block like 2057 can
+  have a shorter duration than the 2056 lower cover itself — putting the block's average duration
+  below `d_lower`, which the raw formula solves as `lowerWeight > 1`, `upperWeight < 0`. Only the
+  opposite corner (`avgDuration > d_upper`) was flagged (`future30yFellBack`), and even that flag
+  didn't clamp the weights it flagged.
+- **Fix:** `bracketWeights()` now clamps `lowerWeight` to `[0, 1]` before deriving `upperWeight`,
+  so the block falls entirely on the nearer cover in either direction instead of solving past it.
+  Accepts a larger duration-match delta in that corner case rather than a negative trade.
+- **Files:** `src/gap-math.js`, `knowledge/2.0_TIPS_Ladders.md`, `knowledge/4.0_Computation_Modules.md`,
+  `tests/run.js`. Commit `768ab98`.
+- **Known gap, not yet fixed:** `rebalance-lib.js` computes its own Future-30Y target weights
+  inline (~line 854) instead of calling the now-fixed `bracketWeights()` — it has its own ad hoc
+  clamp for the `avgDuration > d_upper` corner but not the `avgDuration < d_lower` one hit here.
+  Only reachable via rebalance with a short single-year Future 30Y block; not exercised by the
+  regression test added for this fix (build-only).
+
 ### 2036 (active lower bracket) excess not previewable before Run
 
 - **Found:** 2026-07-29, branch `before-state-dara-redesign`, real Kevin IRA holdings.
