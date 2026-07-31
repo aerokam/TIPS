@@ -219,7 +219,7 @@ function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraBy
   const label = String(fy) + (isBracketGroup ? '*' : '');
   const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears);
   const labelTd = isBracketGroup
-    ? `<td colspan="${labelCount}" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}"><span class="formula-var bracket-tip-target">${esc(label)}</span>${suffix}${daraHTML}</td>`
+    ? `<td colspan="${labelCount}"><span class="formula-var bracket-tip-target" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}">${esc(label)}</span>${suffix}${daraHTML}</td>`
     : `<td colspan="${labelCount}">${esc(label)}${suffix}${daraHTML}</td>`;
 
   let html = `<tr class="${cls}" data-fy="${fy}" data-expanded="true">`;

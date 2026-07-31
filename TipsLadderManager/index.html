@@ -1194,12 +1194,12 @@ function _hideBracketTip() { bracketTip.style.display = 'none'; }
 
 [simpleEl, tableEl].forEach(tbl => {
   tbl.addEventListener('mouseover', e => {
-    const td = e.target.closest('td[data-tip-html]');
-    if (td) _showBracketTip(td);
+    const el = e.target.closest('[data-tip-html]');
+    if (el) _showBracketTip(el);
   });
   tbl.addEventListener('mouseout', e => {
-    const td = e.target.closest('td[data-tip-html]');
-    if (td && !td.contains(e.relatedTarget)) _hideBracketTip();
+    const el = e.target.closest('[data-tip-html]');
+    if (el && !el.contains(e.relatedTarget)) _hideBracketTip();
   });
 });
 
