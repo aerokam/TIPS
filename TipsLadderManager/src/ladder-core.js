@@ -27,6 +27,51 @@ function calcFuture30yParams(future30yYears, bond2056, settlementDate, dara, dar
   return future30yParamsCore({ future30yYears, coverBond2056: bond2056, settlementDate, dara, daraByYear });
 }
 
+// ─── Future 30Y cover sizing: duration match → cover excess quantities ─────────
+// Spec: 2.0 §Duration Matching (Brackets), §Future 30Y Rungs. Single source of truth for
+// build (via sizeLadder below) AND rebalance (rebalance-lib's pre-PLI future-cover pass) —
+// both need this BEFORE the rest of sizeLadder runs (rebalance needs future30yUpperExQty for
+// the AMD pre-ladder pool; sizeLadder needs it for the corrected sweep), so it is its own
+// function rather than inlined once inside sizeLadder.
+// Returns { future30yParams, future30yLowerDuration, future30yUpperDuration,
+//           future30yLowerWeight, future30yUpperWeight, future30yLowerExQty, future30yUpperExQty,
+//           future30yFellBack, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth }.
+// No-op shape (all zero/null) when future30yYears is empty.
+export function sizeFuture30yCover({
+  future30yYears, future30yLowerCoverBond, future30yUpperCoverBond,
+  settlementDate, dara, daraByYear = null, refCPI,
+}) {
+  let future30yParams = null;
+  let future30yLowerDuration = 0, future30yUpperDuration = 0;
+  let future30yUpperWeight = 0, future30yLowerWeight = 0;
+  let future30yUpperExQty = 0, future30yLowerExQty = 0;
+  let future30yFellBack = false;
+  let future30yTotalExcessCost = 0;
+  let future30yLowerMonth = null, future30yUpperMonth = null;
+
+  if (future30yYears.length > 0) {
+    future30yParams = calcFuture30yParams(future30yYears, future30yLowerCoverBond, settlementDate, dara, daraByYear);
+    future30yLowerDuration = calculateMDuration(settlementDate, future30yLowerCoverBond.maturity, future30yLowerCoverBond.coupon ?? 0, future30yLowerCoverBond.yield ?? 0);
+    future30yUpperDuration = calculateMDuration(settlementDate, future30yUpperCoverBond.maturity, future30yUpperCoverBond.coupon ?? 0, future30yUpperCoverBond.yield ?? 0);
+
+    ({ lowerWeight: future30yLowerWeight, upperWeight: future30yUpperWeight } = bracketWeights(future30yLowerDuration, future30yUpperDuration, future30yParams.avgDuration));
+    if (future30yParams.avgDuration > future30yUpperDuration) future30yFellBack = true;
+
+    const future30yLowerCPB = (future30yLowerCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yLowerCoverBond.baseCpi ?? refCPI) * 1000;
+    const future30yUpperCPB = (future30yUpperCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yUpperCoverBond.baseCpi ?? refCPI) * 1000;
+    ({ lowerExQty: future30yLowerExQty, upperExQty: future30yUpperExQty } = bracketExcessQtys(future30yParams.future30yTotalCost, future30yLowerWeight, future30yUpperWeight, future30yLowerCPB, future30yUpperCPB));
+    future30yTotalExcessCost = future30yLowerExQty * future30yLowerCPB + future30yUpperExQty * future30yUpperCPB;
+    future30yLowerMonth = BL_MONTHS[future30yLowerCoverBond.maturity.getMonth()];
+    future30yUpperMonth = BL_MONTHS[future30yUpperCoverBond.maturity.getMonth()];
+  }
+
+  return {
+    future30yParams, future30yLowerDuration, future30yUpperDuration,
+    future30yLowerWeight, future30yUpperWeight, future30yLowerExQty, future30yUpperExQty,
+    future30yFellBack, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth,
+  };
+}
+
 // ─── Shared per-year funded Amount (single source of truth for build & rebalance "After") ───
 // A funded year's annual Amount = own principal + own coupon + later-maturity interest (LMI)
 // + own-year excess coupon + held-2052 AMD, plus a pre-ladder credit. For a PLI-zeroed year
@@ -297,29 +342,11 @@ export function sizeLadder({
   }
 
   // 4a. Future 30Y parameters → duration matching → cover excess quantities.
-  let future30yParams = null;
-  let future30yLowerDuration = 0, future30yUpperDuration = 0;
-  let future30yUpperWeight = 0, future30yLowerWeight = 0;
-  let future30yUpperExQty = 0, future30yLowerExQty = 0;
-  let future30yFellBack = false;
-  let future30yTotalExcessCost = 0;
-  let future30yLowerMonth = null, future30yUpperMonth = null;
-
-  if (future30yYears.length > 0) {
-    future30yParams = calcFuture30yParams(future30yYears, future30yLowerCoverBond, settlementDate, dara, daraByYear);
-    future30yLowerDuration = calculateMDuration(settlementDate, future30yLowerCoverBond.maturity, future30yLowerCoverBond.coupon ?? 0, future30yLowerCoverBond.yield ?? 0);
-    future30yUpperDuration = calculateMDuration(settlementDate, future30yUpperCoverBond.maturity, future30yUpperCoverBond.coupon ?? 0, future30yUpperCoverBond.yield ?? 0);
-
-    ({ lowerWeight: future30yLowerWeight, upperWeight: future30yUpperWeight } = bracketWeights(future30yLowerDuration, future30yUpperDuration, future30yParams.avgDuration));
-    if (future30yParams.avgDuration > future30yUpperDuration) future30yFellBack = true;
-
-    const future30yLowerCPB = (future30yLowerCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yLowerCoverBond.baseCpi ?? refCPI) * 1000;
-    const future30yUpperCPB = (future30yUpperCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yUpperCoverBond.baseCpi ?? refCPI) * 1000;
-    ({ lowerExQty: future30yLowerExQty, upperExQty: future30yUpperExQty } = bracketExcessQtys(future30yParams.future30yTotalCost, future30yLowerWeight, future30yUpperWeight, future30yLowerCPB, future30yUpperCPB));
-    future30yTotalExcessCost = future30yLowerExQty * future30yLowerCPB + future30yUpperExQty * future30yUpperCPB;
-    future30yLowerMonth = BL_MONTHS[future30yLowerCoverBond.maturity.getMonth()];
-    future30yUpperMonth = BL_MONTHS[future30yUpperCoverBond.maturity.getMonth()];
-  }
+  const {
+    future30yParams, future30yLowerDuration, future30yUpperDuration,
+    future30yLowerWeight, future30yUpperWeight, future30yLowerExQty, future30yUpperExQty,
+    future30yFellBack, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth,
+  } = sizeFuture30yCover({ future30yYears, future30yLowerCoverBond, future30yUpperCoverBond, settlementDate, dara, daraByYear, refCPI });
 
   // ─── Accrued Market Discount on discount excess holdings (generic, multi-bond) ──
   // Each excess holding bought below par accretes AMD that is credited to earlier funded years

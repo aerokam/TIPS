@@ -25,11 +25,12 @@ production impact go here.
   Accepts a larger duration-match delta in that corner case rather than a negative trade.
 - **Files:** `src/gap-math.js`, `knowledge/2.0_TIPS_Ladders.md`, `knowledge/4.0_Computation_Modules.md`,
   `tests/run.js`. Commit `768ab98`.
-- **Known gap, not yet fixed:** `rebalance-lib.js` computes its own Future-30Y target weights
-  inline (~line 854) instead of calling the now-fixed `bracketWeights()` — it has its own ad hoc
-  clamp for the `avgDuration > d_upper` corner but not the `avgDuration < d_lower` one hit here.
-  Only reachable via rebalance with a short single-year Future 30Y block; not exercised by the
-  regression test added for this fix (build-only).
+- **Follow-up:** `rebalance-lib.js` had its own inline duplicate of this same duration-match
+  formula for Future-30Y target weights (a leftover from before `ladder-core.js`'s `sizeLadder`
+  existed) — same bug, unreachable from build but live via rebalance. Extracted the whole
+  duration-match → cover-excess-quantity computation out of `sizeLadder` into a standalone
+  `sizeFuture30yCover()` (`ladder-core.js`), which both `sizeLadder` and `rebalance-lib.js` now
+  call — single source of truth, no separate fix needed on the rebalance side. Commit `<pending>`.
 
 ### 2036 (active lower bracket) excess not previewable before Run
 

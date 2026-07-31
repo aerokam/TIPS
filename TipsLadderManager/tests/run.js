@@ -788,6 +788,27 @@ console.log('\nBuild — DARA=20000, lastYear=2057 (single Future-30Y year, avgD
   console.log(`        exQty  2056/2052:    ${summary.future30yLowerExQty} / ${summary.future30yUpperExQty}`);
 }
 
+// ── Test: Rebalance — same single-year Future 30Y corner case as build above ─────
+// Regression: rebalance-lib.js used to compute Future 30Y weights with its own inline
+// duplicate of bracketWeights' formula, missing the [0,1] clamp. It now calls the shared
+// sizeFuture30yCover (ladder-core.js), same as build. Round-trip a build 2057 ladder straight
+// back through rebalance (no overrides) and check the clamp held there too.
+console.log('\nRebalance — same DARA=20000, lastYear=2057 corner case, via build round-trip');
+{
+  const dara = 20000, lastYear = 2057;
+  const { details: bD } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate });
+  const holdings = bD
+    .map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }))
+    .filter(h => h.qty > 0);
+  const { summary } = runRebalance({ dara, bracketMode: '2bracket', holdings, tipsMap, refCPI, settlementDate });
+  assert('rebalance infers lastYear === 2057', summary.lastYear, 2057);
+  assert('rebal: no weight is negative', Math.min(summary.future30yLowerWeight, summary.future30yUpperWeight) >= 0, true);
+  assert('rebal: no weight exceeds 1', Math.max(summary.future30yLowerWeight, summary.future30yUpperWeight) <= 1, true);
+  assert('rebal: no excess quantity is negative', Math.min(summary.future30yLowerExQty, summary.future30yUpperExQty) >= 0, true);
+  console.log(`        weights 2056/2052:   ${summary.future30yLowerWeight?.toFixed(4)} / ${summary.future30yUpperWeight?.toFixed(4)}`);
+  console.log(`        exQty  2056/2052:    ${summary.future30yLowerExQty} / ${summary.future30yUpperExQty}`);
+}
+
 // ── Test: Rev 6 — cover Amount = N×DARA, AMD net-out, roll coupon hand-off ─────────
 console.log('\nBuild — Rev 6 cover Amount + roll coupon, DARA=40000, lastYear=2066');
 {

@@ -5,7 +5,7 @@ import { bondCalcs, calculateMDuration, yieldFromPrice, calcMktWtdAvg } from '..
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 export { yieldFromPrice };
 import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
-import { sizeLadder, selectLadderBonds, fundedYearAmount } from './ladder-core.js';
+import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover } from './ladder-core.js';
 import { localDate, fmtDate, toDateStr } from './date-util.js';
 
 // Re-export date helpers so existing importers (index.html, tests) keep working.
@@ -825,11 +825,6 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   //    Moved before PLI pass so future30yUpperExQty is available for AMD pre-ladder pool.
   let future30yLowerYear = null, future30yUpperYear = null;
   let future30yLowerCoverBond = null, future30yUpperCoverBond = null;
-  let future30yParams = null;
-  let future30yLowerDuration = 0, future30yUpperDuration = 0;
-  let future30yUpperWeight = 0, future30yLowerWeight = 0;
-  let future30yUpperExQty = 0, future30yLowerExQty = 0;
-  let future30yFellBack = false;
 
   if (future30yYears.length > 0) {
     for (const bond of tipsMap.values()) {
@@ -844,26 +839,15 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     if (!future30yUpperCoverBond) throw new Error('No 2052 TIPS found for future upper cover');
     future30yLowerYear = 2056;
     future30yUpperYear = 2052;
-
-    // Shared with build via future30yParamsCore — 2056 cover bond is the flat-curve anchor.
-    future30yParams = future30yParamsCore({ future30yYears, coverBond2056: future30yLowerCoverBond, settlementDate, dara: DARA, daraByYear });
-
-    future30yLowerDuration = calculateMDuration(settlementDate, future30yLowerCoverBond.maturity, future30yLowerCoverBond.coupon ?? 0, future30yLowerCoverBond.yield ?? 0);
-    future30yUpperDuration = calculateMDuration(settlementDate, future30yUpperCoverBond.maturity, future30yUpperCoverBond.coupon ?? 0, future30yUpperCoverBond.yield ?? 0);
-
-    if (future30yParams.avgDuration > future30yUpperDuration) {
-      future30yUpperWeight = 1.0; future30yLowerWeight = 0.0; future30yFellBack = true;
-    } else {
-      const span = future30yUpperDuration - future30yLowerDuration;
-      future30yUpperWeight = span > 0 ? (future30yParams.avgDuration - future30yLowerDuration) / span : 0;
-      future30yLowerWeight = 1.0 - future30yUpperWeight;
-    }
-
-    const future30yUpperCPB = (future30yUpperCoverBond.price ?? 0) / 100 * (calcIndexRatio(refCPI, future30yUpperCoverBond.baseCpi ?? refCPI)) * 1000;
-    const future30yLowerCPB = (future30yLowerCoverBond.price ?? 0) / 100 * (calcIndexRatio(refCPI, future30yLowerCoverBond.baseCpi ?? refCPI)) * 1000;
-    future30yUpperExQty = future30yUpperCPB > 0 ? Math.round(future30yParams.future30yTotalCost * future30yUpperWeight / future30yUpperCPB) : 0;
-    future30yLowerExQty = future30yLowerCPB > 0 ? Math.round(future30yParams.future30yTotalCost * future30yLowerWeight / future30yLowerCPB) : 0;
   }
+
+  // Duration match + cover excess quantities — single source of truth shared with build
+  // (ladder-core.js sizeFuture30yCover, which sizeLadder below also calls).
+  const {
+    future30yParams, future30yLowerDuration, future30yUpperDuration,
+    future30yLowerWeight, future30yUpperWeight, future30yLowerExQty, future30yUpperExQty,
+    future30yFellBack,
+  } = sizeFuture30yCover({ future30yYears, future30yLowerCoverBond, future30yUpperCoverBond, settlementDate, dara: DARA, daraByYear, refCPI });
 
   // ── Future 30Y cover AMD (spec: 2.0 §Future 30Y Cover AMD) ─────────────────────
   // AMD = interest on the held excess cover TIPS, modeled held-to-maturity, treated exactly like
