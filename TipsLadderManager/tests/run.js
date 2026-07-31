@@ -766,6 +766,28 @@ console.log('\nBuild — DARA=50000, lastYear=2060 (Future 30Y years)');
   console.log(`        totalBuyCost:        ${Math.round(summary.totalBuyCost).toLocaleString()}`);
 }
 
+// ── Test: Build — Future 30Y single-year block below the lower cover's own duration ──
+// Regression: with only 2057 in the block, its duration can land BELOW the 2056 lower cover's
+// own duration (deep-discount 2052 upper cover has an unusually long duration for its maturity,
+// while 2057's higher coupon keeps its duration short) — bracketWeights must clamp to
+// lowerWeight=1/upperWeight=0 rather than solve past the lower cover into negative territory.
+console.log('\nBuild — DARA=20000, lastYear=2057 (single Future-30Y year, avgDuration < lower cover)');
+{
+  const dara = 20000, lastYear = 2057;
+  const { summary } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate });
+  assert('future30yYears.length > 0', (summary.future30yYears?.length ?? 0) > 0, true);
+  assert('no weight is negative', Math.min(summary.future30yLowerWeight, summary.future30yUpperWeight) >= 0, true);
+  assert('no weight exceeds 1', Math.max(summary.future30yLowerWeight, summary.future30yUpperWeight) <= 1, true);
+  assert('future30yLowerWeight + future30yUpperWeight ≈ 1',
+    (summary.future30yLowerWeight ?? 0) + (summary.future30yUpperWeight ?? 0), 1, 0.0001);
+  assert('no excess quantity is negative', Math.min(summary.future30yLowerExQty, summary.future30yUpperExQty) >= 0, true);
+  console.log(`        d_lower(2056):       ${summary.future30yLowerDuration?.toFixed(4)}`);
+  console.log(`        d_avg(Future 30Y):   ${summary.future30yParams?.avgDuration?.toFixed(4)}`);
+  console.log(`        d_upper(2052):       ${summary.future30yUpperDuration?.toFixed(4)}`);
+  console.log(`        weights 2056/2052:   ${summary.future30yLowerWeight?.toFixed(4)} / ${summary.future30yUpperWeight?.toFixed(4)}`);
+  console.log(`        exQty  2056/2052:    ${summary.future30yLowerExQty} / ${summary.future30yUpperExQty}`);
+}
+
 // ── Test: Rev 6 — cover Amount = N×DARA, AMD net-out, roll coupon hand-off ─────────
 console.log('\nBuild — Rev 6 cover Amount + roll coupon, DARA=40000, lastYear=2066');
 {

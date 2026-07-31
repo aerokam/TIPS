@@ -22,10 +22,16 @@ export function syntheticCoupon(yld) {
 
 // ─── Bracket weights ──────────────────────────────────────────────────────────
 // Spec: 4.0 Phase 3c
+// Weights are shares of the block cost, so neither can go negative or above 1. If the target
+// duration falls outside [lowerDuration, upperDuration] — e.g. a deep-discount, near-zero-coupon
+// cover (2052) durations-out past a higher-coupon block average — clamp to the nearer cover
+// (weight 1) rather than solve past it. Accepts a slightly larger duration-match delta in that
+// corner case in exchange for never buying/selling a negative quantity.
 export function bracketWeights(lowerDuration, upperDuration, avgGapDuration) {
   // Degenerate guard: when the two cover durations coincide, split evenly (avoids /0).
   if (Math.abs(upperDuration - lowerDuration) < 0.0001) return { lowerWeight: 0.5, upperWeight: 0.5 };
-  const lowerWeight = (upperDuration - avgGapDuration) / (upperDuration - lowerDuration);
+  const rawLowerWeight = (upperDuration - avgGapDuration) / (upperDuration - lowerDuration);
+  const lowerWeight = Math.min(1, Math.max(0, rawLowerWeight));
   return { lowerWeight, upperWeight: 1 - lowerWeight };
 }
 
