@@ -407,6 +407,7 @@
       <div id="duration-links" style="align-self:flex-end"></div>
       <div id="ladder-stats-display" style="display:none;align-self:flex-end;flex-direction:column;gap:2px;align-items:flex-end">
         <span id="avg-yld-display" class="info-stat">Avg Yld <span id="avg-yld-val" class="info-stat-val"></span></span>
+        <span id="avg-sa-yld-display" class="info-stat">Avg SA Yld <span id="avg-sa-yld-val" class="info-stat-val"></span></span>
         <span id="wad-display" class="info-stat">Avg Mod Dur <span id="wad-val" class="info-stat-val"></span></span>
       </div>
     </div>
@@ -623,9 +624,10 @@ const YIELD_SOURCE = 'fidelity';
 async function loadData() {
   console.log('loadData() started');
   try {
-    const { yieldsRows, refCpiRows: rows, tipsRefRows, bondHolidays, asOfDate } =
+    const { yieldsRows, refCpiRows: rows, tipsRefRows, saSaoRows, bondHolidays, asOfDate } =
       YIELD_SOURCE === 'fedinvest' ? await fetchTipsData() : await fetchFidelityTipsData();
     refCpiRows = rows;
+    const saYieldByCusip = new Map(saSaoRows.map(r => [r.cusip, r.saYield]));
     _maxRefCpiDate = rows.length ? rows[rows.length - 1].date : null;
     tipsRefMap = new Map(tipsRefRows.map(r => [r.cusip, r]));
     const settleDateStr = yieldsRows[0]?.settlementDate;
@@ -636,7 +638,7 @@ async function loadData() {
     // settleDateStr is already T+1, so its "today"/trade reference is asOfDate.
     _tradeDateStr = YIELD_SOURCE === 'fedinvest' ? settleDateStr : asOfDate;
     _defaultRefCpiDateStr = nextBondTradingDay(_tradeDateStr, bondHolidays);
-    tipsMap = buildTipsMapFromYields(yieldsRows);
+    tipsMap = buildTipsMapFromYields(yieldsRows, saYieldByCusip);
 
     const bfsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity && b.maturity > settlementDate).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
     const _bfsYearSet = new Set(bfsYears);
@@ -825,7 +827,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     _infoPopups.future30yDuration = isRebalance ? _rebalFuture30yDurationRows : _buildFuture30yDurationRows;
     _renderDurationLinks();
     const _activeSummary = isRebalance ? rebalSummary : buildSummary;
-    _renderWAD(_activeSummary?.weightedAvgDuration ?? 0, _activeSummary?.weightedAvgYield ?? 0);
+    _renderWAD(_activeSummary?.weightedAvgDuration ?? 0, _activeSummary?.weightedAvgYield ?? 0, _activeSummary?.weightedAvgSaYield ?? 0);
 
     setStatus('');
     renderDaraByYearPanel();  // refreshes _panelYearRange first — the cache key below needs it current
@@ -1385,7 +1387,7 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
     }
     const _ncColor = costDeltaSum >= 0 ? '#16a34a' : '#dc2626';
     _renderDurationLinks();
-    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield);
+    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield, summary.weightedAvgSaYield);
 
   rebalDetails = details;
   rebalSummary = summary;
@@ -1435,7 +1437,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
       _infoPopups.future30yDuration = null;
     }
     _renderDurationLinks();
-    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield);
+    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield, summary.weightedAvgSaYield);
     buildDetails = details;
   buildSummary  = summary;
 
@@ -1451,11 +1453,12 @@ function renderBuildOutput({ results, HDR, summary, details }) {
   document.getElementById('table-controls').style.display = 'flex';
 }
 
-function _renderWAD(wad, way) {
+function _renderWAD(wad, way, waySa) {
   const wrap = document.getElementById('ladder-stats-display');
   if (wad) {
     document.getElementById('wad-val').textContent = wad.toFixed(2);
     document.getElementById('avg-yld-val').textContent = way ? (way * 100).toFixed(2) + '%' : '—';
+    document.getElementById('avg-sa-yld-val').textContent = waySa ? (waySa * 100).toFixed(2) + '%' : '—';
     wrap.style.display = 'flex';
   } else {
     wrap.style.display = 'none';
@@ -3094,7 +3097,7 @@ async function _showTipsRefModal(type) {
 
   let html = '<thead><tr><th>CUSIP</th><th>Maturity</th><th>Coupon</th>';
   if (type === 'Ref') html += '<th style="text-align:left">Dated Date</th><th>Base CPI</th>';
-  else html += '<th>Price</th><th>Index Ratio</th><th>Adj Price</th><th>Yield</th>';
+  else html += '<th>Price</th><th>Index Ratio</th><th>Adj Price</th><th>Yield</th><th>SA Yield</th>';
   html += '</tr></thead><tbody>';
 
   const R = ' style="text-align:right"';
@@ -3112,6 +3115,7 @@ async function _showTipsRefModal(type) {
       html += '<td' + R + '>' + (ir != null ? ir.toFixed(5) : '—') + '</td>';
       html += '<td' + R + '>' + (adjPrice != null ? adjPrice.toFixed(3) : '—') + '</td>';
       html += '<td' + R + '>' + (r.yield * 100).toFixed(3) + '%</td>';
+      html += '<td' + R + '>' + (r.saYield != null ? (r.saYield * 100).toFixed(3) + '%' : '—') + '</td>';
     }
     html += '</tr>';
   }
