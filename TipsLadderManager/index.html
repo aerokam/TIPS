@@ -60,6 +60,7 @@
   .dara-plan-card .plan-btn { padding: 3px 8px; font-size: 11px; font-weight: 700; border: 1px solid var(--tab-active-bg); border-radius: 4px; background: var(--portal-header-bg); color: var(--portal-card-text); cursor: pointer; white-space: nowrap; }
   .dara-plan-card .plan-btn:hover:not(:disabled) { background: var(--tab-active-bg); color: var(--portal-text-on-dark); }
   .dara-plan-card .plan-btn:disabled { opacity: .5; cursor: default; }
+  .dara-plan-card .plan-btn.needs-save { box-shadow: 0 0 0 2px #e05252; }
   .dara-plan-card .plan-help { background: none; border: 1px solid var(--portal-card-text); border-radius: 50%; width: 16px; height: 16px; font-size: 10px; color: var(--portal-card-text); cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0; }
   .dara-plan-card .plan-banner { display: flex; padding: 6px 8px; background: rgba(91,164,164,0.18); border: 1px solid var(--tab-active-bg); border-radius: 4px; font-size: 11px; }
   .dara-plan-card .plan-chip { display: inline-flex; align-items: center; gap: 3px; background: var(--portal-header-bg); border: 1px solid var(--tab-active-bg); border-radius: 10px; padding: 2px 6px; font-size: 11px; }
@@ -438,6 +439,11 @@
       <span class="badge-dot"></span>
     </div>
     <div id="dara-plan-body" style="display:none">
+      <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:0 0 8px;align-items:center;gap:8px;flex-wrap:wrap">
+        <span id="dara-plan-banner-text"></span>
+        <button type="button" class="plan-btn" id="dara-plan-apply">Apply</button>
+        <button type="button" class="plan-btn" id="dara-plan-dismiss" style="background:none;border-color:transparent">Dismiss</button>
+      </div>
       <div id="dara-history-tools" style="display:none;font-size:11px;margin:0 0 8px;gap:6px;align-items:center">
         <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
         <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
@@ -445,14 +451,14 @@
       <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
         <button type="button" class="plan-btn" id="dara-remember-btn" title="Save the current per-year DARA (and split years) for this device, so it's offered back next time this plan is loaded"></button>
         <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
-        <button type="button" class="plan-btn" id="dara-plan-export-btn" title="Save the current per-year DARA (and split years) to a file you can re-import next time">⬇ Export DARA Plan</button>
-        <button type="button" class="plan-btn" id="dara-plan-import-btn" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+        <div id="dara-plan-more-wrap" style="position:relative">
+          <button type="button" class="plan-btn" id="dara-plan-more-btn" title="More DARA-plan options (export/import a portable plan file)">⋮</button>
+          <div id="dara-plan-more-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;z-index:10;background:var(--portal-header-bg);border:1px solid var(--tab-active-bg);border-radius:4px;padding:4px;min-width:190px;box-shadow:0 4px 10px rgb(0 0 0 / 0.4)">
+            <button type="button" class="plan-btn" id="dara-plan-export-btn" style="display:block;width:100%;text-align:left;margin-bottom:4px" title="Save the current per-year DARA (and split years) to a file you can re-import next time, on any device">⬇ Export DARA Plan</button>
+            <button type="button" class="plan-btn" id="dara-plan-import-btn" style="display:block;width:100%;text-align:left" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+          </div>
+        </div>
         <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
-      </div>
-      <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:0 0 8px;align-items:center;gap:8px;flex-wrap:wrap">
-        <span id="dara-plan-banner-text"></span>
-        <button type="button" class="plan-btn" id="dara-plan-apply">Apply</button>
-        <button type="button" class="plan-btn" id="dara-plan-dismiss" style="background:none;border-color:transparent">Dismiss</button>
       </div>
       <div id="dara-seg-tools" style="display:none;font-size:12px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
@@ -1819,6 +1825,7 @@ function _saveDaraPlan() {
   try {
     localStorage.setItem(_daraCacheKey, JSON.stringify(payload));
     _flashDaraSavedStatus();
+    _setDaraPlanDirty(false);
   } catch { /* storage unavailable/full — convenience cache only, skip silently */ }
 }
 
@@ -1848,6 +1855,7 @@ function _updateDaraRememberUI(accountNames) {
   _daraCacheLabel = info?.label ?? null;
   banner.style.display = 'none';
   _setDaraPlanNeedsAttention(false);
+  _setDaraPlanDirty(false);  // fresh load is the clean baseline; only edits from here make it dirty
 
   if (!_daraCacheKey) { row.style.display = 'none'; return; }
   row.style.display = 'flex';
@@ -1893,10 +1901,23 @@ document.getElementById('dara-plan-apply').addEventListener('click', () => {
   updateDaraInput(true);
   document.getElementById('dara-plan-banner').style.display = 'none';
   _setDaraPlanNeedsAttention(false);
+  _setDaraPlanDirty(false);  // store now matches the cache it was just loaded from
 });
 document.getElementById('dara-plan-dismiss').addEventListener('click', () => {
   document.getElementById('dara-plan-banner').style.display = 'none';
   _setDaraPlanNeedsAttention(false);
+});
+
+// "⋮" menu tucking Export/Import away from the primary Save action — both remain the portable,
+// any-device path (2.1 §Standalone DARA-plan file); only their visual prominence changed.
+document.getElementById('dara-plan-more-btn').addEventListener('click', e => {
+  e.stopPropagation();
+  const menu = document.getElementById('dara-plan-more-menu');
+  menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+});
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('dara-plan-more-wrap');
+  if (wrap && !wrap.contains(e.target)) document.getElementById('dara-plan-more-menu').style.display = 'none';
 });
 
 // ─── Standalone DARA-plan file (export/import) ───────────────────────────────
@@ -1905,6 +1926,7 @@ document.getElementById('dara-plan-dismiss').addEventListener('click', () => {
 // fresh broker (Vanguard/Fidelity/Schwab) re-upload that will never itself carry the block. Split
 // years travel alongside it in a #splitYears line so a re-import restores the full panel state.
 document.getElementById('dara-plan-export-btn').addEventListener('click', () => {
+  document.getElementById('dara-plan-more-menu').style.display = 'none';
   if (!_daraByYearStore.size) { setStatus('Nothing to export — the per-year DARA panel is empty.', true); return; }
   const lines = ['#fundedYear,dara'];
   for (const [y, v] of [..._daraByYearStore.entries()].sort((a, b) => a[0] - b[0])) lines.push(`${y},${Math.round(v)}`);
@@ -1920,6 +1942,7 @@ document.getElementById('dara-plan-export-btn').addEventListener('click', () => 
   URL.revokeObjectURL(url);
 });
 document.getElementById('dara-plan-import-btn').addEventListener('click', () => {
+  document.getElementById('dara-plan-more-menu').style.display = 'none';
   const fi = document.getElementById('dara-plan-import-file');
   fi.value = '';
   fi.click();
@@ -1963,6 +1986,7 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   _renderSegTools();        // re-render segment rows now that the echoes are populated
   updateDaraInput(true);
   setStatus('');
+  _setDaraPlanDirty(true);  // imported values may differ from whatever's cached under this key
 });
 
 // ─── File Parsing & State ─────────────────────────────────────────────────────
@@ -2214,6 +2238,9 @@ let _daraPlanOpen = false;          // DARA Plan dropdown open state — closed 
 let _daraPlanNeedsAttention = false; // badge on #dara-plan-hdr: a saved plan was found and hasn't
                                       // been Applied/Dismissed yet — persists even if the user closes
                                       // the dropdown again without acting, so it can't be missed
+let _daraPlanDirty = false;         // highlight on #dara-remember-btn: a per-year value has changed
+                                      // since the last Save — cleared by Save, or by loading a plan
+                                      // (Apply banner) that makes the store match the cache again
 let _splitYears = [];               // segment boundaries (segmented DARA); [] → whole ladder is one segment
 let _segInferredEcho = new Map();   // segKey(years) -> last shown "$ each" value; #seg-rows is rebuilt every
                                      // render, so this is the only thing that survives a re-render to refill it
@@ -2257,6 +2284,7 @@ function _restoreDara(snap) {
   renderDaraByYearPanel();
   updateDaraInput(true);
   _renderDaraHistoryBtns();
+  _setDaraPlanDirty(true);
 }
 
 function _undoDara() {
@@ -2321,6 +2349,16 @@ function _setDaraPlanOpen(open) {
 function _setDaraPlanNeedsAttention(flag) {
   _daraPlanNeedsAttention = flag;
   document.getElementById('dara-plan-hdr')?.classList.toggle('needs-attention', flag);
+}
+
+// Highlight #dara-remember-btn and surface the card whenever a per-year DARA value changes, so the
+// save action is never hidden behind a collapsed card the user forgot was relevant (the bug this
+// whole card exists to prevent — see the cache-comment block above _saveDaraPlan). Cleared by an
+// actual Save, or by loading a plan (Apply banner) that makes the store match the cache again.
+function _setDaraPlanDirty(flag) {
+  _daraPlanDirty = flag;
+  document.getElementById('dara-remember-btn')?.classList.toggle('needs-save', flag && !!_daraCacheKey);
+  if (flag && _daraCacheKey) _setDaraPlanOpen(true);
 }
 
 document.getElementById('dara-plan-hdr').addEventListener('click', () => {
@@ -2605,6 +2643,7 @@ function _runSegmentInfer(idx) {
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
   if (wasBuilt) _runBuildFromForm();
+  _setDaraPlanDirty(true);
 }
 
 // Stamp a typed constant across one segment's rows (by index), then cascade down. A year the user
@@ -2623,6 +2662,7 @@ function _runSegmentConst(idx, val) {
   renderDaraByYearPanel();
   updateDaraInput(true);
   if (wasBuilt) _runBuildFromForm();
+  _setDaraPlanDirty(true);
 }
 
 // Adding/removing a split year only changes where the boundaries fall and reveals the resulting
@@ -2712,6 +2752,7 @@ function getDaraByYear() {
     _bracketAutoCapYears.delete(yr);
     _rungDirty = true;
     updateDaraInput(true);  // force=true: bypass active-element guard (DARA field may still have focus)
+    _setDaraPlanDirty(true);
   });
   tbl.addEventListener('focusout', e => {
     const inp = e.target.closest('.fy-dara-input');
@@ -2776,6 +2817,7 @@ document.getElementById('dara').addEventListener('blur', () => {
     });
     updateDaraInput();
     if (currentMode === 'rebalance' && !rebalanceRendered) _renderBeforeStatePreview();
+    _setDaraPlanDirty(true);
   } else if (raw.trim() === '') {
     updateDaraInput();  // restores the default / placeholder for a genuinely empty field
   }
@@ -2795,6 +2837,7 @@ function _daraStep(delta) {
   for (const [yr] of _daraByYearStore) _daraByYearStore.set(yr, newVal);
   for (const years of _segments()) _segInferredEcho.set(_segKey(years), newVal);
   renderDaraByYearPanel();
+  _setDaraPlanDirty(true);
 }
 
 document.getElementById('dara-inc').addEventListener('click', () => { _daraStep(1000);  document.getElementById('dara').focus(); });

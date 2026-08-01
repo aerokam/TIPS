@@ -1305,6 +1305,7 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   await expect(rung, 'segment 0 rung reflects its flat constant before export').toHaveValue('33000');
 
   const downloadPromise = page.waitForEvent('download');
+  await page.locator('#dara-plan-more-btn').click();
   await page.locator('#dara-plan-export-btn').click();
   const download = await downloadPromise;
   const planPath = test.info().outputPath('dara-plan.csv');
@@ -1320,6 +1321,7 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   expect(await rung.inputValue(), 'fresh reload is the plain mirror again').not.toBe('33000');
   await expect(page.locator('#seg-rows .seg-row'), 'fresh reload has no split years').toHaveCount(1);
 
+  await page.locator('#dara-plan-more-btn').click();
   await page.locator('#dara-plan-import-btn').click();
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
   await expect(rung).toHaveValue('33000');
@@ -1444,6 +1446,7 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   await expect(rung, 'segment 0 rung reflects its flat constant before export').toHaveValue('33000');
 
   const downloadPromise = page.waitForEvent('download');
+  await page.locator('#dara-plan-more-btn').click();
   await page.locator('#dara-plan-export-btn').click();
   const download = await downloadPromise;
   const planPath = test.info().outputPath('build-dara-plan.csv');
@@ -1456,6 +1459,7 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   expect(await rung.inputValue(), 'fresh reload is the plain default again').not.toBe('33000');
   await expect(page.locator('#seg-rows .seg-row'), 'fresh reload has no split years').toHaveCount(1);
 
+  await page.locator('#dara-plan-more-btn').click();
   await page.locator('#dara-plan-import-btn').click();
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
   await expect(rung).toHaveValue('33000');
