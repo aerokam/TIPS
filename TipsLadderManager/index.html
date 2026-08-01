@@ -443,10 +443,7 @@
         <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
       </div>
       <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
-        <label style="display:flex;align-items:center;gap:5px;cursor:pointer">
-          <input type="checkbox" id="dara-remember-cb" style="margin:0">
-          <span id="dara-remember-label"></span>
-        </label>
+        <button type="button" class="plan-btn" id="dara-remember-btn" title="Save the current per-year DARA (and split years) for this device, so it's offered back next time this plan is loaded"></button>
         <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
         <button type="button" class="plan-btn" id="dara-plan-export-btn" title="Save the current per-year DARA (and split years) to a file you can re-import next time">⬇ Export DARA Plan</button>
         <button type="button" class="plan-btn" id="dara-plan-import-btn" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
@@ -1779,8 +1776,10 @@ function _renderBeforeStatePreview() {
 // per-year DARA shape + split years for THIS device, keyed by account signature (broker Formats
 // 1/2 — sorted, concatenated selected account names, since one holdings file may span several
 // accounts) or by year-range signature (account-less Formats 3/4/5, which carry no account info to
-// key on). Off by default; the user opts in per holdings load via the "Remember" checkbox. Never
-// applied silently — a matching saved plan surfaces as a dismissible banner the user must click
+// key on). Saved only when the user explicitly clicks "Save DARA Plan" — no auto-resave on every
+// edit (that model relied on blur/focusout firing for every mutation to stay "in sync," which
+// Firefox was observed skipping in some interaction paths, silently losing edits). Never applied
+// silently either — a matching saved plan surfaces as a dismissible banner the user must click
 // Apply on, so the load-time mirror (3.0 §Per-Year DARA from Portfolio) stays the default behavior.
 const DARA_PLAN_PREFIX = 'tlm-dara-plan:';
 
@@ -1804,13 +1803,12 @@ function _readDaraCache(key) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch { return null; }
 }
 
-// Save the current store under the active cache key. Only called from explicit user mutations
-// (segment infer/const, per-rung edits, undo/revert, the Remember checkbox itself) — never from the
-// initial load-time mirror, so turning Remember on doesn't clobber an existing saved plan before
-// the user has seen the "Apply?" banner.
-function _saveDaraPlanIfRemembered() {
-  const cb = document.getElementById('dara-remember-cb');
-  if (!_daraCacheKey || !cb?.checked) return;
+// Save the current store under the active cache key. Only called from the explicit Save button
+// click — never automatically from a mutation, and never from the initial load-time mirror, so a
+// stray edit or the load itself can't clobber an existing saved plan before the user has seen the
+// "Apply?" banner or decided to overwrite it on purpose.
+function _saveDaraPlan() {
+  if (!_daraCacheKey) return;
   const payload = {
     splitYears: _splitYears,
     daraByYear: [..._daraByYearStore.entries()],
@@ -1824,9 +1822,8 @@ function _saveDaraPlanIfRemembered() {
   } catch { /* storage unavailable/full — convenience cache only, skip silently */ }
 }
 
-// Brief "✓ Saved" confirmation next to the Remember checkbox — makes the "checked = continuously in
-// sync, every edit resaves automatically" model visible instead of implicit (no separate action to
-// "commit" a change; nothing to remember to do beyond checking the box once).
+// Brief "✓ Saved" confirmation next to the Save button — visible feedback that the click actually
+// persisted, since there's nothing else on screen that changes.
 let _daraSavedStatusTimer = null;
 function _flashDaraSavedStatus() {
   const el = document.getElementById('dara-remember-status');
@@ -1840,24 +1837,23 @@ function _flashDaraSavedStatus() {
   }, 800);
 }
 
-// Recompute the cache key/label for the just-loaded holdings and refresh the Remember checkbox +
-// "saved plan found" banner. Called after every load path finishes _initRebalDaraFromPortfolio().
+// Recompute the cache key/label for the just-loaded holdings and refresh the Save button + "saved
+// plan found" banner. Called after every load path finishes _initRebalDaraFromPortfolio().
 function _updateDaraRememberUI(accountNames) {
   const row = document.getElementById('dara-remember-row');
   const banner = document.getElementById('dara-plan-banner');
-  const cb = document.getElementById('dara-remember-cb');
+  const btn = document.getElementById('dara-remember-btn');
   const info = _computeDaraCacheKey(accountNames);
   _daraCacheKey = info?.key ?? null;
   _daraCacheLabel = info?.label ?? null;
   banner.style.display = 'none';
   _setDaraPlanNeedsAttention(false);
 
-  if (!_daraCacheKey) { row.style.display = 'none'; cb.checked = false; return; }
+  if (!_daraCacheKey) { row.style.display = 'none'; return; }
   row.style.display = 'flex';
-  document.getElementById('dara-remember-label').textContent = `Remember this DARA plan (${_daraCacheLabel})`;
+  btn.textContent = `💾 Save DARA Plan (${_daraCacheLabel})`;
 
   const saved = _readDaraCache(_daraCacheKey);
-  cb.checked = !!saved;
   if (!saved) return;
 
   document.getElementById('dara-plan-banner-text').textContent =
@@ -1869,11 +1865,7 @@ function _updateDaraRememberUI(accountNames) {
   _setDaraPlanNeedsAttention(true);
 }
 
-document.getElementById('dara-remember-cb').addEventListener('change', () => {
-  if (!_daraCacheKey) return;
-  if (document.getElementById('dara-remember-cb').checked) _saveDaraPlanIfRemembered();
-  else { try { localStorage.removeItem(_daraCacheKey); } catch {} }
-});
+document.getElementById('dara-remember-btn').addEventListener('click', _saveDaraPlan);
 document.getElementById('dara-plan-apply').addEventListener('click', () => {
   const saved = _readDaraCache(_daraCacheKey);
   if (!saved) return;
@@ -1970,7 +1962,6 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   _syncSegEchoFromStore();
   _renderSegTools();        // re-render segment rows now that the echoes are populated
   updateDaraInput(true);
-  _saveDaraPlanIfRemembered();
   setStatus('');
 });
 
@@ -2266,7 +2257,6 @@ function _restoreDara(snap) {
   renderDaraByYearPanel();
   updateDaraInput(true);
   _renderDaraHistoryBtns();
-  _saveDaraPlanIfRemembered();
 }
 
 function _undoDara() {
@@ -2615,7 +2605,6 @@ function _runSegmentInfer(idx) {
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
   if (wasBuilt) _runBuildFromForm();
-  _saveDaraPlanIfRemembered();
 }
 
 // Stamp a typed constant across one segment's rows (by index), then cascade down. A year the user
@@ -2634,19 +2623,16 @@ function _runSegmentConst(idx, val) {
   renderDaraByYearPanel();
   updateDaraInput(true);
   if (wasBuilt) _runBuildFromForm();
-  _saveDaraPlanIfRemembered();
 }
 
 // Adding/removing a split year only changes where the boundaries fall and reveals the resulting
 // segment rows — it does NOT infer anything. The user decides which segments (if any) to infer. The
-// boundary itself is still part of the saved payload (_splitYears), so it resaves like any other
-// mutation when Remember is checked.
+// boundary itself is still part of the saved payload (_splitYears) next time the user clicks Save.
 document.getElementById('split-year-add').addEventListener('change', e => {
   const y = parseInt(e.target.value, 10);
   if (!isNaN(y)) _splitYears = [...new Set([..._splitYears, y])].sort((a, b) => a - b);
   _renderSegTools();
   updateDaraInput(true);  // a single top-level number stops being meaningful the moment segments exist
-  _saveDaraPlanIfRemembered();
 });
 document.getElementById('split-year-chips').addEventListener('click', e => {
   const btn = e.target.closest('.plan-chip-remove');
@@ -2655,7 +2641,6 @@ document.getElementById('split-year-chips').addEventListener('click', e => {
   _splitYears = _splitYears.filter(sy => sy !== y);
   _renderSegTools();
   updateDaraInput(true);  // may un-blank the top box if that was the last split and the shape is flat
-  _saveDaraPlanIfRemembered();
 });
 document.getElementById('seg-rows').addEventListener('click', e => {
   const btn = e.target.closest('.seg-infer-btn');
@@ -2740,7 +2725,7 @@ function getDaraByYear() {
         // A hand-typed year is the user's stated intent for that specific rung — protected from being
         // restamped by a later segment Infer/constant (and its auto-cascade).
         if (_rungEditYear != null) _daraManualYears.add(_rungEditYear);
-        _renderDaraHistoryBtns(); _saveDaraPlanIfRemembered();
+        _renderDaraHistoryBtns();
       }
       _rungPreEdit = null; _rungDirty = false; _rungEditYear = null;
       if (tbl === simpleEl && currentMode === 'rebalance' && !rebalanceRendered) _renderBeforeStatePreview();
@@ -2789,7 +2774,6 @@ document.getElementById('dara').addEventListener('blur', () => {
       const segInp = document.querySelector(`.seg-const-input[data-idx="${i}"]`);
       if (segInp) segInp.value = val;
     });
-    _saveDaraPlanIfRemembered();
     updateDaraInput();
     if (currentMode === 'rebalance' && !rebalanceRendered) _renderBeforeStatePreview();
   } else if (raw.trim() === '') {
@@ -2811,7 +2795,6 @@ function _daraStep(delta) {
   for (const [yr] of _daraByYearStore) _daraByYearStore.set(yr, newVal);
   for (const years of _segments()) _segInferredEcho.set(_segKey(years), newVal);
   renderDaraByYearPanel();
-  _saveDaraPlanIfRemembered();
 }
 
 document.getElementById('dara-inc').addEventListener('click', () => { _daraStep(1000);  document.getElementById('dara').focus(); });
@@ -2940,12 +2923,6 @@ function _clearAutoDara() { if (_daraAutoInferred) { document.getElementById('da
 // Refresh per-year DARA panel when the year range changes (both modes)
 function _onRebalYearRangeChange() {
   renderDaraByYearPanel();
-  // Account-keyed caches (Formats 1/2) don't depend on fy/ly — the account selection is the plan's
-  // identity, and the range is just an attribute of it — so a range change here is an edit to the
-  // SAME remembered plan and should auto-resave like any other mutation (segment infer/const,
-  // per-rung edits, undo/revert). Account-less ("range:") caches key ON fy/ly, so a range change
-  // there is "a different ladder" (mirrors Build's _onBuildYearRangeChange) — left alone.
-  if (_daraCacheKey?.startsWith(DARA_PLAN_PREFIX + 'acct:')) _saveDaraPlanIfRemembered();
 }
 document.getElementById('rebal-last-year').addEventListener('change', _onRebalYearRangeChange);
 document.getElementById('rebal-first-year').addEventListener('change', _onRebalYearRangeChange);

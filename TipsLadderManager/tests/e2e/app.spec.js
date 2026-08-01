@@ -1148,38 +1148,33 @@ test('per-year DARA: Undo and Revert restore prior values and blank the inferred
 
 // ── DARA-plan localStorage cache (account-less format → year-range key) ────────
 // SampleHoldings.csv is Format 3 (cusip,qty) — no account info, so the cache falls back to the
-// firstYear-lastYear+bracketMode key. Edit a rung, opt in to Remember, reload the page (a fresh
-// load — same as re-uploading the same file next session), re-upload the same file, and confirm
-// the saved plan surfaces as a banner rather than being applied silently, then Apply restores it.
-test('per-year DARA: opt-in Remember caches the plan across a reload; banner requires Apply', async ({ page }) => {
+// firstYear-lastYear+bracketMode key. Edit a rung, click Save, reload the page (a fresh load — same
+// as re-uploading the same file next session), re-upload the same file, and confirm the saved plan
+// surfaces as a banner rather than being applied silently, then Apply restores it.
+test('per-year DARA: Save button caches the plan across a reload; banner requires Apply', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-remember-row')).toBeVisible({ timeout: 2_000 });
-
-  const cb = page.locator('#dara-remember-cb');
-  await expect(cb).not.toBeChecked();
   await expect(page.locator('#dara-plan-banner')).not.toBeVisible();
 
   const rung = page.locator('.fy-dara-input[data-year]').first();
   const rungYear = await rung.getAttribute('data-year');
 
-  // Opt in, then make an edit — the edit is what gets remembered. The per-rung commit save runs
-  // inside a deferred setTimeout(0) (index.html's _daraTable focusout handler), so wait for it to
-  // actually land in localStorage before reloading, or the reload can race ahead of the save.
-  await cb.check();
+  // Edit a rung and a segment constant — neither autosaves. Also add a split and stamp its segment
+  // flat, so we can confirm the "$ each" box (not just the per-year table) gets repopulated on
+  // Apply. Only the explicit Save click below persists any of it.
   await rung.fill('123456');
   await rung.blur();
-  await page.waitForFunction(() =>
-    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('123456')));
-
-  // Also add a split and stamp its segment flat, so we can confirm the "$ each" box (not just the
-  // per-year table) gets repopulated on Apply.
   await page.locator('#split-year-add').selectOption({ index: 1 });
   await expect(page.locator('#seg-rows .seg-row')).toHaveCount(2);
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').fill('88000');
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').blur();
+
+  await page.locator('#dara-remember-btn').click();
+  await page.waitForFunction(() =>
+    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('123456')));
 
   // Reload fresh (new in-memory state, but same-origin localStorage persists) and re-upload the
   // same file. The mirror shows the fresh portfolio value first — no silent override.
@@ -1188,7 +1183,6 @@ test('per-year DARA: opt-in Remember caches the plan across a reload; banner req
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
-  await expect(page.locator('#dara-remember-cb')).toBeChecked();
   await expect(page.locator('#dara-plan-banner')).toBeVisible({ timeout: 2_000 });
   const freshRung = page.locator(`.fy-dara-input[data-year="${rungYear}"]`);
   expect(await freshRung.inputValue(), 'load mirror shows fresh portfolio value, not the saved one, until Apply').not.toBe('123456');
@@ -1223,10 +1217,10 @@ test('per-year DARA: Apply restores the saved last-year even when the fresh relo
   // Narrow the range and save under it.
   await lySel.selectOption(String(savedLY));
   await expect(page.locator(`.fy-dara-input[data-year="${inferredLY}"]`)).toHaveCount(0);
-  await page.locator('#dara-remember-cb').check();
   const rung = page.locator('.fy-dara-input[data-year]').first();
   await rung.fill('77777');
   await rung.blur();
+  await page.locator('#dara-remember-btn').click();
   await page.waitForFunction(() =>
     Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('77777')));
 
@@ -1257,10 +1251,10 @@ test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closi
   await _openDaraPlan(page);
   await expect(page.locator('#dara-plan-hdr')).not.toHaveClass(/needs-attention/);
 
-  await page.locator('#dara-remember-cb').check();
   const rung = page.locator('.fy-dara-input[data-year]').first();
   await rung.fill('99999');
   await rung.blur();
+  await page.locator('#dara-remember-btn').click();
   await page.waitForFunction(() =>
     Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('99999')));
 
@@ -1396,28 +1390,25 @@ test('mode toggle: switching Build <-> Rebalance does not leak split years betwe
   await expect(page.locator('#seg-rows .seg-row'), 'Build split year survives the round trip through Rebalance').toHaveCount(2);
 });
 
-test('per-year DARA: opt-in Remember caches the plan across a reload in Build mode', async ({ page }) => {
+test('per-year DARA: Save button caches the plan across a reload in Build mode', async ({ page }) => {
   test.setTimeout(20_000);
   await _buildSegSetup(page);
   await expect(page.locator('#dara-remember-row')).toBeVisible({ timeout: 2_000 });
-
-  const cb = page.locator('#dara-remember-cb');
-  await expect(cb).not.toBeChecked();
   await expect(page.locator('#dara-plan-banner')).not.toBeVisible();
 
   const rung = page.locator('#build-table .fy-dara-input[data-year]').first();
   const rungYear = await rung.getAttribute('data-year');
 
-  await cb.check();
   await rung.fill('54321');
   await rung.blur();
-  await page.waitForFunction(() =>
-    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:build:') && localStorage.getItem(k).includes('54321')));
-
   await page.locator('#split-year-add').selectOption({ index: 1 });
   await expect(page.locator('#seg-rows .seg-row')).toHaveCount(2);
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').fill('77000');
   await page.locator('#seg-rows .seg-const-input[data-idx="1"]').blur();
+
+  await page.locator('#dara-remember-btn').click();
+  await page.waitForFunction(() =>
+    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:build:') && localStorage.getItem(k).includes('54321')));
 
   // Fresh reload (new in-memory state, same-origin localStorage persists), back into Build with the
   // same last year — the mirror shows the plain default first, no silent override.
@@ -1425,7 +1416,6 @@ test('per-year DARA: opt-in Remember caches the plan across a reload in Build mo
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
   await _buildSegSetup(page);
 
-  await expect(page.locator('#dara-remember-cb')).toBeChecked();
   await expect(page.locator('#dara-plan-banner')).toBeVisible({ timeout: 2_000 });
   const freshRung = page.locator(`#build-table .fy-dara-input[data-year="${rungYear}"]`);
   expect(await freshRung.inputValue(), 'fresh Build mirror shows the plain default, not the saved value, until Apply').not.toBe('54321');
