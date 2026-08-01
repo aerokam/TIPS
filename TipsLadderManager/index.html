@@ -62,7 +62,7 @@
   .dara-plan-card .plan-btn:disabled { opacity: .5; cursor: default; }
   .dara-plan-card .plan-btn.needs-save { box-shadow: 0 0 0 2px #e05252; }
   .dara-plan-card .plan-help { background: none; border: 1px solid var(--portal-card-text); border-radius: 50%; width: 16px; height: 16px; font-size: 10px; color: var(--portal-card-text); cursor: pointer; padding: 0; line-height: 1; flex-shrink: 0; }
-  .dara-plan-card .plan-banner { display: flex; padding: 6px 8px; background: rgba(91,164,164,0.18); border: 1px solid var(--tab-active-bg); border-radius: 4px; font-size: 11px; }
+  .dara-plan-card .plan-banner { display: flex; padding: 6px 8px; background: rgba(91,164,164,0.18); border: 1px solid var(--tab-active-bg); border-radius: 4px; font-size: 11px; box-shadow: 0 0 0 2px #e05252; }
   .dara-plan-card .plan-chip { display: inline-flex; align-items: center; gap: 3px; background: var(--portal-header-bg); border: 1px solid var(--tab-active-bg); border-radius: 10px; padding: 2px 6px; font-size: 11px; }
   .dara-plan-card .plan-chip-remove { border: none; background: none; color: var(--portal-card-text); opacity: .7; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
   .dara-plan-card .seg-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
@@ -449,8 +449,8 @@
         <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
       </div>
       <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:4px">
         <button type="button" class="plan-btn" id="dara-remember-btn" title="Save the current per-year DARA (and split years) for this device, so it's offered back next time this plan is loaded"></button>
-        <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
         <div id="dara-plan-more-wrap" style="position:relative">
           <button type="button" class="plan-btn" id="dara-plan-more-btn" title="More DARA-plan options (export/import a portable plan file)">⋮</button>
           <div id="dara-plan-more-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;z-index:10;background:var(--portal-header-bg);border:1px solid var(--tab-active-bg);border-radius:4px;padding:4px;min-width:190px;box-shadow:0 4px 10px rgb(0 0 0 / 0.4)">
@@ -458,6 +458,8 @@
             <button type="button" class="plan-btn" id="dara-plan-import-btn" style="display:block;width:100%;text-align:left" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
           </div>
         </div>
+        </div>
+        <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
         <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
       </div>
       <div id="dara-seg-tools" style="display:none;font-size:12px">
@@ -2280,8 +2282,10 @@ function _restoreDara(snap) {
   _daraByYearStore = snap.store;
   _daraManualYears = snap.manual ?? new Set();
   _segInferredEcho.clear();
+  const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput();
   renderDaraByYearPanel();
+  if (wasBuilt) _runBuildFromForm();
   updateDaraInput(true);
   _renderDaraHistoryBtns();
   _setDaraPlanDirty(true);
@@ -2398,14 +2402,18 @@ function _medianOfStore() {
 
 // Blanks the top DARA box (with a "by year" placeholder hint) whenever a single number would be
 // misleading — custom per-year shape or a segmented ladder — and shows the real number otherwise.
-// force=true bypasses the active-element guard (used when per-year table fires input events).
+// force=true bypasses the active-element guard (used when per-year table fires input events) AND
+// overwrites a non-empty field — needed so a programmatic restore (Apply/Import/Undo/Revert) that
+// makes the store flat again actually replaces whatever stale text the field showed beforehand,
+// not just the placeholder. Without the force branch below, a flat restore left the field showing
+// its pre-restore number even though the store (and the per-year table, once built) had moved on.
 function updateDaraInput(force = false) {
   const inp = document.getElementById('dara');
   if (!force && document.activeElement === inp) return;  // don't interfere while user is typing
   if (_daraIsByYear()) {
     inp.value = '';
     inp.placeholder = 'by year';
-  } else if (inp.value.trim() === '') {
+  } else if (force || inp.value.trim() === '') {
     // Only fill in the default when the box is actually empty (leaving "by year" mode or a fresh
     // load) — never clobber a number the user just typed, even an invalid one Run is about to reject.
     inp.placeholder = '';
