@@ -52,7 +52,7 @@ function sourceExtent(rows) {
 
 function combinedExtent() {
   let min = null, max = null;
-  state.dataSources.forEach(src => {
+  ['cpi-nsa', 'cpi-sa', 'ref-cpi'].forEach(src => {
     const rows = getSourceRows(src);
     const ext = sourceExtent(rows);
     if (!min || (ext.min && ext.min < min)) min = ext.min;
