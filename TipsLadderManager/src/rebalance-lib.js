@@ -7,6 +7,7 @@ export { yieldFromPrice };
 import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
 import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover } from './ladder-core.js';
 import { localDate, fmtDate, toDateStr } from './date-util.js';
+import { rankForYear } from './allocation-policy.js';
 
 // Re-export date helpers so existing importers (index.html, tests) keep working.
 export { localDate, fmtDate };
@@ -660,7 +661,7 @@ export function inferSegmentedDARAFromPortfolio({ daraMap, holdings, tipsMap, re
   };
 }
 
-export function runRebalance({ dara, bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear = null, lastYearOverride = null, preLadderInterest = false, firstYearOverride = null, maturityPref = 'last' }) {
+export function runRebalance({ dara, bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear = null, lastYearOverride = null, preLadderInterest = false, firstYearOverride = null, maturityPref = 'last', allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null }) {
   const settleDateStr  = toDateStr(settlementDate);
   const settleDateDisp = fmtDate(settlementDate);
 
@@ -938,7 +939,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   // diff machinery below targets these canonical values, so a build→rebalance
   // round-trip produces zero trades. Previously rebalance recomputed the PLI pool from
   // holdings, which drifted from build's at the partial-credit boundary year (e.g. 2040).
-  const _canon = selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref });
+  const _canon = selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate, maturityPref, yearOverrides });
   const _sl = sizeLadder({
     dara: DARA, daraByYear, firstYear, lastYear, optionalYears: optionalRungYears,
     rangeYears: _canon.rangeYears, gapYears: _canon.gapYears, future30yYears: _canon.future30yYears,
@@ -1207,6 +1208,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     const isRebal = rebalYearSet.has(year);
 
     let targetCUSIP;
+    let yearRank = null; // set in the non-bracket branch below; consumed by the sell-order fix further down
     const piMap = {};
     for (const h of yi.holdings) piMap[h.cusip] = calculatePIPerBond(h.cusip, h.maturity, refCPI, tipsMap);
 
@@ -1217,20 +1219,20 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       else if (future30yYears.length > 0 && year === future30yLowerYear) targetCUSIP = future30yLowerCoverBond.cusip;
       else if (future30yYears.length > 0 && year === future30yUpperYear) targetCUSIP = future30yUpperCoverBond.cusip;
     } else {
-      const sortedH = [...yi.holdings].sort((a, b) => {
-        const aTime = a.maturity?.getTime?.() ?? 0;
-        const bTime = b.maturity?.getTime?.() ?? 0;
-        return bTime - aTime; // Latest (highest time) comes first
+      // 2.0 §Within-Year Allocation Policy / 3.0 §Named Quantities (Rebalance): candidates come
+      // from the canonical yearTipsListMap (maturityPref/yearOverrides-driven), not re-derived
+      // from tipsMap inline -- this is also the fix for the pre-existing bug where a
+      // maturityPref='all'/'semiannual' funded year's non-latest holdings were silently
+      // collapsed toward the single latest CUSIP on every rebalance.
+      yearRank = rankForYear({
+        candidates: _canon.yearTipsListMap[year] ?? [],
+        held: yi.holdings,
+        piMap,
+        tipsMap,
+        policy: allocationPolicy,
+        rankOverride: yearRankOverrides?.get(year) ?? null,
       });
-      targetCUSIP = sortedH[0]?.cusip;
-      if (!targetCUSIP && isRebal) {
-        // Fallback: pick latest maturity for this year from tipsMap
-        const yearBonds = [...tipsMap.values()].filter(b => b.maturity && b.maturity.getFullYear() === year);
-        if (yearBonds.length > 0) {
-          yearBonds.sort((a, b) => (b.maturity?.getTime?.() ?? 0) - (a.maturity?.getTime?.() ?? 0));
-          targetCUSIP = yearBonds[0].cusip;
-        }
-      }
+      targetCUSIP = yearRank[0]?.cusip;
     }
 
     // Ensure piMap has the target CUSIP — it may not be in current holdings
@@ -1295,7 +1297,13 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
           : 0;
         const targetFundedHeld = targetCurrentQty - targetExcessHeld;
         const sortedH = [...yi.holdings].sort((a, b) => b.maturity - a.maturity);
-        const nonTarget = sortedH.filter(h => h.cusip !== targetCUSIP).reverse();
+        // Sell order (3.0 §Within-Year Allocation Policy): least-preferred-to-hold first, per the
+        // active policy/rank -- yearRank is null for bracket years (untouched, oldest-first as
+        // before); for ordinary years it's rank[1..] (everything but the target) reversed, since
+        // rank[0] is most-preferred and rank[1..] is already in descending-preference order.
+        const nonTarget = yearRank
+          ? yearRank.slice(1).filter(r => r.held).reverse().map(r => yi.holdings.find(h => h.cusip === r.cusip))
+          : sortedH.filter(h => h.cusip !== targetCUSIP).reverse();
         let curPI = yi.holdings.reduce((s, h) => s + h.qty * piMap[h.cusip], 0)
                   - targetExcessHeld * piMap[targetCUSIP];
         for (const h of nonTarget) {
@@ -1831,9 +1839,11 @@ export function runFundedRebalance({
   dara, bracketMode = '2bracket', holdings, tipsMap, refCPI, settlementDate,
   daraByYear = null, isPristineMirror = false,
   lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, maturityPref = 'last',
+  allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null,
 }) {
   const base = { dara, bracketMode, holdings, tipsMap, refCPI, settlementDate,
-    lastYearOverride, firstYearOverride, preLadderInterest, maturityPref };
+    lastYearOverride, firstYearOverride, preLadderInterest, maturityPref,
+    allocationPolicy, yearRankOverrides, yearOverrides };
   let result = runRebalance({ ...base, daraByYear });
   const needsFunding = result.summary.gapYears.length > 0 || result.summary.future30yYears.length > 0;
   if (isPristineMirror && needsFunding) {
