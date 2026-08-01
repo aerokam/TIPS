@@ -1,5 +1,15 @@
 # CLAUDE.md - Treasuries Project
 
+## Specs Drive Code (read before touching code)
+
+This file is interaction/workflow guidance only — commands, tool gotchas, git hooks. It is **not** a substitute for the specs and must never restate spec content (see the top-level `CLAUDE.md`'s Specs-First Mandate and Single Source of Truth directive). Before touching code in a project that has a `knowledge/` folder, read the governing spec(s) first:
+
+- **TipsLadderManager**: `TipsLadderManager/knowledge/1.0`–`6.0`, plus `DATA_DICTIONARY.md`, `TECHNICAL_REFERENCE.md`, `PROJECT_VISION.md` in the same folder.
+- **Shared/global** (R2 data stores, ingestion pipelines, domain terminology used by every app): repo-root `knowledge/DATA_DICTIONARY.md`, `Data_Pipeline.md`, `DataStores.md`, `Bond_Basics.md`, `TIPS_Basics.md`.
+- **YieldCurves**: `YieldCurves/knowledge/` (SA/SAO adjustment logic, visual standards) plus the shared specs above for data pipeline facts — YieldCurves has no separate project-level data-pipeline spec of its own.
+
+If a claim below ever conflicts with a spec, the spec wins — fix this file, don't propagate the stale claim.
+
 ## Commands (TipsLadderManager)
 
 ```bash
@@ -20,35 +30,36 @@ npx serve .
 
 ### Module Roles
 
-| Module | Role |
-|--------|------|
-| `src/bond-math.js` | Pure per-bond math: `bondCalcs()`, `calculateMDuration()`, `rungAmount()` |
-| `src/gap-math.js` | Gap/bracket math: `calcGapParams()`, `bracketWeights()`, `bracketExcessQtys()`, yield interpolation |
-| `src/ladder-math.js` | Sweep helpers: `fyQty()`, `laterMatIntContribution()` |
-| `src/rebalance-lib.js` | Rebalance orchestrator — calls the above, no raw formulas |
-| `src/build-lib.js` | Build-from-scratch orchestrator — same constraint |
-| `src/render.js` | Table HTML from unified `COLS` schema |
-| `src/drill.js` | Popup builder: `buildDrillHTML(d, colKey, summary, mode)` |
-| `src/data.js` | CSV fetch/parse from R2 |
-| `src/modal.js` | `makeDraggableResizable(modalEl, dragHandleEl, opts)` — shared drag/resize frame for every modal (TipsRef, maturity picker) |
-| `index.html` | Thin shell: event wiring, calls render/drill, zero business logic |
+Module responsibilities and the dependency graph (bond-math.js, gap-math.js, ladder-math.js, ladder-core.js, rebalance-lib.js, build-lib.js) are specified in `knowledge/4.0_Computation_Modules.md`; `render.js`/`drill.js` in `knowledge/5.0_UI_Schema.md`. Do not restate them here.
+
+- `src/modal.js` — `makeDraggableResizable(modalEl, dragHandleEl, opts)`, shared drag/resize frame for every modal (TipsRef, maturity picker). *(Not documented in any spec yet — flagged for review, see task report.)*
 
 ### Key Algorithms
 
-**Phase 4 Ladder Rebuild** (rebalance): single longest-to-shortest sweep over ALL years including brackets. Maintains `rebuildLaterMatInt` running pool. Phase 3 only produces weights; Phase 4 does all computation.
+Phase 4 Ladder Rebuild: `knowledge/3.0_TIPS_Ladder_Rebalancing.md` §Phase 4. Retained Bracket Excess: `knowledge/2.0_TIPS_Ladders.md` §Retained Bracket Excess (also `DATA_DICTIONARY.md#retained-bracket-excess`, `DATA_DICTIONARY.md#active-lower-bracket`).
 
-**Retained Bracket Excess** (rebalance): lower-side excess in maturities older than the *active lower bracket* (the latest-maturing ladder-eligible TIPS below `minGapYear` — **not** "the latest January"). Never increased; sold **oldest maturity first**, and only when the lower side is over-allocated. Any number of generations may accumulate — do NOT name this by a bracket count. Spec: 2.0 §Retained Bracket Excess.
-
-**Full Rebalance**: `inferDARAFromCash()` binary-searches DARA until `costDeltaSum ≈ 0`.
+- `inferDARAFromCash()` (`src/rebalance-lib.js`): binary-searches for the largest DARA where `costDeltaSum >= 0`. *(Not documented in any spec — the specs describe a different mechanism, `inferScaledDARAFromPortfolio`'s self-financing scale. Flagged for review, see task report.)*
 
 ### COLS Schema
 
-`render.js` drives table output via a single `COLS` array. Each entry defines: header label, cell value function, sub-row value, totals, drill colKey, and `rebalOnly` flag. After/Before cols in Rebalance = same math as Build cols + `rebalOnly: true`.
+Column schema, rendering, and popup routing are specified in `knowledge/5.0_UI_Schema.md`. Do not restate here.
 
 ### Data Infrastructure
 
-- **R2 bucket**: `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/` — files: `Treasuries/YieldsFromFedInvestPrices.csv`, `TIPS/RefCPI.csv`, `TIPS/TipsRef.csv`
+Yield-source pipeline (default vs. cross-check source) is specified in `knowledge/3.1_Data_Pipeline.md` §4.0. Full R2 file manifest: repo-root `knowledge/DataStores.md` / `DATA_DICTIONARY.md`.
+
 - **Scheduled updates**: Windows Task Scheduler (local)
+
+### Naming Conventions
+
+*(Moved here from the YieldCurves section below, where it was misfiled — `fundedYear`/`runBuild` are TipsLadderManager-only concepts. Not documented in any spec — flagged for review, see task report.)*
+
+- `fundedYear` (not `fy`) everywhere: `d.fundedYear`, `fundedYearQty`, `fundedYearAmt`, `fundedYearCost`; column header "Funded Year"
+- `runBuild` (not `runBuildFromScratch`), `renderBuildOutput`, `buildSummary`, `buildDetails`, `build-table`
+
+### Domain Terminology
+
+Definitions (TIPS, funded year, bracket year, gap year, synthetic TIPS, LMI, retained bracket excess, active lower bracket, etc.) are in the repo-root `knowledge/DATA_DICTIONARY.md` §3.0/§4.0. Do not restate here.
 
 ## Architecture (YieldCurves)
 
@@ -64,43 +75,11 @@ npx serve .               # Serve locally (run from root of Treasuries repo)
 
 ### Data Infrastructure (R2)
 
-| R2 Key | Updated by | Task |
-|--------|-----------|------|
-| `Treasuries/YieldsFromFedInvestPrices.csv` | `scripts/run-fedinvest.cmd` | `YieldsFromFedInvestPrices` |
-| `Treasuries/FidelityTreasuriesTips.csv` | `scripts/run-fidelity.cmd` | `FidelityQuotes` (3× weekdays) |
-| `TIPS/RefCpiNsaSa.csv` | shared with TipsLadderManager | — |
-| `TIPS/YieldsSaSao.csv` | `scripts/updateSaSaoYields.js` | triggered by `FidelityQuotes` |
-| `misc/BondHolidaysSifma.csv` | shared | — |
-
-`FidelityTreasuriesTips.csv` is a **combined file** — Treasury and TIPS rows in one CSV, distinguished by the `Product` column (`Treasury` / `TIPS`). Parsers split them by product; do **not** expect two separate Fidelity files.
+R2 file manifest, update schedule, and ownership are specified in the repo-root `knowledge/Data_Pipeline.md` and `knowledge/DataStores.md` (covers `Treasuries/YieldsFromFedInvestPrices.csv`, `Treasuries/FidelityTreasuriesTips.csv`, `TIPS/RefCpiNsaSa.csv`, `TIPS/YieldsSaSao.csv`, `misc/BondHolidaysSifma.csv`). Do not restate here.
 
 ### Fidelity Download Flow
 
-Playwright + real Chrome via CDP (`fidelityDownload.js`):
-1. Navigate to `https://digital.fidelity.com/ftgw/digital/finewexp/secondaries`
-2. **Product type** → check **Treasury** + **TIPS** → **Apply**
-3. Three-dot menu → **Download Offerings** (browser download intercepted by Playwright)
-4. Saved to `~/Downloads/FidelityTreasuriesTips.csv` → uploaded to R2
-5. Upload triggers `updateSaSaoYields.js` → refreshes `TIPS/YieldsSaSao.csv`
-
-### Naming Conventions
-
-- `fundedYear` (not `fy`) everywhere: `d.fundedYear`, `fundedYearQty`, `fundedYearAmt`, `fundedYearCost`; column header "Funded Year"
-- `runBuild` (not `runBuildFromScratch`), `renderBuildOutput`, `buildSummary`, `buildDetails`, `build-table`
-
-### Terminology
-
-| Use this | Not this | Why |
-|---|---|---|
-| **TIPS** | bond, note, security | TIPS is a distinct Treasury category |
-| **actual TIPS** | real bond, real TIPS | "real" means inflation-adjusted |
-| **funded year** | real year, actual year | A funded year is a ladder rung |
-| **bracket year** | — | A funded year that also holds excess TIPS for duration matching gap years |
-| **gap year** | — | A calendar year with no TIPS issuance (currently 2037–2039) |
-| **synthetic TIPS** | synthetic bond | Hypothetical TIPS for gap years — never purchased |
-| **LMI** | — | Later Maturity Interest — annual coupon from ALL TIPS maturing after the funded year |
-| **retained bracket excess** | 3-bracket, orig lower, "retain brackets" | Excess in a lower-bracket maturity older than the active one. Never name it by a bracket count — the count grows as TIPS are issued. It's the *excess* that's retained, not the holding |
-| **active lower bracket** | new lower, canonical lower, Jan 2036 | The latest-maturing ladder-eligible TIPS below the first gap year — the only lower-side maturity a rebalance buys. A rule, not a fixed month or CUSIP |
+Specified in the repo-root `knowledge/Data_Pipeline_Local.md` (gitignored — do not reference publicly per that file's own note).
 
 ### Windows / Tooling Note
 

@@ -6,6 +6,29 @@ production impact go here.
 
 ---
 
+## OPEN
+
+### Spec/code discrepancy audit (from CLAUDE.md cleanup)
+
+- **Found:** 2026-07-31, during a CLAUDE.md audit that removed content duplicated from specs.
+- **Context:** the audit surfaced three pieces of code with no spec coverage, and confirmed one
+  real discrepancy elsewhere (`Treasuries/CLAUDE.md`'s stale yield-source list — already fixed).
+  These three still need investigation to determine whether they're undocumented-but-correct or
+  genuine drift between spec and implementation:
+  1. `src/modal.js` (`makeDraggableResizable`) — shared drag/resize frame for every modal (TipsRef,
+     maturity picker). No spec documents it.
+  2. `inferDARAFromCash()` (`src/rebalance-lib.js`) — binary-searches for the largest DARA where
+     `costDeltaSum >= 0`. No spec describes this function; 3.0 instead documents a different
+     mechanism (`inferScaledDARAFromPortfolio`'s self-financing scale) for the Run-rebalance path.
+     Need to determine whether this is legacy/import-path-only, superseded, or still load-bearing.
+  3. `fundedYear`/`runBuild` naming convention (currently in `CLAUDE.md`'s TipsLadderManager
+     section) — not stated as a rule in any spec's own naming table (4.0's "Variable Naming
+     Harmonization" table covers a different set of variables).
+- **Broader ask:** beyond these three, do a fuller pass for other spec/code discrepancies generally
+  — not just missing coverage, but places where a spec's claim no longer matches what the code
+  actually does.
+- **Status:** open, not yet investigated.
+
 ## FIXED
 
 ### Future 30Y duration match: negative weight/quantity on a short single-year block
