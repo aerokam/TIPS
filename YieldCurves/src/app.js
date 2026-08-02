@@ -1681,15 +1681,53 @@ function switchChartMode(mode) {
   }
 }
 
+// A point counts as an outlier for axis-bounds purposes only if it falls
+// outside the IQR fence computed from its own nearby-maturity neighbors —
+// the same "local fence" idea _kernelAverageTrend uses so an isolated spike
+// doesn't skew its own local average. A single fence over the *whole* series
+// doesn't work for either chart here: it's too loose to catch a spike that's
+// only extreme relative to its tight neighborhood (a lone near-maturity
+// blip), and it's too tight when most of the series sits in one dense low
+// cluster and a real, gradual trend (e.g. price spread widening through the
+// long end) is high only relative to that unrelated cluster, not to its own
+// neighbors — a whole-series fence wrongly hides that entire genuine rise.
+function _localOutlierMask(points, bandwidthYears = 1.5, minPoints = 4) {
+  const xs = points.map(p => p.x), ys = points.map(p => p.y);
+  const bandwidth = bandwidthYears * _YEAR_MS;
+  return points.map((p, i) => {
+    const dists = xs.map(x => Math.abs(x - p.x));
+    let idxs = dists.reduce((acc, d, j) => { if (d <= bandwidth && j !== i) acc.push(j); return acc; }, []);
+    if (idxs.length < minPoints) {
+      idxs = dists.map((d, j) => j).filter(j => j !== i).sort((a, b) => dists[a] - dists[b]).slice(0, minPoints);
+    }
+    if (idxs.length < 4) return false;
+    const fence = iqrClipBounds(idxs.map(j => ys[j]), 0);  // no minimum fence — spread values are small-magnitude
+    return fence ? (p.y < fence.lo || p.y > fence.hi) : false;
+  });
+}
+// Shared by initial chart creation and every rescale (zoom/pan/reset/legend
+// toggle) so "clip outliers" means the same thing everywhere, not just on
+// first load — mirrors the pattern rescaleToVisible() uses for the Yield
+// Curves chart.
+function _clippedYRange(points, shouldClip) {
+  const ys = points.map(p => p.y);
+  if (!shouldClip || points.length < 4) return { min: Math.min(...ys), max: Math.max(...ys) };
+  const mask = _localOutlierMask(points);
+  const kept = points.filter((p, i) => !mask[i]).map(p => p.y);
+  const yForScale = kept.length > 0 ? kept : ys;
+  return { min: Math.min(...yForScale), max: Math.max(...yForScale) };
+}
 function _rescaleSpread(chartInst) {
   const xMin = chartInst.scales.x.min, xMax = chartInst.scales.x.max;
-  const visY = [];
+  const visPts = [];
   chartInst.data.datasets.forEach((ds, i) => {
     if (!chartInst.isDatasetVisible(i)) return;
-    ds.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) visY.push(p.y); });
+    if (ds.type === 'line') return; // trend line, not raw data — exclude from outlier fence
+    ds.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) visPts.push(p); });
   });
-  if (visY.length === 0) return;
-  const bounds = snapYBounds(Math.min(...visY), Math.max(...visY));
+  if (visPts.length === 0) return;
+  const range = _clippedYRange(visPts, chartInst._clipOutliers);
+  const bounds = snapYBounds(range.min, range.max);
   chartInst.options.scales.y.min = bounds.min;
   chartInst.options.scales.y.max = bounds.max;
   chartInst.options.scales.y.ticks.stepSize = bounds.step;
@@ -1705,32 +1743,72 @@ function _rescaleSpread(chartInst) {
 // weighted *regression* (LOESS), a weighted average can never overshoot the
 // data in its window, so it stays visually calm even where a series has few,
 // noisy points (e.g. Bills/Notes at the short end) instead of zigzagging.
-function _kernelAverageTrend(points, span = 0.45, gridSize = 80) {
+//
+// Bandwidth is a fixed, *absolute* maturity distance (years), not a fraction
+// of the series' own x-range and not a fixed point count. A fraction of the
+// full range (e.g. 20% of a ~30yr curve ≈ 6yrs) is wide enough to smooth the
+// densely-packed short end, but on the same series it is still far wider than
+// the ~1-2yr spacing of the sparse long end — so it washes out real swings
+// that happen point-to-point out there (e.g. a rise into 2052 followed by a
+// sharp drop by 2053). A small fixed point count (k-nearest) overcorrects the
+// other way: in a dense cluster the k nearest points span too short a
+// distance, so it starts chasing per-bond noise instead of the local average.
+// A fixed absolute-distance window adapts the way both those failed to: at a
+// ~1-2yr bandwidth, a densely-packed region (many points per year) still
+// pulls in a wide, smoothing set of neighbors, while a sparse tail (~1 point
+// per year) pulls in only the couple of points actually nearby, so the curve
+// tracks them almost point-for-point.
+//
+// Yields on soon-to-mature TIPS are notoriously erratic (thin liquidity right
+// before maturity) — most often the very first bond to mature, since it's the
+// one furthest into that illiquid window. A *global* IQR fence over the whole
+// series can't catch this reliably: it's too loose to flag a spike that's
+// only extreme relative to its own tight neighborhood (a single spike inside
+// a dense cluster), and it can wrongly suppress two genuinely close, mutually
+// -corroborating points whose *level* just happens to be extreme relative to
+// the rest of the series (e.g. a real local peak at the sparse long end).
+// So the fence is computed fresh per grid point, from just the points inside
+// that point's own window — using the same `iqrClipBounds` helper the Y-axis
+// "Clip Outliers" scaling already uses, so there's one definition of "outlier
+// fence" for the whole app. This only reshapes the fitted line; the raw
+// scatter points are never altered.
+const _YEAR_MS = 365.25 * 24 * 3600 * 1000;
+function _kernelAverageTrend(points, bandwidthYears = 1.5, gridSize = 200, minPoints = 3) {
   const n = points.length;
   if (n < 5) return null;
   const sorted = [...points].sort((a, b) => a.x - b.x);
   const xs = sorted.map(p => p.x), ys = sorted.map(p => p.y);
-  const windowSize = Math.max(4, Math.min(n, Math.round(span * n)));
   const xMin = xs[0], xMax = xs[n - 1];
   if (xMax === xMin) return null;
+  const bandwidth = bandwidthYears * _YEAR_MS;
 
   const trend = [];
   for (let g = 0; g < gridSize; g++) {
     const gx = xMin + (xMax - xMin) * g / (gridSize - 1);
+    const dists = xs.map(x => Math.abs(x - gx));
 
-    // Nearest `windowSize` points to gx by maturity distance.
-    const nearest = xs
-      .map((x, i) => i)
-      .sort((a, b) => Math.abs(xs[a] - gx) - Math.abs(xs[b] - gx))
-      .slice(0, windowSize);
-    const maxDist = Math.max(...nearest.map(i => Math.abs(xs[i] - gx))) || 1;
+    // All points within the fixed bandwidth; if too few (sparse tail), fall
+    // back to the nearest `minPoints` regardless of distance.
+    let idxs = dists.reduce((acc, d, i) => { if (d <= bandwidth) acc.push(i); return acc; }, []);
+    let h = bandwidth;
+    if (idxs.length < Math.min(minPoints, n)) {
+      idxs = dists.map((d, i) => i).sort((a, b) => dists[a] - dists[b]).slice(0, minPoints);
+      h = Math.max(...idxs.map(i => dists[i])) || 1;
+    }
+
+    // Clip this window's y-values to their own local IQR fence before
+    // averaging — an outlier only relative to its immediate neighbors still
+    // gets tamed, without touching a level that's normal for its own window.
+    const windowYs = idxs.map(i => ys[i]);
+    const fence = idxs.length >= 4 ? iqrClipBounds(windowYs, 0) : null;
 
     // Tricube-weighted average of y within the local window.
     let sumW = 0, sumWY = 0;
-    for (const i of nearest) {
-      const u = Math.min(Math.abs(xs[i] - gx) / maxDist, 1);
+    for (const i of idxs) {
+      const u = Math.min(dists[i] / h, 1);
       const w = (1 - u * u * u) ** 3;
-      sumW += w; sumWY += w * ys[i];
+      const y = fence ? Math.min(fence.hi, Math.max(fence.lo, ys[i])) : ys[i];
+      sumW += w; sumWY += w * y;
     }
     trend.push({ x: gx, y: sumWY / sumW });
   }
@@ -1752,16 +1830,8 @@ function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
     ? new Date(_endDt.getFullYear(), _endDt.getMonth() + 1, 1).getTime()
     : new Date(maxDate.getFullYear() + 1, 0, 1).getTime();
   // IQR-clip Y axis to suppress near-maturity outliers (respects Clip Outliers checkbox)
-  const allY = allPoints.map(d => d.y);
-  let yForScale = allY;
-  if (shouldClip && allY.length >= 4) {
-    const clip = iqrClipBounds(allY, 0);  // no minimum fence — spread values are small-magnitude
-    if (clip) {
-      const clipped = allY.filter(y => y >= clip.lo && y <= clip.hi);
-      if (clipped.length > 0) yForScale = clipped;
-    }
-  }
-  const initBounds = snapYBounds(Math.min(...yForScale), Math.max(...yForScale));
+  const initRange = _clippedYRange(allPoints, shouldClip);
+  const initBounds = snapYBounds(initRange.min, initRange.max);
 
   const newChart = new Chart(ctx, {
     type: 'scatter',
@@ -1769,8 +1839,9 @@ function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
       datasets: [
         ...seriesDef.map(s => ({
           label: s.label, data: s.data,
-          backgroundColor: s.color,
-          pointRadius: s.r, pointHoverRadius: s.r + 1.5,
+          backgroundColor: s.color, borderColor: s.color, borderWidth: 1.5,
+          pointStyle: 'crossRot',
+          pointRadius: s.r + 1.5, pointHoverRadius: s.r + 3,
         })),
         ...seriesDef.filter(s => s.trend).map(s => ({
           type: 'line',
@@ -1830,6 +1901,7 @@ function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
       }
     }
   });
+  newChart._clipOutliers = shouldClip;
   return newChart;
 }
 
