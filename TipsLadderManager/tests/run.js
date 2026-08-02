@@ -1842,6 +1842,130 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   assert('before-state: the LATER-maturing of two exceeding candidates wins (2035, not 2034)', flags.has(2035), true);
 }
 
+// ── Within-Year Allocation Policy (2.0 §Within-Year Allocation Policy; the E invariant) ───────
+// SampleHoldings.csv holds both Apr 2027 (91282CEJ6) and Oct 2027 (91282CFR7) -- the exact
+// two-maturity-in-one-funded-year scenario used throughout the design discussion for this
+// feature. SampleHoldings.csv ALSO holds Jan 2027 (912828V49) -- filtered out here so this is a
+// clean, controlled two-maturity year rather than three-way, matching the illustrative scenario
+// exactly (confirmed empirically: with Jan included, 'equal' policy picks Jan as target instead,
+// since it's the smallest-value holding -- a real three-way scenario, just not this one's point).
+// Baseline DARA mirrors runFullRebalanceTest's own self-financing scale, so "need unchanged"
+// genuinely means zero ladder-wide trades, not just an arbitrary raw-ARA mirror.
+{
+  const fullPath = path.resolve('./data/SampleHoldings.csv');
+  if (existsSync(fullPath)) {
+    console.log('\nWithin-Year Allocation Policy (SampleHoldings minus Jan 2027, funded year 2027: Apr + Oct)');
+    const JAN27 = '912828V49';
+    const holdings = parseHoldings(readFileSync(fullPath, 'utf8')).filter(h => h.cusip !== JAN27);
+    const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
+    const bracketCandidates = getGapYearBracketCandidates(tipsMap);
+    const { daraMap } = derivePerYearDara(rawARA, bracketCandidates);
+    const { scaledMap: baseDaraMap, scaledMedian } = inferScaledDARAFromPortfolio({
+      daraMap, holdings, tipsMap, refCPI, settlementDate,
+    });
+    const APR27 = '91282CEJ6', OCT27 = '91282CFR7';
+
+    function qtyDeltaFor(details, cusip) {
+      const row = details.find(d => d.cusip === cusip && d.fundedYear === 2027);
+      return row ? (row.qtyAfter - row.qtyBefore) : null;
+    }
+
+    // (1) Need unchanged -> zero trades in 2027, for all three policies. This is THE invariant
+    // (3.0 §Within-Year Allocation Policy): a policy alone never manufactures a trade.
+    for (const policy of ['equal', 'maturity', 'saYield']) {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: baseDaraMap, allocationPolicy: policy,
+      });
+      assert(`allocation policy '${policy}': need unchanged -> Apr 2027 qty delta === 0`, qtyDeltaFor(details, APR27), 0);
+      assert(`allocation policy '${policy}': need unchanged -> Oct 2027 qty delta === 0`, qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (2) Need grows -> exactly one of {Apr, Oct} absorbs the whole increase; the other is
+    // untouched (never a simultaneous buy+sell of both, never split across both in one run).
+    const grownDara = new Map(baseDaraMap);
+    grownDara.set(2027, (grownDara.get(2027) ?? 0) + 5000);
+
+    // 'maturity': later-maturing (Oct) is preferred -> absorbs the growth; Apr untouched.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'maturity',
+      });
+      assert("allocation policy 'maturity': need grows -> Oct (later-maturing) absorbs it", qtyDeltaFor(details, OCT27) > 0, true);
+      assert("allocation policy 'maturity': need grows -> Apr (earlier-maturing) untouched", qtyDeltaFor(details, APR27), 0);
+    }
+
+    // 'saYield': force Apr's SA yield above Oct's -> Apr should be preferred instead.
+    {
+      const savedApr = tipsMap.get(APR27).saYield, savedOct = tipsMap.get(OCT27).saYield;
+      tipsMap.get(APR27).saYield = 0.03;
+      tipsMap.get(OCT27).saYield = 0.02;
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'saYield',
+      });
+      assert("allocation policy 'saYield': need grows -> higher-SA-yield (Apr, forced) absorbs it", qtyDeltaFor(details, APR27) > 0, true);
+      assert("allocation policy 'saYield': need grows -> lower-SA-yield (Oct, forced) untouched", qtyDeltaFor(details, OCT27), 0);
+      tipsMap.get(APR27).saYield = savedApr;
+      tipsMap.get(OCT27).saYield = savedOct;
+    }
+
+    // 'equal': whichever gets the growth, it must be exactly one of the two, never both/neither
+    // -- proves equal-split converges via successive single-target absorption (3.0 §Within-Year
+    // Allocation Policy), not a simultaneous multi-way split within one run.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'equal',
+      });
+      const aprGrew = qtyDeltaFor(details, APR27) > 0, octGrew = qtyDeltaFor(details, OCT27) > 0;
+      assert("allocation policy 'equal': need grows -> exactly one of Apr/Oct absorbs it (single-target funnel)", aprGrew !== octGrew, true);
+    }
+
+    // (2b) Need shrinks -> the LESS preferred maturity sells; the preferred one is untouched.
+    // -4000 is deliberately a partial sell of Apr (4 -> 1 bond), not a full drain -- confirmed
+    // empirically to stay clear of the rounding-boundary noise a too-small or too-large cut hits
+    // (a too-large cut exhausts Apr entirely and starts trimming Oct too, which is legitimate
+    // engine behavior for an oversized cut, but not what this test is isolating).
+    const shrunkDara = new Map(baseDaraMap);
+    shrunkDara.set(2027, Math.max(1000, (shrunkDara.get(2027) ?? 0) - 4000));
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: shrunkDara, allocationPolicy: 'maturity',
+      });
+      assert("allocation policy 'maturity': need shrinks -> Apr (earlier-maturing, less preferred) sells", qtyDeltaFor(details, APR27) < 0, true);
+      assert("allocation policy 'maturity': need shrinks -> Oct (later-maturing, preferred) untouched", qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (3) Per-year manual rank override wins over the global policy for that year: force Apr
+    // first even though the global policy ('maturity') would normally prefer Oct.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'maturity',
+        yearRankOverrides: new Map([[2027, [APR27, OCT27]]]),
+      });
+      assert('per-year rank override: Apr wins over the global maturity-order policy for 2027', qtyDeltaFor(details, APR27) > 0, true);
+      assert('per-year rank override: Oct untouched when overridden out of first place', qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (4) The E invariant, in the candidate-set (maturityPref) dimension: switching the global
+    // maturity preference alone, with 2027's need UNCHANGED, must never trade Apr or Oct, even
+    // under a preference that wouldn't have picked either of them from scratch (2.0 §Within-Year
+    // Allocation Policy). This is the "Apr+Oct/semiannual" scenario from the design discussion.
+    for (const maturityPref of ['first', 'all']) {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: baseDaraMap, maturityPref,
+      });
+      assert(`maturityPref='${maturityPref}' with need unchanged: Apr 2027 untouched`, qtyDeltaFor(details, APR27), 0);
+      assert(`maturityPref='${maturityPref}' with need unchanged: Oct 2027 untouched`, qtyDeltaFor(details, OCT27), 0);
+    }
+  }
+}
+
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
