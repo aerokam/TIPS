@@ -405,11 +405,12 @@
       <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
       <button id="trade-ticket-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show trade ticket with cost breakdown">Trade Ticket</button>
       <div id="duration-links" style="align-self:flex-end"></div>
-      <div id="ladder-stats-display" style="display:none;align-self:flex-end;flex-direction:column;gap:2px;align-items:flex-end">
-        <span id="avg-yld-display" class="info-stat">Avg Yld <span id="avg-yld-val" class="info-stat-val"></span></span>
-        <span id="avg-sa-yld-display" class="info-stat">Avg SA Yld <span id="avg-sa-yld-val" class="info-stat-val"></span></span>
-        <span id="wad-display" class="info-stat">Avg Mod Dur <span id="wad-val" class="info-stat-val"></span></span>
-      </div>
+    </div>
+    <!-- Row 3: post-run stats (Avg Yld / Avg SA Yld / Avg Mod Dur) -->
+    <div class="card-inputs" id="ladder-stats-display" style="display:none;margin-top:4px;flex-direction:column;gap:2px;align-items:flex-end">
+      <span id="avg-yld-display" class="info-stat">Avg Yld <span id="avg-yld-val" class="info-stat-val"></span></span>
+      <span id="avg-sa-yld-display" class="info-stat">Avg SA Yld <span id="avg-sa-yld-val" class="info-stat-val"></span></span>
+      <span id="wad-display" class="info-stat">Avg Mod Dur <span id="wad-val" class="info-stat-val"></span></span>
     </div>
     <!-- Info row -->
     <div class="card-info">
@@ -759,12 +760,14 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraManualYearsBuild = _daraManualYears; _daraManualLoadedSnapshotBuild = _daraManualLoadedSnapshot;
       _splitYearsBuild = _splitYears; _segInferredEchoBuild = _segInferredEcho;
       _bracketAutoCapYearsBuild = _bracketAutoCapYears;
+      _daraPlanOpenBuild = _daraPlanOpen;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
       _daraUndoStack = _daraUndoStackRebal; _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
       _daraManualYears = _daraManualYearsRebal; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotRebal;
       _splitYears = _splitYearsRebal; _segInferredEcho = _segInferredEchoRebal;
       _bracketAutoCapYears = _bracketAutoCapYearsRebal;
+      _daraPlanOpen = _daraPlanOpenRebal;
     } else {
       _daraRebal = daraEl.value;
       _daraByYearStoreRebal = _daraByYearStore; _daraByYearPanelDefaultRebal = _daraByYearPanelDefault;
@@ -772,12 +775,14 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraManualYearsRebal = _daraManualYears; _daraManualLoadedSnapshotRebal = _daraManualLoadedSnapshot;
       _splitYearsRebal = _splitYears; _segInferredEchoRebal = _segInferredEcho;
       _bracketAutoCapYearsRebal = _bracketAutoCapYears;
+      _daraPlanOpenRebal = _daraPlanOpen;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
       _daraUndoStack = _daraUndoStackBuild; _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
       _daraManualYears = _daraManualYearsBuild; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotBuild;
       _splitYears = _splitYearsBuild; _segInferredEcho = _segInferredEchoBuild;
       _bracketAutoCapYears = _bracketAutoCapYearsBuild;
+      _daraPlanOpen = _daraPlanOpenBuild;
     }
     _rungPreEdit = null; _rungDirty = false;
     
@@ -1868,6 +1873,9 @@ function _updateDaraRememberUI(accountNames) {
 
   const saved = _readDaraCache(_daraCacheKey);
   if (!saved) return;
+  // Already Applied/Dismissed this session (e.g. a prior mode switch already surfaced this exact
+  // saved plan) — don't re-show the banner or force the card open again every time this re-runs.
+  if (_daraPlanHandledKeys.has(_daraCacheKey)) return;
 
   document.getElementById('dara-plan-banner-text').textContent =
     `Saved DARA plan found for "${_daraCacheLabel}" (saved ${new Date(saved.savedAt).toLocaleDateString()}) —`;
@@ -1907,10 +1915,12 @@ document.getElementById('dara-plan-apply').addEventListener('click', () => {
   document.getElementById('dara-plan-banner').style.display = 'none';
   _setDaraPlanNeedsAttention(false);
   _setDaraPlanDirty(false);  // store now matches the cache it was just loaded from
+  if (_daraCacheKey) _daraPlanHandledKeys.add(_daraCacheKey);
 });
 document.getElementById('dara-plan-dismiss').addEventListener('click', () => {
   document.getElementById('dara-plan-banner').style.display = 'none';
   _setDaraPlanNeedsAttention(false);
+  if (_daraCacheKey) _daraPlanHandledKeys.add(_daraCacheKey);
 });
 
 // "⋮" menu tucking Export/Import away from the primary Save action — both remain the portable,
@@ -2240,9 +2250,18 @@ let _daraAutoInferred = false;      // true when DARA field was populated by inf
 let _daraByYearBodyCollapsed = true;
 let _daraPlanOpen = false;          // DARA Plan dropdown open state — closed by default, same
                                      // collapsed-by-default pattern as _daraByYearBodyCollapsed above
+// Per-mode mirrors, swapped on mode toggle — same pattern as _daraByYearStoreRebal/Build. Without
+// this pair, Build auto-opening the card for its OWN not-yet-handled saved plan would leak that
+// open state into Rebalance (and vice versa) on the next mode switch, since the two modes' saved
+// plans are independent but this single flag isn't otherwise mode-scoped.
+let _daraPlanOpenRebal = false, _daraPlanOpenBuild = false;
 let _daraPlanNeedsAttention = false; // badge on #dara-plan-hdr: a saved plan was found and hasn't
                                       // been Applied/Dismissed yet — persists even if the user closes
                                       // the dropdown again without acting, so it can't be missed
+let _daraPlanHandledKeys = new Set(); // cache keys whose "saved plan found" banner has already been
+                                     // Applied or Dismissed this session — once handled, re-checking
+                                     // the same key (e.g. on every mode switch) must not re-surface
+                                     // the banner or force the card open again
 let _daraPlanDirty = false;         // highlight on #dara-remember-btn: a per-year value has changed
                                       // since the last Save — cleared by Save, or by loading a plan
                                       // (Apply banner) that makes the store match the cache again

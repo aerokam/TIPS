@@ -1286,6 +1286,41 @@ test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closi
   await expect(page.locator('#dara-plan-hdr')).not.toHaveClass(/needs-attention/);
 });
 
+// Regression: _daraPlanOpen used to be a single global, and _updateDaraRememberUI re-showed the
+// "saved plan found" banner (and force-reopened the card) every time it re-ran with no memory of
+// a prior Dismiss/Apply -- so switching Build<->Rebalance both re-surfaced an already-handled
+// banner and silently reopened a card the user had explicitly collapsed.
+test('DARA Plan: dismissed banner and collapsed state persist across a mode switch', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  const rung = page.locator('.fy-dara-input[data-year]').first();
+  await rung.fill('88888');
+  await rung.blur();
+  await page.locator('#dara-remember-btn').click();
+  await page.waitForFunction(() =>
+    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('88888')));
+
+  await page.reload();
+  await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#dara-plan-banner'), 'banner auto-opens on first discovery').toBeVisible({ timeout: 2_000 });
+
+  await page.locator('#dara-plan-dismiss').click();
+  await expect(page.locator('#dara-plan-banner')).not.toBeVisible();
+  await page.locator('#dara-plan-hdr').click();  // collapse the card itself
+  await expect(page.locator('#dara-plan-body')).not.toBeVisible();
+
+  // Build mode has its own, never-yet-handled saved plan for this same holdings load, so it
+  // legitimately auto-opens on its OWN account -- this must not leak into Rebalance's state.
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await page.locator('.tab-btn[data-mode="rebalance"]').click();
+
+  await expect(page.locator('#dara-plan-banner'), 'dismissed banner does not reappear').not.toBeVisible();
+  await expect(page.locator('#dara-plan-body'), 'collapsed card stays collapsed').not.toBeVisible();
+});
+
 // ── Standalone DARA-plan file (portable export/import, independent of localStorage) ────────────
 // Export writes a #fundedYear,dara (+ #splitYears) file with no CUSIP rows; re-importing it onto a
 // freshly (re-)loaded holdings file overlays the saved plan and its split years exactly.
