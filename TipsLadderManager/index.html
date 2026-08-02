@@ -303,7 +303,7 @@
     <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
     <button id="maturity-picker-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">&times;</button>
     <div id="maturity-picker-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;">Select Maturities</div>
-    <div style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Pick which TIPS fill each funded year. A year left as-is keeps whatever it's currently holding. All/None above a column applies to that month across every year.</div>
+    <div id="maturity-picker-desc" style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Pick which TIPS fill each funded year. A year left as-is keeps whatever it's currently holding. All/None above a column applies to that month across every year.</div>
     <div id="maturity-picker-body" style="overflow-y:auto;flex:1;"></div>
     <div style="margin-top:16px;text-align:right;flex-shrink:0;">
       <button id="maturity-picker-cancel" style="padding:4px 12px;font-size:11px;margin-right:8px;">Cancel</button>
@@ -373,7 +373,7 @@
           <button id="bracket-mode-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Bracket mode help">?</button>
         </div>
       </div>
-      <div class="field" id="field-build-maturity" style="display:none">
+      <div class="field" id="field-build-maturity">
         <label>Maturity preference</label>
         <select id="build-maturity">
           <option value="last">Last to mature</option>
@@ -528,9 +528,17 @@ const toIso = d => d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart
 const simpleEl = document.getElementById('simple-table');
 const tableEl  = document.getElementById('build-table');
 
-// Per-year maturity picks (prototype — 2.0 §Picking Maturities for a Funded Year, Build only).
-// Map<fundedYear, cusip[]>. A year absent from this map keeps following the global maturityPref.
-const _yearMaturityOverrides = new Map();
+// Per-year maturity picks (2.0 §Picking Maturities for a Funded Year — B: candidate-set override,
+// now shared by both modes, not Build-only). Map<fundedYear, cusip[]>. A year absent from this map
+// keeps following the global maturityPref. `_yearMaturityOverrides` is the currently-active mode's
+// map (swapped in the mode-toggle handler, same pattern as _daraByYearStore); the Rebal/Build pair
+// below are the per-mode mirrors.
+let _yearMaturityOverrides = new Map();
+let _yearMaturityOverridesRebal = new Map(), _yearMaturityOverridesBuild = new Map();
+// Maturity preference value per mode (2.0 §Maturity Selection Within a Funded Year) — 'last' was
+// the sole hardcoded rebalance default before this feature; Build already defaulted its own
+// dropdown to 'last' via the HTML <select>, mirrored here as the same starting value.
+let _maturityPrefRebal = 'last', _maturityPrefBuild = 'last';
 
 // ─── Help modal ───────────────────────────────────────────────────────────────
 document.getElementById('help-btn').addEventListener('click', () => {
@@ -761,6 +769,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _splitYearsBuild = _splitYears; _segInferredEchoBuild = _segInferredEcho;
       _bracketAutoCapYearsBuild = _bracketAutoCapYears;
       _daraPlanOpenBuild = _daraPlanOpen;
+      _maturityPrefBuild = document.getElementById('build-maturity').value;
+      _yearMaturityOverridesBuild = _yearMaturityOverrides;
+      _yearMaturityOverrides = _yearMaturityOverridesRebal;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
       _daraUndoStack = _daraUndoStackRebal; _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
@@ -776,6 +787,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _splitYearsRebal = _splitYears; _segInferredEchoRebal = _segInferredEcho;
       _bracketAutoCapYearsRebal = _bracketAutoCapYears;
       _daraPlanOpenRebal = _daraPlanOpen;
+      _maturityPrefRebal = document.getElementById('build-maturity').value;
+      _yearMaturityOverridesRebal = _yearMaturityOverrides;
+      _yearMaturityOverrides = _yearMaturityOverridesBuild;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
       _daraUndoStack = _daraUndoStackBuild; _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
@@ -790,7 +804,11 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     document.getElementById('field-holdings').style.display = isRebalance ? '' : 'none';
 
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
-    document.getElementById('field-build-maturity').style.display = isRebalance ? 'none' : '';
+    // Maturity preference (2.0 §Maturity Selection Within a Funded Year) is shared UI, visible in
+    // both modes now that Rebalance's target side reads it too (rebalance-lib.js allocationPolicy
+    // B) -- previously Build-only. Value + per-year picks are swapped per-mode above, same as every
+    // other control on this card.
+    document.getElementById('build-maturity').value = isRebalance ? _maturityPrefRebal : _maturityPrefBuild;
     _updateMaturityOptionLabel('Select maturities…');
     _maturityListOpenPending = false;
     if (isRebalance) _closeMaturityPickerModal();
@@ -1023,9 +1041,12 @@ function _pickerCandidates(year) {
 }
 
 // Every funded year currently in range (mirrors the year gathering in selectLadderBonds).
+// Mode-aware: Rebalance and Build keep First/Last Year in separate fields (rebal-first-year/
+// rebal-last-year vs first-year/last-year — see 6.0 §Form Card Layout).
 function _pickerYears() {
-  const firstYear = parseInt(document.getElementById('first-year').value) || settlementDate.getFullYear();
-  const lastYear = parseInt(document.getElementById('last-year').value);
+  const isRebal = currentMode === 'rebalance';
+  const firstYear = parseInt(document.getElementById(isRebal ? 'rebal-first-year' : 'first-year').value) || settlementDate.getFullYear();
+  const lastYear = parseInt(document.getElementById(isRebal ? 'rebal-last-year' : 'last-year').value);
   const years = new Set();
   for (const bond of tipsMap.values()) {
     if (!bond.maturity || bond.maturity <= settlementDate) continue;
@@ -1068,12 +1089,18 @@ function _openMaturityPickerModal() {
       + `</td>`
   ).join('') + '</tr>';
 
+  const isRebal = currentMode === 'rebalance';
   const rowsHtml = years.map(year => {
     const cands = _pickerCandidates(year);
     const override = _yearMaturityOverrides.get(year);
-    const checkedCusips = new Set(
-      override?.length ? override : buildDetails?.filter(d => d.fundedYear === year).map(d => d.cusip) ?? []
-    );
+    // Seed from an explicit override first; otherwise Rebalance seeds from what's actually held
+    // this year (so opening the picker shows the portfolio as-is, per 3.0 §Within-Year Allocation
+    // Policy — unchecking a held CUSIP is a deliberate sell, not a silent default), while Build
+    // seeds from its own last run (nothing held yet to mirror).
+    const defaultCusips = isRebal
+      ? (currentHoldingsArray ?? []).filter(h => tipsMap.get(h.cusip)?.maturity?.getFullYear() === year).map(h => h.cusip)
+      : (buildDetails?.filter(d => d.fundedYear === year).map(d => d.cusip) ?? []);
+    const checkedCusips = new Set(override?.length ? override : defaultCusips);
     // Per column, the candidates for this year's month, lower coupon first (so row 0 is always
     // the lower-coupon issue when a month has two).
     const byCol = cols.map(mo => cands.filter(b => b.maturity.getMonth() + 1 === mo)
@@ -1099,6 +1126,10 @@ function _openMaturityPickerModal() {
 
   document.getElementById('maturity-picker-body').innerHTML =
     '<table><tbody>' + headerRow + rowsHtml + '</tbody></table>';
+  document.getElementById('maturity-picker-desc').textContent = isRebal
+    ? 'Checked boxes are what you hold today. Uncheck to sell, check a new box to buy into it. All/None above a column applies to that month across every year.'
+    : "Pick which TIPS fill each funded year. A year left as-is keeps whatever it's currently holding. All/None above a column applies to that month across every year.";
+  document.getElementById('maturity-picker-apply').textContent = isRebal ? 'Apply' : 'Apply & Build';
   document.getElementById('maturity-picker-overlay').style.display = 'block';
 }
 
@@ -1187,7 +1218,12 @@ document.getElementById('maturity-picker-apply').addEventListener('click', () =>
     else _yearMaturityOverrides.delete(year);
   }
   _closeMaturityPickerModal();
-  _runBuildFromForm();
+  // Build has no holdings, so "Apply" only ever means "re-run from scratch." Rebalance already has
+  // a portfolio to value — Apply only updates which candidates are in play; it does not itself
+  // trigger a trade (3.0 §Within-Year Allocation Policy, the E invariant), so it refreshes the
+  // before-state preview rather than forcing a Rebalance Ladder run.
+  if (currentMode === 'build') _runBuildFromForm();
+  else _renderBeforeStatePreview();
 });
 
 // ─── Bracket/cover year hover explainer ───────────────────────────────────────
@@ -2965,7 +3001,8 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         lastYearOverride: parseInt(document.getElementById('rebal-last-year').value),
         firstYearOverride: parseInt(document.getElementById('rebal-first-year').value),
         preLadderInterest: document.getElementById('pre-ladder-interest').checked,
-        maturityPref: currentImportedParams?.maturityPref ?? 'last',
+        maturityPref: document.getElementById('build-maturity').value,
+        yearOverrides: _yearMaturityOverrides,
       });
       _lastKnownDara = finalDara;
       renderOutput(result);

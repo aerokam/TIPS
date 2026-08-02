@@ -169,12 +169,26 @@ test('build: selecting last year and clicking Run renders build table', async ({
   expect(await rows.count()).toBeGreaterThan(0);
 });
 
-test('build: maturity preference field visible in Build, hidden in Rebalance', async ({ page }) => {
-  await expect(page.locator('#field-build-maturity')).not.toBeVisible();
+// Maturity preference (2.0 §Maturity Selection Within a Funded Year) is shared UI, visible in
+// both modes since Rebalance's target side reads it too (rebalance-lib.js allocationPolicy B) --
+// previously Build-only. Each mode keeps its own independent selection (see the next test).
+test('maturity preference field visible in both Rebalance and Build', async ({ page }) => {
+  await expect(page.locator('#field-build-maturity')).toBeVisible();
   await page.locator('.tab-btn[data-mode="build"]').click();
   await expect(page.locator('#field-build-maturity')).toBeVisible();
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
-  await expect(page.locator('#field-build-maturity')).not.toBeVisible();
+  await expect(page.locator('#field-build-maturity')).toBeVisible();
+});
+
+test('maturity preference: Rebalance and Build keep independent selections across a mode switch', async ({ page }) => {
+  await page.locator('#build-maturity').selectOption('first');
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await expect(page.locator('#build-maturity')).toHaveValue('last'); // Build's own untouched default
+  await page.locator('#build-maturity').selectOption('all');
+  await page.locator('.tab-btn[data-mode="rebalance"]').click();
+  await expect(page.locator('#build-maturity')).toHaveValue('first'); // Rebalance's own selection survives
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await expect(page.locator('#build-maturity')).toHaveValue('all'); // Build's own selection survives too
 });
 
 test('build: first-to-mature preference runs successfully', async ({ page }) => {
