@@ -1,6 +1,11 @@
 // E2E regression tests — guards against GUI breakage (inop buttons, broken table render, drill popups)
 // Run: npx playwright test
-// Mocks R2 fetches with local YieldsFromFedInvestPrices.csv and RefCPI.csv
+// Mocks EVERY R2 fetch with a local fixture (YieldsFromFedInvestPrices.csv, FidelityTreasuriesTips.csv,
+// RefCPI.csv, TipsRef.csv, YieldsSaSao.csv, BondHolidaysSifma.csv) via page.route() in beforeEach below —
+// the test browser has no live network egress in a sandboxed session, so an unmocked R2 URL fails with
+// "Failed to fetch" (this is by design, not flakiness; well-known, see 3.1_Data_Pipeline.md §Testing).
+// Any new required R2 fetch added to data.js MUST get a matching fixture file + route() mock here, or
+// every test hangs/fails at the beforeEach's data-load wait, not just tests that touch the new field.
 
 import { test, expect } from 'playwright/test';
 import { readFileSync } from 'fs';
@@ -77,6 +82,8 @@ test.beforeEach(async ({ page }) => {
     r.fulfill({ body: csv('RefCPI.csv'), contentType: 'text/csv' }));
   await page.route('**/TIPS/TipsRef.csv', r =>
     r.fulfill({ body: csv('TipsRef.csv'), contentType: 'text/csv' }));
+  await page.route('**/TIPS/YieldsSaSao.csv', r =>
+    r.fulfill({ body: csv('YieldsSaSao.csv'), contentType: 'text/csv' }));
   await page.route('**/misc/BondHolidaysSifma.csv', r =>
     r.fulfill({ body: csv('BondHolidaysSifma.csv'), contentType: 'text/csv' }));
   // Allow sample pre-populate to succeed (fetches data/SampleHoldings.csv via serve)
