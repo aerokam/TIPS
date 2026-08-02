@@ -1482,7 +1482,7 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
 // Companion to the gap-free no-op test above: a portfolio that DOES have a gap-year/Future-30Y
 // block to duration-match, so isPristineMirror must trigger the scale (not skip it). This is the
 // exact reproduction the user found manually (2026-07-25): load the app with the pre-populated
-// SampleHoldings.csv and click Run Rebalance — net cash came back a large negative number instead
+// SampleHoldings.csv and click Rebalance Ladder — net cash came back a large negative number instead
 // of ~0, because the whole scale-application branch had been silently deleted from
 // runFundedRebalance in commit c0d233b (2026-07-16, an unrelated Ref CPI/Index Ratio refactor) —
 // isPristineMirror kept getting computed and passed in from index.html, but nothing acted on it

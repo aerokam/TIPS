@@ -103,7 +103,7 @@ test('data loads: info strip shows Trade/Settle/Ref CPI dates, run button enable
 // ── 2. Mode toggle ────────────────────────────────────────────────────────────
 test('mode toggle: switching to Build hides holdings, shows year fields; run button re-labeled', async ({ page }) => {
   // Start in Rebalance mode
-  await expect(page.locator('#run-btn')).toHaveText('Run Rebalance');
+  await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
   await expect(page.locator('#field-holdings')).toBeVisible();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
 
@@ -115,7 +115,7 @@ test('mode toggle: switching to Build hides holdings, shows year fields; run but
 
   // Switch back to Rebalance
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
-  await expect(page.locator('#run-btn')).toHaveText('Run Rebalance');
+  await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
   await expect(page.locator('#field-holdings')).toBeVisible();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
 });
@@ -590,7 +590,7 @@ test('build: pressing Enter (no overlay open) triggers Build Ladder', async ({ p
   await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
 });
 
-test('rebalance: pressing Enter (no overlay open) triggers Run Rebalance', async ({ page }) => {
+test('rebalance: pressing Enter (no overlay open) triggers Rebalance Ladder', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await page.locator('.app-title').click();
   await page.keyboard.press('Enter');

@@ -341,7 +341,7 @@ export function inferDARAFromCash({ bracketMode = '2bracket', holdings: holdings
 // range, including empty ones (a year with no own TIPS gets `ARA = incoming LMI` alone). Holdings
 // maturing after `lastYear` are not emitted but still cascade their coupon into earlier years' LMI.
 // The range form is the file-load "mirror current holdings" population (3.0 §Per-Year DARA from
-// Portfolio) — every rung shows its true current income so the first Run Rebalance is a no-op.
+// Portfolio) — every rung shows its true current income so the first Rebalance Ladder is a no-op.
 export function computePortfolioARAByYear(holdingsArr, tipsMap, refCPI, range = null) {
   const byYear = {};
   for (const h of holdingsArr) {
