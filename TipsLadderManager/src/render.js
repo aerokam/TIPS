@@ -189,7 +189,7 @@ function bracketTipHTML(fy, groupRows, mode, summary) {
 // after the funded-year label (5.0 §Funded Year Group Header Row §DARA Input). `daraByYear`/
 // `flaggedYears` are optional — omitted entirely (both null) when a caller has no DARA context at
 // all (defensive default; every real call site now supplies them).
-function daraInputHTML(fy, daraByYear, flaggedYears) {
+function daraInputHTML(fy, daraByYear, flaggedYears, mode) {
   if (!daraByYear) return '';
   const val = daraByYear.get(fy);
   const flagged = !!flaggedYears?.has(fy);
@@ -198,6 +198,15 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
       + 'Adjust if this year is intended for higher income." style="color:#d97706;cursor:help;font-size:11px;margin-left:2px">⚠</span>'
     : '';
   const displayVal = val != null && !isNaN(val) ? Math.round(val) : '';
+  // Priority-order shortcut (2.0 §Within-Year Allocation Policy §Manual rank override, D) — opens
+  // the same rank picker the top-card "Allocation policy" control does, scrolled to this year.
+  // Rebalance-only: Build has no held-vs-preferred distinction to order.
+  const rankIconHTML = mode === 'rebal'
+    ? ` <button type="button" class="fy-rank-icon" data-year="${fy}" title="Set priority order for ${fy}" `
+      + 'style="font-size:10px;padding:0 4px;border:1px solid #7fa8a8;background:#fff;color:#2f6363;'
+      + 'border-radius:3px;cursor:pointer;line-height:1.6;vertical-align:middle" '
+      + 'onclick="event.stopPropagation()">⇅</button>'
+    : '';
   // The group header row's background is LIGHT (table.simple tr.fy-group-header td: #dce8e8,
   // #c0d8d8 for bracket years — 6.0 §Group Header Row Visual Style), not the dark teal used by the
   // top form card — so this needs a light-theme input (white bg, dark text), the same style the
@@ -207,7 +216,7 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
     + 'style="width:88px;font-size:12px;text-align:right;border:1px solid #7fa8a8;cursor:text;'
     + 'border-radius:3px;padding:2px 4px;font-variant-numeric:tabular-nums;background:#fff;color:#1e293b" '
     + 'onclick="event.stopPropagation()">'
-    + flagHTML + '</span>';
+    + flagHTML + rankIconHTML + '</span>';
 }
 
 function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraByYear, flaggedYears) {
@@ -220,7 +229,7 @@ function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraBy
   const suffix = gapSet.has(fy) ? ' <span style="opacity:0.6;font-style:italic;font-size:10px">(gap)</span>'
     : future30ySet.has(fy) ? ' <span style="opacity:0.6;font-style:italic;font-size:10px">(30Y)</span>' : '';
   const label = String(fy) + (isBracketGroup ? '*' : '');
-  const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears);
+  const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears, mode);
   const labelTd = isBracketGroup
     ? `<td colspan="${labelCount}"><span class="formula-var bracket-tip-target" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}">${esc(label)}</span>${suffix}${daraHTML}</td>`
     : `<td colspan="${labelCount}">${esc(label)}${suffix}${daraHTML}</td>`;

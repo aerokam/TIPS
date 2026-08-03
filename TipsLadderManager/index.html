@@ -116,6 +116,19 @@
   #maturity-picker-body .mp-col-actions .mp-col-low, #maturity-picker-body .mp-col-actions .mp-col-high { background:#eef6f6;border-color:#5ba4a4;color:#2f6363; }
   #maturity-picker-body .mp-col-actions button:hover { background:#e2e8f0; }
 
+  /* ── Per-year rank picker (D) ── */
+  #rank-picker-modal { background:#fff;width:760px;min-width:480px;min-height:250px;border-radius:8px;padding:20px 24px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;font-size:13px;line-height:1.5; }
+  #rank-picker-body { display:flex;flex-direction:column;gap:10px; }
+  .rp-year-row { display:flex;align-items:center;gap:10px;padding-bottom:8px;border-bottom:1px solid #eee;transition:background-color .3s; }
+  .rp-year-row-focus { background-color:#fef3c7; }
+  .rp-year-label { font-weight:700;color:#1e293b;width:44px;flex-shrink:0; }
+  .rp-chips { display:flex;flex-wrap:wrap;gap:6px;flex:1; }
+  .rp-chip { display:inline-flex;align-items:center;gap:5px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:4px;padding:3px 4px 3px 8px;font-size:11px;color:#334155;white-space:nowrap; }
+  .rp-chip.rp-not-held { border-style:dashed;color:#64748b; }
+  .rp-chip button { font-size:10px;padding:0 4px;border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:2px;cursor:pointer;line-height:1.6; }
+  .rp-chip button:disabled { opacity:.35;cursor:default; }
+  .rp-chip button:not(:disabled):hover { background:#e2e8f0; }
+
   /* ── Formula inspector ── */
   .source-highlight { background: #d4edec !important; transition: background 0.15s; }
   .drill-l3:hover { background: #e8f5f5 !important; }
@@ -312,6 +325,25 @@
   </div>
 </div>
 
+<!-- Per-year priority-rank picker (D: 2.0 §Within-Year Allocation Policy §Manual rank override).
+     Distinct from the maturity picker above: that one decides WHICH maturities are eligible (B);
+     this one decides, for a specific year, what ORDER they're preferred in (hold/buy first vs.
+     sell first) — overriding whichever global allocation policy is active, for that year only. -->
+<div id="rank-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow:hidden;">
+  <div id="rank-picker-modal">
+    <div class="resize-handle n"></div><div class="resize-handle s"></div><div class="resize-handle e"></div><div class="resize-handle w"></div>
+    <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
+    <button id="rank-picker-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">&times;</button>
+    <div id="rank-picker-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;">Set Priority Order</div>
+    <div id="rank-picker-desc" style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Left = preferred to hold/buy first. Right = sold first if this year needs to shrink. Use ▲/▼ to reorder a year's maturities; a year left untouched follows the global allocation policy.</div>
+    <div id="rank-picker-body" style="overflow-y:auto;flex:1;"></div>
+    <div style="margin-top:16px;text-align:right;flex-shrink:0;">
+      <button id="rank-picker-cancel" style="padding:4px 12px;font-size:11px;margin-right:8px;">Cancel</button>
+      <button id="rank-picker-apply" style="padding:4px 12px;font-size:11px;">Apply</button>
+    </div>
+  </div>
+</div>
+
 <div id="top-row">
   <div class="tab-bar">
     <div class="tab-bar-title">
@@ -381,6 +413,15 @@
           <option value="semiannual">Semiannual (Jan + Jul)</option>
           <option value="all">All maturity months</option>
           <option value="select">Select maturities&hellip;</option>
+        </select>
+      </div>
+      <div class="field" id="field-alloc-policy">
+        <label style="gap:4px">Allocation policy<button id="alloc-policy-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Allocation policy help">?</button></label>
+        <select id="rebal-alloc-policy">
+          <option value="equal">Equal split</option>
+          <option value="maturity">Maturity order</option>
+          <option value="saYield">SA-Yield order</option>
+          <option value="select">Set priority order&hellip;</option>
         </select>
       </div>
       <div class="field" id="field-build-coupon" style="display:none">
@@ -507,7 +548,7 @@
 </div>
 
 <script type="module">
-import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate } from './src/rebalance-lib.js';
+import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate, calculatePIPerBond } from './src/rebalance-lib.js';
 // Standalone Before-state preview (3.0 §Before-State Preview and Bracket-Year Excess Detection) —
 // a holdings-valuation computation, architecturally decoupled from the runRebalance/
 // runFundedRebalance engine imported above. Never calls into it.
@@ -518,6 +559,7 @@ import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
+import { rankForYear } from './src/allocation-policy.js';
 import { accruedInterest } from '../shared/src/bond-math.js';
 import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
@@ -539,6 +581,11 @@ let _yearMaturityOverridesRebal = new Map(), _yearMaturityOverridesBuild = new M
 // the sole hardcoded rebalance default before this feature; Build already defaulted its own
 // dropdown to 'last' via the HTML <select>, mirrored here as the same starting value.
 let _maturityPrefRebal = 'last', _maturityPrefBuild = 'last';
+// Allocation policy (2.0 §Within-Year Allocation Policy, C) and per-year manual rank override (D)
+// — Rebalance-only (Build has no held-vs-preferred distinction to order; its own sizeYearRungs
+// equal-split is unaffected by this feature), so no per-mode pair is needed, unlike maturityPref.
+let _allocationPolicy = 'equal';
+let _yearRankOverrides = new Map(); // Map<fundedYear, cusip[]>, highest-priority-first
 
 // ─── Help modal ───────────────────────────────────────────────────────────────
 document.getElementById('help-btn').addEventListener('click', () => {
@@ -812,6 +859,10 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     _updateMaturityOptionLabel('Select maturities…');
     _maturityListOpenPending = false;
     if (isRebalance) _closeMaturityPickerModal();
+
+    // Allocation policy (C) / rank override (D) — Rebalance-only, no Build equivalent.
+    document.getElementById('field-alloc-policy').style.display = isRebalance ? '' : 'none';
+    if (!isRebalance) { _closeRankPickerModal(); _updateAllocPolicyOptionLabel('Set priority order…'); _allocListOpenPending = false; }
 
     document.getElementById('field-rebal-first-year').style.display = isRebalance && currentHoldingsArray ? '' : 'none';
     document.getElementById('field-first-year').style.display = isRebalance ? 'none' : '';
@@ -1224,6 +1275,131 @@ document.getElementById('maturity-picker-apply').addEventListener('click', () =>
   // before-state preview rather than forcing a Rebalance Ladder run.
   if (currentMode === 'build') _runBuildFromForm();
   else _renderBeforeStatePreview();
+});
+
+// ─── Allocation-policy dropdown relabeling (C) — same click/change disambiguation pattern as
+// #build-maturity above (2.0 §Picking Maturities for a Funded Year); see that block's comment for
+// the full rationale.
+let _allocSelectJustChosen = false;
+let _allocListOpenPending = false;
+function _updateAllocPolicyOptionLabel(text) {
+  document.querySelector('#rebal-alloc-policy option[value="select"]').textContent = text;
+}
+document.getElementById('rebal-alloc-policy').addEventListener('mousedown', () => {
+  if (document.getElementById('rebal-alloc-policy').value === 'select') _updateAllocPolicyOptionLabel('Edit priority order');
+});
+document.getElementById('rebal-alloc-policy').addEventListener('change', () => {
+  if (document.getElementById('rebal-alloc-policy').value === 'select') {
+    _allocSelectJustChosen = true;
+    _openRankPickerModal();
+  } else {
+    _allocationPolicy = document.getElementById('rebal-alloc-policy').value;
+    _updateAllocPolicyOptionLabel('Set priority order…');
+    _yearRankOverrides.clear();  // picking a named policy replaces any custom per-year ranks
+    _closeRankPickerModal();
+    _allocListOpenPending = false;
+    _renderBeforeStatePreview();
+  }
+});
+document.getElementById('rebal-alloc-policy').addEventListener('click', () => {
+  if (document.getElementById('rebal-alloc-policy').value !== 'select') return;
+  if (_allocSelectJustChosen) { _allocSelectJustChosen = false; return; }
+  if (!_allocListOpenPending) { _allocListOpenPending = true; return; }
+  _allocListOpenPending = false;
+  _openRankPickerModal();
+});
+
+// ─── Per-year rank picker modal (D: 2.0 §Within-Year Allocation Policy §Manual rank override) ──
+// `useOverride=true` (seeding the modal) reflects any existing per-year override; `false` (the
+// Apply handler's no-op check) always reflects what the bare global policy alone would produce, so
+// "open the modal, touch nothing, Apply" never leaves behind a stale explicit override that merely
+// restates the policy's own order.
+function _rankPickerYearOrder(year, useOverride) {
+  const candidates = _pickerCandidates(year);
+  const held = (currentHoldingsArray ?? [])
+    .filter(h => tipsMap.get(h.cusip)?.maturity?.getFullYear() === year)
+    .map(h => ({ ...h, maturity: tipsMap.get(h.cusip)?.maturity }));
+  const rc = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const piMap = {};
+  for (const h of held) piMap[h.cusip] = calculatePIPerBond(h.cusip, h.maturity, rc, tipsMap);
+  const override = useOverride ? _yearRankOverrides.get(year) : null;
+  return rankForYear({
+    candidates, held, piMap, tipsMap,
+    policy: _allocationPolicy,
+    rankOverride: override?.length ? override : null,
+  });
+}
+
+// `focusYear` (from the per-year ⇅ shortcut, D) scrolls the modal to that year's row and briefly
+// highlights it — the global "Set priority order…" entry point has no single year to focus.
+function _openRankPickerModal(focusYear) {
+  const years = _pickerYears();
+  const rowsHtml = years.map(year => {
+    const rank = _rankPickerYearOrder(year, true);
+    if (!rank.length) return '';
+    const chips = rank.map((r, i) => {
+      const b = tipsMap.get(r.cusip);
+      const label = b?.maturity ? (MP_MONTH_LABEL[b.maturity.getMonth() + 1] || (b.maturity.getMonth() + 1)) : '?';
+      const coupon = b?.coupon != null ? (b.coupon * 100).toFixed(3) + '%' : '';
+      const title = r.cusip + (b?.maturity ? ' · ' + (b.maturity.getMonth() + 1) + '/' + b.maturity.getFullYear() : '');
+      return `<span class="rp-chip${r.held ? '' : ' rp-not-held'}" data-cusip="${r.cusip}" title="${title}">`
+        + `<button type="button" class="rp-up" ${i === 0 ? 'disabled' : ''}>&#9650;</button>`
+        + `<button type="button" class="rp-down" ${i === rank.length - 1 ? 'disabled' : ''}>&#9660;</button>`
+        + `${label} ${coupon}${r.held ? '' : ' (not held)'}`
+        + `</span>`;
+    }).join('');
+    return `<div class="rp-year-row" data-year="${year}"><div class="rp-year-label">${year}</div><div class="rp-chips">${chips}</div></div>`;
+  }).join('');
+  document.getElementById('rank-picker-body').innerHTML = rowsHtml || '<div style="color:#94a3b8;font-size:12px">No funded years in range.</div>';
+  document.getElementById('rank-picker-overlay').style.display = 'block';
+  if (focusYear != null) {
+    const row = document.querySelector(`#rank-picker-body .rp-year-row[data-year="${focusYear}"]`);
+    if (row) {
+      row.scrollIntoView({ block: 'center' });
+      row.classList.add('rp-year-row-focus');
+      setTimeout(() => row.classList.remove('rp-year-row-focus'), 1500);
+    }
+  }
+}
+
+function _closeRankPickerModal() {
+  document.getElementById('rank-picker-overlay').style.display = 'none';
+  _updateAllocPolicyOptionLabel('Set priority order…');
+  _allocListOpenPending = false;
+}
+
+document.getElementById('rank-picker-body').addEventListener('click', e => {
+  const btn = e.target.closest('.rp-up, .rp-down');
+  if (!btn) return;
+  const chip = btn.closest('.rp-chip');
+  const chipsEl = btn.closest('.rp-chips');
+  if (btn.classList.contains('rp-up') && chip.previousElementSibling) {
+    chipsEl.insertBefore(chip, chip.previousElementSibling);
+  } else if (btn.classList.contains('rp-down') && chip.nextElementSibling) {
+    chipsEl.insertBefore(chip.nextElementSibling, chip);
+  }
+  const chips = [...chipsEl.querySelectorAll('.rp-chip')];
+  chips.forEach((c, i) => {
+    c.querySelector('.rp-up').disabled = i === 0;
+    c.querySelector('.rp-down').disabled = i === chips.length - 1;
+  });
+});
+
+document.getElementById('rank-picker-close').addEventListener('click', _closeRankPickerModal);
+document.getElementById('rank-picker-cancel').addEventListener('click', _closeRankPickerModal);
+document.getElementById('rank-picker-overlay').addEventListener('click', e => {
+  if (e.target.id === 'rank-picker-overlay') _closeRankPickerModal();
+});
+document.getElementById('rank-picker-apply').addEventListener('click', () => {
+  for (const row of document.querySelectorAll('#rank-picker-body .rp-year-row')) {
+    const year = parseInt(row.dataset.year);
+    const order = [...row.querySelectorAll('.rp-chip')].map(c => c.dataset.cusip);
+    const natural = _rankPickerYearOrder(year, false).map(r => r.cusip);
+    if (order.join(',') === natural.join(',')) _yearRankOverrides.delete(year);
+    else _yearRankOverrides.set(year, order);
+  }
+  _closeRankPickerModal();
+  _renderBeforeStatePreview();
 });
 
 // ─── Bracket/cover year hover explainer ───────────────────────────────────────
@@ -2273,6 +2449,7 @@ let _drillDragging = false;
 // ─── Draggable + resizable modals (shared — src/modal.js) ────────────────────
 makeDraggableResizable(document.getElementById('tipsref-modal'), document.getElementById('tipsref-title'), { minWidth: 400, minHeight: 200 });
 makeDraggableResizable(document.getElementById('maturity-picker-modal'), document.getElementById('maturity-picker-title'), { minWidth: 500, minHeight: 250 });
+makeDraggableResizable(document.getElementById('rank-picker-modal'), document.getElementById('rank-picker-title'), { minWidth: 480, minHeight: 250 });
 
 // ─── Per-year DARA panel ──────────────────────────────────────────────────────
 let _daraByYearPanelDefault = null;
@@ -2842,6 +3019,21 @@ function getDaraByYear() {
   });
 });
 
+// Per-year priority-order shortcut (D: 2.0 §Within-Year Allocation Policy §Manual rank override) —
+// the `.fy-rank-icon` ⇅ button next to a rung's DARA input, delegated the same way as
+// `.fy-dara-input` above since group-header rows are re-rendered wholesale on every table render.
+// Registered on the CAPTURE phase (3rd arg `true`): the button's own inline
+// `onclick="event.stopPropagation()"` (needed to keep the click from also toggling the group-header
+// row, a separate bubble-phase listener below) fires during the target phase, which is after any
+// capture-phase ancestor listener has already run — so capture is the only phase this handler can use.
+[simpleEl, tableEl].forEach(tbl => {
+  tbl.addEventListener('click', e => {
+    const btn = e.target.closest('.fy-rank-icon');
+    if (!btn) return;
+    _openRankPickerModal(parseInt(btn.dataset.year, 10));
+  }, true);
+});
+
 // When user focuses the DARA field: open per-year panel. While the box is intentionally "by year"
 // (segmented / custom shape) it stays blank — the placeholder already says why — so typing starts
 // from nothing rather than an old flat number the user didn't ask to bring back.
@@ -3003,6 +3195,8 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         preLadderInterest: document.getElementById('pre-ladder-interest').checked,
         maturityPref: document.getElementById('build-maturity').value,
         yearOverrides: _yearMaturityOverrides,
+        allocationPolicy: _allocationPolicy,
+        yearRankOverrides: _yearRankOverrides,
       });
       _lastKnownDara = finalDara;
       renderOutput(result);

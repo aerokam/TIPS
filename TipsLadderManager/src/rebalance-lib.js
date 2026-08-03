@@ -12,7 +12,7 @@ import { rankForYear } from './allocation-policy.js';
 // Re-export date helpers so existing importers (index.html, tests) keep working.
 export { localDate, fmtDate };
 
-function calculatePIPerBond(cusip, maturity, refCPI, tipsMap) {
+export function calculatePIPerBond(cusip, maturity, refCPI, tipsMap) {
   const bond = tipsMap.get(cusip);
   if (!bond) return 0;
   const indexRatio = calcIndexRatio(refCPI, bond.baseCpi || refCPI);

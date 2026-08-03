@@ -591,6 +591,30 @@ test('rebalance: per-year DARA inputs render inline after loading holdings and e
   expect(await yearInputs.count()).toBeGreaterThan(0);
 });
 
+test('rebalance: clicking a funded year\'s priority-order icon opens the rank picker focused on that year, without toggling the row', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#dara').fill('10000');
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 3_000 });
+
+  const hdr = page.locator('tr.fy-group-header').first();
+  const expandedBefore = await hdr.getAttribute('data-expanded');
+
+  const icon = page.locator('.fy-rank-icon[data-year]').first();
+  const year = await icon.getAttribute('data-year');
+  // dispatchEvent, not click(): this element's tiny hit-box makes Playwright's synthetic mouse
+  // click land as a no-op in headless Chromium here, even though elementFromPoint at the same
+  // coordinates resolves to the button and a real click (manually verified) works fine.
+  await icon.dispatchEvent('click');
+
+  await expect(page.locator('#rank-picker-overlay')).toBeVisible();
+  await expect(page.locator(`.rp-year-row[data-year="${year}"]`)).toHaveClass(/rp-year-row-focus/);
+  // The icon's own stopPropagation must keep the click from also toggling the group-header row
+  // it sits inside (5.0 §Funded Year Group Header Row) — this regressed once when the modal's
+  // click handler moved to capture phase; a capture-phase ancestor listener fires ahead of any
+  // stopPropagation the target calls in its own (later) target-phase handler.
+  await expect(hdr).toHaveAttribute('data-expanded', expandedBefore);
+});
+
 // ── 12. Enter key triggers Run ────────────────────────────────────────────────
 test('build: pressing Enter (no overlay open) triggers Build Ladder', async ({ page }) => {
   await page.locator('.tab-btn[data-mode="build"]').click();
