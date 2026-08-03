@@ -42,5 +42,17 @@ These jobs run on the host machine via Windows Task Scheduler.
 ---
 
 ## 3.0 R2 Data Store
-All jobs above upload their results to the central Cloudflare R2 bucket.
+All jobs above upload their results to the central Cloudflare R2 bucket (`pub-ba11062b177640459f72e0a88d0261ae.r2.dev`).
 - **Reference**: See [DataStores.md](./DataStores.md) for the full file manifest and live previews.
+
+### 3.1 Browser Read Access (CORS)
+Every app (TipsLadderManager, YieldCurves, Primer, YieldsMonitor, CpiExplorer, FundHoldings, TreasuryAuctions, SeasonalAdjustments, TipsReference, etc.) reads from this one bucket via browser `fetch()`. R2 buckets ship with **no CORS policy by default** — a bucket with no policy configured rejects all cross-origin browser reads regardless of origin (confirmed live May 9, 2026, commit `55f67f4`: "R2 bucket lacks CORS headers, making it inaccessible from browser").
+
+Sometime after that, the bucket's CORS policy was configured manually in the Cloudflare dashboard (no wrangler/IaC file in this repo manages it) with a literal 3-origin allowlist — not a wildcard, not a pattern:
+- `http://localhost:8080` — local dev, main branch
+- `http://localhost:8081` — local dev, worktree branch
+- `https://aerokam.github.io` — production (GitHub Pages)
+
+Verified live 2026-08-03 by sending various `Origin` headers and checking for an echoed `Access-Control-Allow-Origin` response header. Any other origin is rejected, including `http://127.0.0.1:8080` (a distinct origin from `localhost:8080` even on the same port) and any other localhost port.
+
+**Practical effect**: run the main-branch dev server on `localhost:8080` and a worktree dev server on `localhost:8081` (always `localhost`, never `127.0.0.1`) — both already have live R2 access. A third concurrent local server needs its origin added to the bucket's CORS policy first (Cloudflare dashboard → R2 → bucket → Settings → CORS Policy), or its R2 fetches will silently fail.

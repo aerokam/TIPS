@@ -44,9 +44,9 @@ graph LR
 ## 2.0 Core Processes
 
 ### [1.0 Data Blending](../YieldsMonitor/knowledge/1.0_Operation.md#data-architecture)
-For 1Y+ ranges: blend R2 historical baseline with latest intraday yields from CNBC for current market context.
+For 10Y, ALL, and Custom ranges: blend R2 historical baseline with latest intraday yields from CNBC for current market context. (1Y/2Y/3Y instead reread a CNBC feed fresh each load — no R2 involved; see linked spec.)
 - **Goal**: Ensure "Latest Yield" and "Day Change" always reflect current trading, not stale historical closes.
-- **Method**: 1Y+ fetch R2 historical baseline (daily 3PM closes, refreshed by updateYieldsHistory.js), then append latest intraday yields from CNBC 5D feed.
+- **Method**: 10Y/ALL/Custom fetch R2 historical baseline (daily 3PM closes, refreshed by updateYieldsHistory.js), then append latest intraday yields from CNBC 5D feed.
 
 ### [2.0 Yield Change Logic](../YieldsMonitor/knowledge/1.0_Operation.md#yield-change-calculation)
 Calculates the difference between the latest yield and the previous market close (17:00 ET).

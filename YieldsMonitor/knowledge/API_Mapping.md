@@ -9,17 +9,13 @@ While this tool uses high-resolution (intraday) and real-time data feeds, offici
 
 ## Time Range Mapping
 
-The underlying data provider uses specific `timeRange` parameters that do not always align with the logical span of the data returned. The following mapping is used to provide a consistent user experience:
-
-| UI Label | Provider `timeRange` Parameter | Actual/Observed Span |
-| :--- | :--- | :--- |
-| **2D** | `1D` | Intraday (approx. 2 days) |
-| **10D** | `5D` | Recent history (approx. 10 days) |
-| **1Y** | `1M` | 1 Year of historical data |
-| **2Y** | `3M` | 2 Years of historical data |
-| **3Y** | `6M` | 3 Years of historical data |
-| **10Y** | `5Y` | 10 Years of historical data |
-| **ALL** | `ALL` | Full available history |
+| UI Label | Data Source | Provider `timeRange` / Store | Notes |
+| :--- | :--- | :--- | :--- |
+| **2D** | CNBC | `1D` | Intraday |
+| **10D** | CNBC | `5D` | Recent history |
+| **1Y / 2Y / 3Y** | CNBC | `6M` (same feed for all three) | Reread fresh each load, filtered client-side to the selected cutoff |
+| **10Y / ALL** | R2 | `yields-history/history.json` | Persistent daily-close baseline |
+| **Custom** | R2 + CNBC | `yields-history/history.json` + `5D` tip | Baseline plus latest live points |
 
 ## Symbol Reference
 
@@ -47,7 +43,7 @@ The following symbols are currently supported and grouped by security type:
 
 **2D, 10D ranges**: Use CNBC GraphQL with mapped `timeRange` (1D, 5D).
 
-**1Y+ ranges (current workaround)**: Currently fetch from CNBC due to R2 CORS limitation. The `timeRange` parameter uses mapped values in the table above.
+**1Y, 2Y, 3Y ranges**: CNBC GraphQL with `6M` `timeRange` — the same feed is refetched fresh for all three UI ranges and filtered client-side to the selected cutoff. This is deliberate (matches CNBC's own daily window, no drift), not a CORS fallback.
 
 **5D latest yields**: All ranges (except 10D) append CNBC 5D data for current market context.
 
@@ -57,7 +53,7 @@ The following symbols are currently supported and grouped by security type:
 
 ## R2 Historical Baseline
 
-**Intended for 1Y+ ranges**: R2 provides daily closing yields for long-term ranges. **Current blocker**: R2 lacks CORS headers for direct browser access. Enable CORS or add backend proxy to use this baseline instead of CNBC workaround.
+Used for **10Y, ALL, and Custom** ranges. R2 CORS is live for this app's origins (`localhost:8080`, `localhost:8081`, production) — see repo-root `knowledge/Data_Pipeline.md` §3.1 for the full CORS policy. The browser fetches `history.json` directly, no proxy needed.
 
 - **Base URL**: `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/yields-history/`
 - **File**: `history.json` — single nested object `{ "<SYMBOL>": [{x: timestamp, y: yield}, …], … }`
