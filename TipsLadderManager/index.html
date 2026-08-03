@@ -119,8 +119,7 @@
   /* ── Per-year rank picker (D) ── */
   #rank-picker-modal { background:#fff;width:760px;min-width:480px;min-height:250px;border-radius:8px;padding:20px 24px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;font-size:13px;line-height:1.5; }
   #rank-picker-body { display:flex;flex-direction:column;gap:10px; }
-  .rp-year-row { display:flex;align-items:center;gap:10px;padding-bottom:8px;border-bottom:1px solid #eee;transition:background-color .3s; }
-  .rp-year-row-focus { background-color:#fef3c7; }
+  .rp-year-row { display:flex;align-items:center;gap:10px;padding-bottom:8px;border-bottom:1px solid #eee; }
   .rp-year-label { font-weight:700;color:#1e293b;width:44px;flex-shrink:0; }
   .rp-chips { display:flex;flex-wrap:wrap;gap:6px;flex:1; }
   .rp-chip { display:inline-flex;align-items:center;gap:5px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:4px;padding:3px 4px 3px 8px;font-size:11px;color:#334155;white-space:nowrap; }
@@ -335,7 +334,7 @@
     <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
     <button id="rank-picker-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">&times;</button>
     <div id="rank-picker-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;">Set Priority Order</div>
-    <div id="rank-picker-desc" style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Left = preferred to hold/buy first. Right = sold first if this year needs to shrink. Use ▲/▼ to reorder a year's maturities; a year left untouched follows the global allocation policy.</div>
+    <div id="rank-picker-desc" style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Left = preferred to hold/buy first. Right = sold first if this year needs to shrink. Use ◀/▶ to reorder a year's maturities; a year left untouched follows the global allocation policy. Under Equal split, a not-held maturity can outrank a held one — it's filled first to catch up, not because it's preferred.</div>
     <div id="rank-picker-body" style="overflow-y:auto;flex:1;"></div>
     <div style="margin-top:16px;text-align:right;flex-shrink:0;">
       <button id="rank-picker-cancel" style="padding:4px 12px;font-size:11px;margin-right:8px;">Cancel</button>
@@ -405,32 +404,6 @@
           <button id="bracket-mode-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Bracket mode help">?</button>
         </div>
       </div>
-      <div class="field" id="field-build-maturity">
-        <label>Maturity preference</label>
-        <select id="build-maturity">
-          <option value="last">Last to mature</option>
-          <option value="first">First to mature</option>
-          <option value="semiannual">Semiannual (Jan + Jul)</option>
-          <option value="all">All maturity months</option>
-          <option value="select">Select maturities&hellip;</option>
-        </select>
-      </div>
-      <div class="field" id="field-alloc-policy">
-        <label style="gap:4px">Allocation policy<button id="alloc-policy-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Allocation policy help">?</button></label>
-        <select id="rebal-alloc-policy">
-          <option value="equal">Equal split</option>
-          <option value="maturity">Maturity order</option>
-          <option value="saYield">SA-Yield order</option>
-          <option value="select">Set priority order&hellip;</option>
-        </select>
-      </div>
-      <div class="field" id="field-build-coupon" style="display:none">
-        <label style="gap:4px">Coupon pick<button id="coupon-pick-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Coupon pick help">?</button></label>
-        <select id="build-coupon">
-          <option value="higher">Higher coupon</option>
-          <option value="lower">Lower coupon</option>
-        </select>
-      </div>
       <div class="field" id="field-pre-ladder">
         <label style="white-space:nowrap" title="Include coupon payments received before the ladder starts, reducing early rung quantities">Pre-ladder int.</label>
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
@@ -469,41 +442,81 @@
     <div id="status"></div>
   </div>
 
-  <!-- DARA Plan dropdown — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/
-       Import. Child of #top-row (its sticky containing block) so it anchors under the main card
-       instead of scrolling away; see .dara-plan-card CSS. The header sliver (#dara-plan-hdr) is
-       always visible whenever the card is available — same collapsed-header pattern as #dara-by-
-       year-hdr below — click it to expand/collapse #dara-plan-body. Auto-opens when a saved plan
-       is found (_updateDaraRememberUI). -->
-  <div id="dara-plan-card" class="dara-plan-card" style="display:none">
+  <!-- DARA Plan card — the header sliver (#dara-plan-hdr) plus #dara-plan-fields-row (Maturity
+       preference / Allocation policy / Coupon pick) are always visible, unlike the collapsible
+       #dara-plan-body below them (split years, per-segment Infer/$-each, Undo/Revert, Remember/
+       Export/Import), which only makes sense once a DARA plan exists (_setDaraPlanAvailable).
+       Click the header to expand/collapse the body — same collapsed-header pattern as #dara-by-
+       year-hdr below. Auto-opens when a saved plan is found (_updateDaraRememberUI). Child of
+       #top-row (its sticky containing block) so it anchors under the main card instead of
+       scrolling away; see .dara-plan-card CSS. -->
+  <div id="dara-plan-card" class="dara-plan-card">
     <div id="dara-plan-hdr" class="dara-plan-card-hdr">
       <span id="dara-plan-glyph">▶</span>
       <span id="dara-plan-hdr-text">Show DARA Plan</span>
       <span class="badge-dot"></span>
     </div>
+    <!-- Always visible regardless of expand/collapse or whether a DARA plan exists yet — these
+         don't depend on a DARA, so they must not be gated the way the rest of the card is (2.0
+         §Maturity Selection Within a Funded Year, §Within-Year Allocation Policy). Sibling of
+         #dara-plan-hdr, not nested inside it, so its controls never need a stopPropagation guard
+         against the header's own click-to-toggle handler. -->
+    <div class="card-inputs" id="dara-plan-fields-row" style="margin-top:6px">
+      <div class="field" id="field-build-maturity">
+        <label>Maturity preference</label>
+        <select id="build-maturity">
+          <option value="last">Last to mature</option>
+          <option value="first">First to mature</option>
+          <option value="semiannual">Semiannual (Jan + Jul)</option>
+          <option value="all">All maturity months</option>
+          <option value="select">Select maturities&hellip;</option>
+        </select>
+      </div>
+      <div class="field" id="field-alloc-policy">
+        <label style="gap:4px">Allocation policy<button id="alloc-policy-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Allocation policy help">?</button></label>
+        <select id="rebal-alloc-policy">
+          <option value="equal">Equal split</option>
+          <option value="maturity">Maturity order</option>
+          <option value="saYield">SA-Yield order</option>
+          <option value="select">Set priority order&hellip;</option>
+        </select>
+      </div>
+      <div class="field" id="field-build-coupon" style="display:none">
+        <label style="gap:4px">Coupon pick<button id="coupon-pick-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Coupon pick help">?</button></label>
+        <select id="build-coupon">
+          <option value="higher">Higher coupon</option>
+          <option value="lower">Lower coupon</option>
+        </select>
+      </div>
+    </div>
     <div id="dara-plan-body" style="display:none">
-      <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:0 0 8px;align-items:center;gap:8px;flex-wrap:wrap">
+      <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:8px 0;align-items:center;gap:8px;flex-wrap:wrap">
         <span id="dara-plan-banner-text"></span>
         <button type="button" class="plan-btn" id="dara-plan-apply">Apply</button>
         <button type="button" class="plan-btn" id="dara-plan-dismiss" style="background:none;border-color:transparent">Dismiss</button>
       </div>
-      <div id="dara-history-tools" style="display:none;font-size:11px;margin:0 0 8px;gap:6px;align-items:center">
-        <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
-        <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
-      </div>
-      <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:4px">
-        <button type="button" class="plan-btn" id="dara-remember-btn" title="Save the current per-year DARA (and split years) for this device, so it's offered back next time this plan is loaded"></button>
-        <div id="dara-plan-more-wrap" style="position:relative">
-          <button type="button" class="plan-btn" id="dara-plan-more-btn" title="More DARA-plan options (export/import a portable plan file)">⋮</button>
-          <div id="dara-plan-more-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;z-index:10;background:var(--portal-header-bg);border:1px solid var(--tab-active-bg);border-radius:4px;padding:4px;min-width:190px;box-shadow:0 4px 10px rgb(0 0 0 / 0.4)">
-            <button type="button" class="plan-btn" id="dara-plan-export-btn" style="display:block;width:100%;text-align:left;margin-bottom:4px" title="Save the current per-year DARA (and split years) to a file you can re-import next time, on any device">⬇ Export DARA Plan</button>
-            <button type="button" class="plan-btn" id="dara-plan-import-btn" style="display:block;width:100%;text-align:left" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+      <!-- History tools (Undo/Revert) and Remember/Export/Import consolidated onto one row — both
+           toggle their own display independently (_renderDaraHistoryBtns / _updateDaraRememberUI),
+           so this is a pure layout merge, not a behavior change. -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0;font-size:11px">
+        <div id="dara-history-tools" style="display:none;gap:6px;align-items:center">
+          <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
+          <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
+        </div>
+        <div id="dara-remember-row" style="display:none;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:4px">
+          <button type="button" class="plan-btn" id="dara-remember-btn" title="Save the current per-year DARA (and split years) for this device, so it's offered back next time this plan is loaded"></button>
+          <div id="dara-plan-more-wrap" style="position:relative">
+            <button type="button" class="plan-btn" id="dara-plan-more-btn" title="More DARA-plan options (export/import a portable plan file)">⋮</button>
+            <div id="dara-plan-more-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;z-index:10;background:var(--portal-header-bg);border:1px solid var(--tab-active-bg);border-radius:4px;padding:4px;min-width:190px;box-shadow:0 4px 10px rgb(0 0 0 / 0.4)">
+              <button type="button" class="plan-btn" id="dara-plan-export-btn" style="display:block;width:100%;text-align:left;margin-bottom:4px" title="Save the current per-year DARA (and split years) to a file you can re-import next time, on any device">⬇ Export DARA Plan</button>
+              <button type="button" class="plan-btn" id="dara-plan-import-btn" style="display:block;width:100%;text-align:left" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+            </div>
           </div>
+          </div>
+          <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
+          <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
         </div>
-        </div>
-        <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
-        <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
       </div>
       <div id="dara-seg-tools" style="display:none;font-size:12px">
       <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
@@ -616,6 +629,21 @@ document.getElementById('coupon-pick-help').addEventListener('click', e => {
   e.stopPropagation();
   showPopup(e.currentTarget, 'Coupon Pick', [
     { html: 'Some maturity months carry two TIPS issues with different coupons (Jan 2027/28/29, Apr 2028/29). Choose which one this ladder buys when one of the selected maturities lands on one of those months (tip: it doesn\'t really matter which you choose).' },
+  ]);
+});
+
+document.getElementById('alloc-policy-help').addEventListener('click', e => {
+  e.stopPropagation();
+  showPopup(e.currentTarget, 'Allocation Policy', [
+    { html: 'When a funded year holds more than one maturity (2.0 §Maturity Selection Within a Funded Year), this decides which one a trade favors first.' },
+    { heading: 'Equal split (default)' },
+    { html: 'Buys into whichever maturity currently holds the least value first — including one not held at all, which ranks ahead of any held maturity until it catches up. Sells the largest holding first if the year needs to shrink. The goal is to level all of the year’s maturities off, not to prefer any one of them.' },
+    { heading: 'Maturity order' },
+    { html: 'Follows the top-level Maturity preference: latest-maturing wins first when set to “Last to mature”, earliest-maturing wins first when set to “First to mature.”' },
+    { heading: 'SA-Yield order' },
+    { html: 'Highest current SA yield preferred/held first; lowest sells first.' },
+    { heading: 'Set priority order…' },
+    { html: 'Manually reorder a specific funded year’s maturities, overriding whichever policy above is active for that year only.' },
   ]);
 });
 
@@ -1327,12 +1355,15 @@ function _rankPickerYearOrder(year, useOverride) {
     candidates, held, piMap, tipsMap,
     policy: _allocationPolicy,
     rankOverride: override?.length ? override : null,
+    // Live DOM value, not the `_maturityPrefRebal` snapshot -- that only refreshes on a mode
+    // switch, so it can be stale if Maturity preference just changed without leaving Rebalance
+    // mode (the only mode this modal opens in, so `#build-maturity`'s current value is always
+    // Rebalance's).
+    maturityPref: document.getElementById('build-maturity').value,
   });
 }
 
-// `focusYear` (from the per-year ⇅ shortcut, D) scrolls the modal to that year's row and briefly
-// highlights it — the global "Set priority order…" entry point has no single year to focus.
-function _openRankPickerModal(focusYear) {
+function _openRankPickerModal() {
   const years = _pickerYears();
   const rowsHtml = years.map(year => {
     const rank = _rankPickerYearOrder(year, true);
@@ -1343,8 +1374,8 @@ function _openRankPickerModal(focusYear) {
       const coupon = b?.coupon != null ? (b.coupon * 100).toFixed(3) + '%' : '';
       const title = r.cusip + (b?.maturity ? ' · ' + (b.maturity.getMonth() + 1) + '/' + b.maturity.getFullYear() : '');
       return `<span class="rp-chip${r.held ? '' : ' rp-not-held'}" data-cusip="${r.cusip}" title="${title}">`
-        + `<button type="button" class="rp-up" ${i === 0 ? 'disabled' : ''}>&#9650;</button>`
-        + `<button type="button" class="rp-down" ${i === rank.length - 1 ? 'disabled' : ''}>&#9660;</button>`
+        + `<button type="button" class="rp-left" ${i === 0 ? 'disabled' : ''}>&#9664;</button>`
+        + `<button type="button" class="rp-right" ${i === rank.length - 1 ? 'disabled' : ''}>&#9654;</button>`
         + `${label} ${coupon}${r.held ? '' : ' (not held)'}`
         + `</span>`;
     }).join('');
@@ -1352,14 +1383,6 @@ function _openRankPickerModal(focusYear) {
   }).join('');
   document.getElementById('rank-picker-body').innerHTML = rowsHtml || '<div style="color:#94a3b8;font-size:12px">No funded years in range.</div>';
   document.getElementById('rank-picker-overlay').style.display = 'block';
-  if (focusYear != null) {
-    const row = document.querySelector(`#rank-picker-body .rp-year-row[data-year="${focusYear}"]`);
-    if (row) {
-      row.scrollIntoView({ block: 'center' });
-      row.classList.add('rp-year-row-focus');
-      setTimeout(() => row.classList.remove('rp-year-row-focus'), 1500);
-    }
-  }
 }
 
 function _closeRankPickerModal() {
@@ -1369,19 +1392,19 @@ function _closeRankPickerModal() {
 }
 
 document.getElementById('rank-picker-body').addEventListener('click', e => {
-  const btn = e.target.closest('.rp-up, .rp-down');
+  const btn = e.target.closest('.rp-left, .rp-right');
   if (!btn) return;
   const chip = btn.closest('.rp-chip');
   const chipsEl = btn.closest('.rp-chips');
-  if (btn.classList.contains('rp-up') && chip.previousElementSibling) {
+  if (btn.classList.contains('rp-left') && chip.previousElementSibling) {
     chipsEl.insertBefore(chip, chip.previousElementSibling);
-  } else if (btn.classList.contains('rp-down') && chip.nextElementSibling) {
+  } else if (btn.classList.contains('rp-right') && chip.nextElementSibling) {
     chipsEl.insertBefore(chip.nextElementSibling, chip);
   }
   const chips = [...chipsEl.querySelectorAll('.rp-chip')];
   chips.forEach((c, i) => {
-    c.querySelector('.rp-up').disabled = i === 0;
-    c.querySelector('.rp-down').disabled = i === chips.length - 1;
+    c.querySelector('.rp-left').disabled = i === 0;
+    c.querySelector('.rp-right').disabled = i === chips.length - 1;
   });
 });
 
@@ -2559,14 +2582,18 @@ function _setDaraByYearCollapsed(collapsed) {
   if (glyph) glyph.textContent   = collapsed ? '▶' : '▼';
 }
 
-// Whether the DARA Plan card is relevant at all right now (valid DARA + range; holdings loaded in
-// rebalance) — controls whether the whole card (header sliver included) is shown at all. Independent
-// of _daraPlanOpen (open/closed body state), which is preserved across re-renders while available,
+// Whether a DARA plan is relevant at all right now (valid DARA + range; holdings loaded in
+// rebalance) — controls whether the collapsible body (banner/history/remember/segments) can be
+// open. The card itself and its always-visible fields row are unaffected. Independent of
+// _daraPlanOpen (open/closed body state), which is preserved across re-renders while available,
 // same as _daraByYearBodyCollapsed is for the Per-Year DARA table.
 function _setDaraPlanAvailable(available) {
-  const card = document.getElementById('dara-plan-card');
-  card.style.display = available ? 'block' : 'none';
-  if (!available) { _daraPlanOpen = false; return; }
+  // The card itself (header + #dara-plan-fields-row: Maturity preference / Allocation policy /
+  // Coupon pick) is always visible now — those fields don't depend on a DARA plan existing (2.0
+  // §Maturity Selection Within a Funded Year, §Within-Year Allocation Policy). Only the collapsible
+  // body (banner/history/remember/segments) is DARA-plan-dependent, so "unavailable" just means
+  // collapsing that body rather than hiding the whole card.
+  if (!available) { _daraPlanOpen = false; _setDaraPlanOpen(false); return; }
   _setDaraPlanOpen(_daraPlanOpen);  // re-sync body display/label with the preserved open/closed state
 }
 
@@ -3017,21 +3044,6 @@ function getDaraByYear() {
       _renderSegTools();  // refresh $-each echoes even when no live re-render happens (e.g. Build pre-first-run)
     }, 0);
   });
-});
-
-// Per-year priority-order shortcut (D: 2.0 §Within-Year Allocation Policy §Manual rank override) —
-// the `.fy-rank-icon` ⇅ button next to a rung's DARA input, delegated the same way as
-// `.fy-dara-input` above since group-header rows are re-rendered wholesale on every table render.
-// Registered on the CAPTURE phase (3rd arg `true`): the button's own inline
-// `onclick="event.stopPropagation()"` (needed to keep the click from also toggling the group-header
-// row, a separate bubble-phase listener below) fires during the target phase, which is after any
-// capture-phase ancestor listener has already run — so capture is the only phase this handler can use.
-[simpleEl, tableEl].forEach(tbl => {
-  tbl.addEventListener('click', e => {
-    const btn = e.target.closest('.fy-rank-icon');
-    if (!btn) return;
-    _openRankPickerModal(parseInt(btn.dataset.year, 10));
-  }, true);
 });
 
 // When user focuses the DARA field: open per-year panel. While the box is intentionally "by year"

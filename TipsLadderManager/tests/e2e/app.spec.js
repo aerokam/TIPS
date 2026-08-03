@@ -180,6 +180,16 @@ test('maturity preference field visible in both Rebalance and Build', async ({ p
   await expect(page.locator('#field-build-maturity')).toBeVisible();
 });
 
+// Maturity preference / Allocation policy live inside the DARA Plan card's always-visible fields
+// row (#dara-plan-fields-row), not gated behind a DARA existing or the card being expanded --
+// unlike the rest of the card (banner/history/remember/segments), which is genuinely DARA-
+// dependent. Asserted with NO holdings loaded and no DARA entered (freshest possible state).
+test('DARA Plan card: Maturity preference and Allocation policy are visible before any DARA exists, and before the card is expanded', async ({ page }) => {
+  await expect(page.locator('#dara-plan-body')).not.toBeVisible(); // collapsed by default
+  await expect(page.locator('#field-build-maturity')).toBeVisible();
+  await expect(page.locator('#field-alloc-policy')).toBeVisible();
+});
+
 test('maturity preference: Rebalance and Build keep independent selections across a mode switch', async ({ page }) => {
   await page.locator('#build-maturity').selectOption('first');
   await page.locator('.tab-btn[data-mode="build"]').click();
@@ -591,28 +601,16 @@ test('rebalance: per-year DARA inputs render inline after loading holdings and e
   expect(await yearInputs.count()).toBeGreaterThan(0);
 });
 
-test('rebalance: clicking a funded year\'s priority-order icon opens the rank picker focused on that year, without toggling the row', async ({ page }) => {
+test('rebalance: priority-order modal reorders chips with left/right buttons, not up/down', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await page.locator('#dara').fill('10000');
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 3_000 });
 
-  const hdr = page.locator('tr.fy-group-header').first();
-  const expandedBefore = await hdr.getAttribute('data-expanded');
-
-  const icon = page.locator('.fy-rank-icon[data-year]').first();
-  const year = await icon.getAttribute('data-year');
-  // dispatchEvent, not click(): this element's tiny hit-box makes Playwright's synthetic mouse
-  // click land as a no-op in headless Chromium here, even though elementFromPoint at the same
-  // coordinates resolves to the button and a real click (manually verified) works fine.
-  await icon.dispatchEvent('click');
-
+  await page.locator('#rebal-alloc-policy').selectOption('select');
   await expect(page.locator('#rank-picker-overlay')).toBeVisible();
-  await expect(page.locator(`.rp-year-row[data-year="${year}"]`)).toHaveClass(/rp-year-row-focus/);
-  // The icon's own stopPropagation must keep the click from also toggling the group-header row
-  // it sits inside (5.0 §Funded Year Group Header Row) — this regressed once when the modal's
-  // click handler moved to capture phase; a capture-phase ancestor listener fires ahead of any
-  // stopPropagation the target calls in its own (later) target-phase handler.
-  await expect(hdr).toHaveAttribute('data-expanded', expandedBefore);
+  await expect(page.locator('.rp-chip .rp-left').first()).toBeVisible();
+  await expect(page.locator('.rp-chip .rp-right').first()).toBeVisible();
+  expect(await page.locator('.rp-up, .rp-down').count()).toBe(0);
 });
 
 // ── 12. Enter key triggers Run ────────────────────────────────────────────────

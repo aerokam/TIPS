@@ -1231,6 +1231,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         tipsMap,
         policy: allocationPolicy,
         rankOverride: yearRankOverrides?.get(year) ?? null,
+        maturityPref,
       });
       targetCUSIP = yearRank[0]?.cusip;
     }

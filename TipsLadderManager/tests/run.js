@@ -8,6 +8,7 @@ import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, in
 import { segmentRanges, constantMap, applySegmentMap } from '../src/segment-dara.js';
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
+import { rankForYear } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
 import { nextBondTradingDay, parseBondHolidays, lookupRefCpi } from '../src/data.js';
@@ -1900,6 +1901,7 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
     }
 
     // 'maturity': latest-maturing (Oct) is preferred -> absorbs the growth; Jan/Apr untouched.
+    // This is maturityPref's default ('last'), matching 2.0's own tie-break direction.
     {
       const { details } = runRebalance({
         dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
@@ -1908,6 +1910,26 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
       assert("allocation policy 'maturity': need grows -> Oct (latest-maturing) absorbs it", qtyDeltaFor(details, OCT27) > 0, true);
       assert("allocation policy 'maturity': need grows -> Jan untouched", qtyDeltaFor(details, JAN27), 0);
       assert("allocation policy 'maturity': need grows -> Apr untouched", qtyDeltaFor(details, APR27), 0);
+    }
+
+    // rankForYear's tie-break direction follows the top-level Maturity Preference setting
+    // (allocation-policy.js's `dir`) -- this is the fix for the bug where the rank picker ignored
+    // Maturity Preference entirely and always favored the latest month. Tested directly against
+    // rankForYear with a small synthetic candidate set, not through the full runRebalance stack --
+    // going through selectLadderBonds's real maturityPref='first' candidate narrowing pulls in a
+    // same-month second TIPS issue (couponPref territory) that confounds a growth-absorption
+    // assertion with something unrelated to the tie-break direction itself.
+    {
+      const candidates = [
+        { cusip: 'JAN', maturity: new Date('2027-01-15') },
+        { cusip: 'APR', maturity: new Date('2027-04-15') },
+        { cusip: 'OCT', maturity: new Date('2027-10-15') },
+      ];
+      const lastRank = rankForYear({ candidates, policy: 'maturity', maturityPref: 'last' });
+      assert("rankForYear maturityPref='last' (default): latest-maturing (Oct) ranked first", lastRank[0].cusip, 'OCT');
+      const firstRank = rankForYear({ candidates, policy: 'maturity', maturityPref: 'first' });
+      assert("rankForYear maturityPref='first': earliest-maturing (Jan) ranked first", firstRank[0].cusip, 'JAN');
+      assert("rankForYear maturityPref='first': Oct ranked last", firstRank[2].cusip, 'OCT');
     }
 
     // 'saYield': force Apr's SA yield above Oct's and Jan's -> Apr should be preferred instead.
