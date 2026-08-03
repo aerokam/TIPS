@@ -9,11 +9,12 @@
   .page { max-width: 1200px; margin: 0 auto; padding: 0 16px 32px; }
   main { background: #fff; border: 1px solid var(--border-light); border-top: none; border-radius: 0 0 8px 8px; padding: 16px; }
 
+  #content { max-height: calc(100vh - 140px); overflow: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; table-layout: fixed; }
   th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--border-light); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   th:nth-child(1), td:nth-child(1),
   th:nth-child(2), td:nth-child(2) { text-align: left; }
-  thead th { background: var(--portal-header-bg); color: var(--portal-text-on-dark); position: sticky; top: 0; font-weight: 700; position: relative; }
+  thead th { background: var(--portal-header-bg); color: var(--portal-text-on-dark); position: sticky; top: 0; font-weight: 700; }
   thead th.sortable { cursor: pointer; user-select: none; }
   thead th.sortable:hover { background: var(--tab-inactive-bg); }
   thead th .sort-arrow { font-size: 10px; margin-left: 3px; opacity: 0.7; }
@@ -48,9 +49,10 @@ import { parseCsv } from "../shared/src/csv.js";
 import { calcMktWtdAvg } from "../shared/src/bond-math.js";
 
 // One entry per fund whose enriched CSV lives in data/. Add a ticker here
-// once the fund's scraper (vanguard/updateVanguardHoldings.js or
-// fminvest/updateFminvestHoldings.js) + enrichHoldings.js have been run for it.
-const FUNDS = ["VBIL", "VTIP", "VTP", "RBIL"];
+// once the fund's scraper (vanguard/, fminvest/, pimco/, or schwab/) +
+// enrichHoldings.js have been run for it. Ordered nominal fund(s) first, then
+// TIPS funds by increasing weighted-average duration.
+const FUNDS = ["VBIL", "RBIL", "VTIP", "SCHP", "VTP", "LTPZ"];
 const WEEKS_PER_YEAR = 365.25 / 7;
 const R2_BASE = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/FundHoldings";
 

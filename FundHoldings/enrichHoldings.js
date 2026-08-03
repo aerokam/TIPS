@@ -42,18 +42,20 @@ async function loadYieldSources() {
 function enrichRow(row, settle, { tipsByCusip, nominalByCusip }) {
   const cusip = row.CUSIP;
 
-  // MKTLIQ is a cash-sweep vehicle, not a bond — Vanguard reports a placeholder
-  // far-future maturity for it. Treat it as maturing tomorrow so Term reads as
-  // ~overnight instead of a meaningless multi-decade figure.
-  const isMktLiq = row["Holding Name"] === "MKTLIQ";
-  const maturity = isMktLiq
+  // MKTLIQ (Vanguard) and SSC GOVERNMENT MM GVMXX (PIMCO and Schwab share the
+  // same State Street sweep vehicle) are cash-sweep vehicles, not bonds — all
+  // providers report a placeholder far-future maturity for them. Treat as
+  // maturing tomorrow so Term reads as ~overnight instead of a meaningless
+  // multi-year figure.
+  const isCashSweep = row["Holding Name"] === "MKTLIQ" || row["Holding Name"] === "SSC GOVERNMENT MM GVMXX";
+  const maturity = isCashSweep
     ? new Date(settle.getTime() + 86400000)
     : row["Maturity Date"] ? parseDate(row["Maturity Date"]) : null;
 
   const enriched = {
     ...row,
     // Blank out the bogus placeholder date rather than displaying/sorting on it.
-    "Maturity Date": isMktLiq ? "" : row["Maturity Date"],
+    "Maturity Date": isCashSweep ? "" : row["Maturity Date"],
     "Ask Yield": "",
     "SA Yield": "",
     "SAO Yield": "",

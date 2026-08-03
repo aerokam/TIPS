@@ -1,0 +1,6 @@
+{
+  "name": "pimco-holdings-scraper",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "updateLtpzHoldings.js"
+}
