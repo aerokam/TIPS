@@ -513,13 +513,13 @@
         </div>
       </div>
       <div id="dara-seg-tools" style="display:none;font-size:12px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
         <span>Split years:</span>
         <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
         <select id="split-year-add"></select>
         <button id="seg-tools-help" type="button" class="plan-help" title="Segmented DARA help">?</button>
+        <div id="seg-rows" style="display:contents"></div>
       </div>
-      <div id="seg-rows"></div>
       </div>
     </div>
   </div>
@@ -2830,7 +2830,7 @@ function _renderSegTools() {
     const echo = _segInferredEcho.get(_segKey(years));
     return `
     <div class="seg-row">
-      <b>${segments.length > 1 ? `Segment ${range(years)}` : `Whole ladder ${range(years)}`}</b>
+      <b>${segments.length > 1 ? range(years) : `Whole ladder ${range(years)}`}</b>
       ${inferBtnHTML(i)}
       <input type="number" class="seg-const-input" data-idx="${i}" placeholder="$ each" step="1000" min="0" value="${echo ?? ''}">
     </div>`;
