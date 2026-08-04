@@ -410,10 +410,13 @@
           <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.08em">Include</span>
         </label>
       </div>
-    </div>
-    <!-- Row 2: Run + post-run actions -->
-    <div class="card-inputs" style="margin-top:8px">
+      <!-- Run shares Row 1 rather than sitting alone on its own row -- it's always visible (just
+           disabled pre-load), unlike the post-run actions below, which stay worth a separate row
+           since they're all display:none until a run actually happens. -->
       <button id="run-btn" disabled style="align-self:flex-end">Rebalance Ladder</button>
+    </div>
+    <!-- Row 2: post-run actions only, hidden (zero-height) until a run happens -->
+    <div class="card-inputs" style="margin-top:8px">
       <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
       <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
       <button id="trade-ticket-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show trade ticket with cost breakdown">Trade Ticket</button>
