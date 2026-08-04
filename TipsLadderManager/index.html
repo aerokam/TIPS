@@ -37,23 +37,22 @@
   .form-card { width: fit-content; min-width: 845px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 0 0 8px 8px; padding: 10px 24px 8px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
 
   /* ── DARA Plan card — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/
-     Import. A dropdown that's a normal-flow child of the sticky #top-row: the header sliver
-     (.dara-plan-card-hdr) is always visible whenever the card is relevant at all — click it to
-     expand/collapse #dara-plan-body.
+     Import. A dropdown that's a normal-flow child of the sticky #top-row: #dara-plan-hdr-row
+     (DARA Plan / Maturity preference / Allocation policy / Coupon pick — one row, matching
+     .card-inputs) is always visible whenever the card is relevant at all; #dara-plan-toggle-btn
+     expands/collapses #dara-plan-body.
      When open it pushes the Per-Year DARA table below it down rather than overlaying it — an
      overlay blocked clicks on that table, and real usage interleaves editing per-year rungs with
      the plan tools. Being inside #top-row still means it never scrolls away independently —
      #top-row (position: sticky) just grows/shrinks in place as the body opens/closes. Auto-opens
      when a saved plan is found. ── */
   .dara-plan-card { width: fit-content; min-width: 845px; margin: 4px 0 0; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 8px; padding: 8px 24px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); }
-  .dara-plan-card-hdr { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--portal-card-text); opacity: 0.85; }
-  .dara-plan-card-hdr-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; }
   #dara-plan-body { padding-top: 8px; }
   /* Fixed cap (not viewport-fill like the main output tables) so expanding this panel never pushes
      the main data table almost entirely below the fold — it gets its own internal scrollbar instead. */
   #dara-by-year-scroll { max-height: 320px; }
-  .dara-plan-card .badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #e05252; display: none; }
-  .dara-plan-card-hdr.needs-attention .badge-dot { display: block; }
+  .dara-plan-card .badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #e05252; display: none; margin-left: 3px; }
+  #dara-plan-hdr.needs-attention .badge-dot { display: inline-block; }
   .dara-plan-card, .dara-plan-card label, .dara-plan-card span, .dara-plan-card b { color: var(--portal-card-text); }
   .dara-plan-card select, .dara-plan-card input[type="number"] { background: var(--portal-header-bg); border: 1px solid var(--portal-header-bg); border-radius: 3px; color: var(--portal-text-on-dark); font-size: 12px; padding: 2px 4px; }
   .dara-plan-card input[type="checkbox"] { margin: 0; }
@@ -452,8 +451,11 @@
        found (_updateDaraRememberUI). Child of #top-row (its sticky containing block) so it
        anchors under the main card instead of scrolling away; see .dara-plan-card CSS. -->
   <div id="dara-plan-card" class="dara-plan-card">
-    <div id="dara-plan-hdr-row" class="dara-plan-card-hdr-row">
-      <span id="dara-plan-hdr" class="dara-plan-card-hdr">DARA Plan<span class="badge-dot"></span></span>
+    <div id="dara-plan-hdr-row" class="card-inputs">
+      <div class="field" id="field-dara-plan-toggle">
+        <label id="dara-plan-hdr">DARA Plan<span class="badge-dot"></span></label>
+        <button type="button" id="dara-plan-toggle-btn" class="plan-btn">&#9654; Show Details</button>
+      </div>
       <div class="field" id="field-build-maturity">
         <label>Maturity preference</label>
         <select id="build-maturity">
@@ -481,7 +483,6 @@
         </select>
       </div>
     </div>
-    <button type="button" id="dara-plan-toggle-btn" class="plan-btn" style="margin-top:8px">&#9654; Show Details</button>
     <div id="dara-plan-body" style="display:none">
       <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:8px 0;align-items:center;gap:8px;flex-wrap:wrap">
         <span id="dara-plan-banner-text"></span>
