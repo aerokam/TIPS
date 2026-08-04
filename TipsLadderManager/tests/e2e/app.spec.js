@@ -190,6 +190,27 @@ test('DARA Plan card: Maturity preference and Allocation policy are visible befo
   await expect(page.locator('#field-alloc-policy')).toBeVisible();
 });
 
+// Maturity preference 'last'/'first' already commits every year to one fixed direction, which is
+// exactly what allocation policy 'maturity' expresses -- letting 'equal'/'saYield' apply on top of
+// a fixed direction is what caused priority order to look wrong regardless of which was picked.
+// The dropdown locks to 'Maturity order' (disabled) under 'last'/'first' and unlocks for
+// 'all'/'semiannual'/'select', which have no single fixed direction of their own.
+test('allocation policy locks to Maturity order under a fixed maturity preference, unlocks otherwise', async ({ page }) => {
+  await expect(page.locator('#build-maturity')).toHaveValue('last'); // default
+  await expect(page.locator('#rebal-alloc-policy')).toBeDisabled();
+  await expect(page.locator('#rebal-alloc-policy')).toHaveValue('maturity');
+
+  await page.locator('#build-maturity').selectOption('all');
+  await expect(page.locator('#rebal-alloc-policy')).toBeEnabled();
+
+  await page.locator('#build-maturity').selectOption('first');
+  await expect(page.locator('#rebal-alloc-policy')).toBeDisabled();
+  await expect(page.locator('#rebal-alloc-policy')).toHaveValue('maturity');
+
+  await page.locator('#build-maturity').selectOption('semiannual');
+  await expect(page.locator('#rebal-alloc-policy')).toBeEnabled();
+});
+
 test('maturity preference: Rebalance and Build keep independent selections across a mode switch', async ({ page }) => {
   await page.locator('#build-maturity').selectOption('first');
   await page.locator('.tab-btn[data-mode="build"]').click();
@@ -606,6 +627,9 @@ test('rebalance: priority-order modal reorders chips with left/right buttons, no
   await page.locator('#dara').fill('10000');
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 3_000 });
 
+  // Allocation policy is locked to 'Maturity order' (and the dropdown disabled) whenever Maturity
+  // preference is 'last'/'first' -- switch to 'all' to unlock it before opening the picker.
+  await page.locator('#build-maturity').selectOption('all');
   await page.locator('#rebal-alloc-policy').selectOption('select');
   await expect(page.locator('#rank-picker-overlay')).toBeVisible();
   await expect(page.locator('.rp-chip .rp-left').first()).toBeVisible();
