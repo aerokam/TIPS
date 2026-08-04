@@ -611,6 +611,31 @@ test('build: editing a per-year DARA input blanks the DARA field to "by year"', 
   await expect(page.locator('#dara')).toHaveAttribute('placeholder', 'by year');
 });
 
+// Rebuilding #simple-table on every Rebalance Ladder run wipes every fy-group-header's
+// data-expanded attribute -- _captureExpandedState/_restoreOrDefaultGroupsExpanded carry the prior
+// expand/collapse state across the rebuild so re-running after a Maturity preference/Allocation
+// policy change doesn't collapse whatever the user had open.
+test('rebalance: expanded/collapsed funded years survive re-running Rebalance Ladder', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  const headers = page.locator('#simple-table tbody tr.fy-group-header');
+  const first = headers.first();
+  const second = headers.nth(1);
+  // Ordinary (non-bracket) groups start collapsed by default -- confirm before changing anything.
+  await expect(first).toHaveAttribute('data-expanded', 'false');
+  await expect(second).toHaveAttribute('data-expanded', 'false');
+
+  await first.click(); // expand only the first group
+  await expect(first).toHaveAttribute('data-expanded', 'true');
+
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+  await expect(headers.first()).toHaveAttribute('data-expanded', 'true');
+  await expect(headers.nth(1)).toHaveAttribute('data-expanded', 'false');
+});
+
 test('rebalance: per-year DARA inputs render inline after loading holdings and entering DARA', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   // Typing into DARA fires 'input' → renderDaraByYearPanel → refreshes the before-state preview;

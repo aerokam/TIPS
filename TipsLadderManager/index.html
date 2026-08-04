@@ -1095,6 +1095,30 @@ function _setDefaultGroupsExpanded(tbl) {
   _updateExpandCollapseLabels();
 }
 
+// Snapshot of which funded years are currently expanded, taken right before a table's innerHTML
+// is replaced -- rebuilding wipes every data-expanded attribute, so this is the only way to carry
+// expand/collapse state across a Rebalance Ladder run.
+function _captureExpandedState(tbl) {
+  const state = new Map();
+  tbl.querySelectorAll('tr.fy-group-header').forEach(hdr => {
+    state.set(hdr.dataset.fy, hdr.dataset.expanded === 'true');
+  });
+  return state;
+}
+
+// Re-applies a snapshot from _captureExpandedState after a rebuild, so re-running Rebalance keeps
+// whatever years the user had open -- letting a Maturity preference/Allocation policy change be
+// compared before/after without re-expanding anything. A funded year absent from the snapshot
+// (e.g. the range grew) falls back to the normal bracket/cover-year default.
+function _restoreOrDefaultGroupsExpanded(tbl, prevState) {
+  tbl.querySelectorAll('tr.fy-group-header').forEach(hdr => {
+    const fy = hdr.dataset.fy;
+    const expanded = prevState.has(fy) ? prevState.get(fy) : hdr.classList.contains('bracket');
+    _setGroupExpanded(tbl, fy, expanded);
+  });
+  _updateExpandCollapseLabels();
+}
+
 function _updateExpandCollapseLabels() {
   const tbl = _activeTable();
   const allHdrs = [...tbl.querySelectorAll('tr.fy-group-header')];
@@ -1650,8 +1674,9 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
   rebalSummary = summary;
 
   const { headerHTML: rHdr, bodyHTML: rBody, tfootHTML: rFoot } = renderTable({ details, mode: 'rebal', summary, daraByYear: _daraByYearStore, flaggedYears: _bracketAutoCapYears });
+  const _prevExpandState = _captureExpandedState(simpleEl);
   simpleEl.innerHTML = rHdr + rBody + rFoot;
-  _setDefaultGroupsExpanded(simpleEl);
+  _restoreOrDefaultGroupsExpanded(simpleEl, _prevExpandState);
 
     rebalanceRendered = true;
   _rebalBeforeStateShown = true;
