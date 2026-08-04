@@ -5,7 +5,6 @@
 - [About This Document](#about-this-document)
 - [Federal Taxability](#federal-taxability)
 - [State and Local Exemption](#state-and-local-exemption)
-- [The Finance Buff Principle](#the-finance-buff-principle)
 - [Composite 1099 Structure](#composite-1099-structure)
 - [Tax Software: General Notes](#tax-software-general-notes)
 - [Caveats](#caveats)
@@ -53,23 +52,6 @@ All Treasury interest is exempt from state and local income tax under 31 U.S.C. 
 - T-bill acquisition discount appearing as a capital gain in broker supplemental sections (Schwab-style) — does not automatically flow to the state exclusion
 
 Specific steps for each item are documented in the relevant dependent document.
-
----
-
-## The Finance Buff Principle
-
-*Source: [Finance Buff, "Which Treasury to Buy While Keeping Your Taxes Simple"](https://thefinancebuff.com/buy-treasury-simple-taxes.html)*[^financebuff]
-
-For every type of Treasury, **buying at original auction and holding to maturity produces the simplest possible tax filing.** Income flows cleanly from the broker's 1099 with no manual adjustments and minimal state ambiguity.
-
-Every step away from this baseline adds complexity:
-
-- **Reopening auction** — accrued interest tracking required
-- **Secondary market purchase** — AMD rules apply; potential state complications
-- **Selling before maturity** — AMD or acquisition discount reclassification; capital gain splitting; state intervention
-- **All three combined** — maximum complexity
-
-This principle applies equally to bills, notes, bonds, and TIPS.
 
 ---
 
@@ -123,8 +105,6 @@ Fidelity, Schwab, and Vanguard all include accrued interest paid in a supplement
 [^pub550-treasury]: IRS Publication 550 (2024), *Investment Income and Expenses* — "U.S. Treasury Bills, Notes, and Bonds." <https://www.irs.gov/publications/p550>
 
 [^3124a]: 31 U.S.C. § 3124(a) — Exemption of United States obligations from state taxation. <https://uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title31-section3124&num=0&edition=prelim>
-
-[^financebuff]: Finance Buff, "Which Treasury to Buy While Keeping Your Taxes Simple." <https://thefinancebuff.com/buy-treasury-simple-taxes.html>
 
 ---
 

@@ -1,6 +1,6 @@
 # Taxation of Treasury Bills
 
-**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, the Finance Buff Principle, composite 1099 structure, tax software general notes, and caveats. Do not restate those principles here. When editing this document, review the Foundation doc to determine whether any changes also belong there.
+**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. Do not restate those principles here. When editing this document, review the Foundation doc to determine whether any changes also belong there.
 
 This document covers Treasury bills only. For notes, bonds, and TIPS, see [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md).
 
@@ -127,7 +127,6 @@ You are still required to report the income. You must calculate the ratable shar
 | **Sold before maturity** | Supplemental section (not 1099-B); Code O on Form 8949 | 1099-B with AMD in Box 1f; Code D on Form 8949 |
 | **State exemption** | Automatic for Box 3; manual if in supplemental section | Manual for AMD; automatic for Box 3 coupon |
 | **Accrued interest at purchase** | N/A (no coupon) | Required adjustment for reopenings and secondary market purchases |
-| **Finance Buff principle** | Buy at auction, hold to maturity = zero manual work | Buy at auction, hold to maturity = zero manual work |
 
 ---
 
