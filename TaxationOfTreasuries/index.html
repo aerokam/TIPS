@@ -6,45 +6,45 @@
   <title>Taxation of Treasuries - Treasury Investors Portal</title>
   <link rel="stylesheet" href="../shared/src/portal-theme.css">
   <style>
-    body { font-size: 13px; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+    body { font-size: 15px; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; background: #d5dede; }
 
     header { padding: 9px 14px; background: var(--portal-card-bg); color: var(--portal-card-text); border-bottom: 1px solid var(--portal-header-bg); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
-    header h1 { font-size: 17px; margin: 0; color: var(--portal-card-text); }
-    #doc-label { font-size: 13px; color: var(--tab-inactive-text); margin-left: auto; }
+    header h1 { font-size: 19px; margin: 0; color: var(--portal-card-text); }
+    #doc-label { font-size: 14px; color: var(--tab-inactive-text); margin-left: auto; }
 
     .layout { flex: 1; display: flex; min-height: 0; padding: 10px; gap: 10px; overflow: hidden; }
 
     /* Sidebar */
-    .sidebar { width: 190px; flex-shrink: 0; background: #fff; border: 1px solid var(--border-light); border-radius: 8px; overflow-y: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.05); padding: 10px; display: flex; flex-direction: column; gap: 3px; }
-    .doc-btn { display: block; width: 100%; text-align: left; background: none; border: none; border-radius: 6px; padding: 8px 10px; font-size: 12px; font-weight: 500; cursor: pointer; color: var(--portal-text-main); line-height: 1.4; transition: background 0.1s; }
+    .sidebar { width: 210px; flex-shrink: 0; background: #f7f9f9; border: 1px solid var(--border-light); border-radius: 8px; overflow-y: auto; box-shadow: 0 1px 3px rgba(0,0,0,0.08); padding: 10px; display: flex; flex-direction: column; gap: 3px; }
+    .doc-btn { display: block; width: 100%; text-align: left; background: none; border: none; border-radius: 6px; padding: 9px 11px; font-size: 14px; font-weight: 500; cursor: pointer; color: var(--portal-text-main); line-height: 1.4; transition: background 0.1s; }
     .doc-btn:hover:not(.active) { background: var(--chip-bg); transform: none; box-shadow: none; }
     .doc-btn.active { background: var(--portal-header-bg); color: #fff; transform: none; box-shadow: none; }
-    .doc-tag { display: block; font-size: 10px; font-weight: 400; opacity: 0.65; margin-top: 1px; }
+    .doc-tag { display: block; font-size: 11px; font-weight: 400; opacity: 0.65; margin-top: 1px; }
 
     /* Content pane */
-    .content { flex: 1; background: #fff; border: 1px solid var(--border-light); border-radius: 8px; overflow-y: auto; padding: 24px 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+    .content { flex: 1; background: #f7f9f9; border: 1px solid var(--border-light); border-radius: 8px; overflow-y: auto; padding: 26px 36px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
     #loading { color: var(--portal-text-muted); font-style: italic; }
 
     /* Markdown prose */
-    .content h1 { font-size: 21px; color: var(--portal-header-bg); margin-top: 0; }
-    .content h2 { font-size: 16px; color: var(--portal-header-bg); border-bottom: 1px solid var(--border-light); padding-bottom: 5px; margin-top: 28px; }
-    .content h3 { font-size: 14px; color: var(--portal-text-main); margin-top: 20px; }
-    .content h4 { font-size: 13px; color: var(--portal-text-muted); margin-top: 16px; }
-    .content p, .content li { line-height: 1.65; font-size: 13px; }
+    .content h1 { font-size: 25px; color: var(--portal-header-bg); margin-top: 0; }
+    .content h2 { font-size: 19px; color: var(--portal-header-bg); border-bottom: 1px solid var(--border-light); padding-bottom: 6px; margin-top: 30px; }
+    .content h3 { font-size: 17px; color: var(--portal-text-main); margin-top: 22px; }
+    .content h4 { font-size: 15px; color: var(--portal-text-muted); margin-top: 18px; }
+    .content p, .content li { line-height: 1.7; font-size: 15px; }
     .content a { color: var(--tab-active-bg); }
     .content a:hover { color: var(--portal-header-bg); }
-    .content code { background: #f1f5f9; padding: 2px 5px; border-radius: 3px; font-size: 12px; font-family: 'Consolas', monospace; }
-    .content pre { background: #f1f5f9; padding: 12px 16px; border-radius: 6px; overflow-x: auto; margin: 12px 0; }
-    .content pre code { background: none; padding: 0; font-size: 12px; }
-    .content table { border-collapse: collapse; width: 100%; font-size: 12px; margin: 14px 0; }
-    .content th { background: var(--portal-header-bg); color: var(--portal-card-text); padding: 6px 10px; text-align: left; font-weight: 600; }
-    .content td { padding: 5px 10px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
-    .content tr:nth-child(even) td { background: #f8fafc; }
-    .content ul, .content ol { padding-left: 22px; }
-    .content blockquote { border-left: 3px solid var(--tab-active-bg); padding-left: 14px; color: var(--portal-text-muted); margin: 12px 0; }
-    .content hr { border: none; border-top: 1px solid var(--border-light); margin: 20px 0; }
+    .content code { background: #e9edee; padding: 2px 6px; border-radius: 3px; font-size: 14px; font-family: 'Consolas', monospace; }
+    .content pre { background: #e9edee; padding: 14px 18px; border-radius: 6px; overflow-x: auto; margin: 14px 0; }
+    .content pre code { background: none; padding: 0; font-size: 14px; }
+    .content table { border-collapse: collapse; width: 100%; font-size: 14px; margin: 16px 0; }
+    .content th { background: var(--portal-header-bg); color: var(--portal-card-text); padding: 7px 11px; text-align: left; font-weight: 600; }
+    .content td { padding: 6px 11px; border-bottom: 1px solid var(--border-light); vertical-align: top; }
+    .content tr:nth-child(even) td { background: #eef1f1; }
+    .content ul, .content ol { padding-left: 24px; }
+    .content blockquote { border-left: 3px solid var(--tab-active-bg); padding-left: 15px; color: var(--portal-text-muted); margin: 14px 0; }
+    .content hr { border: none; border-top: 1px solid var(--border-light); margin: 22px 0; }
     .content strong { color: var(--portal-text-main); }
-    .toc-up { display: inline-block; font-size: 10px; font-weight: 600; color: var(--portal-text-muted); text-decoration: none; background: var(--chip-bg); border: 1px solid var(--border-light); border-radius: 3px; padding: 1px 6px; margin-left: 8px; vertical-align: middle; line-height: 1.6; cursor: pointer; }
+    .toc-up { display: inline-block; font-size: 11px; font-weight: 600; color: var(--portal-text-muted); text-decoration: none; background: var(--chip-bg); border: 1px solid var(--border-light); border-radius: 3px; padding: 1px 7px; margin-left: 8px; vertical-align: middle; line-height: 1.6; cursor: pointer; }
     .toc-up:hover { background: var(--portal-header-bg); color: #fff; border-color: var(--portal-header-bg); }
   </style>
 </head>

@@ -110,6 +110,19 @@ How AMD applies depends on both how you acquired the security and how you dispos
 
 **Form 8949 mechanics:** Use Code D for the AMD adjustment. Enter AMD from Box 1f as an adjustment in column (g) to convert that portion from capital gain to interest. Also add AMD to Schedule B as "Accrued Market Discount."[^schb-instructions]
 
+### Annual Inclusion Election
+
+Instead of deferring market discount to disposal (the default described above), you can elect to include accrued market discount in income annually, computed by either the ratable accrual method or the constant yield method, as it accrues each year.[^pub550-mdb]
+
+This election has consequences beyond the bond it's made for:
+
+- **It is all-or-nothing, not bond-by-bond.** The election applies to every market discount bond you already own and to every one you acquire afterward — you cannot elect it for one holding while leaving others on the default deferral method.[^pub550-mdb]
+- **It is effectively irrevocable.** Once made, you can only change it with IRS consent.[^pub550-mdb]
+- **Basis increases each year by the amount included.** Because the discount is taxed as it accrues rather than at disposal, there is no remaining AMD to reclassify out of capital gain via Form 8949 Code D when you eventually sell or the bond matures.
+- **It changes the investment interest expense deduction limitation.** If you borrow to buy or carry a market discount bond, interest expense on that debt is otherwise limited to the amount by which your interest income exceeds the deferred (unreported) accrued market discount for the year — the excess carries forward until disposal. Under the annual-inclusion election, the market discount you report counts as investment income in the year accrued, which can let you deduct more of that carrying interest currently instead of waiting.[^pub550-mdb]
+
+The trade-off is that you accelerate tax liability — paying tax on the discount before you receive any cash for it — in exchange for a narrow interest-expense-timing benefit and the loss of any ability to control which year AMD lands in via your disposal timing. For that reason it is rarely elected for a simple Treasury holding. Consult a tax professional before making it, given that it applies to your entire portfolio of market discount bonds and is hard to reverse.
+
 ### Software
 
 **Import caveat (H&R Block):** AMD from Box 1f may not import correctly from some brokers — it may be missing or have a blank description, causing Schedule D capital gains to be overstated. Check Box 1f after import and add the AMD amount manually if missing.[^hrb-import]
