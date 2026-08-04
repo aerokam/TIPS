@@ -54,6 +54,7 @@ function bondVarRows(d, nPeriods, principalPerBond, couponPct) {
     + row('Par Value per TIPS', '1,000 \xd7 <span class="formula-var" data-source="ir">index ratio</span>', fd(principalPerBond, 2), false, undefined, 'ppb')
     + row('Coupon per period', 'annual coupon \xf7 2', couponPct, false, undefined, 'cpp')
     + row('Yield', '', fd(d.yield * 100, 3) + '%')
+    + row('SA Yield', '', d.saYield != null ? fd(d.saYield * 100, 3) + '%' : '—')
     + row('Coupon periods in FY', '', nPerLbl, false, undefined, 'cp');
 }
 

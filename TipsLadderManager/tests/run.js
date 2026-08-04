@@ -8,6 +8,7 @@ import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, in
 import { segmentRanges, constantMap, applySegmentMap } from '../src/segment-dara.js';
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
+import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
 import { nextBondTradingDay, parseBondHolidays, lookupRefCpi } from '../src/data.js';
@@ -1482,7 +1483,7 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
 // Companion to the gap-free no-op test above: a portfolio that DOES have a gap-year/Future-30Y
 // block to duration-match, so isPristineMirror must trigger the scale (not skip it). This is the
 // exact reproduction the user found manually (2026-07-25): load the app with the pre-populated
-// SampleHoldings.csv and click Run Rebalance — net cash came back a large negative number instead
+// SampleHoldings.csv and click Rebalance Ladder — net cash came back a large negative number instead
 // of ~0, because the whole scale-application branch had been silently deleted from
 // runFundedRebalance in commit c0d233b (2026-07-16, an unrelated Ref CPI/Index Ratio refactor) —
 // isPristineMirror kept getting computed and passed in from index.html, but nothing acted on it
@@ -1840,6 +1841,197 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   const flags = detectBracketFlags({ heldARAByYear: heldARA, tipsMap, lastYear: 2039 });
   assert('before-state: two candidates exceed median → only one flagged', flags.size, 1);
   assert('before-state: the LATER-maturing of two exceeding candidates wins (2035, not 2034)', flags.has(2035), true);
+}
+
+// ── Within-Year Allocation Policy (2.0 §Within-Year Allocation Policy; the E invariant) ───────
+// SampleHoldings.csv's real funded year 2027 holds THREE maturities: Jan (912828V49), Apr
+// (91282CEJ6), Oct (91282CFR7) -- used exactly as-is, unfiltered, since this file mirrors real
+// IRA holdings and must never be trimmed/altered to fit a test's convenience. Baseline DARA
+// mirrors runFullRebalanceTest's own self-financing scale, so "need unchanged" genuinely means
+// zero ladder-wide trades, not just an arbitrary raw-ARA mirror. All magnitudes below were
+// verified empirically against this real data (not guessed) to land cleanly away from small-
+// portfolio rounding-boundary noise (e.g. a too-small shrink can show a rank-2 CUSIP dipping by
+// one unit before rank-3 is fully drained -- real integer-quantity behavior, not a bug, just not
+// what these specific tests are isolating).
+{
+  const fullPath = path.resolve('./data/SampleHoldings.csv');
+  if (existsSync(fullPath)) {
+    console.log('\nWithin-Year Allocation Policy (SampleHoldings, funded year 2027: Jan + Apr + Oct)');
+    const holdings = parseHoldings(readFileSync(fullPath, 'utf8'));
+    const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
+    const bracketCandidates = getGapYearBracketCandidates(tipsMap);
+    const { daraMap } = derivePerYearDara(rawARA, bracketCandidates);
+    const { scaledMap: baseDaraMap, scaledMedian } = inferScaledDARAFromPortfolio({
+      daraMap, holdings, tipsMap, refCPI, settlementDate,
+    });
+    const JAN27 = '912828V49', APR27 = '91282CEJ6', OCT27 = '91282CFR7';
+
+    function qtyDeltaFor(details, cusip) {
+      const row = details.find(d => d.cusip === cusip && d.fundedYear === 2027);
+      return row ? (row.qtyAfter - row.qtyBefore) : null;
+    }
+
+    // (1) Need unchanged -> zero trades in 2027, for all three held maturities, under all three
+    // policies. This is THE invariant (3.0 §Within-Year Allocation Policy): a policy alone never
+    // manufactures a trade -- proven here on the real three-way year, not a simplified pair.
+    for (const policy of ['equal', 'maturity', 'saYield']) {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: baseDaraMap, allocationPolicy: policy,
+      });
+      assert(`allocation policy '${policy}': need unchanged -> Jan 2027 qty delta === 0`, qtyDeltaFor(details, JAN27), 0);
+      assert(`allocation policy '${policy}': need unchanged -> Apr 2027 qty delta === 0`, qtyDeltaFor(details, APR27), 0);
+      assert(`allocation policy '${policy}': need unchanged -> Oct 2027 qty delta === 0`, qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (2) Need grows -> under 'maturity'/'saYield' (a fixed preference order), exactly one of the
+    // three absorbs the whole increase and the other two are completely untouched. 'equal' has no
+    // fixed preference -- it levels the currently-lowest-value maturities toward each other and
+    // splits growth across whichever are tied at the bottom (levelValues in allocation-policy.js),
+    // so more than one can move within a single run.
+    const grownDara = new Map(baseDaraMap);
+    grownDara.set(2027, (grownDara.get(2027) ?? 0) + 5000);
+
+    // 'equal': Jan and Oct are the two lowest-held-value maturities and level toward each other,
+    // splitting the growth between them; Apr (highest held value) stays untouched throughout.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'equal',
+      });
+      assert("allocation policy 'equal': need grows -> Jan (lowest held value, tied w/ Oct) grows", qtyDeltaFor(details, JAN27) > 0, true);
+      assert("allocation policy 'equal': need grows -> Oct (tied w/ Jan) grows by the same amount", qtyDeltaFor(details, OCT27), qtyDeltaFor(details, JAN27));
+      assert("allocation policy 'equal': need grows -> Apr (highest held value) untouched", qtyDeltaFor(details, APR27), 0);
+    }
+
+    // 'maturity': latest-maturing (Oct) is preferred -> absorbs the growth; Jan/Apr untouched.
+    // This is maturityPref's default ('last'), matching 2.0's own tie-break direction.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'maturity',
+      });
+      assert("allocation policy 'maturity': need grows -> Oct (latest-maturing) absorbs it", qtyDeltaFor(details, OCT27) > 0, true);
+      assert("allocation policy 'maturity': need grows -> Jan untouched", qtyDeltaFor(details, JAN27), 0);
+      assert("allocation policy 'maturity': need grows -> Apr untouched", qtyDeltaFor(details, APR27), 0);
+    }
+
+    // rankForYear's tie-break direction follows the top-level Maturity Preference setting
+    // (allocation-policy.js's `dir`) -- this is the fix for the bug where the rank picker ignored
+    // Maturity Preference entirely and always favored the latest month. Tested directly against
+    // rankForYear with a small synthetic candidate set, not through the full runRebalance stack --
+    // going through selectLadderBonds's real maturityPref='first' candidate narrowing pulls in a
+    // same-month second TIPS issue (couponPref territory) that confounds a growth-absorption
+    // assertion with something unrelated to the tie-break direction itself.
+    {
+      const candidates = [
+        { cusip: 'JAN', maturity: new Date('2027-01-15') },
+        { cusip: 'APR', maturity: new Date('2027-04-15') },
+        { cusip: 'OCT', maturity: new Date('2027-10-15') },
+      ];
+      const lastRank = rankForYear({ candidates, policy: 'maturity', maturityPref: 'last' });
+      assert("rankForYear maturityPref='last' (default): latest-maturing (Oct) ranked first", lastRank[0].cusip, 'OCT');
+      const firstRank = rankForYear({ candidates, policy: 'maturity', maturityPref: 'first' });
+      assert("rankForYear maturityPref='first': earliest-maturing (Jan) ranked first", firstRank[0].cusip, 'JAN');
+      assert("rankForYear maturityPref='first': Oct ranked last", firstRank[2].cusip, 'OCT');
+    }
+
+    // levelValues: the exact overshoot bug reported against a live rebalance -- two maturities
+    // held 7-worth (Jan) and 9-worth (Jul), year needs to shrink to 12-worth total. Draining the
+    // whole 4-worth cut onto Jul alone (the old single-target model) would leave Jul at 5, flipping
+    // it below Jan (7) -- past parity, not toward it. levelValues instead levels both to 6/6.
+    {
+      const leveled = levelValues(new Map([['JAN', 7], ['JUL', 9]]), 12);
+      assert('levelValues: shrink levels both maturities to parity (6/6), no overshoot', [leveled.get('JAN'), leveled.get('JUL')].join(','), '6,6');
+    }
+    // A shrink too small to reach parity only drains the larger one, same as before.
+    {
+      const leveled = levelValues(new Map([['JAN', 7], ['JUL', 9]]), 15);
+      assert('levelValues: a shrink smaller than the gap only drains the larger one', [leveled.get('JAN'), leveled.get('JUL')].join(','), '7,8');
+    }
+    // Growth water-fills onto the smaller one first, same logic mirrored upward.
+    {
+      const leveled = levelValues(new Map([['JAN', 7], ['JUL', 9]]), 17);
+      assert('levelValues: growth smaller than the gap only fills the smaller one', [leveled.get('JAN'), leveled.get('JUL')].join(','), '8,9');
+    }
+
+    // 'saYield': force Apr's SA yield above Oct's and Jan's -> Apr should be preferred instead.
+    {
+      const saved = { j: tipsMap.get(JAN27).saYield, a: tipsMap.get(APR27).saYield, o: tipsMap.get(OCT27).saYield };
+      tipsMap.get(APR27).saYield = 0.03;
+      tipsMap.get(OCT27).saYield = 0.02;
+      tipsMap.get(JAN27).saYield = 0.01;
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'saYield',
+      });
+      assert("allocation policy 'saYield': need grows -> highest-SA-yield (Apr, forced) absorbs it", qtyDeltaFor(details, APR27) > 0, true);
+      assert("allocation policy 'saYield': need grows -> Jan (lowest forced) untouched", qtyDeltaFor(details, JAN27), 0);
+      assert("allocation policy 'saYield': need grows -> Oct (middle forced) untouched", qtyDeltaFor(details, OCT27), 0);
+      tipsMap.get(APR27).saYield = saved.a; tipsMap.get(OCT27).saYield = saved.o; tipsMap.get(JAN27).saYield = saved.j;
+    }
+
+    // (2b) Need shrinks -> the LEAST preferred maturity sells first; the most preferred is
+    // untouched. Under 'maturity', least-preferred = Jan (earliest-maturing); -3000 fully drains
+    // Jan's 2 bonds without touching Apr or Oct (verified empirically -- the clean point between
+    // a too-small cut, which can dip Oct instead due to rounding, and a too-large one, which
+    // would move on to Apr once Jan is exhausted).
+    const shrunkDara = new Map(baseDaraMap);
+    shrunkDara.set(2027, Math.max(1000, (shrunkDara.get(2027) ?? 0) - 3000));
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: shrunkDara, allocationPolicy: 'maturity',
+      });
+      assert("allocation policy 'maturity': need shrinks -> Jan (earliest-maturing, least preferred) sells", qtyDeltaFor(details, JAN27) < 0, true);
+      assert("allocation policy 'maturity': need shrinks -> Apr untouched", qtyDeltaFor(details, APR27), 0);
+      assert("allocation policy 'maturity': need shrinks -> Oct (latest-maturing, preferred) untouched", qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (2c) 'equal' shrink drains from the top down (largest held value first) rather than dumping
+    // the whole cut onto a single fixed-rank CUSIP -- this is the regression test for the bug where
+    // a one-shot dump onto one maturity could overshoot past parity and flip which one ends up
+    // larger. Jan (lowest held value) is untouched; Apr (highest) and Oct (middle) both sell, with
+    // Apr -- being furthest above Oct -- selling at least as much as Oct.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: shrunkDara, allocationPolicy: 'equal',
+      });
+      assert("allocation policy 'equal': need shrinks -> Jan (lowest held value) untouched", qtyDeltaFor(details, JAN27), 0);
+      assert("allocation policy 'equal': need shrinks -> Apr (highest held value) sells", qtyDeltaFor(details, APR27) < 0, true);
+      assert("allocation policy 'equal': need shrinks -> Oct (middle held value) sells", qtyDeltaFor(details, OCT27) < 0, true);
+      assert("allocation policy 'equal': need shrinks -> Apr sells at least as much as Oct (levels toward Oct, no overshoot)", Math.abs(qtyDeltaFor(details, APR27)) >= Math.abs(qtyDeltaFor(details, OCT27)), true);
+    }
+
+    // (3) Per-year manual rank override wins over the global policy for that year: force Apr
+    // first even though the global policy ('maturity') would normally prefer Oct.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'maturity',
+        yearRankOverrides: new Map([[2027, [APR27, OCT27, JAN27]]]),
+      });
+      assert('per-year rank override: Apr wins over the global maturity-order policy for 2027', qtyDeltaFor(details, APR27) > 0, true);
+      assert('per-year rank override: Jan untouched when overridden out of first place', qtyDeltaFor(details, JAN27), 0);
+      assert('per-year rank override: Oct untouched when overridden out of first place', qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (4) The E invariant, in the candidate-set (maturityPref) dimension: switching the global
+    // maturity preference alone, with 2027's need UNCHANGED, must never trade any of the three
+    // held maturities, even under a preference that wouldn't have picked them from scratch (2.0
+    // §Within-Year Allocation Policy). This is the "Apr+Oct/semiannual" scenario from the design
+    // discussion, generalized to the real three-way year.
+    for (const maturityPref of ['first', 'all']) {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: baseDaraMap, maturityPref,
+      });
+      assert(`maturityPref='${maturityPref}' with need unchanged: Jan 2027 untouched`, qtyDeltaFor(details, JAN27), 0);
+      assert(`maturityPref='${maturityPref}' with need unchanged: Apr 2027 untouched`, qtyDeltaFor(details, APR27), 0);
+      assert(`maturityPref='${maturityPref}' with need unchanged: Oct 2027 untouched`, qtyDeltaFor(details, OCT27), 0);
+    }
+  }
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────

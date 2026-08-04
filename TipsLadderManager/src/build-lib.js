@@ -156,6 +156,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
         maturityStr: fmtDate(r.bond.maturity),
         coupon: r.coupon ?? 0,
         yield: r.bond.yield ?? 0,
+        saYield: r.bond.saYield ?? null,
         price: r.bond.price ?? 0,
         baseCpi: r.bond.baseCpi ?? refCPI,
         refCPI,
@@ -197,6 +198,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   const _mktCosts = details.map(d => (d.fundedYearQty + d.excessQty) * d.costPerBond);
   const weightedAvgDuration = calcMktWtdAvg(details.map(d => d.mDuration), _mktCosts);
   const weightedAvgYield    = calcMktWtdAvg(details.map(d => d.yield),     _mktCosts);
+  const weightedAvgSaYield  = calcMktWtdAvg(details.map(d => d.saYield),   _mktCosts);
 
   const HDR = ['CUSIP', 'Maturity', 'Funded Year', 'Funded Year Qty', 'Excess Qty', 'Total Qty', 'Funded Year Amount', 'Funded Year Cost', 'Excess Amount', 'Excess Cost'];
 
@@ -222,6 +224,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     totalBuyCost,
     weightedAvgDuration,
     weightedAvgYield,
+    weightedAvgSaYield,
     preLadderInterest, maturityPref, couponPref, preLadderYears, preLadderPool, preLadderCouponPool, preLadderAmdPool, preLadderRollCouponPool,
     zeroedFundedYears: [...zeroedFundedYears].sort((a, b) => a - b),
   };

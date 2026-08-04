@@ -54,17 +54,19 @@ export function parseCsv(text) {
   });
 }
 
-// Fetches RefCPI.csv, TipsRef.csv, and BondHolidaysSifma.csv from R2 — shared by both
-// fetchTipsData() (FedInvest) and fetchFidelityTipsData() (Fidelity) so the parsing
-// isn't duplicated between the two sources (projects/CLAUDE.md §2a).
-// Throws on HTTP errors for RefCPI/TipsRef; holidays are optional (3s timeout).
+// Fetches RefCPI.csv, TipsRef.csv, YieldsSaSao.csv, and BondHolidaysSifma.csv from R2 —
+// shared by both fetchTipsData() (FedInvest) and fetchFidelityTipsData() (Fidelity) so the
+// parsing isn't duplicated between the two sources (projects/CLAUDE.md §2a).
+// Throws on HTTP errors for RefCPI/TipsRef/YieldsSaSao; holidays are optional (3s timeout).
 async function fetchAuxTipsData() {
-  const [refCpiRes, tipsRefRes] = await Promise.all([
+  const [refCpiRes, tipsRefRes, saSaoRes] = await Promise.all([
     fetch(TIPS_URL + '/RefCPI.csv', { cache: 'no-cache' }),
     fetch(TIPS_URL + '/TipsRef.csv', { cache: 'no-cache' }),
+    fetch(TIPS_URL + '/YieldsSaSao.csv', { cache: 'no-cache' }),
   ]);
   if (!refCpiRes.ok) throw new Error('RefCPI.csv: HTTP ' + refCpiRes.status);
   if (!tipsRefRes.ok) throw new Error('TipsRef.csv: HTTP ' + tipsRefRes.status);
+  if (!saSaoRes.ok) throw new Error('YieldsSaSao.csv: HTTP ' + saSaoRes.status);
 
   let bondHolidays = new Set();
   try {
@@ -89,7 +91,15 @@ async function fetchAuxTipsData() {
     term:      r.term,
   }));
 
-  return { refCpiRows, tipsRefRows, bondHolidays };
+  // YieldsSaSao.csv: cusip,maturity,coupon,ask_yield,sa_yield,sao_yield — produced by
+  // YieldCurves/scripts/updateSaSaoYields.js. Only sa_yield is consumed (2.0 §Within-Year
+  // Allocation Policy); ask_yield/sao_yield are parsed but unused here.
+  const saSaoRows = parseCsv(await saSaoRes.text()).map(r => ({
+    cusip:    r.cusip,
+    saYield:  parseFloat(r.sa_yield),
+  }));
+
+  return { refCpiRows, tipsRefRows, saSaoRows, bondHolidays };
 }
 
 // Fetches YieldsFromFedInvestPrices.csv and RefCPI.csv from R2, parses and types the rows.
@@ -102,7 +112,7 @@ export async function fetchTipsData() {
     fetchAuxTipsData(),
   ]);
   if (!yieldsRes.ok) throw new Error('YieldsFromFedInvestPrices.csv: HTTP ' + yieldsRes.status);
-  const { refCpiRows, tipsRefRows, bondHolidays } = aux;
+  const { refCpiRows, tipsRefRows, saSaoRows, bondHolidays } = aux;
 
   // YieldsFromFedInvestPrices.csv: row 1 = settlement date, row 2 = header, rows 3+ = data
   const yieldsText = await yieldsRes.text();
@@ -120,7 +130,7 @@ export async function fetchTipsData() {
       yield:    parseFloat(r.yield)  || null,
     }));
 
-  return { yieldsRows, refCpiRows, tipsRefRows, bondHolidays };
+  return { yieldsRows, refCpiRows, tipsRefRows, saSaoRows, bondHolidays };
 }
 
 // Fetches FidelityTreasuriesTips.csv from R2 (ask price; yield is computed from that price
@@ -143,7 +153,7 @@ export async function fetchFidelityTipsData() {
     fetchAuxTipsData(),
   ]);
   if (!fidRes.ok) throw new Error('FidelityTreasuriesTips.csv: HTTP ' + fidRes.status);
-  const { refCpiRows, tipsRefRows, bondHolidays } = aux;
+  const { refCpiRows, tipsRefRows, saSaoRows, bondHolidays } = aux;
   const tipsRefByCusip = new Map(tipsRefRows.map(r => [r.cusip, r]));
 
   const fidText = await fidRes.text();
@@ -171,5 +181,5 @@ export async function fetchFidelityTipsData() {
     };
   });
 
-  return { yieldsRows, refCpiRows, tipsRefRows, bondHolidays, asOfDate };
+  return { yieldsRows, refCpiRows, tipsRefRows, saSaoRows, bondHolidays, asOfDate };
 }

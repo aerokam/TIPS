@@ -37,23 +37,22 @@
   .form-card { width: fit-content; min-width: 845px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 0 0 8px 8px; padding: 10px 24px 8px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
 
   /* ── DARA Plan card — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/
-     Import. A dropdown that's a normal-flow child of the sticky #top-row: the header sliver
-     (.dara-plan-card-hdr) is always visible whenever the card is relevant at all — click it to
-     expand/collapse #dara-plan-body.
+     Import. A dropdown that's a normal-flow child of the sticky #top-row: #dara-plan-hdr-row
+     (DARA Plan / Maturity preference / Allocation policy / Coupon pick — one row, matching
+     .card-inputs) is always visible whenever the card is relevant at all; #dara-plan-toggle-btn
+     expands/collapses #dara-plan-body.
      When open it pushes the Per-Year DARA table below it down rather than overlaying it — an
      overlay blocked clicks on that table, and real usage interleaves editing per-year rungs with
      the plan tools. Being inside #top-row still means it never scrolls away independently —
      #top-row (position: sticky) just grows/shrinks in place as the body opens/closes. Auto-opens
      when a saved plan is found. ── */
   .dara-plan-card { width: fit-content; min-width: 845px; margin: 4px 0 0; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 8px; padding: 8px 24px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); }
-  .dara-plan-card-hdr { position: relative; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--portal-card-text); opacity: 0.85; padding: 2px 0; cursor: pointer; user-select: none; }
-  .dara-plan-card-hdr:hover { opacity: 1; }
   #dara-plan-body { padding-top: 8px; }
   /* Fixed cap (not viewport-fill like the main output tables) so expanding this panel never pushes
      the main data table almost entirely below the fold — it gets its own internal scrollbar instead. */
   #dara-by-year-scroll { max-height: 320px; }
-  .dara-plan-card .badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #e05252; display: none; }
-  .dara-plan-card-hdr.needs-attention .badge-dot { display: block; }
+  .dara-plan-card .badge-dot { width: 7px; height: 7px; border-radius: 50%; background: #e05252; display: none; margin-left: 3px; }
+  #dara-plan-hdr.needs-attention .badge-dot { display: inline-block; }
   .dara-plan-card, .dara-plan-card label, .dara-plan-card span, .dara-plan-card b { color: var(--portal-card-text); }
   .dara-plan-card select, .dara-plan-card input[type="number"] { background: var(--portal-header-bg); border: 1px solid var(--portal-header-bg); border-radius: 3px; color: var(--portal-text-on-dark); font-size: 12px; padding: 2px 4px; }
   .dara-plan-card input[type="checkbox"] { margin: 0; }
@@ -66,7 +65,6 @@
   .dara-plan-card .plan-chip { display: inline-flex; align-items: center; gap: 3px; background: var(--portal-header-bg); border: 1px solid var(--tab-active-bg); border-radius: 10px; padding: 2px 6px; font-size: 11px; }
   .dara-plan-card .plan-chip-remove { border: none; background: none; color: var(--portal-card-text); opacity: .7; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
   .dara-plan-card .seg-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
-  .dara-plan-card .seg-row b { min-width: 150px; }
   .dara-plan-card .seg-const-input { width: 80px; text-align: right; }
   /* .fields/.break removed — replaced by .card-inputs */
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -75,6 +73,7 @@
   .field input, .field select { padding: 7px 10px; background: var(--portal-header-bg); border: 1px solid var(--portal-header-bg); border-radius: 4px; font-size: 13px; color: var(--portal-text-on-dark); width: 100%; }
   .field input::placeholder { color: rgba(255,255,255,0.4); }
   .field input:focus, .field select:focus { outline: none; border-color: var(--tab-active-bg); box-shadow: 0 0 0 2px rgba(91,164,164,0.4); }
+  .field select:disabled { opacity: .55; cursor: not-allowed; }
   .field input[type="file"] { display: none; }
   #holdings-file-btn { padding: 7px 10px; flex-shrink: 0; }
   #field-pre-ladder label:last-child { height: auto; }
@@ -115,6 +114,18 @@
   #maturity-picker-body .mp-col-actions button { font-size:10px;padding:2px 9px;margin:0 4px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;border-radius:3px;cursor:pointer; }
   #maturity-picker-body .mp-col-actions .mp-col-low, #maturity-picker-body .mp-col-actions .mp-col-high { background:#eef6f6;border-color:#5ba4a4;color:#2f6363; }
   #maturity-picker-body .mp-col-actions button:hover { background:#e2e8f0; }
+
+  /* ── Per-year rank picker (D) ── */
+  #rank-picker-modal { background:#fff;width:760px;min-width:480px;min-height:250px;border-radius:8px;padding:20px 24px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;font-size:13px;line-height:1.5; }
+  #rank-picker-body { display:flex;flex-direction:column;gap:10px; }
+  .rp-year-row { display:flex;align-items:center;gap:10px;padding-bottom:8px;border-bottom:1px solid #eee; }
+  .rp-year-label { font-weight:700;color:#1e293b;width:44px;flex-shrink:0; }
+  .rp-chips { display:flex;flex-wrap:wrap;gap:6px;flex:1; }
+  .rp-chip { display:inline-flex;align-items:center;gap:5px;border:1px solid #cbd5e1;background:#f8fafc;border-radius:4px;padding:3px 4px 3px 8px;font-size:11px;color:#334155;white-space:nowrap; }
+  .rp-chip.rp-not-held { border-style:dashed;color:#64748b; }
+  .rp-chip button { font-size:10px;padding:0 4px;border:1px solid #cbd5e1;background:#fff;color:#475569;border-radius:2px;cursor:pointer;line-height:1.6; }
+  .rp-chip button:disabled { opacity:.35;cursor:default; }
+  .rp-chip button:not(:disabled):hover { background:#e2e8f0; }
 
   /* ── Formula inspector ── */
   .source-highlight { background: #d4edec !important; transition: background 0.15s; }
@@ -303,11 +314,30 @@
     <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
     <button id="maturity-picker-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">&times;</button>
     <div id="maturity-picker-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;">Select Maturities</div>
-    <div style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Pick which TIPS fill each funded year. A year left as-is keeps whatever it's currently holding. All/None above a column applies to that month across every year.</div>
+    <div id="maturity-picker-desc" style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Pick which TIPS fill each funded year. A year left as-is keeps whatever it's currently holding. All/None above a column applies to that month across every year.</div>
     <div id="maturity-picker-body" style="overflow-y:auto;flex:1;"></div>
     <div style="margin-top:16px;text-align:right;flex-shrink:0;">
       <button id="maturity-picker-cancel" style="padding:4px 12px;font-size:11px;margin-right:8px;">Cancel</button>
       <button id="maturity-picker-apply" style="padding:4px 12px;font-size:11px;">Apply & Build</button>
+    </div>
+  </div>
+</div>
+
+<!-- Per-year priority-rank picker (D: 2.0 §Within-Year Allocation Policy §Manual rank override).
+     Distinct from the maturity picker above: that one decides WHICH maturities are eligible (B);
+     this one decides, for a specific year, what ORDER they're preferred in (hold/buy first vs.
+     sell first) — overriding whichever global allocation policy is active, for that year only. -->
+<div id="rank-picker-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow:hidden;">
+  <div id="rank-picker-modal">
+    <div class="resize-handle n"></div><div class="resize-handle s"></div><div class="resize-handle e"></div><div class="resize-handle w"></div>
+    <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
+    <button id="rank-picker-close" style="position:absolute;top:10px;right:12px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">&times;</button>
+    <div id="rank-picker-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;">Set Priority Order</div>
+    <div id="rank-picker-desc" style="font-size:11px;color:#94a3b8;margin:8px 0 14px;flex-shrink:0;">Left = preferred to hold/buy first. Right = sold first if this year needs to shrink. Use ◀/▶ to reorder a year's maturities; a year left untouched follows the global allocation policy. Under Equal split, a not-held maturity can outrank a held one — it's filled first to catch up, not because it's preferred.</div>
+    <div id="rank-picker-body" style="overflow-y:auto;flex:1;"></div>
+    <div style="margin-top:16px;text-align:right;flex-shrink:0;">
+      <button id="rank-picker-cancel" style="padding:4px 12px;font-size:11px;margin-right:8px;">Cancel</button>
+      <button id="rank-picker-apply" style="padding:4px 12px;font-size:11px;">Apply</button>
     </div>
   </div>
 </div>
@@ -373,23 +403,6 @@
           <button id="bracket-mode-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Bracket mode help">?</button>
         </div>
       </div>
-      <div class="field" id="field-build-maturity" style="display:none">
-        <label>Maturity preference</label>
-        <select id="build-maturity">
-          <option value="last">Last to mature</option>
-          <option value="first">First to mature</option>
-          <option value="semiannual">Semiannual (Jan + Jul)</option>
-          <option value="all">All maturity months</option>
-          <option value="select">Select maturities&hellip;</option>
-        </select>
-      </div>
-      <div class="field" id="field-build-coupon" style="display:none">
-        <label style="gap:4px">Coupon pick<button id="coupon-pick-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Coupon pick help">?</button></label>
-        <select id="build-coupon">
-          <option value="higher">Higher coupon</option>
-          <option value="lower">Lower coupon</option>
-        </select>
-      </div>
       <div class="field" id="field-pre-ladder">
         <label style="white-space:nowrap" title="Include coupon payments received before the ladder starts, reducing early rung quantities">Pre-ladder int.</label>
         <label style="display:flex;align-items:center;gap:4px;cursor:pointer">
@@ -400,14 +413,20 @@
     </div>
     <!-- Row 2: Run + post-run actions -->
     <div class="card-inputs" style="margin-top:8px">
-      <button id="run-btn" disabled style="align-self:flex-end">Run Rebalance</button>
+      <button id="run-btn" disabled style="align-self:flex-end">Rebalance Ladder</button>
       <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
       <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
       <button id="trade-ticket-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show trade ticket with cost breakdown">Trade Ticket</button>
       <div id="duration-links" style="align-self:flex-end"></div>
-      <div id="ladder-stats-display" style="display:none;align-self:flex-end;flex-direction:column;gap:2px;align-items:flex-end">
-        <span id="avg-yld-display" class="info-stat">Avg Yld <span id="avg-yld-val" class="info-stat-val"></span></span>
-        <span id="wad-display" class="info-stat">Avg Mod Dur <span id="wad-val" class="info-stat-val"></span></span>
+    </div>
+    <!-- Row 3: post-run stats (Avg Yld / Avg SA Yld / Avg Mod Dur / Net Cash-Total Cost), side by side -->
+    <div class="card-inputs" id="ladder-stats-display" style="display:none;margin-top:4px;flex-direction:row;gap:16px;align-items:center">
+      <span id="avg-yld-display" class="info-stat">Avg Yld <span id="avg-yld-val" class="info-stat-val"></span></span>
+      <span id="avg-sa-yld-display" class="info-stat">Avg SA Yld <span id="avg-sa-yld-val" class="info-stat-val"></span></span>
+      <span id="wad-display" class="info-stat">Avg Mod Dur <span id="wad-val" class="info-stat-val"></span></span>
+      <div id="net-cash-inline">
+        <span class="nc-label" id="nc-label">Net Cash</span>
+        <span class="nc-val" id="net-cash-val"></span>
       </div>
     </div>
     <!-- Info row -->
@@ -418,58 +437,91 @@
       <div class="info-links-group">
         <span id="info-tips-count"></span>
       </div>
-      <div id="net-cash-inline">
-        <span class="nc-label" id="nc-label">Net Cash</span>
-        <span class="nc-val" id="net-cash-val"></span>
-      </div>
     </div>
     <div id="status"></div>
   </div>
 
-  <!-- DARA Plan dropdown — split years, per-segment Infer/$-each, Undo/Revert, Remember/Export/
-       Import. Child of #top-row (its sticky containing block) so it anchors under the main card
-       instead of scrolling away; see .dara-plan-card CSS. The header sliver (#dara-plan-hdr) is
-       always visible whenever the card is available — same collapsed-header pattern as #dara-by-
-       year-hdr below — click it to expand/collapse #dara-plan-body. Auto-opens when a saved plan
-       is found (_updateDaraRememberUI). -->
-  <div id="dara-plan-card" class="dara-plan-card" style="display:none">
-    <div id="dara-plan-hdr" class="dara-plan-card-hdr">
-      <span id="dara-plan-glyph">▶</span>
-      <span id="dara-plan-hdr-text">Show DARA Plan</span>
-      <span class="badge-dot"></span>
+  <!-- DARA Plan card — the header row (#dara-plan-hdr-row: "DARA Plan" label + Maturity
+       preference / Allocation policy / Coupon pick) is always visible, unlike the collapsible
+       #dara-plan-body below it (split years, per-segment Infer/$-each, Undo/Revert, Remember/
+       Export/Import), which only makes sense once a DARA plan exists (_setDaraPlanAvailable).
+       #dara-plan-toggle-btn (a real button, not the label row itself -- the row now also holds
+       live form controls, so a click-to-toggle on the whole row would need a stopPropagation
+       guard on every one of them) expands/collapses the body. Auto-opens when a saved plan is
+       found (_updateDaraRememberUI). Child of #top-row (its sticky containing block) so it
+       anchors under the main card instead of scrolling away; see .dara-plan-card CSS. -->
+  <div id="dara-plan-card" class="dara-plan-card">
+    <div id="dara-plan-hdr-row" class="card-inputs">
+      <div class="field" id="field-dara-plan-toggle">
+        <label id="dara-plan-hdr">DARA Plan<span class="badge-dot"></span></label>
+        <button type="button" id="dara-plan-toggle-btn" class="plan-btn">&#9654; Show Details</button>
+      </div>
+      <div class="field" id="field-build-maturity">
+        <label>Maturity preference</label>
+        <select id="build-maturity">
+          <option value="last">Last to mature</option>
+          <option value="first">First to mature</option>
+          <option value="semiannual">Semiannual (Jan + Jul)</option>
+          <option value="all">All maturity months</option>
+          <option value="select">Select maturities&hellip;</option>
+        </select>
+      </div>
+      <div class="field" id="field-alloc-policy">
+        <label style="gap:4px">Allocation policy<button id="alloc-policy-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Allocation policy help">?</button></label>
+        <select id="rebal-alloc-policy">
+          <option value="equal">Equal split</option>
+          <option value="maturity">Maturity order</option>
+          <option value="saYield">SA-Yield order</option>
+          <option value="select">Set priority order&hellip;</option>
+        </select>
+      </div>
+      <div class="field" id="field-build-coupon" style="display:none">
+        <label style="gap:4px">Coupon pick<button id="coupon-pick-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Coupon pick help">?</button></label>
+        <select id="build-coupon">
+          <option value="higher">Higher coupon</option>
+          <option value="lower">Lower coupon</option>
+        </select>
+      </div>
     </div>
     <div id="dara-plan-body" style="display:none">
-      <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:0 0 8px;align-items:center;gap:8px;flex-wrap:wrap">
+      <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:8px 0;align-items:center;gap:8px;flex-wrap:wrap">
         <span id="dara-plan-banner-text"></span>
         <button type="button" class="plan-btn" id="dara-plan-apply">Apply</button>
         <button type="button" class="plan-btn" id="dara-plan-dismiss" style="background:none;border-color:transparent">Dismiss</button>
       </div>
-      <div id="dara-history-tools" style="display:none;font-size:11px;margin:0 0 8px;gap:6px;align-items:center">
-        <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
-        <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
-      </div>
-      <div id="dara-remember-row" style="display:none;font-size:11px;margin:0 0 8px;align-items:center;gap:12px;flex-wrap:wrap">
-        <div style="display:flex;align-items:center;gap:4px">
-        <button type="button" class="plan-btn" id="dara-remember-btn" title="Save the current per-year DARA (and split years) for this device, so it's offered back next time this plan is loaded"></button>
-        <div id="dara-plan-more-wrap" style="position:relative">
-          <button type="button" class="plan-btn" id="dara-plan-more-btn" title="More DARA-plan options (export/import a portable plan file)">⋮</button>
-          <div id="dara-plan-more-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;z-index:10;background:var(--portal-header-bg);border:1px solid var(--tab-active-bg);border-radius:4px;padding:4px;min-width:190px;box-shadow:0 4px 10px rgb(0 0 0 / 0.4)">
-            <button type="button" class="plan-btn" id="dara-plan-export-btn" style="display:block;width:100%;text-align:left;margin-bottom:4px" title="Save the current per-year DARA (and split years) to a file you can re-import next time, on any device">⬇ Export DARA Plan</button>
-            <button type="button" class="plan-btn" id="dara-plan-import-btn" style="display:block;width:100%;text-align:left" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+      <!-- History tools (Undo/Revert) and Remember/Export/Import consolidated onto one row — both
+           toggle their own display independently (_renderDaraHistoryBtns / _updateDaraRememberUI),
+           so this is a pure layout merge, not a behavior change. -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:8px 0;font-size:11px">
+        <div id="dara-history-tools" style="display:none;gap:6px;align-items:center">
+          <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
+          <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
+        </div>
+        <div id="dara-remember-row" style="display:none;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:4px">
+          <button type="button" class="plan-btn" id="dara-remember-btn" title="Save the current per-year DARA (and split years) for this device, so it's offered back next time this plan is loaded"></button>
+          <div id="dara-plan-more-wrap" style="position:relative">
+            <button type="button" class="plan-btn" id="dara-plan-more-btn" title="More DARA-plan options (export/import a portable plan file)">⋮</button>
+            <div id="dara-plan-more-menu" style="display:none;position:absolute;top:100%;left:0;margin-top:2px;z-index:10;background:var(--portal-header-bg);border:1px solid var(--tab-active-bg);border-radius:4px;padding:4px;min-width:190px;box-shadow:0 4px 10px rgb(0 0 0 / 0.4)">
+              <button type="button" class="plan-btn" id="dara-plan-export-btn" style="display:block;width:100%;text-align:left;margin-bottom:4px" title="Save the current per-year DARA (and split years) to a file you can re-import next time, on any device">⬇ Export DARA Plan</button>
+              <button type="button" class="plan-btn" id="dara-plan-import-btn" style="display:block;width:100%;text-align:left" title="Load a previously exported DARA-plan file and overlay it on the current holdings">⬆ Import DARA Plan</button>
+            </div>
           </div>
+          </div>
+          <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
+          <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
         </div>
-        </div>
-        <span id="dara-remember-status" style="opacity:0;transition:opacity .3s;color:#8fd6c4;font-weight:700">✓ Saved</span>
-        <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
       </div>
       <div id="dara-seg-tools" style="display:none;font-size:12px">
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-        <span>Split years:</span>
-        <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
-        <select id="split-year-add"></select>
-        <button id="seg-tools-help" type="button" class="plan-help" title="Segmented DARA help">?</button>
+      <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0">
+          <span>Split years:</span>
+          <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
+          <select id="split-year-add"></select>
+          <button id="seg-tools-help" type="button" class="plan-help" title="Segmented DARA help">?</button>
+        </div>
+        <div id="seg-rows"></div>
       </div>
-      <div id="seg-rows"></div>
       </div>
     </div>
   </div>
@@ -505,7 +557,7 @@
 </div>
 
 <script type="module">
-import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate } from './src/rebalance-lib.js';
+import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate, calculatePIPerBond } from './src/rebalance-lib.js';
 // Standalone Before-state preview (3.0 §Before-State Preview and Bracket-Year Excess Detection) —
 // a holdings-valuation computation, architecturally decoupled from the runRebalance/
 // runFundedRebalance engine imported above. Never calls into it.
@@ -516,6 +568,7 @@ import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
+import { rankForYear } from './src/allocation-policy.js';
 import { accruedInterest } from '../shared/src/bond-math.js';
 import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
@@ -526,9 +579,22 @@ const toIso = d => d ? d.getFullYear() + '-' + String(d.getMonth() + 1).padStart
 const simpleEl = document.getElementById('simple-table');
 const tableEl  = document.getElementById('build-table');
 
-// Per-year maturity picks (prototype — 2.0 §Picking Maturities for a Funded Year, Build only).
-// Map<fundedYear, cusip[]>. A year absent from this map keeps following the global maturityPref.
-const _yearMaturityOverrides = new Map();
+// Per-year maturity picks (2.0 §Picking Maturities for a Funded Year — B: candidate-set override,
+// now shared by both modes, not Build-only). Map<fundedYear, cusip[]>. A year absent from this map
+// keeps following the global maturityPref. `_yearMaturityOverrides` is the currently-active mode's
+// map (swapped in the mode-toggle handler, same pattern as _daraByYearStore); the Rebal/Build pair
+// below are the per-mode mirrors.
+let _yearMaturityOverrides = new Map();
+let _yearMaturityOverridesRebal = new Map(), _yearMaturityOverridesBuild = new Map();
+// Maturity preference value per mode (2.0 §Maturity Selection Within a Funded Year) — 'last' was
+// the sole hardcoded rebalance default before this feature; Build already defaulted its own
+// dropdown to 'last' via the HTML <select>, mirrored here as the same starting value.
+let _maturityPrefRebal = 'last', _maturityPrefBuild = 'last';
+// Allocation policy (2.0 §Within-Year Allocation Policy, C) and per-year manual rank override (D)
+// — Rebalance-only (Build has no held-vs-preferred distinction to order; its own sizeYearRungs
+// equal-split is unaffected by this feature), so no per-mode pair is needed, unlike maturityPref.
+let _allocationPolicy = 'equal';
+let _yearRankOverrides = new Map(); // Map<fundedYear, cusip[]>, highest-priority-first
 
 // ─── Help modal ───────────────────────────────────────────────────────────────
 document.getElementById('help-btn').addEventListener('click', () => {
@@ -555,10 +621,45 @@ function _updateCouponFieldVisibility() {
 }
 document.getElementById('build-maturity').addEventListener('change', _updateCouponFieldVisibility);
 
+// Maturity preference 'last'/'first' already commits every year to one fixed direction, which is
+// exactly what the 'maturity' allocation policy expresses -- letting 'equal'/'saYield' apply on
+// top of a fixed direction is what caused priority order to look wrong regardless of which one was
+// picked (the original maturityPref tie-break bug). Locking the dropdown to 'Maturity order' removes
+// that ambiguity outright; 'all'/'semiannual'/'select' have no single fixed direction of their own,
+// so every policy still makes sense there and the dropdown stays live.
+function _updateAllocPolicyLock() {
+  const pref = document.getElementById('build-maturity').value;
+  const sel = document.getElementById('rebal-alloc-policy');
+  const locked = pref === 'last' || pref === 'first';
+  sel.disabled = locked;
+  if (locked && sel.value !== 'maturity') {
+    sel.value = 'maturity';
+    _allocationPolicy = 'maturity';
+    _yearRankOverrides.clear();
+  }
+}
+document.getElementById('build-maturity').addEventListener('change', _updateAllocPolicyLock);
+_updateAllocPolicyLock(); // reflects the default maturityPref='last' on first paint, before any mode toggle/import runs
+
 document.getElementById('coupon-pick-help').addEventListener('click', e => {
   e.stopPropagation();
   showPopup(e.currentTarget, 'Coupon Pick', [
     { html: 'Some maturity months carry two TIPS issues with different coupons (Jan 2027/28/29, Apr 2028/29). Choose which one this ladder buys when one of the selected maturities lands on one of those months (tip: it doesn\'t really matter which you choose).' },
+  ]);
+});
+
+document.getElementById('alloc-policy-help').addEventListener('click', e => {
+  e.stopPropagation();
+  showPopup(e.currentTarget, 'Allocation Policy', [
+    { html: 'When a funded year holds more than one maturity (2.0 §Maturity Selection Within a Funded Year), this decides which one a trade favors first.' },
+    { heading: 'Equal split' },
+    { html: 'Buys into whichever maturity currently holds the least value first — including one not held at all, which ranks ahead of any held maturity until it catches up. Sells the largest holding first if the year needs to shrink. The goal is to level all of the year’s maturities off, not to prefer any one of them.' },
+    { heading: 'Maturity order' },
+    { html: 'Follows the top-level Maturity preference: latest-maturing wins first when set to “Last to mature”, earliest-maturing wins first when set to “First to mature.”' },
+    { heading: 'SA-Yield order' },
+    { html: 'Highest current SA yield preferred/held first; lowest sells first.' },
+    { heading: 'Set priority order…' },
+    { html: 'Manually reorder a specific funded year’s maturities, overriding whichever policy above is active for that year only.' },
   ]);
 });
 
@@ -623,9 +724,10 @@ const YIELD_SOURCE = 'fidelity';
 async function loadData() {
   console.log('loadData() started');
   try {
-    const { yieldsRows, refCpiRows: rows, tipsRefRows, bondHolidays, asOfDate } =
+    const { yieldsRows, refCpiRows: rows, tipsRefRows, saSaoRows, bondHolidays, asOfDate } =
       YIELD_SOURCE === 'fedinvest' ? await fetchTipsData() : await fetchFidelityTipsData();
     refCpiRows = rows;
+    const saYieldByCusip = new Map(saSaoRows.map(r => [r.cusip, r.saYield]));
     _maxRefCpiDate = rows.length ? rows[rows.length - 1].date : null;
     tipsRefMap = new Map(tipsRefRows.map(r => [r.cusip, r]));
     const settleDateStr = yieldsRows[0]?.settlementDate;
@@ -636,7 +738,7 @@ async function loadData() {
     // settleDateStr is already T+1, so its "today"/trade reference is asOfDate.
     _tradeDateStr = YIELD_SOURCE === 'fedinvest' ? settleDateStr : asOfDate;
     _defaultRefCpiDateStr = nextBondTradingDay(_tradeDateStr, bondHolidays);
-    tipsMap = buildTipsMapFromYields(yieldsRows);
+    tipsMap = buildTipsMapFromYields(yieldsRows, saYieldByCusip);
 
     const bfsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity && b.maturity > settlementDate).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
     const _bfsYearSet = new Set(bfsYears);
@@ -757,12 +859,17 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraManualYearsBuild = _daraManualYears; _daraManualLoadedSnapshotBuild = _daraManualLoadedSnapshot;
       _splitYearsBuild = _splitYears; _segInferredEchoBuild = _segInferredEcho;
       _bracketAutoCapYearsBuild = _bracketAutoCapYears;
+      _daraPlanOpenBuild = _daraPlanOpen;
+      _maturityPrefBuild = document.getElementById('build-maturity').value;
+      _yearMaturityOverridesBuild = _yearMaturityOverrides;
+      _yearMaturityOverrides = _yearMaturityOverridesRebal;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
       _daraUndoStack = _daraUndoStackRebal; _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
       _daraManualYears = _daraManualYearsRebal; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotRebal;
       _splitYears = _splitYearsRebal; _segInferredEcho = _segInferredEchoRebal;
       _bracketAutoCapYears = _bracketAutoCapYearsRebal;
+      _daraPlanOpen = _daraPlanOpenRebal;
     } else {
       _daraRebal = daraEl.value;
       _daraByYearStoreRebal = _daraByYearStore; _daraByYearPanelDefaultRebal = _daraByYearPanelDefault;
@@ -770,12 +877,17 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraManualYearsRebal = _daraManualYears; _daraManualLoadedSnapshotRebal = _daraManualLoadedSnapshot;
       _splitYearsRebal = _splitYears; _segInferredEchoRebal = _segInferredEcho;
       _bracketAutoCapYearsRebal = _bracketAutoCapYears;
+      _daraPlanOpenRebal = _daraPlanOpen;
+      _maturityPrefRebal = document.getElementById('build-maturity').value;
+      _yearMaturityOverridesRebal = _yearMaturityOverrides;
+      _yearMaturityOverrides = _yearMaturityOverridesBuild;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
       _daraUndoStack = _daraUndoStackBuild; _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
       _daraManualYears = _daraManualYearsBuild; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotBuild;
       _splitYears = _splitYearsBuild; _segInferredEcho = _segInferredEchoBuild;
       _bracketAutoCapYears = _bracketAutoCapYearsBuild;
+      _daraPlanOpen = _daraPlanOpenBuild;
     }
     _rungPreEdit = null; _rungDirty = false;
     
@@ -783,10 +895,18 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     document.getElementById('field-holdings').style.display = isRebalance ? '' : 'none';
 
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
-    document.getElementById('field-build-maturity').style.display = isRebalance ? 'none' : '';
+    // Maturity preference (2.0 §Maturity Selection Within a Funded Year) is shared UI, visible in
+    // both modes now that Rebalance's target side reads it too (rebalance-lib.js allocationPolicy
+    // B) -- previously Build-only. Value + per-year picks are swapped per-mode above, same as every
+    // other control on this card.
+    document.getElementById('build-maturity').value = isRebalance ? _maturityPrefRebal : _maturityPrefBuild;
     _updateMaturityOptionLabel('Select maturities…');
     _maturityListOpenPending = false;
     if (isRebalance) _closeMaturityPickerModal();
+
+    // Allocation policy (C) / rank override (D) — Rebalance-only, no Build equivalent.
+    document.getElementById('field-alloc-policy').style.display = isRebalance ? '' : 'none';
+    if (!isRebalance) { _closeRankPickerModal(); _updateAllocPolicyOptionLabel('Set priority order…'); _allocListOpenPending = false; }
 
     document.getElementById('field-rebal-first-year').style.display = isRebalance && currentHoldingsArray ? '' : 'none';
     document.getElementById('field-first-year').style.display = isRebalance ? 'none' : '';
@@ -796,9 +916,10 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     // Runs last: in Build+Select mode this re-hides First/Last Year, overriding the isRebalance-
     // based sets just above (which always show them for Build regardless of maturity pref).
     _updateCouponFieldVisibility();
+    _updateAllocPolicyLock();
 
 
-    document.getElementById('run-btn').textContent = isRebalance ? 'Run Rebalance' : 'Build Ladder';
+    document.getElementById('run-btn').textContent = isRebalance ? 'Rebalance Ladder' : 'Build Ladder';
 
     document.getElementById('output').style.display     = isRebalance && (rebalanceRendered || _rebalBeforeStateShown) ? 'block' : 'none';
     document.getElementById('build-output').style.display = !isRebalance && buildRendered     ? 'block' : 'none';
@@ -825,7 +946,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     _infoPopups.future30yDuration = isRebalance ? _rebalFuture30yDurationRows : _buildFuture30yDurationRows;
     _renderDurationLinks();
     const _activeSummary = isRebalance ? rebalSummary : buildSummary;
-    _renderWAD(_activeSummary?.weightedAvgDuration ?? 0, _activeSummary?.weightedAvgYield ?? 0);
+    _renderWAD(_activeSummary?.weightedAvgDuration ?? 0, _activeSummary?.weightedAvgYield ?? 0, _activeSummary?.weightedAvgSaYield ?? 0);
 
     setStatus('');
     renderDaraByYearPanel();  // refreshes _panelYearRange first — the cache key below needs it current
@@ -974,6 +1095,30 @@ function _setDefaultGroupsExpanded(tbl) {
   _updateExpandCollapseLabels();
 }
 
+// Snapshot of which funded years are currently expanded, taken right before a table's innerHTML
+// is replaced -- rebuilding wipes every data-expanded attribute, so this is the only way to carry
+// expand/collapse state across a Rebalance Ladder run.
+function _captureExpandedState(tbl) {
+  const state = new Map();
+  tbl.querySelectorAll('tr.fy-group-header').forEach(hdr => {
+    state.set(hdr.dataset.fy, hdr.dataset.expanded === 'true');
+  });
+  return state;
+}
+
+// Re-applies a snapshot from _captureExpandedState after a rebuild, so re-running Rebalance keeps
+// whatever years the user had open -- letting a Maturity preference/Allocation policy change be
+// compared before/after without re-expanding anything. A funded year absent from the snapshot
+// (e.g. the range grew) falls back to the normal bracket/cover-year default.
+function _restoreOrDefaultGroupsExpanded(tbl, prevState) {
+  tbl.querySelectorAll('tr.fy-group-header').forEach(hdr => {
+    const fy = hdr.dataset.fy;
+    const expanded = prevState.has(fy) ? prevState.get(fy) : hdr.classList.contains('bracket');
+    _setGroupExpanded(tbl, fy, expanded);
+  });
+  _updateExpandCollapseLabels();
+}
+
 function _updateExpandCollapseLabels() {
   const tbl = _activeTable();
   const allHdrs = [...tbl.querySelectorAll('tr.fy-group-header')];
@@ -1016,9 +1161,12 @@ function _pickerCandidates(year) {
 }
 
 // Every funded year currently in range (mirrors the year gathering in selectLadderBonds).
+// Mode-aware: Rebalance and Build keep First/Last Year in separate fields (rebal-first-year/
+// rebal-last-year vs first-year/last-year — see 6.0 §Form Card Layout).
 function _pickerYears() {
-  const firstYear = parseInt(document.getElementById('first-year').value) || settlementDate.getFullYear();
-  const lastYear = parseInt(document.getElementById('last-year').value);
+  const isRebal = currentMode === 'rebalance';
+  const firstYear = parseInt(document.getElementById(isRebal ? 'rebal-first-year' : 'first-year').value) || settlementDate.getFullYear();
+  const lastYear = parseInt(document.getElementById(isRebal ? 'rebal-last-year' : 'last-year').value);
   const years = new Set();
   for (const bond of tipsMap.values()) {
     if (!bond.maturity || bond.maturity <= settlementDate) continue;
@@ -1061,12 +1209,18 @@ function _openMaturityPickerModal() {
       + `</td>`
   ).join('') + '</tr>';
 
+  const isRebal = currentMode === 'rebalance';
   const rowsHtml = years.map(year => {
     const cands = _pickerCandidates(year);
     const override = _yearMaturityOverrides.get(year);
-    const checkedCusips = new Set(
-      override?.length ? override : buildDetails?.filter(d => d.fundedYear === year).map(d => d.cusip) ?? []
-    );
+    // Seed from an explicit override first; otherwise Rebalance seeds from what's actually held
+    // this year (so opening the picker shows the portfolio as-is, per 3.0 §Within-Year Allocation
+    // Policy — unchecking a held CUSIP is a deliberate sell, not a silent default), while Build
+    // seeds from its own last run (nothing held yet to mirror).
+    const defaultCusips = isRebal
+      ? (currentHoldingsArray ?? []).filter(h => tipsMap.get(h.cusip)?.maturity?.getFullYear() === year).map(h => h.cusip)
+      : (buildDetails?.filter(d => d.fundedYear === year).map(d => d.cusip) ?? []);
+    const checkedCusips = new Set(override?.length ? override : defaultCusips);
     // Per column, the candidates for this year's month, lower coupon first (so row 0 is always
     // the lower-coupon issue when a month has two).
     const byCol = cols.map(mo => cands.filter(b => b.maturity.getMonth() + 1 === mo)
@@ -1092,6 +1246,10 @@ function _openMaturityPickerModal() {
 
   document.getElementById('maturity-picker-body').innerHTML =
     '<table><tbody>' + headerRow + rowsHtml + '</tbody></table>';
+  document.getElementById('maturity-picker-desc').textContent = isRebal
+    ? 'Checked boxes are what you hold today. Uncheck to sell, check a new box to buy into it. All/None above a column applies to that month across every year.'
+    : "Pick which TIPS fill each funded year. A year left as-is keeps whatever it's currently holding. All/None above a column applies to that month across every year.";
+  document.getElementById('maturity-picker-apply').textContent = isRebal ? 'Apply' : 'Apply & Build';
   document.getElementById('maturity-picker-overlay').style.display = 'block';
 }
 
@@ -1180,7 +1338,132 @@ document.getElementById('maturity-picker-apply').addEventListener('click', () =>
     else _yearMaturityOverrides.delete(year);
   }
   _closeMaturityPickerModal();
-  _runBuildFromForm();
+  // Build has no holdings, so "Apply" only ever means "re-run from scratch." Rebalance already has
+  // a portfolio to value — Apply only updates which candidates are in play; it does not itself
+  // trigger a trade (3.0 §Within-Year Allocation Policy, the E invariant), so it refreshes the
+  // before-state preview rather than forcing a Rebalance Ladder run.
+  if (currentMode === 'build') _runBuildFromForm();
+  else _renderBeforeStatePreview();
+});
+
+// ─── Allocation-policy dropdown relabeling (C) — same click/change disambiguation pattern as
+// #build-maturity above (2.0 §Picking Maturities for a Funded Year); see that block's comment for
+// the full rationale.
+let _allocSelectJustChosen = false;
+let _allocListOpenPending = false;
+function _updateAllocPolicyOptionLabel(text) {
+  document.querySelector('#rebal-alloc-policy option[value="select"]').textContent = text;
+}
+document.getElementById('rebal-alloc-policy').addEventListener('mousedown', () => {
+  if (document.getElementById('rebal-alloc-policy').value === 'select') _updateAllocPolicyOptionLabel('Edit priority order');
+});
+document.getElementById('rebal-alloc-policy').addEventListener('change', () => {
+  if (document.getElementById('rebal-alloc-policy').value === 'select') {
+    _allocSelectJustChosen = true;
+    _openRankPickerModal();
+  } else {
+    _allocationPolicy = document.getElementById('rebal-alloc-policy').value;
+    _updateAllocPolicyOptionLabel('Set priority order…');
+    _yearRankOverrides.clear();  // picking a named policy replaces any custom per-year ranks
+    _closeRankPickerModal();
+    _allocListOpenPending = false;
+    _renderBeforeStatePreview();
+  }
+});
+document.getElementById('rebal-alloc-policy').addEventListener('click', () => {
+  if (document.getElementById('rebal-alloc-policy').value !== 'select') return;
+  if (_allocSelectJustChosen) { _allocSelectJustChosen = false; return; }
+  if (!_allocListOpenPending) { _allocListOpenPending = true; return; }
+  _allocListOpenPending = false;
+  _openRankPickerModal();
+});
+
+// ─── Per-year rank picker modal (D: 2.0 §Within-Year Allocation Policy §Manual rank override) ──
+// `useOverride=true` (seeding the modal) reflects any existing per-year override; `false` (the
+// Apply handler's no-op check) always reflects what the bare global policy alone would produce, so
+// "open the modal, touch nothing, Apply" never leaves behind a stale explicit override that merely
+// restates the policy's own order.
+function _rankPickerYearOrder(year, useOverride) {
+  const candidates = _pickerCandidates(year);
+  const held = (currentHoldingsArray ?? [])
+    .filter(h => tipsMap.get(h.cusip)?.maturity?.getFullYear() === year)
+    .map(h => ({ ...h, maturity: tipsMap.get(h.cusip)?.maturity }));
+  const rc = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const piMap = {};
+  for (const h of held) piMap[h.cusip] = calculatePIPerBond(h.cusip, h.maturity, rc, tipsMap);
+  const override = useOverride ? _yearRankOverrides.get(year) : null;
+  return rankForYear({
+    candidates, held, piMap, tipsMap,
+    policy: _allocationPolicy,
+    rankOverride: override?.length ? override : null,
+    // Live DOM value, not the `_maturityPrefRebal` snapshot -- that only refreshes on a mode
+    // switch, so it can be stale if Maturity preference just changed without leaving Rebalance
+    // mode (the only mode this modal opens in, so `#build-maturity`'s current value is always
+    // Rebalance's).
+    maturityPref: document.getElementById('build-maturity').value,
+  });
+}
+
+function _openRankPickerModal() {
+  const years = _pickerYears();
+  const rowsHtml = years.map(year => {
+    const rank = _rankPickerYearOrder(year, true);
+    if (!rank.length) return '';
+    const chips = rank.map((r, i) => {
+      const b = tipsMap.get(r.cusip);
+      const label = b?.maturity ? (MP_MONTH_LABEL[b.maturity.getMonth() + 1] || (b.maturity.getMonth() + 1)) : '?';
+      const coupon = b?.coupon != null ? (b.coupon * 100).toFixed(3) + '%' : '';
+      const title = r.cusip + (b?.maturity ? ' · ' + (b.maturity.getMonth() + 1) + '/' + b.maturity.getFullYear() : '');
+      return `<span class="rp-chip${r.held ? '' : ' rp-not-held'}" data-cusip="${r.cusip}" title="${title}">`
+        + `<button type="button" class="rp-left" ${i === 0 ? 'disabled' : ''}>&#9664;</button>`
+        + `<button type="button" class="rp-right" ${i === rank.length - 1 ? 'disabled' : ''}>&#9654;</button>`
+        + `${label} ${coupon}${r.held ? '' : ' (not held)'}`
+        + `</span>`;
+    }).join('');
+    return `<div class="rp-year-row" data-year="${year}"><div class="rp-year-label">${year}</div><div class="rp-chips">${chips}</div></div>`;
+  }).join('');
+  document.getElementById('rank-picker-body').innerHTML = rowsHtml || '<div style="color:#94a3b8;font-size:12px">No funded years in range.</div>';
+  document.getElementById('rank-picker-overlay').style.display = 'block';
+}
+
+function _closeRankPickerModal() {
+  document.getElementById('rank-picker-overlay').style.display = 'none';
+  _updateAllocPolicyOptionLabel('Set priority order…');
+  _allocListOpenPending = false;
+}
+
+document.getElementById('rank-picker-body').addEventListener('click', e => {
+  const btn = e.target.closest('.rp-left, .rp-right');
+  if (!btn) return;
+  const chip = btn.closest('.rp-chip');
+  const chipsEl = btn.closest('.rp-chips');
+  if (btn.classList.contains('rp-left') && chip.previousElementSibling) {
+    chipsEl.insertBefore(chip, chip.previousElementSibling);
+  } else if (btn.classList.contains('rp-right') && chip.nextElementSibling) {
+    chipsEl.insertBefore(chip.nextElementSibling, chip);
+  }
+  const chips = [...chipsEl.querySelectorAll('.rp-chip')];
+  chips.forEach((c, i) => {
+    c.querySelector('.rp-left').disabled = i === 0;
+    c.querySelector('.rp-right').disabled = i === chips.length - 1;
+  });
+});
+
+document.getElementById('rank-picker-close').addEventListener('click', _closeRankPickerModal);
+document.getElementById('rank-picker-cancel').addEventListener('click', _closeRankPickerModal);
+document.getElementById('rank-picker-overlay').addEventListener('click', e => {
+  if (e.target.id === 'rank-picker-overlay') _closeRankPickerModal();
+});
+document.getElementById('rank-picker-apply').addEventListener('click', () => {
+  for (const row of document.querySelectorAll('#rank-picker-body .rp-year-row')) {
+    const year = parseInt(row.dataset.year);
+    const order = [...row.querySelectorAll('.rp-chip')].map(c => c.dataset.cusip);
+    const natural = _rankPickerYearOrder(year, false).map(r => r.cusip);
+    if (order.join(',') === natural.join(',')) _yearRankOverrides.delete(year);
+    else _yearRankOverrides.set(year, order);
+  }
+  _closeRankPickerModal();
+  _renderBeforeStatePreview();
 });
 
 // ─── Bracket/cover year hover explainer ───────────────────────────────────────
@@ -1385,14 +1668,15 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
     }
     const _ncColor = costDeltaSum >= 0 ? '#16a34a' : '#dc2626';
     _renderDurationLinks();
-    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield);
+    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield, summary.weightedAvgSaYield);
 
   rebalDetails = details;
   rebalSummary = summary;
 
   const { headerHTML: rHdr, bodyHTML: rBody, tfootHTML: rFoot } = renderTable({ details, mode: 'rebal', summary, daraByYear: _daraByYearStore, flaggedYears: _bracketAutoCapYears });
+  const _prevExpandState = _captureExpandedState(simpleEl);
   simpleEl.innerHTML = rHdr + rBody + rFoot;
-  _setDefaultGroupsExpanded(simpleEl);
+  _restoreOrDefaultGroupsExpanded(simpleEl, _prevExpandState);
 
     rebalanceRendered = true;
   _rebalBeforeStateShown = true;
@@ -1435,7 +1719,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
       _infoPopups.future30yDuration = null;
     }
     _renderDurationLinks();
-    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield);
+    _renderWAD(summary.weightedAvgDuration, summary.weightedAvgYield, summary.weightedAvgSaYield);
     buildDetails = details;
   buildSummary  = summary;
 
@@ -1451,11 +1735,12 @@ function renderBuildOutput({ results, HDR, summary, details }) {
   document.getElementById('table-controls').style.display = 'flex';
 }
 
-function _renderWAD(wad, way) {
+function _renderWAD(wad, way, waySa) {
   const wrap = document.getElementById('ladder-stats-display');
   if (wad) {
     document.getElementById('wad-val').textContent = wad.toFixed(2);
     document.getElementById('avg-yld-val').textContent = way ? (way * 100).toFixed(2) + '%' : '—';
+    document.getElementById('avg-sa-yld-val').textContent = waySa ? (waySa * 100).toFixed(2) + '%' : '—';
     wrap.style.display = 'flex';
   } else {
     wrap.style.display = 'none';
@@ -1662,7 +1947,7 @@ function _initRebalDaraFromPortfolio() {
 
   // File load MIRRORS current holdings — no inference, no self-financing solve (3.0 §Per-Year DARA
   // from Portfolio). The range form of computePortfolioARAByYear fills every empty in-range year
-  // with its incoming LMI, so each rung shows its true current ARA and the first Run Rebalance is
+  // with its incoming LMI, so each rung shows its true current ARA and the first Rebalance Ladder is
   // a no-op.
   const heldARA = computePortfolioARAByYear(currentHoldingsArray, tipsMap, rc);
   if (Object.keys(heldARA).length === 0) { renderDaraByYearPanel(); return; }
@@ -1681,7 +1966,7 @@ function _initRebalDaraFromPortfolio() {
   // Bracket-candidate excess detection (3.0 §Before-State Preview and Bracket-Year Excess
   // Detection) — replaces the old step-3 1.5x-median auto-cap for THIS mirror population. A
   // flagged year's store entry is immediately filled with its own held-year median (the same
-  // "best guess" shown in the DARA input) rather than left unset, so Run Rebalance — which reads
+  // "best guess" shown in the DARA input) rather than left unset, so Rebalance Ladder — which reads
   // whatever is on the form — picks up the guess by default until the user edits it.
   const flags = detectBracketFlags({ heldARAByYear: heldARA, tipsMap, lastYear });
   _bracketAutoCapYears = new Set(flags.keys());
@@ -1729,10 +2014,10 @@ function _initRebalDaraFromPortfolio() {
 
 // ─── Before-state preview (3.0 §Before-State Preview and Bracket-Year Excess Detection) ─────────
 // Renders Qty/Cost/Amount Before for every ordinary funded year as soon as holdings are loaded /
-// account(s) selected — before Run Rebalance is clicked. Standalone holdings-valuation computation
+// account(s) selected — before Rebalance Ladder is clicked. Standalone holdings-valuation computation
 // (before-state-lib.js `computeBeforeState`) — does NOT call runRebalance/runFundedRebalance.
 // After-side columns and genuinely After-dependent controls (Export CSV, Export CUSIP/Qty, Trade
-// Ticket, Duration links, #ladder-stats-display) stay hidden/blank until Run Rebalance; see the
+// Ticket, Duration links, #ladder-stats-display) stay hidden/blank until Rebalance Ladder; see the
 // `renderTable` call below (After-side fields are simply never set on these rows) and the gating
 // already in place for those controls' `rebalanceRendered`-only display. #table-controls (Expand
 // All / Collapse All) is NOT in that list — the ladder table with its collapsible funded-year
@@ -1865,6 +2150,9 @@ function _updateDaraRememberUI(accountNames) {
 
   const saved = _readDaraCache(_daraCacheKey);
   if (!saved) return;
+  // Already Applied/Dismissed this session (e.g. a prior mode switch already surfaced this exact
+  // saved plan) — don't re-show the banner or force the card open again every time this re-runs.
+  if (_daraPlanHandledKeys.has(_daraCacheKey)) return;
 
   document.getElementById('dara-plan-banner-text').textContent =
     `Saved DARA plan found for "${_daraCacheLabel}" (saved ${new Date(saved.savedAt).toLocaleDateString()}) —`;
@@ -1904,10 +2192,12 @@ document.getElementById('dara-plan-apply').addEventListener('click', () => {
   document.getElementById('dara-plan-banner').style.display = 'none';
   _setDaraPlanNeedsAttention(false);
   _setDaraPlanDirty(false);  // store now matches the cache it was just loaded from
+  if (_daraCacheKey) _daraPlanHandledKeys.add(_daraCacheKey);
 });
 document.getElementById('dara-plan-dismiss').addEventListener('click', () => {
   document.getElementById('dara-plan-banner').style.display = 'none';
   _setDaraPlanNeedsAttention(false);
+  if (_daraCacheKey) _daraPlanHandledKeys.add(_daraCacheKey);
 });
 
 // "⋮" menu tucking Export/Import away from the primary Save action — both remain the portable,
@@ -2128,6 +2418,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
         if (currentImportedParams.couponPref)
           document.getElementById('build-coupon').value = currentImportedParams.couponPref;
         _updateCouponFieldVisibility();
+        _updateAllocPolicyLock();
         _updateMaturityOptionLabel('Select maturities…');
         _maturityListOpenPending = false;
       }
@@ -2224,6 +2515,7 @@ let _drillDragging = false;
 // ─── Draggable + resizable modals (shared — src/modal.js) ────────────────────
 makeDraggableResizable(document.getElementById('tipsref-modal'), document.getElementById('tipsref-title'), { minWidth: 400, minHeight: 200 });
 makeDraggableResizable(document.getElementById('maturity-picker-modal'), document.getElementById('maturity-picker-title'), { minWidth: 500, minHeight: 250 });
+makeDraggableResizable(document.getElementById('rank-picker-modal'), document.getElementById('rank-picker-title'), { minWidth: 480, minHeight: 250 });
 
 // ─── Per-year DARA panel ──────────────────────────────────────────────────────
 let _daraByYearPanelDefault = null;
@@ -2237,9 +2529,18 @@ let _daraAutoInferred = false;      // true when DARA field was populated by inf
 let _daraByYearBodyCollapsed = true;
 let _daraPlanOpen = false;          // DARA Plan dropdown open state — closed by default, same
                                      // collapsed-by-default pattern as _daraByYearBodyCollapsed above
+// Per-mode mirrors, swapped on mode toggle — same pattern as _daraByYearStoreRebal/Build. Without
+// this pair, Build auto-opening the card for its OWN not-yet-handled saved plan would leak that
+// open state into Rebalance (and vice versa) on the next mode switch, since the two modes' saved
+// plans are independent but this single flag isn't otherwise mode-scoped.
+let _daraPlanOpenRebal = false, _daraPlanOpenBuild = false;
 let _daraPlanNeedsAttention = false; // badge on #dara-plan-hdr: a saved plan was found and hasn't
                                       // been Applied/Dismissed yet — persists even if the user closes
                                       // the dropdown again without acting, so it can't be missed
+let _daraPlanHandledKeys = new Set(); // cache keys whose "saved plan found" banner has already been
+                                     // Applied or Dismissed this session — once handled, re-checking
+                                     // the same key (e.g. on every mode switch) must not re-surface
+                                     // the banner or force the card open again
 let _daraPlanDirty = false;         // highlight on #dara-remember-btn: a per-year value has changed
                                       // since the last Save — cleared by Save, or by loading a plan
                                       // (Apply banner) that makes the store match the cache again
@@ -2324,14 +2625,18 @@ function _setDaraByYearCollapsed(collapsed) {
   if (glyph) glyph.textContent   = collapsed ? '▶' : '▼';
 }
 
-// Whether the DARA Plan card is relevant at all right now (valid DARA + range; holdings loaded in
-// rebalance) — controls whether the whole card (header sliver included) is shown at all. Independent
-// of _daraPlanOpen (open/closed body state), which is preserved across re-renders while available,
+// Whether a DARA plan is relevant at all right now (valid DARA + range; holdings loaded in
+// rebalance) — controls whether the collapsible body (banner/history/remember/segments) can be
+// open. The card itself and its always-visible fields row are unaffected. Independent of
+// _daraPlanOpen (open/closed body state), which is preserved across re-renders while available,
 // same as _daraByYearBodyCollapsed is for the Per-Year DARA table.
 function _setDaraPlanAvailable(available) {
-  const card = document.getElementById('dara-plan-card');
-  card.style.display = available ? 'block' : 'none';
-  if (!available) { _daraPlanOpen = false; return; }
+  // The card itself (#dara-plan-hdr-row: "DARA Plan" label + Maturity preference / Allocation
+  // policy / Coupon pick) is always visible now — those fields don't depend on a DARA plan
+  // existing (2.0 §Maturity Selection Within a Funded Year, §Within-Year Allocation Policy). Only
+  // the collapsible body (banner/history/remember/segments) is DARA-plan-dependent, so
+  // "unavailable" just means collapsing that body rather than hiding the whole card.
+  if (!available) { _daraPlanOpen = false; _setDaraPlanOpen(false); return; }
   _setDaraPlanOpen(_daraPlanOpen);  // re-sync body display/label with the preserved open/closed state
 }
 
@@ -2341,15 +2646,14 @@ function _setDaraPlanAvailable(available) {
 function _setDaraPlanOpen(open) {
   _daraPlanOpen = open;
   const body = document.getElementById('dara-plan-body');
-  const glyph = document.getElementById('dara-plan-glyph');
-  const text = document.getElementById('dara-plan-hdr-text');
-  if (body)  body.style.display = open ? '' : 'none';
-  if (glyph) glyph.textContent  = open ? '▼' : '▶';
-  if (text)  text.textContent   = open ? 'Hide DARA Plan' : 'Show DARA Plan';
+  const btn = document.getElementById('dara-plan-toggle-btn');
+  if (body) body.style.display = open ? '' : 'none';
+  if (btn)  btn.innerHTML = open ? '&#9660; Hide Details' : '&#9654; Show Details';
 }
 
-// Badge dot on the header sliver for "a saved plan was found and hasn't been Applied/Dismissed" —
-// persists even if the body is collapsed again without acting, so it can't be silently missed.
+// Badge dot on the "DARA Plan" label for "a saved plan was found and hasn't been Applied/
+// Dismissed" — persists even if the body is collapsed again without acting, so it can't be
+// silently missed.
 function _setDaraPlanNeedsAttention(flag) {
   _daraPlanNeedsAttention = flag;
   document.getElementById('dara-plan-hdr')?.classList.toggle('needs-attention', flag);
@@ -2365,7 +2669,7 @@ function _setDaraPlanDirty(flag) {
   if (flag && _daraCacheKey) _setDaraPlanOpen(true);
 }
 
-document.getElementById('dara-plan-hdr').addEventListener('click', () => {
+document.getElementById('dara-plan-toggle-btn').addEventListener('click', () => {
   _setDaraPlanOpen(!_daraPlanOpen);
 });
 
@@ -2575,7 +2879,7 @@ function _renderSegTools() {
     const echo = _segInferredEcho.get(_segKey(years));
     return `
     <div class="seg-row">
-      <b>${segments.length > 1 ? `Segment ${range(years)}` : `Whole ladder ${range(years)}`}</b>
+      <b>${segments.length > 1 ? range(years) : `Whole ladder ${range(years)}`}</b>
       ${inferBtnHTML(i)}
       <input type="number" class="seg-const-input" data-idx="${i}" placeholder="$ each" step="1000" min="0" value="${echo ?? ''}">
     </div>`;
@@ -2943,7 +3247,10 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         lastYearOverride: parseInt(document.getElementById('rebal-last-year').value),
         firstYearOverride: parseInt(document.getElementById('rebal-first-year').value),
         preLadderInterest: document.getElementById('pre-ladder-interest').checked,
-        maturityPref: currentImportedParams?.maturityPref ?? 'last',
+        maturityPref: document.getElementById('build-maturity').value,
+        yearOverrides: _yearMaturityOverrides,
+        allocationPolicy: _allocationPolicy,
+        yearRankOverrides: _yearRankOverrides,
       });
       _lastKnownDara = finalDara;
       renderOutput(result);
@@ -3094,7 +3401,7 @@ async function _showTipsRefModal(type) {
 
   let html = '<thead><tr><th>CUSIP</th><th>Maturity</th><th>Coupon</th>';
   if (type === 'Ref') html += '<th style="text-align:left">Dated Date</th><th>Base CPI</th>';
-  else html += '<th>Price</th><th>Index Ratio</th><th>Adj Price</th><th>Yield</th>';
+  else html += '<th>Price</th><th>Index Ratio</th><th>Adj Price</th><th>Yield</th><th>SA Yield</th>';
   html += '</tr></thead><tbody>';
 
   const R = ' style="text-align:right"';
@@ -3112,6 +3419,7 @@ async function _showTipsRefModal(type) {
       html += '<td' + R + '>' + (ir != null ? ir.toFixed(5) : '—') + '</td>';
       html += '<td' + R + '>' + (adjPrice != null ? adjPrice.toFixed(3) : '—') + '</td>';
       html += '<td' + R + '>' + (r.yield * 100).toFixed(3) + '%</td>';
+      html += '<td' + R + '>' + (r.saYield != null ? (r.saYield * 100).toFixed(3) + '%' : '—') + '</td>';
     }
     html += '</tr>';
   }

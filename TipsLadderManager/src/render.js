@@ -35,6 +35,9 @@ export const COLS = [
   { label: 'Yield',       key: 'yield',       fmt: 'yld', buildOnly: true,
     value: d => d.yield, subValue: d => d.yield,
     headerHTML: '<span style="visibility:hidden">.</span><br><span style="font-weight:normal;opacity:0.7">Yield</span>' },
+  { label: 'SA Yield',    key: 'saYield',     fmt: 'yld',
+    value: d => d.saYield, subValue: d => d.saYield,
+    headerHTML: '<span style="visibility:hidden">.</span><br><span style="font-weight:normal;opacity:0.7">SA Yield</span>' },
   // Rebalance-only
   // Excess sub-row = coverage delivered (≈ missing-years × DARA): excessAmt{Before,After} from
   // rebalance-lib (P+I − AMD net-out + block-LMI add-back), same rule as build's Amount column.

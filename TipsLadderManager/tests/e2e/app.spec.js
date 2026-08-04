@@ -1,6 +1,11 @@
 // E2E regression tests — guards against GUI breakage (inop buttons, broken table render, drill popups)
 // Run: npx playwright test
-// Mocks R2 fetches with local YieldsFromFedInvestPrices.csv and RefCPI.csv
+// Mocks EVERY R2 fetch with a local fixture (YieldsFromFedInvestPrices.csv, FidelityTreasuriesTips.csv,
+// RefCPI.csv, TipsRef.csv, YieldsSaSao.csv, BondHolidaysSifma.csv) via page.route() in beforeEach below —
+// the test browser has no live network egress in a sandboxed session, so an unmocked R2 URL fails with
+// "Failed to fetch" (this is by design, not flakiness; well-known, see 3.1_Data_Pipeline.md §Testing).
+// Any new required R2 fetch added to data.js MUST get a matching fixture file + route() mock here, or
+// every test hangs/fails at the beforeEach's data-load wait, not just tests that touch the new field.
 
 import { test, expect } from 'playwright/test';
 import { readFileSync } from 'fs';
@@ -57,14 +62,14 @@ async function daraDisplay(page) {
   return placeholder === 'by year' ? 'by year' : '';
 }
 
-// The DARA Plan card's header sliver (#dara-plan-hdr) is always visible once the card is relevant;
-// clicking it expands/collapses #dara-plan-body, closed by default, or auto-opens when a saved plan
-// is found. Idempotent: a no-op if it's already open (e.g. just auto-opened), so it's safe to call
-// unconditionally wherever a test needs segment tools/Remember/the banner visible, without risking
-// toggling an auto-opened dropdown back closed.
+// The DARA Plan card's header row (#dara-plan-hdr-row) is always visible once the card is relevant;
+// clicking #dara-plan-toggle-btn expands/collapses #dara-plan-body, closed by default, or auto-opens
+// when a saved plan is found. Idempotent: a no-op if it's already open (e.g. just auto-opened), so
+// it's safe to call unconditionally wherever a test needs segment tools/Remember/the banner visible,
+// without risking toggling an auto-opened dropdown back closed.
 async function _openDaraPlan(page) {
   if (await page.locator('#dara-plan-body').isVisible()) return;
-  await page.locator('#dara-plan-hdr').click();
+  await page.locator('#dara-plan-toggle-btn').click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -77,6 +82,8 @@ test.beforeEach(async ({ page }) => {
     r.fulfill({ body: csv('RefCPI.csv'), contentType: 'text/csv' }));
   await page.route('**/TIPS/TipsRef.csv', r =>
     r.fulfill({ body: csv('TipsRef.csv'), contentType: 'text/csv' }));
+  await page.route('**/TIPS/YieldsSaSao.csv', r =>
+    r.fulfill({ body: csv('YieldsSaSao.csv'), contentType: 'text/csv' }));
   await page.route('**/misc/BondHolidaysSifma.csv', r =>
     r.fulfill({ body: csv('BondHolidaysSifma.csv'), contentType: 'text/csv' }));
   // Allow sample pre-populate to succeed (fetches data/SampleHoldings.csv via serve)
@@ -96,7 +103,7 @@ test('data loads: info strip shows Trade/Settle/Ref CPI dates, run button enable
 // ── 2. Mode toggle ────────────────────────────────────────────────────────────
 test('mode toggle: switching to Build hides holdings, shows year fields; run button re-labeled', async ({ page }) => {
   // Start in Rebalance mode
-  await expect(page.locator('#run-btn')).toHaveText('Run Rebalance');
+  await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
   await expect(page.locator('#field-holdings')).toBeVisible();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
 
@@ -108,7 +115,7 @@ test('mode toggle: switching to Build hides holdings, shows year fields; run but
 
   // Switch back to Rebalance
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
-  await expect(page.locator('#run-btn')).toHaveText('Run Rebalance');
+  await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
   await expect(page.locator('#field-holdings')).toBeVisible();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
 });
@@ -162,12 +169,57 @@ test('build: selecting last year and clicking Run renders build table', async ({
   expect(await rows.count()).toBeGreaterThan(0);
 });
 
-test('build: maturity preference field visible in Build, hidden in Rebalance', async ({ page }) => {
-  await expect(page.locator('#field-build-maturity')).not.toBeVisible();
+// Maturity preference (2.0 §Maturity Selection Within a Funded Year) is shared UI, visible in
+// both modes since Rebalance's target side reads it too (rebalance-lib.js allocationPolicy B) --
+// previously Build-only. Each mode keeps its own independent selection (see the next test).
+test('maturity preference field visible in both Rebalance and Build', async ({ page }) => {
+  await expect(page.locator('#field-build-maturity')).toBeVisible();
   await page.locator('.tab-btn[data-mode="build"]').click();
   await expect(page.locator('#field-build-maturity')).toBeVisible();
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
-  await expect(page.locator('#field-build-maturity')).not.toBeVisible();
+  await expect(page.locator('#field-build-maturity')).toBeVisible();
+});
+
+// Maturity preference / Allocation policy live inside the DARA Plan card's always-visible header
+// row (#dara-plan-hdr-row), not gated behind a DARA existing or the card being expanded --
+// unlike the rest of the card (banner/history/remember/segments), which is genuinely DARA-
+// dependent. Asserted with NO holdings loaded and no DARA entered (freshest possible state).
+test('DARA Plan card: Maturity preference and Allocation policy are visible before any DARA exists, and before the card is expanded', async ({ page }) => {
+  await expect(page.locator('#dara-plan-body')).not.toBeVisible(); // collapsed by default
+  await expect(page.locator('#field-build-maturity')).toBeVisible();
+  await expect(page.locator('#field-alloc-policy')).toBeVisible();
+});
+
+// Maturity preference 'last'/'first' already commits every year to one fixed direction, which is
+// exactly what allocation policy 'maturity' expresses -- letting 'equal'/'saYield' apply on top of
+// a fixed direction is what caused priority order to look wrong regardless of which was picked.
+// The dropdown locks to 'Maturity order' (disabled) under 'last'/'first' and unlocks for
+// 'all'/'semiannual'/'select', which have no single fixed direction of their own.
+test('allocation policy locks to Maturity order under a fixed maturity preference, unlocks otherwise', async ({ page }) => {
+  await expect(page.locator('#build-maturity')).toHaveValue('last'); // default
+  await expect(page.locator('#rebal-alloc-policy')).toBeDisabled();
+  await expect(page.locator('#rebal-alloc-policy')).toHaveValue('maturity');
+
+  await page.locator('#build-maturity').selectOption('all');
+  await expect(page.locator('#rebal-alloc-policy')).toBeEnabled();
+
+  await page.locator('#build-maturity').selectOption('first');
+  await expect(page.locator('#rebal-alloc-policy')).toBeDisabled();
+  await expect(page.locator('#rebal-alloc-policy')).toHaveValue('maturity');
+
+  await page.locator('#build-maturity').selectOption('semiannual');
+  await expect(page.locator('#rebal-alloc-policy')).toBeEnabled();
+});
+
+test('maturity preference: Rebalance and Build keep independent selections across a mode switch', async ({ page }) => {
+  await page.locator('#build-maturity').selectOption('first');
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await expect(page.locator('#build-maturity')).toHaveValue('last'); // Build's own untouched default
+  await page.locator('#build-maturity').selectOption('all');
+  await page.locator('.tab-btn[data-mode="rebalance"]').click();
+  await expect(page.locator('#build-maturity')).toHaveValue('first'); // Rebalance's own selection survives
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await expect(page.locator('#build-maturity')).toHaveValue('all'); // Build's own selection survives too
 });
 
 test('build: first-to-mature preference runs successfully', async ({ page }) => {
@@ -559,6 +611,31 @@ test('build: editing a per-year DARA input blanks the DARA field to "by year"', 
   await expect(page.locator('#dara')).toHaveAttribute('placeholder', 'by year');
 });
 
+// Rebuilding #simple-table on every Rebalance Ladder run wipes every fy-group-header's
+// data-expanded attribute -- _captureExpandedState/_restoreOrDefaultGroupsExpanded carry the prior
+// expand/collapse state across the rebuild so re-running after a Maturity preference/Allocation
+// policy change doesn't collapse whatever the user had open.
+test('rebalance: expanded/collapsed funded years survive re-running Rebalance Ladder', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  const headers = page.locator('#simple-table tbody tr.fy-group-header');
+  const first = headers.first();
+  const second = headers.nth(1);
+  // Ordinary (non-bracket) groups start collapsed by default -- confirm before changing anything.
+  await expect(first).toHaveAttribute('data-expanded', 'false');
+  await expect(second).toHaveAttribute('data-expanded', 'false');
+
+  await first.click(); // expand only the first group
+  await expect(first).toHaveAttribute('data-expanded', 'true');
+
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+  await expect(headers.first()).toHaveAttribute('data-expanded', 'true');
+  await expect(headers.nth(1)).toHaveAttribute('data-expanded', 'false');
+});
+
 test('rebalance: per-year DARA inputs render inline after loading holdings and entering DARA', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   // Typing into DARA fires 'input' → renderDaraByYearPanel → refreshes the before-state preview;
@@ -568,6 +645,21 @@ test('rebalance: per-year DARA inputs render inline after loading holdings and e
 
   const yearInputs = page.locator('.fy-dara-input[data-year]');
   expect(await yearInputs.count()).toBeGreaterThan(0);
+});
+
+test('rebalance: priority-order modal reorders chips with left/right buttons, not up/down', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#dara').fill('10000');
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 3_000 });
+
+  // Allocation policy is locked to 'Maturity order' (and the dropdown disabled) whenever Maturity
+  // preference is 'last'/'first' -- switch to 'all' to unlock it before opening the picker.
+  await page.locator('#build-maturity').selectOption('all');
+  await page.locator('#rebal-alloc-policy').selectOption('select');
+  await expect(page.locator('#rank-picker-overlay')).toBeVisible();
+  await expect(page.locator('.rp-chip .rp-left').first()).toBeVisible();
+  await expect(page.locator('.rp-chip .rp-right').first()).toBeVisible();
+  expect(await page.locator('.rp-up, .rp-down').count()).toBe(0);
 });
 
 // ── 12. Enter key triggers Run ────────────────────────────────────────────────
@@ -583,7 +675,7 @@ test('build: pressing Enter (no overlay open) triggers Build Ladder', async ({ p
   await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
 });
 
-test('rebalance: pressing Enter (no overlay open) triggers Run Rebalance', async ({ page }) => {
+test('rebalance: pressing Enter (no overlay open) triggers Rebalance Ladder', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await page.locator('.app-title').click();
   await page.keyboard.press('Enter');
@@ -1263,20 +1355,55 @@ test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closi
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
-  // No click on #dara-plan-hdr here — the dropdown (and its banner) must already be open on its
-  // own.
+  // No click on #dara-plan-toggle-btn here — the dropdown (and its banner) must already be open on
+  // its own.
   await expect(page.locator('#dara-plan-banner'), 'dropdown auto-opens with no click needed').toBeVisible({ timeout: 2_000 });
   await expect(page.locator('#dara-plan-hdr')).toHaveClass(/needs-attention/);
 
   // Close it WITHOUT clicking Apply/Dismiss — the badge must survive.
-  await page.locator('#dara-plan-hdr').click();
+  await page.locator('#dara-plan-toggle-btn').click();
   await expect(page.locator('#dara-plan-body')).not.toBeVisible();
   await expect(page.locator('#dara-plan-hdr'), 'badge persists after closing without acting').toHaveClass(/needs-attention/);
 
   // Re-open and Apply — the badge clears.
-  await page.locator('#dara-plan-hdr').click();
+  await page.locator('#dara-plan-toggle-btn').click();
   await page.locator('#dara-plan-apply').click();
   await expect(page.locator('#dara-plan-hdr')).not.toHaveClass(/needs-attention/);
+});
+
+// Regression: _daraPlanOpen used to be a single global, and _updateDaraRememberUI re-showed the
+// "saved plan found" banner (and force-reopened the card) every time it re-ran with no memory of
+// a prior Dismiss/Apply -- so switching Build<->Rebalance both re-surfaced an already-handled
+// banner and silently reopened a card the user had explicitly collapsed.
+test('DARA Plan: dismissed banner and collapsed state persist across a mode switch', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  const rung = page.locator('.fy-dara-input[data-year]').first();
+  await rung.fill('88888');
+  await rung.blur();
+  await page.locator('#dara-remember-btn').click();
+  await page.waitForFunction(() =>
+    Object.keys(localStorage).some(k => k.startsWith('tlm-dara-plan:') && localStorage.getItem(k).includes('88888')));
+
+  await page.reload();
+  await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#dara-plan-banner'), 'banner auto-opens on first discovery').toBeVisible({ timeout: 2_000 });
+
+  await page.locator('#dara-plan-dismiss').click();
+  await expect(page.locator('#dara-plan-banner')).not.toBeVisible();
+  await page.locator('#dara-plan-toggle-btn').click();  // collapse the card itself
+  await expect(page.locator('#dara-plan-body')).not.toBeVisible();
+
+  // Build mode has its own, never-yet-handled saved plan for this same holdings load, so it
+  // legitimately auto-opens on its OWN account -- this must not leak into Rebalance's state.
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await page.locator('.tab-btn[data-mode="rebalance"]').click();
+
+  await expect(page.locator('#dara-plan-banner'), 'dismissed banner does not reappear').not.toBeVisible();
+  await expect(page.locator('#dara-plan-body'), 'collapsed card stays collapsed').not.toBeVisible();
 });
 
 // ── Standalone DARA-plan file (portable export/import, independent of localStorage) ────────────
