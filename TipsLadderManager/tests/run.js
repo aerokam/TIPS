@@ -8,7 +8,7 @@ import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, in
 import { segmentRanges, constantMap, applySegmentMap } from '../src/segment-dara.js';
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
-import { rankForYear } from '../src/allocation-policy.js';
+import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
 import { nextBondTradingDay, parseBondHolidays, lookupRefCpi } from '../src/data.js';
@@ -1884,20 +1884,24 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
       assert(`allocation policy '${policy}': need unchanged -> Oct 2027 qty delta === 0`, qtyDeltaFor(details, OCT27), 0);
     }
 
-    // (2) Need grows -> exactly one of the three absorbs the whole increase; the other two are
-    // completely untouched (never split across multiple maturities within one run).
+    // (2) Need grows -> under 'maturity'/'saYield' (a fixed preference order), exactly one of the
+    // three absorbs the whole increase and the other two are completely untouched. 'equal' has no
+    // fixed preference -- it levels the currently-lowest-value maturities toward each other and
+    // splits growth across whichever are tied at the bottom (levelValues in allocation-policy.js),
+    // so more than one can move within a single run.
     const grownDara = new Map(baseDaraMap);
     grownDara.set(2027, (grownDara.get(2027) ?? 0) + 5000);
 
-    // 'equal': the smallest currently-held maturity (Jan, by value) is preferred -> absorbs growth.
+    // 'equal': Jan and Oct are the two lowest-held-value maturities and level toward each other,
+    // splitting the growth between them; Apr (highest held value) stays untouched throughout.
     {
       const { details } = runRebalance({
         dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
         daraByYear: grownDara, allocationPolicy: 'equal',
       });
-      assert("allocation policy 'equal': need grows -> Jan (smallest held value) absorbs it", qtyDeltaFor(details, JAN27) > 0, true);
-      assert("allocation policy 'equal': need grows -> Apr untouched", qtyDeltaFor(details, APR27), 0);
-      assert("allocation policy 'equal': need grows -> Oct untouched", qtyDeltaFor(details, OCT27), 0);
+      assert("allocation policy 'equal': need grows -> Jan (lowest held value, tied w/ Oct) grows", qtyDeltaFor(details, JAN27) > 0, true);
+      assert("allocation policy 'equal': need grows -> Oct (tied w/ Jan) grows by the same amount", qtyDeltaFor(details, OCT27), qtyDeltaFor(details, JAN27));
+      assert("allocation policy 'equal': need grows -> Apr (highest held value) untouched", qtyDeltaFor(details, APR27), 0);
     }
 
     // 'maturity': latest-maturing (Oct) is preferred -> absorbs the growth; Jan/Apr untouched.
@@ -1932,6 +1936,25 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
       assert("rankForYear maturityPref='first': Oct ranked last", firstRank[2].cusip, 'OCT');
     }
 
+    // levelValues: the exact overshoot bug reported against a live rebalance -- two maturities
+    // held 7-worth (Jan) and 9-worth (Jul), year needs to shrink to 12-worth total. Draining the
+    // whole 4-worth cut onto Jul alone (the old single-target model) would leave Jul at 5, flipping
+    // it below Jan (7) -- past parity, not toward it. levelValues instead levels both to 6/6.
+    {
+      const leveled = levelValues(new Map([['JAN', 7], ['JUL', 9]]), 12);
+      assert('levelValues: shrink levels both maturities to parity (6/6), no overshoot', [leveled.get('JAN'), leveled.get('JUL')].join(','), '6,6');
+    }
+    // A shrink too small to reach parity only drains the larger one, same as before.
+    {
+      const leveled = levelValues(new Map([['JAN', 7], ['JUL', 9]]), 15);
+      assert('levelValues: a shrink smaller than the gap only drains the larger one', [leveled.get('JAN'), leveled.get('JUL')].join(','), '7,8');
+    }
+    // Growth water-fills onto the smaller one first, same logic mirrored upward.
+    {
+      const leveled = levelValues(new Map([['JAN', 7], ['JUL', 9]]), 17);
+      assert('levelValues: growth smaller than the gap only fills the smaller one', [leveled.get('JAN'), leveled.get('JUL')].join(','), '8,9');
+    }
+
     // 'saYield': force Apr's SA yield above Oct's and Jan's -> Apr should be preferred instead.
     {
       const saved = { j: tipsMap.get(JAN27).saYield, a: tipsMap.get(APR27).saYield, o: tipsMap.get(OCT27).saYield };
@@ -1963,6 +1986,22 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
       assert("allocation policy 'maturity': need shrinks -> Jan (earliest-maturing, least preferred) sells", qtyDeltaFor(details, JAN27) < 0, true);
       assert("allocation policy 'maturity': need shrinks -> Apr untouched", qtyDeltaFor(details, APR27), 0);
       assert("allocation policy 'maturity': need shrinks -> Oct (latest-maturing, preferred) untouched", qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (2c) 'equal' shrink drains from the top down (largest held value first) rather than dumping
+    // the whole cut onto a single fixed-rank CUSIP -- this is the regression test for the bug where
+    // a one-shot dump onto one maturity could overshoot past parity and flip which one ends up
+    // larger. Jan (lowest held value) is untouched; Apr (highest) and Oct (middle) both sell, with
+    // Apr -- being furthest above Oct -- selling at least as much as Oct.
+    {
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: shrunkDara, allocationPolicy: 'equal',
+      });
+      assert("allocation policy 'equal': need shrinks -> Jan (lowest held value) untouched", qtyDeltaFor(details, JAN27), 0);
+      assert("allocation policy 'equal': need shrinks -> Apr (highest held value) sells", qtyDeltaFor(details, APR27) < 0, true);
+      assert("allocation policy 'equal': need shrinks -> Oct (middle held value) sells", qtyDeltaFor(details, OCT27) < 0, true);
+      assert("allocation policy 'equal': need shrinks -> Apr sells at least as much as Oct (levels toward Oct, no overshoot)", Math.abs(qtyDeltaFor(details, APR27)) >= Math.abs(qtyDeltaFor(details, OCT27)), true);
     }
 
     // (3) Per-year manual rank override wins over the global policy for that year: force Apr

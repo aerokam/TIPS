@@ -7,7 +7,7 @@ export { yieldFromPrice };
 import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
 import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover } from './ladder-core.js';
 import { localDate, fmtDate, toDateStr } from './date-util.js';
-import { rankForYear } from './allocation-policy.js';
+import { rankForYear, levelValues } from './allocation-policy.js';
 
 // Re-export date helpers so existing importers (index.html, tests) keep working.
 export { localDate, fmtDate };
@@ -1307,10 +1307,24 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
           : sortedH.filter(h => h.cusip !== targetCUSIP).reverse();
         let curPI = yi.holdings.reduce((s, h) => s + h.qty * piMap[h.cusip], 0)
                   - targetExcessHeld * piMap[targetCUSIP];
-        for (const h of nonTarget) {
-          const sell = Math.min(h.qty, Math.max(0, Math.floor((curPI - needed) / piMap[h.cusip])));
-          postRebalQtyMap[h.cusip] = h.qty - sell;
-          curPI -= sell * piMap[h.cusip];
+        if (!isBracket && allocationPolicy === 'equal' && nonTarget.length > 0) {
+          // Equal split levels rather than drains in fixed order -- see levelValues (3.0 §Within-
+          // Year Allocation Policy). Pool is the target plus whatever's currently held besides it;
+          // a candidate held by neither stays untouched, same as before.
+          const poolValues = new Map([[targetCUSIP, targetFundedHeld * piMap[targetCUSIP]],
+            ...nonTarget.map(h => [h.cusip, h.qty * piMap[h.cusip]])]);
+          const leveled = levelValues(poolValues, needed);
+          for (const h of nonTarget) {
+            const newQty = Math.max(0, Math.round(leveled.get(h.cusip) / piMap[h.cusip]));
+            curPI -= (h.qty - newQty) * piMap[h.cusip];
+            postRebalQtyMap[h.cusip] = newQty;
+          }
+        } else {
+          for (const h of nonTarget) {
+            const sell = Math.min(h.qty, Math.max(0, Math.floor((curPI - needed) / piMap[h.cusip])));
+            postRebalQtyMap[h.cusip] = h.qty - sell;
+            curPI -= sell * piMap[h.cusip];
+          }
         }
         const diff = needed - curPI;
         tFundedYearQty = Math.max(0, targetFundedHeld + Math.round(diff / piMap[targetCUSIP]));

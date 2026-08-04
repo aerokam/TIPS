@@ -61,3 +61,35 @@ export function rankForYear({ candidates = [], held = [], piMap = {}, tipsMap = 
   }
   return sorted.map(cusip => ({ cusip, held: heldByCusip.has(cusip) }));
 }
+
+// Equal split has no fixed preference order to drain/fill in -- unlike 'maturity'/'saYield',
+// which always fully settle the least-preferred candidate before touching the next, 'equal'
+// levels a year's maturities toward parity (3.0 §Within-Year Allocation Policy). Growth water-
+// fills onto the currently-lowest value(s); shrinkage drains the currently-highest value(s); once
+// two or more are tied, they move together. This stops the trade from overshooting past parity
+// and flipping which maturity ends up larger, which a single fixed-order drain can do.
+// `values`: Map<cusip, currentPIValue>. Returns a new Map<cusip, leveledPIValue> summing to `needed`.
+export function levelValues(values, needed) {
+  const total = [...values.values()].reduce((s, v) => s + v, 0);
+  const growing = needed > total;
+  let rem = Math.abs(needed - total);
+  const groups = [...values.keys()].map(cusip => ({ cusips: [cusip], level: values.get(cusip) }));
+  while (rem > 1e-6 && groups.length > 1) {
+    groups.sort((a, b) => growing ? a.level - b.level : b.level - a.level);
+    const extreme = groups[0], nextGroup = groups[1];
+    const capacity = Math.abs(nextGroup.level - extreme.level) * extreme.cusips.length;
+    if (rem <= capacity) {
+      extreme.level += (growing ? 1 : -1) * (rem / extreme.cusips.length);
+      rem = 0;
+    } else {
+      extreme.level = nextGroup.level;
+      rem -= capacity;
+      nextGroup.cusips.push(...extreme.cusips);
+      groups.shift();
+    }
+  }
+  if (groups.length === 1 && rem > 1e-6) groups[0].level += (growing ? 1 : -1) * (rem / groups[0].cusips.length);
+  const out = new Map();
+  for (const g of groups) for (const cusip of g.cusips) out.set(cusip, g.level);
+  return out;
+}
