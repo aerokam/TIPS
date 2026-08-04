@@ -46,8 +46,8 @@
      #top-row (position: sticky) just grows/shrinks in place as the body opens/closes. Auto-opens
      when a saved plan is found. ── */
   .dara-plan-card { width: fit-content; min-width: 845px; margin: 4px 0 0; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 8px; padding: 8px 24px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); }
-  .dara-plan-card-hdr { position: relative; display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--portal-card-text); opacity: 0.85; padding: 2px 0; cursor: pointer; user-select: none; }
-  .dara-plan-card-hdr:hover { opacity: 1; }
+  .dara-plan-card-hdr { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--portal-card-text); opacity: 0.85; }
+  .dara-plan-card-hdr-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 20px; }
   #dara-plan-body { padding-top: 8px; }
   /* Fixed cap (not viewport-fill like the main output tables) so expanding this panel never pushes
      the main data table almost entirely below the fold — it gets its own internal scrollbar instead. */
@@ -442,26 +442,18 @@
     <div id="status"></div>
   </div>
 
-  <!-- DARA Plan card — the header sliver (#dara-plan-hdr) plus #dara-plan-fields-row (Maturity
-       preference / Allocation policy / Coupon pick) are always visible, unlike the collapsible
-       #dara-plan-body below them (split years, per-segment Infer/$-each, Undo/Revert, Remember/
+  <!-- DARA Plan card — the header row (#dara-plan-hdr-row: "DARA Plan" label + Maturity
+       preference / Allocation policy / Coupon pick) is always visible, unlike the collapsible
+       #dara-plan-body below it (split years, per-segment Infer/$-each, Undo/Revert, Remember/
        Export/Import), which only makes sense once a DARA plan exists (_setDaraPlanAvailable).
-       Click the header to expand/collapse the body — same collapsed-header pattern as #dara-by-
-       year-hdr below. Auto-opens when a saved plan is found (_updateDaraRememberUI). Child of
-       #top-row (its sticky containing block) so it anchors under the main card instead of
-       scrolling away; see .dara-plan-card CSS. -->
+       #dara-plan-toggle-btn (a real button, not the label row itself -- the row now also holds
+       live form controls, so a click-to-toggle on the whole row would need a stopPropagation
+       guard on every one of them) expands/collapses the body. Auto-opens when a saved plan is
+       found (_updateDaraRememberUI). Child of #top-row (its sticky containing block) so it
+       anchors under the main card instead of scrolling away; see .dara-plan-card CSS. -->
   <div id="dara-plan-card" class="dara-plan-card">
-    <div id="dara-plan-hdr" class="dara-plan-card-hdr">
-      <span id="dara-plan-glyph">▶</span>
-      <span id="dara-plan-hdr-text">Show DARA Plan</span>
-      <span class="badge-dot"></span>
-    </div>
-    <!-- Always visible regardless of expand/collapse or whether a DARA plan exists yet — these
-         don't depend on a DARA, so they must not be gated the way the rest of the card is (2.0
-         §Maturity Selection Within a Funded Year, §Within-Year Allocation Policy). Sibling of
-         #dara-plan-hdr, not nested inside it, so its controls never need a stopPropagation guard
-         against the header's own click-to-toggle handler. -->
-    <div class="card-inputs" id="dara-plan-fields-row" style="margin-top:6px">
+    <div id="dara-plan-hdr-row" class="dara-plan-card-hdr-row">
+      <span id="dara-plan-hdr" class="dara-plan-card-hdr">DARA Plan<span class="badge-dot"></span></span>
       <div class="field" id="field-build-maturity">
         <label>Maturity preference</label>
         <select id="build-maturity">
@@ -489,6 +481,7 @@
         </select>
       </div>
     </div>
+    <button type="button" id="dara-plan-toggle-btn" class="plan-btn" style="margin-top:8px">&#9654; Show Details</button>
     <div id="dara-plan-body" style="display:none">
       <div id="dara-plan-banner" class="plan-banner" style="display:none;margin:8px 0;align-items:center;gap:8px;flex-wrap:wrap">
         <span id="dara-plan-banner-text"></span>
@@ -2588,11 +2581,11 @@ function _setDaraByYearCollapsed(collapsed) {
 // _daraPlanOpen (open/closed body state), which is preserved across re-renders while available,
 // same as _daraByYearBodyCollapsed is for the Per-Year DARA table.
 function _setDaraPlanAvailable(available) {
-  // The card itself (header + #dara-plan-fields-row: Maturity preference / Allocation policy /
-  // Coupon pick) is always visible now — those fields don't depend on a DARA plan existing (2.0
-  // §Maturity Selection Within a Funded Year, §Within-Year Allocation Policy). Only the collapsible
-  // body (banner/history/remember/segments) is DARA-plan-dependent, so "unavailable" just means
-  // collapsing that body rather than hiding the whole card.
+  // The card itself (#dara-plan-hdr-row: "DARA Plan" label + Maturity preference / Allocation
+  // policy / Coupon pick) is always visible now — those fields don't depend on a DARA plan
+  // existing (2.0 §Maturity Selection Within a Funded Year, §Within-Year Allocation Policy). Only
+  // the collapsible body (banner/history/remember/segments) is DARA-plan-dependent, so
+  // "unavailable" just means collapsing that body rather than hiding the whole card.
   if (!available) { _daraPlanOpen = false; _setDaraPlanOpen(false); return; }
   _setDaraPlanOpen(_daraPlanOpen);  // re-sync body display/label with the preserved open/closed state
 }
@@ -2603,15 +2596,14 @@ function _setDaraPlanAvailable(available) {
 function _setDaraPlanOpen(open) {
   _daraPlanOpen = open;
   const body = document.getElementById('dara-plan-body');
-  const glyph = document.getElementById('dara-plan-glyph');
-  const text = document.getElementById('dara-plan-hdr-text');
-  if (body)  body.style.display = open ? '' : 'none';
-  if (glyph) glyph.textContent  = open ? '▼' : '▶';
-  if (text)  text.textContent   = open ? 'Hide DARA Plan' : 'Show DARA Plan';
+  const btn = document.getElementById('dara-plan-toggle-btn');
+  if (body) body.style.display = open ? '' : 'none';
+  if (btn)  btn.innerHTML = open ? '&#9660; Hide Details' : '&#9654; Show Details';
 }
 
-// Badge dot on the header sliver for "a saved plan was found and hasn't been Applied/Dismissed" —
-// persists even if the body is collapsed again without acting, so it can't be silently missed.
+// Badge dot on the "DARA Plan" label for "a saved plan was found and hasn't been Applied/
+// Dismissed" — persists even if the body is collapsed again without acting, so it can't be
+// silently missed.
 function _setDaraPlanNeedsAttention(flag) {
   _daraPlanNeedsAttention = flag;
   document.getElementById('dara-plan-hdr')?.classList.toggle('needs-attention', flag);
@@ -2627,7 +2619,7 @@ function _setDaraPlanDirty(flag) {
   if (flag && _daraCacheKey) _setDaraPlanOpen(true);
 }
 
-document.getElementById('dara-plan-hdr').addEventListener('click', () => {
+document.getElementById('dara-plan-toggle-btn').addEventListener('click', () => {
   _setDaraPlanOpen(!_daraPlanOpen);
 });
 

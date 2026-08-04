@@ -62,14 +62,14 @@ async function daraDisplay(page) {
   return placeholder === 'by year' ? 'by year' : '';
 }
 
-// The DARA Plan card's header sliver (#dara-plan-hdr) is always visible once the card is relevant;
-// clicking it expands/collapses #dara-plan-body, closed by default, or auto-opens when a saved plan
-// is found. Idempotent: a no-op if it's already open (e.g. just auto-opened), so it's safe to call
-// unconditionally wherever a test needs segment tools/Remember/the banner visible, without risking
-// toggling an auto-opened dropdown back closed.
+// The DARA Plan card's header row (#dara-plan-hdr-row) is always visible once the card is relevant;
+// clicking #dara-plan-toggle-btn expands/collapses #dara-plan-body, closed by default, or auto-opens
+// when a saved plan is found. Idempotent: a no-op if it's already open (e.g. just auto-opened), so
+// it's safe to call unconditionally wherever a test needs segment tools/Remember/the banner visible,
+// without risking toggling an auto-opened dropdown back closed.
 async function _openDaraPlan(page) {
   if (await page.locator('#dara-plan-body').isVisible()) return;
-  await page.locator('#dara-plan-hdr').click();
+  await page.locator('#dara-plan-toggle-btn').click();
 }
 
 test.beforeEach(async ({ page }) => {
@@ -180,8 +180,8 @@ test('maturity preference field visible in both Rebalance and Build', async ({ p
   await expect(page.locator('#field-build-maturity')).toBeVisible();
 });
 
-// Maturity preference / Allocation policy live inside the DARA Plan card's always-visible fields
-// row (#dara-plan-fields-row), not gated behind a DARA existing or the card being expanded --
+// Maturity preference / Allocation policy live inside the DARA Plan card's always-visible header
+// row (#dara-plan-hdr-row), not gated behind a DARA existing or the card being expanded --
 // unlike the rest of the card (banner/history/remember/segments), which is genuinely DARA-
 // dependent. Asserted with NO holdings loaded and no DARA entered (freshest possible state).
 test('DARA Plan card: Maturity preference and Allocation policy are visible before any DARA exists, and before the card is expanded', async ({ page }) => {
@@ -1306,18 +1306,18 @@ test('DARA Plan dropdown: auto-opens on a found saved plan; badge survives closi
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
-  // No click on #dara-plan-hdr here — the dropdown (and its banner) must already be open on its
-  // own.
+  // No click on #dara-plan-toggle-btn here — the dropdown (and its banner) must already be open on
+  // its own.
   await expect(page.locator('#dara-plan-banner'), 'dropdown auto-opens with no click needed').toBeVisible({ timeout: 2_000 });
   await expect(page.locator('#dara-plan-hdr')).toHaveClass(/needs-attention/);
 
   // Close it WITHOUT clicking Apply/Dismiss — the badge must survive.
-  await page.locator('#dara-plan-hdr').click();
+  await page.locator('#dara-plan-toggle-btn').click();
   await expect(page.locator('#dara-plan-body')).not.toBeVisible();
   await expect(page.locator('#dara-plan-hdr'), 'badge persists after closing without acting').toHaveClass(/needs-attention/);
 
   // Re-open and Apply — the badge clears.
-  await page.locator('#dara-plan-hdr').click();
+  await page.locator('#dara-plan-toggle-btn').click();
   await page.locator('#dara-plan-apply').click();
   await expect(page.locator('#dara-plan-hdr')).not.toHaveClass(/needs-attention/);
 });
@@ -1345,7 +1345,7 @@ test('DARA Plan: dismissed banner and collapsed state persist across a mode swit
 
   await page.locator('#dara-plan-dismiss').click();
   await expect(page.locator('#dara-plan-banner')).not.toBeVisible();
-  await page.locator('#dara-plan-hdr').click();  // collapse the card itself
+  await page.locator('#dara-plan-toggle-btn').click();  // collapse the card itself
   await expect(page.locator('#dara-plan-body')).not.toBeVisible();
 
   // Build mode has its own, never-yet-handled saved plan for this same holdings load, so it
