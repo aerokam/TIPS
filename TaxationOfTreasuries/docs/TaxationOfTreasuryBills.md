@@ -1,18 +1,21 @@
 # Taxation of Treasury Bills
 
-**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. Do not restate those principles here. When editing this document, review the Foundation doc to determine whether any changes also belong there.
-
-This document covers Treasury bills only. For notes, bonds, and TIPS, see [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md).
-
----
-
 ## Table of Contents
 
+- [About This Document](#about-this-document)
 - [How T-Bills Work — Key Concepts](#how-t-bills-work--key-concepts)
 - [Scenario A: Held to Maturity](#scenario-a-held-to-maturity)
 - [Scenario B: Sold Before Maturity](#scenario-b-sold-before-maturity)
 - [Where Things Go — Quick Reference](#where-things-go--quick-reference)
 - [T-Bills vs. Notes/Bonds: Key Differences](#t-bills-vs-notesbonds-key-differences)
+
+---
+
+## About This Document
+
+**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. Do not restate those principles here. When editing this document, review the Foundation doc to determine whether any changes also belong there.
+
+This document covers Treasury bills only. For notes, bonds, and TIPS, see [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md).
 
 ---
 

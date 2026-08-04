@@ -1,13 +1,8 @@
 # Taxation of Treasury Notes and Bonds (Including TIPS)
 
-**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. Do not restate those principles here. When editing this document, review the Foundation doc to determine whether any changes also belong there.
-
-This document is a reference, organized by tax item rather than by purchase/sale scenario. For each item below, treatment is broken out by **acquisition method** (original auction, reopening auction, secondary market) and **disposition method** (hold to maturity, sold before maturity) where those change the outcome. It does not cover Treasury bills — see [TaxationOfTreasuryBills.md](TaxationOfTreasuryBills.md). TIPS-specific OID and ABP calculation mechanics are covered in [TIPS_OID_Tax_Reference.md](TIPS_OID_Tax_Reference.md); this document notes where TIPS interact with the items below and points there for the detail.
-
----
-
 ## Table of Contents
 
+- [About This Document](#about-this-document)
 - [Quick Reference](#quick-reference)
 - [Coupon Interest](#coupon-interest)
 - [Accrued Interest (Paid at Purchase / Received at Sale)](#accrued-interest-paid-at-purchase-received-at-sale)
@@ -17,6 +12,14 @@ This document is a reference, organized by tax item rather than by purchase/sale
 - [Common Mistakes](#common-mistakes)
 - [Caveats](#caveats)
 - [References](#references)
+
+---
+
+## About This Document
+
+**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. Do not restate those principles here. When editing this document, review the Foundation doc to determine whether any changes also belong there.
+
+Each item below is broken out by **acquisition method** (original auction, reopening auction, secondary market) and **disposition method** (hold to maturity, sold before maturity) where those change the outcome. It does not cover Treasury bills — see [TaxationOfTreasuryBills.md](TaxationOfTreasuryBills.md). TIPS-specific OID and ABP calculation mechanics are covered in [TIPS_OID_Tax_Reference.md](TIPS_OID_Tax_Reference.md); this document notes where TIPS interact with the items below and points there for the detail.
 
 ---
 

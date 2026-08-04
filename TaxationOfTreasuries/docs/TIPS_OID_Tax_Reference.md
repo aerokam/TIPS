@@ -1,31 +1,36 @@
 # TIPS OID and Tax Reference
 
-**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. When editing this document, review the Foundation doc to determine whether any changes also belong there.
-
-This document covers TIPS-specific OID calculation, ABP mechanics, broker reporting configurations, and cost basis. For the six purchase/disposition scenarios applicable to TIPS, see [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md).
-
 ## Table of Contents
 
-1. [Regulatory Basis](#regulatory-basis)
+1. [About This Document](#about-this-document)
+2. [Regulatory Basis](#regulatory-basis)
    - [Qualified Stated Interest — Treas. Reg. §1.1275-7(d)](#qualified-stated-interest--treas-reg-112757d)
    - [Form 1099 Reporting Authority](#form-1099-reporting-authority)
-2. [The Three Taxable Items for TIPS Held in Taxable Accounts](#the-three-taxable-items-for-tips-held-in-taxable-accounts)
-3. [Purchase Cost Formula](#purchase-cost-formula)
-4. [Box 3: Qualified Stated Interest (Coupon)](#box-3-qualified-stated-interest-coupon)
-5. [Box 8: OID (Annual Inflation Accrual)](#box-8-oid-annual-inflation-accrual)
+3. [The Three Taxable Items for TIPS Held in Taxable Accounts](#the-three-taxable-items-for-tips-held-in-taxable-accounts)
+4. [Purchase Cost Formula](#purchase-cost-formula)
+5. [Box 3: Qualified Stated Interest (Coupon)](#box-3-qualified-stated-interest-coupon)
+6. [Box 8: OID (Annual Inflation Accrual)](#box-8-oid-annual-inflation-accrual)
    - [Vanguard — Monthly Breakdown](#vanguard--monthly-breakdown)
    - [Broker Comparison](#broker-comparison)
-6. [Box 12: Amortized Bond Premium (ABP)](#box-12-amortized-bond-premium-abp)
+7. [Box 12: Amortized Bond Premium (ABP)](#box-12-amortized-bond-premium-abp)
    - [Bond Premium Calculation](#bond-premium-calculation)
    - [Amortization Method: Constant Yield (Semi-Annual Periods)](#amortization-method-constant-yield-semi-annual-periods)
    - [Example: CUSIP 91282CEJ6](#example-cusip-91282cej6)
    - [Notes on Broker ABP Reporting](#notes-on-broker-abp-reporting)
-7. [Cost Basis Step-Up](#cost-basis-step-up)
-8. [Vanguard Online Statement — TIPS Field Definitions](#vanguard-online-statement--tips-field-definitions)
-9. [Broker Error Case Studies](#broker-error-case-studies)
-   - [Schwab — CUSIP 91282CDX6](#broker-error-case-study-schwab--cusip-91282cdx6)
-10. [Agent Instructions](#agent-instructions)
+8. [Cost Basis Step-Up](#cost-basis-step-up)
+9. [Vanguard Online Statement — TIPS Field Definitions](#vanguard-online-statement--tips-field-definitions)
+10. [Broker Error Case Studies](#broker-error-case-studies)
+    - [Schwab — CUSIP 91282CDX6](#broker-error-case-study-schwab--cusip-91282cdx6)
+11. [Agent Instructions](#agent-instructions)
     - [Dependencies](#dependencies)
+
+---
+
+## About This Document
+
+**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. When editing this document, review the Foundation doc to determine whether any changes also belong there.
+
+This document covers TIPS-specific OID calculation, ABP mechanics, broker reporting configurations, and cost basis. For how individual tax items (coupon interest, accrued interest, market discount, amortized bond premium) apply to TIPS specifically depending on acquisition and disposition method, see [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md).
 
 ---
 
