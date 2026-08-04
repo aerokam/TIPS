@@ -65,11 +65,6 @@
   .dara-plan-card .plan-chip { display: inline-flex; align-items: center; gap: 3px; background: var(--portal-header-bg); border: 1px solid var(--tab-active-bg); border-radius: 10px; padding: 2px 6px; font-size: 11px; }
   .dara-plan-card .plan-chip-remove { border: none; background: none; color: var(--portal-card-text); opacity: .7; cursor: pointer; font-size: 12px; line-height: 1; padding: 0; }
   .dara-plan-card .seg-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
-  /* Multiple segments stack as their own full-width rows below "Split years:" (flex-basis:100%
-     forces the wrap); a single (unsplit) segment instead merges onto the "Split years:" line
-     itself via display:contents, since there's nothing to stack against. */
-  #seg-rows { flex: 1 0 100%; }
-  #seg-rows.merged { display: contents; flex: initial; }
   .dara-plan-card .seg-const-input { width: 80px; text-align: right; }
   /* .fields/.break removed — replaced by .card-inputs */
   .field { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
@@ -518,11 +513,13 @@
         </div>
       </div>
       <div id="dara-seg-tools" style="display:none;font-size:12px">
-      <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-        <span>Split years:</span>
-        <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
-        <select id="split-year-add"></select>
-        <button id="seg-tools-help" type="button" class="plan-help" title="Segmented DARA help">?</button>
+      <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0">
+          <span>Split years:</span>
+          <span id="split-year-chips" style="display:flex;gap:4px;flex-wrap:wrap"></span>
+          <select id="split-year-add"></select>
+          <button id="seg-tools-help" type="button" class="plan-help" title="Segmented DARA help">?</button>
+        </div>
         <div id="seg-rows"></div>
       </div>
       </div>
@@ -655,7 +652,7 @@ document.getElementById('alloc-policy-help').addEventListener('click', e => {
   e.stopPropagation();
   showPopup(e.currentTarget, 'Allocation Policy', [
     { html: 'When a funded year holds more than one maturity (2.0 §Maturity Selection Within a Funded Year), this decides which one a trade favors first.' },
-    { heading: 'Equal split (default)' },
+    { heading: 'Equal split' },
     { html: 'Buys into whichever maturity currently holds the least value first — including one not held at all, which ranks ahead of any held maturity until it catches up. Sells the largest holding first if the year needs to shrink. The goal is to level all of the year’s maturities off, not to prefer any one of them.' },
     { heading: 'Maturity order' },
     { html: 'Follows the top-level Maturity preference: latest-maturing wins first when set to “Last to mature”, earliest-maturing wins first when set to “First to mature.”' },
@@ -2853,9 +2850,7 @@ function _renderSegTools() {
   const inferBtnHTML = i => currentMode === 'rebalance'
     ? `<button type="button" class="seg-infer-btn plan-btn" data-idx="${i}" title="Infer the self-financing DARA for this segment and apply it across its rungs">Infer DARA</button>`
     : '';
-  const segRowsEl = document.getElementById('seg-rows');
-  segRowsEl.classList.toggle('merged', segments.length === 1);
-  segRowsEl.innerHTML = segments.map((years, i) => {
+  document.getElementById('seg-rows').innerHTML = segments.map((years, i) => {
     const echo = _segInferredEcho.get(_segKey(years));
     return `
     <div class="seg-row">
