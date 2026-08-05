@@ -41,6 +41,8 @@ Each item below is broken out by **acquisition method** (original auction, reope
 
 **Definition:** Semi-annual cash payments reported on 1099-INT Box 3. Always taxable in the year received. State-exempt.[^pub550-treasury]
 
+**How the semiannual split works:** Each regular payment is a flat one-half of the annual rate applied to principal — not weighted by the actual number of days in that particular half-year, which varies (e.g., 181 vs. 184 days, depending on the dates and on leap years). Per 31 CFR Part 356, Appendix B, §I.A.1: "a semiannual interest payment represents one half of one year's interest, and is computed on this basis regardless of the actual number of days in the half-year." The regulation's own example: a note with $1,000 par and an 8% rate pays ($1,000 × .08)/2 = $40 every six months — the same $40 whether that half-year happens to run 181 or 184 days.[^cfr356-interest] The actual day count matters only for accrued interest on a mid-period purchase or sale, and for a short or long first payment period at issuance — not for the amount of a regular, full-period coupon. For TIPS, the identical one-half-of-the-annual-rate rule applies to the inflation-adjusted principal on the payment date.[^cfr356-interest]
+
 Coupon interest is reported the same way regardless of how the security was acquired or when it will be disposed of. Two adjustments to the raw Box 3 figure are common and are covered under their own items below, not here:
 
 - If you bought between coupon dates, Box 3 for the first coupon year is inflated by the accrued interest you prepaid to the seller — see [Accrued Interest](#accrued-interest-paid-at-purchase-received-at-sale).
@@ -230,6 +232,8 @@ For the full regulatory basis, OID/ABP calculation formulas, broker reporting co
 ---
 
 ## References
+
+[^cfr356-interest]: 31 CFR Part 356, Appendix B, §I.A.1 (non-indexed securities) and §I.B.5 (TIPS) — computation of the regular semiannual interest payment. <https://www.govinfo.gov/content/pkg/CFR-2025-title31-vol2/pdf/CFR-2025-title31-vol2-part356.pdf>
 
 [^pub550-treasury]: IRS Publication 550 (2024), *Investment Income and Expenses* — "U.S. Treasury Bills, Notes, and Bonds" section. <https://www.irs.gov/publications/p550>
 

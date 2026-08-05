@@ -124,6 +124,8 @@ coupon_payment = face × (coupon_rate / 2) × IR(payment_date)
 
 Where IR(payment_date) = refCPI(payment_date) / refCPI(dated_date).
 
+`coupon_rate / 2` is a flat half of the annual rate — not weighted by the actual number of days in that half-year (which varies, e.g. 181 vs. 184 days). See [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md#coupon-interest) for the regulatory citation (31 CFR Part 356, Appendix B) and the day-count exceptions (accrued interest, short/long first payment periods).
+
 The Box 3 annual total is the sum of both semi-annual payments. Note: because this is the actual cash received (inflation-adjusted), the payment will vary each period as inflation changes.
 
 ---
