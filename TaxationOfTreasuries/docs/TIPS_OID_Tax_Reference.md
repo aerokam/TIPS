@@ -28,7 +28,7 @@
 
 ## About This Document
 
-**Foundation dependency:** This document relies on [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for the following shared principles: federal taxability, state and local exemption, composite 1099 structure, tax software general notes, and caveats. When editing this document, review the Foundation doc to determine whether any changes also belong there.
+See [TaxationOfTreasuries_Foundation.md](TaxationOfTreasuries_Foundation.md) for principles that apply across all Treasury types: federal taxability, state and local exemption, composite 1099 structure, general tax software notes, and caveats.
 
 This document covers TIPS-specific OID calculation, ABP mechanics, broker reporting configurations, and cost basis. For how individual tax items (coupon interest, accrued interest, market discount, amortized bond premium) apply to TIPS specifically depending on acquisition and disposition method, see [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md).
 

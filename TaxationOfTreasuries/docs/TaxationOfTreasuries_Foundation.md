@@ -9,15 +9,14 @@
 - [Tax Software: General Notes](#tax-software-general-notes)
 - [Caveats](#caveats)
 - [References](#references)
-- [Maintenance](#maintenance)
 
 ---
 
 ## About This Document
 
-This document establishes the foundational principles that apply to all U.S. Treasury security types: Treasury bills, Treasury notes and bonds, and TIPS. It is the **single source of truth** for shared concepts. The dependent documents listed below reference this document for these principles and should not restate or duplicate what is written here.
+This document sets out the principles that apply across all U.S. Treasury security types: Treasury bills, Treasury notes and bonds, and TIPS.
 
-**Dependent documents:**
+**See also:**
 - [Taxation of Treasury Notes and Bonds (Including TIPS)](TaxationOfTreasuryNotesAndBonds.md)
 - [Taxation of Treasury Bills](TaxationOfTreasuryBills.md)
 - [TIPS OID and Tax Reference](TIPS_OID_Tax_Reference.md)
@@ -105,9 +104,3 @@ Fidelity, Schwab, and Vanguard all include accrued interest paid in a supplement
 [^pub550-treasury]: IRS Publication 550 (2024), *Investment Income and Expenses* — "U.S. Treasury Bills, Notes, and Bonds." <https://www.irs.gov/publications/p550>
 
 [^3124a]: 31 U.S.C. § 3124(a) — Exemption of United States obligations from state taxation. <https://uscode.house.gov/view.xhtml?req=granuleid:USC-prelim-title31-section3124&num=0&edition=prelim>
-
----
-
-## Maintenance
-
-Any change to a principle stated in this document must be made here first. When editing any dependent document, always review this Foundation document to determine whether the change also requires an update here. Changes to foundational principles should never be made only in a dependent document.
