@@ -23,7 +23,8 @@
   .btn:hover:not(:disabled) { transform: none; box-shadow: none; }
 
   /* ── Row count bar ── */
-  #row-count { font-size: 11px; color: var(--portal-text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 5px 14px; border-bottom: 1px solid #f1f5f9; background: #fff; flex-shrink: 0; display: none; }
+  #row-count { font-size: 11px; color: var(--portal-text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 5px 14px; border-bottom: 1px solid #f1f5f9; background: #fff; flex-shrink: 0; display: none; align-items: center; gap: 10px; }
+  #outstanding-toggle { text-transform: none; }
 
   /* ── Table wrap ── */
   .table-wrap { flex: 1; overflow: auto; min-height: 0; background: #fff; }
@@ -126,7 +127,10 @@
   <button id="export-btn" class="btn" disabled>Export CSV</button>
 </header>
 
-<div id="row-count"></div>
+<div id="row-count">
+  <span id="row-count-text"></span>
+  <button id="outstanding-toggle" class="btn" type="button">Show all</button>
+</div>
 
 <div id="dateRangePopover" style="position: fixed; z-index: 100; background: #fff; border: 1px solid var(--border-light); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); padding: 10px; display: none; flex-direction: column; gap: 6px; font-size: 11px; min-width: 170px;">
   <div style="font-weight: 700; color: var(--portal-text-main); margin-bottom: 2px;" id="dateRangeTitle"></div>
@@ -183,6 +187,7 @@ var sortCol = 'maturity';
 var sortDir = 'asc';
 var filters = {};
 var dateRangeFilter = null;
+var showOutstanding = true; // default: hide matured TIPS (maturity < today)
 
 var COLS = [
   { key: 'cusip',      label: 'CUSIP',             align: 'left',  sortType: 'str',
@@ -327,6 +332,11 @@ function cellDisplay(row, col) {
 
 function getFilteredSorted() {
   var rows = allRows.slice();
+
+  if (showOutstanding) {
+    var todayStr = todayET();
+    rows = rows.filter(function(r) { return (r.maturity || '') >= todayStr; });
+  }
 
   // Apply date range filters
   if (dateRangeFilter) {
@@ -495,6 +505,7 @@ function renderTable() {
   lastRenderedRows = rows;
   var tbody = document.getElementById('main-tbody');
   var rc = document.getElementById('row-count');
+  var rcText = document.getElementById('row-count-text');
 
   var html = '';
   rows.forEach(function(r, i) {
@@ -508,8 +519,8 @@ function renderTable() {
   });
   tbody.innerHTML = html;
   syncFilterRowTop();
-  rc.textContent = rows.length + ' of ' + allRows.length + ' TIPS';
-  rc.style.display = 'block';
+  rcText.textContent = rows.length + ' of ' + allRows.length + ' TIPS';
+  rc.style.display = 'flex';
 }
 
 async function loadData() {
@@ -641,6 +652,12 @@ document.getElementById('export-btn').addEventListener('click', function() {
   a.download = 'tips-reference' + (settlementDateStr ? '-' + settlementDateStr : '') + '.csv';
   a.click();
   URL.revokeObjectURL(a.href);
+});
+
+document.getElementById('outstanding-toggle').addEventListener('click', function() {
+  showOutstanding = !showOutstanding;
+  this.textContent = showOutstanding ? 'Show all' : 'Show outstanding';
+  renderTable();
 });
 
 document.getElementById('main-tbody').addEventListener('click', function(e) {
