@@ -5,8 +5,9 @@
 1. [About This Document](#about-this-document)
 2. [Regulatory Basis](#regulatory-basis)
    - [Qualified Stated Interest — Treas. Reg. §1.1275-7(d)](#qualified-stated-interest--treas-reg-112757d)
+   - [Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)](#market-discount-and-premium-for-subsequent-holders--treas-reg-112757f3)
    - [Form 1099 Reporting Authority](#form-1099-reporting-authority)
-3. [The Three Taxable Items for TIPS Held in Taxable Accounts](#the-three-taxable-items-for-tips-held-in-taxable-accounts)
+3. [The Four Taxable Items for TIPS Held in Taxable Accounts](#the-four-taxable-items-for-tips-held-in-taxable-accounts)
 4. [Purchase Cost Formula](#purchase-cost-formula)
 5. [Box 3: Qualified Stated Interest (Coupon)](#box-3-qualified-stated-interest-coupon)
 6. [Box 8: OID (Annual Inflation Accrual)](#box-8-oid-annual-inflation-accrual)
@@ -44,6 +45,18 @@ For TIPS subject to the coupon bond method, the regulation defines qualified sta
 
 This means each TIPS coupon payment = face × IR(payment date) × (coupon rate / 2), where IR is the index ratio on the payment date. The actual cash coupon paid embeds the inflation adjustment because it is applied to inflation-adjusted principal. This is what is reported in **1099-INT Box 3**.
 
+### Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)
+
+For a TIPS acquired after original issuance (reopening or secondary market), this is the paragraph that governs both market discount and bond premium. Full text of 26 CFR §1.1275-7(f)(3), *Subsequent holders*:
+
+> "A holder determines the amount of acquisition premium or market discount on an inflation-indexed debt instrument by reference to the adjusted issue price of the instrument on the date the holder acquires the instrument. A holder determines the amount of bond premium on an inflation-indexed debt instrument by assuming that the amount payable at maturity on the instrument is equal to the instrument's inflation-adjusted principal amount for the day the holder acquires the instrument. Any premium or market discount is taken into account over the remaining term of the debt instrument as if there were no further inflation or deflation. See section 171 for additional rules relating to the amortization of bond premium and sections 1276 through 1278 for additional rules relating to market discount."
+
+The regulation uses two different reference terms — "adjusted issue price" for market discount/acquisition premium, and "inflation-adjusted principal amount" for bond premium. IRS Publication 1212 defines adjusted issue price generally (not TIPS-specific) as "the sum of the issue price and all the OID includible in income before that accrual period." For a TIPS that has not previously carried premium or discount, the OID includible in income under the coupon bond method is defined in paragraph (d)(4) of this same regulation as the increase in inflation-adjusted principal — so for the ordinary case (a TIPS bought after original issuance at its first change of hands), adjusted issue price and inflation-adjusted principal amount are the same figure: what this document computes as `inflation_adjusted_principal`. That is why the [Purchase Cost Formula](#purchase-cost-formula) below uses `inflation_adjusted_principal` as the reference point for both `bond_premium` and `market_discount`.
+
+Once the discount (or premium) amount is fixed by that acquisition-date comparison, the regulation requires it be "taken into account over the remaining term ... as if there were no further inflation or deflation" — i.e., accrued on a non-inflation-adjusted schedule from that point forward, per the ordinary market discount rules of IRC §§1276–1278. This accrual is separate from, and in addition to, the annual OID inflation adjustment reported in Box 8.
+
+Publication 1212 itself does not provide separate worked guidance for market discount on inflation-indexed instruments — its "Market discount" definition and Form 1099-OID Box 5 instructions are the general (non-inflation-indexed) rules, and the publication explicitly defers TIPS-specific treatment to this regulation: "For more information concerning premium or market discount on an inflation-indexed debt instrument, see Regulations section 1.1275-7."
+
 ### Form 1099 Reporting Authority
 
 Per IRS Instructions for Forms 1099-INT and 1099-OID:
@@ -64,7 +77,7 @@ Schwab uses a hybrid configuration: QSI in 1099-INT Box 3 (not Box 2), ABP in 10
 
 ---
 
-## The Three Taxable Items for TIPS Held in Taxable Accounts
+## The Four Taxable Items for TIPS Held in Taxable Accounts
 
 | Box | Content | Formula / Effect | State-Exempt |
 |---|---|---|---|
@@ -73,8 +86,12 @@ Schwab uses a hybrid configuration: QSI in 1099-INT Box 3 (not Box 2), ABP in 10
 | 1099-OID Box 2 | Semi-annual coupon (QSI) — alternative config | Same formula as Box 3 | Yes |
 | 1099-OID Box 8 | Annual inflation accrual (OID) | `face × (IR_end − IR_start)` | Yes |
 | 1099-OID Box 10 | Amortized bond premium (ABP) — alternative/Schwab config | Reduces Box 2 or Box 3 | — |
+| 1099-B Box 1f | Accrued market discount (AMD) at disposal — default | `inflation_adjusted_principal(acquisition) − adj_cost`, accrued to date of disposal | Unsettled by state (see [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md#caveats)) |
+| 1099-OID Box 5 | AMD — only if §1278(b) annual-inclusion election made and broker notified | Same discount amount, accrued and reported annually instead of at disposal | Unsettled by state |
 
-Box 12 (or Box 10 if your broker uses the alternative or Schwab configuration) applies only if the TIPS was purchased at a premium (adjusted cost > indexed par). It reduces the taxable interest on Schedule B.
+Box 12 (or Box 10 if your broker uses the alternative or Schwab configuration) applies only if the TIPS was purchased at a premium (adjusted cost > inflation-adjusted principal). It reduces the taxable interest on Schedule B.
+
+Box 1f (or Box 5, under the annual-inclusion election) applies only if the TIPS was purchased at a discount (adjusted cost < inflation-adjusted principal) and that discount exceeds the de minimis threshold. Market discount and ABP are both measured against **inflation-adjusted principal** — see [Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)](#market-discount-and-premium-for-subsequent-holders--treas-reg-112757f3) above for the regulation's exact text and how `inflation_adjusted_principal` maps to it. The discount amount itself is fixed at acquisition and accrues on a non-inflation-adjusted basis from there — it does not track subsequent CPI changes the way Box 8 OID does. See [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md#market-discount-and-accrued-market-discount-amd) for how AMD is reported and taxed depending on acquisition and disposition method, and for the annual-inclusion election mechanics.
 
 ---
 
@@ -83,12 +100,15 @@ Box 12 (or Box 10 if your broker uses the alternative or Schwab configuration) a
 For auction purchases (original or reopening), all inputs from `TipsAuctionResults.csv`:
 
 ```
-indexed_par  = face × IR(issue_date)
-adj_cost     = indexed_par × (unadj_price / 100)
+inflation_adjusted_principal = face × IR(issue_date)
+adj_cost     = inflation_adjusted_principal × (unadj_price / 100)
 accrued_int  = face × (adj_accrued_int_per1000 / 1000)
 total_paid   = adj_cost + accrued_int
-bond_premium = adj_cost − indexed_par   (if positive; zero if purchased at discount)
+bond_premium = adj_cost − inflation_adjusted_principal      (if positive; zero if purchased at discount)
+market_discount = inflation_adjusted_principal − adj_cost   (if positive; zero if purchased at premium)
 ```
+
+`market_discount` is the amount subject to the de minimis test and, if it exceeds that threshold, to AMD treatment — see [The Four Taxable Items](#the-four-taxable-items-for-tips-held-in-taxable-accounts) above.
 
 Match the correct CSV row by CUSIP **and** issue date — multiple rows exist per CUSIP for original auction plus reopenings.
 
@@ -149,14 +169,14 @@ TD 1099-OID is calculated incorrectly per IRS Pub 1212 — always recalculate if
 
 ## Box 12: Amortized Bond Premium (ABP)
 
-Applies only when TIPS is purchased at a premium (adjusted cost > indexed par on issue date). The bond premium is amortized over the life of the bond and reported annually in 1099-INT Box 12 (or 1099-OID Box 10 for Schwab) as a reduction of interest income.
+Applies only when TIPS is purchased at a premium (adjusted cost > inflation-adjusted principal on issue date). The bond premium is amortized over the life of the bond and reported annually in 1099-INT Box 12 (or 1099-OID Box 10 for Schwab) as a reduction of interest income.
 
 ### Bond Premium Calculation
 
 ```
-indexed_par  = face × IR(issue_date)
-adj_cost     = indexed_par × (unadj_price / 100)
-bond_premium = adj_cost − indexed_par
+inflation_adjusted_principal = face × IR(issue_date)
+adj_cost     = inflation_adjusted_principal × (unadj_price / 100)
+bond_premium = adj_cost − inflation_adjusted_principal
 ```
 
 ### Amortization Method: Constant Yield (Semi-Annual Periods)
@@ -165,11 +185,11 @@ The correct method per §171 uses the constant yield method with semi-annual acc
 
 Key inputs:
 ```
-interest_per_period = indexed_par × (coupon_rate / 2)   ← uses indexed par, NOT face
+interest_per_period = inflation_adjusted_principal × (coupon_rate / 2)   ← NOT face
 semi_annual_yield   = real_yield_to_maturity / 2
 ```
 
-Note: the coupon used in the ABP formula is `indexed_par × (coupon_rate / 2)`, not `face × (coupon_rate / 2)`. This reflects the actual QSI payment on inflation-adjusted principal per Reg. §1.1275-7(d), and produces a near-perfect amortization match to the original premium.
+Note: the coupon used in the ABP formula is `inflation_adjusted_principal × (coupon_rate / 2)`, not `face × (coupon_rate / 2)`. This reflects the actual QSI payment on inflation-adjusted principal per Reg. §1.1275-7(d), and produces a near-perfect amortization match to the original premium.
 
 **First period (stub):** TIPS are typically issued mid-period. The first coupon period runs from the dated date (COUPPCD) to the first coupon date (COUPNCD).
 
@@ -199,7 +219,7 @@ The sum of all ABP over the life equals bond_premium to within rounding (e.g., 2
 
 0.125% 5-Year TIPS | Issued 4/29/2022 | Matures 4/15/2027 | Face $10,000  
 Unadj price: 102.328775 | IR on issue: 1.00424 | Real yield: -0.340%  
-Indexed par: $10,042.40 | Cost basis: $10,276.26 | Bond premium: $233.86
+Inflation-adjusted principal: $10,042.40 | Cost basis: $10,276.26 | Bond premium: $233.86
 
 ```
 Payment      Box 3 Coupon   Box 12 ABP    Box 8 OID
@@ -233,7 +253,7 @@ Bond premium                   233.86490  diff=-0.00081
 
 Box 3 and Box 8 show n/a for 2026–2027 because ref CPI data is not yet available. Box 12 ABP can be computed through maturity from auction data alone.
 
-ABP figures per #Cruncher and FactualFran; use of `indexed_par × (coupon_rate / 2)` as the per-period coupon produces a near-perfect total match to the bond premium.
+ABP figures per #Cruncher and FactualFran; use of `inflation_adjusted_principal × (coupon_rate / 2)` as the per-period coupon produces a near-perfect total match to the bond premium.
 
 ### Notes on Broker ABP Reporting
 
@@ -286,7 +306,7 @@ Small discrepancies (a few dollars on $100K face) between calculated and display
 **Position details:**  
 0.125% 10-Year TIPS | Dated 2022-01-15 | Issued 2022-01-31 | Matures 2032-01-15  
 Face: $88,000 | Real yield: −0.540% | Unadj price: 106.811231 | IR on issue: 1.00253  
-Indexed par: $88,222.64 | Adj cost: $94,231.69 | Bond premium: $6,009.05
+Inflation-adjusted principal: $88,222.64 | Adj cost: $94,231.69 | Bond premium: $6,009.05
 
 **ABP comparison (1099-OID Box 10):**
 
@@ -341,7 +361,7 @@ Total  6009.04   (bond premium 6009.05 — diff $0.01, rounding)
 
 **Requires:** 2_1_TIPS_Basics.md (ref CPI formula, index ratio, adjusted principal), TaxationOfTreasuries_Foundation.md (shared tax principles), TaxationOfTreasuryNotesAndBonds.md (TIPS scenario coverage)
 
-**Adds:** Regulatory basis for 1099 reporting, qualified stated interest definition, OID calculation detail, amortized bond premium (ABP) calculation, broker 1099 reporting differences, cost basis step-up, online statement field interpretation, verification workflow.
+**Adds:** Regulatory basis for 1099 reporting, qualified stated interest definition, OID calculation detail, amortized bond premium (ABP) calculation, market discount (AMD) basis for TIPS, broker 1099 reporting differences, cost basis step-up, online statement field interpretation, verification workflow.
 
 ### Data Sources — Always Fetch, Never Guess
 
@@ -356,8 +376,8 @@ Ref CPI values are rounded to 5 decimal places in the CSV — use them as-is. Ne
 2. Fetch ref CPI CSV for all daily values needed.
 3. Calculate Box 3 (QSI), Box 8 (OID), and Box 12 (ABP) from formulas above.
 4. **If Box 8 doesn't match:** work backwards — `implied_refCPI_end = (OID × refCPI_datedDate / face) + refCPI_start` — then look up that value in the CSV to identify the correct end date. Do not guess dates.
-5. **If Box 3 doesn't match:** confirm face value. Box 3 = face × (coupon/2) × IR(payment date). An apparent mismatch often reveals the correct face value.
-6. **If Box 12 doesn't match:** check whether broker used straight-line vs constant yield, and whether the starting premium was computed correctly (must use indexed par, not flat par).
+5. **If Box 3 doesn't match:** confirm par amount held. Box 3 = face × (coupon/2) × IR(payment date). An apparent mismatch often reveals the correct par amount.
+6. **If Box 12 doesn't match:** check whether broker used straight-line vs constant yield, and whether the starting premium was computed correctly (must use inflation-adjusted principal, not par).
 7. Never assume broker is wrong before verifying your own inputs.
 
 ### Project File Access Rule
