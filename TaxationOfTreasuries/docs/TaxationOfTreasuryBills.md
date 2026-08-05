@@ -3,10 +3,10 @@
 ## Table of Contents
 
 - [About This Document](#about-this-document)
-- [How T-Bills Work — Key Concepts](#how-t-bills-work--key-concepts)
+- [How T-Bills Work — Key Concepts](#how-t-bills-work-key-concepts)
 - [Scenario A: Held to Maturity](#scenario-a-held-to-maturity)
 - [Scenario B: Sold Before Maturity](#scenario-b-sold-before-maturity)
-- [Where Things Go — Quick Reference](#where-things-go--quick-reference)
+- [Where Things Go — Quick Reference](#where-things-go-quick-reference)
 - [T-Bills vs. Notes/Bonds: Key Differences](#t-bills-vs-notesbonds-key-differences)
 
 ---

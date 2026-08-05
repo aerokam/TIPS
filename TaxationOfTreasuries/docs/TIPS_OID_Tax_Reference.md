@@ -4,14 +4,14 @@
 
 1. [About This Document](#about-this-document)
 2. [Regulatory Basis](#regulatory-basis)
-   - [Qualified Stated Interest — Treas. Reg. §1.1275-7(d)](#qualified-stated-interest--treas-reg-112757d)
-   - [Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)](#market-discount-and-premium-for-subsequent-holders--treas-reg-112757f3)
+   - [Qualified Stated Interest — Treas. Reg. §1.1275-7(d)](#qualified-stated-interest-treas-reg-11275-7d)
+   - [Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)](#market-discount-and-premium-for-subsequent-holders-treas-reg-11275-7f3)
    - [Form 1099 Reporting Authority](#form-1099-reporting-authority)
 3. [The Four Taxable Items for TIPS Held in Taxable Accounts](#the-four-taxable-items-for-tips-held-in-taxable-accounts)
 4. [Purchase Cost Formula](#purchase-cost-formula)
 5. [Box 3: Qualified Stated Interest (Coupon)](#box-3-qualified-stated-interest-coupon)
 6. [Box 8: OID (Annual Inflation Accrual)](#box-8-oid-annual-inflation-accrual)
-   - [Vanguard — Monthly Breakdown](#vanguard--monthly-breakdown)
+   - [Vanguard — Monthly Breakdown](#vanguard-monthly-breakdown)
    - [Broker Comparison](#broker-comparison)
 7. [Box 12: Amortized Bond Premium (ABP)](#box-12-amortized-bond-premium-abp)
    - [Bond Premium Calculation](#bond-premium-calculation)
@@ -19,9 +19,9 @@
    - [Example: CUSIP 91282CEJ6](#example-cusip-91282cej6)
    - [Notes on Broker ABP Reporting](#notes-on-broker-abp-reporting)
 8. [Cost Basis Step-Up](#cost-basis-step-up)
-9. [Vanguard Online Statement — TIPS Field Definitions](#vanguard-online-statement--tips-field-definitions)
+9. [Vanguard Online Statement — TIPS Field Definitions](#vanguard-online-statement-tips-field-definitions)
 10. [Broker Error Case Studies](#broker-error-case-studies)
-    - [Schwab — CUSIP 91282CDX6](#broker-error-case-study-schwab--cusip-91282cdx6)
+    - [Schwab — CUSIP 91282CDX6](#broker-error-case-study-schwab-cusip-91282cdx6)
 11. [Agent Instructions](#agent-instructions)
     - [Dependencies](#dependencies)
 
@@ -73,7 +73,7 @@ Brokers elect either (a) report QSI on 1099-INT Box 3 and OID on 1099-OID Box 8,
 | Alternative (per IRS instructions) | 1099-OID Box 2 | 1099-OID Box 10 |
 | Schwab (confirmed) | 1099-INT Box 3 | 1099-OID Box 10 |
 
-Schwab uses a hybrid configuration: QSI in 1099-INT Box 3 (not Box 2), ABP in 1099-OID Box 10. This does not match either standard configuration defined in the IRS instructions — the IRS rule pairs Box 2 with Box 10, but Schwab reports QSI on 1099-INT while placing ABP on 1099-OID. The practical effect is correct (ABP reduces interest income), but the split across forms is non-standard. Confirmed via Bogleheads forum (CUSIP 91282CDX6, $88,000 face). → [See Schwab ABP error case study](#broker-error-case-study-schwab--cusip-91282cdx6)
+Schwab uses a hybrid configuration: QSI in 1099-INT Box 3 (not Box 2), ABP in 1099-OID Box 10. This does not match either standard configuration defined in the IRS instructions — the IRS rule pairs Box 2 with Box 10, but Schwab reports QSI on 1099-INT while placing ABP on 1099-OID. The practical effect is correct (ABP reduces interest income), but the split across forms is non-standard. Confirmed via Bogleheads forum (CUSIP 91282CDX6, $88,000 face). → [See Schwab ABP error case study](#broker-error-case-study-schwab-cusip-91282cdx6)
 
 ---
 
@@ -91,7 +91,7 @@ Schwab uses a hybrid configuration: QSI in 1099-INT Box 3 (not Box 2), ABP in 10
 
 Box 12 (or Box 10 if your broker uses the alternative or Schwab configuration) applies only if the TIPS was purchased at a premium (adjusted cost > inflation-adjusted principal). It reduces the taxable interest on Schedule B.
 
-Box 1f (or Box 5, under the annual-inclusion election) applies only if the TIPS was purchased at a discount (adjusted cost < inflation-adjusted principal) and that discount exceeds the de minimis threshold. Market discount and ABP are both measured against **inflation-adjusted principal** — see [Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)](#market-discount-and-premium-for-subsequent-holders--treas-reg-112757f3) above for the regulation's exact text and how `inflation_adjusted_principal` maps to it. The discount amount itself is fixed at acquisition and accrues on a non-inflation-adjusted basis from there — it does not track subsequent CPI changes the way Box 8 OID does. See [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md#market-discount-and-accrued-market-discount-amd) for how AMD is reported and taxed depending on acquisition and disposition method, and for the annual-inclusion election mechanics.
+Box 1f (or Box 5, under the annual-inclusion election) applies only if the TIPS was purchased at a discount (adjusted cost < inflation-adjusted principal) and that discount exceeds the de minimis threshold. Market discount and ABP are both measured against **inflation-adjusted principal** — see [Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)](#market-discount-and-premium-for-subsequent-holders-treas-reg-11275-7f3) above for the regulation's exact text and how `inflation_adjusted_principal` maps to it. The discount amount itself is fixed at acquisition and accrues on a non-inflation-adjusted basis from there — it does not track subsequent CPI changes the way Box 8 OID does. See [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md#market-discount-and-accrued-market-discount-amd) for how AMD is reported and taxed depending on acquisition and disposition method, and for the annual-inclusion election mechanics.
 
 ---
 
@@ -262,7 +262,7 @@ ABP figures per #Cruncher and FactualFran; use of `inflation_adjusted_principal 
 - The correct 2025 ABP at $10,000 face for this CUSIP is **$47.056** (~$47). A broker reporting $52 would be in error — $52 corresponds to ~$11,000 face.
 - If Box 12 is blank but the supplemental shows a bond premium figure, the broker may have netted it against Box 3 instead — check whether Box 3 equals the gross or net coupon.
 - Schwab (confirmed) reports ABP in 1099-OID Box 10, not 1099-INT Box 12. If Box 12 is blank and Box 3 is not netted, check 1099-OID Box 10.
-- Schwab has been observed applying ABP to only a fraction of the held position in later years, producing materially understated Box 10 values. The error pattern resembles applying the ABP rate to roughly half the actual face. If Schwab's Box 10 drops significantly from year 2 to year 3 without a corresponding position change, recalculate independently. → [See Schwab ABP error case study](#broker-error-case-study-schwab--cusip-91282cdx6)
+- Schwab has been observed applying ABP to only a fraction of the held position in later years, producing materially understated Box 10 values. The error pattern resembles applying the ABP rate to roughly half the actual face. If Schwab's Box 10 drops significantly from year 2 to year 3 without a corresponding position change, recalculate independently. → [See Schwab ABP error case study](#broker-error-case-study-schwab-cusip-91282cdx6)
 
 ---
 
