@@ -1307,7 +1307,8 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
           : sortedH.filter(h => h.cusip !== targetCUSIP).reverse();
         let curPI = yi.holdings.reduce((s, h) => s + h.qty * piMap[h.cusip], 0)
                   - targetExcessHeld * piMap[targetCUSIP];
-        if (!isBracket && allocationPolicy === 'equal' && nonTarget.length > 0) {
+        const isEqualLevel = !isBracket && allocationPolicy === 'equal' && nonTarget.length > 0;
+        if (isEqualLevel) {
           // Equal split levels rather than drains in fixed order -- see levelValues (3.0 §Within-
           // Year Allocation Policy). Pool is the target plus whatever's currently held besides it;
           // a candidate held by neither stays untouched, same as before.
@@ -1320,14 +1321,29 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
             postRebalQtyMap[h.cusip] = newQty;
           }
         } else {
+          // Strict fixed-order drain: a CUSIP must be sold down to zero before the next-ranked one
+          // (or targetCUSIP) is touched at all. A per-bond value smaller than an earlier-ranked,
+          // not-yet-exhausted CUSIP's must never let that later CUSIP sell first just because it
+          // happens to divide the remaining residual more evenly -- stop the instant one isn't
+          // fully drained, leaving every less-preferred-to-sell CUSIP after it untouched.
           for (const h of nonTarget) {
             const sell = Math.min(h.qty, Math.max(0, Math.floor((curPI - needed) / piMap[h.cusip])));
             postRebalQtyMap[h.cusip] = h.qty - sell;
             curPI -= sell * piMap[h.cusip];
+            if (sell < h.qty) break;
           }
+          for (const h of nonTarget) if (!(h.cusip in postRebalQtyMap)) postRebalQtyMap[h.cusip] = h.qty;
         }
         const diff = needed - curPI;
-        tFundedYearQty = Math.max(0, targetFundedHeld + Math.round(diff / piMap[targetCUSIP]));
+        // A CUSIP still holding qty after the drain above is, by definition, less preferred to
+        // hold than targetCUSIP -- the fixed sell order must never touch targetCUSIP to close a
+        // shrink-side rounding remainder while an earlier-ranked nonTarget CUSIP still has bonds
+        // left; the small residual is accepted instead (3.0 §Within-Year Allocation Policy sell
+        // order). Growth-side (diff > 0) and the equal-split branch (levelValues) are unaffected.
+        const nonTargetStillHeld = !isEqualLevel && nonTarget.some(h => (postRebalQtyMap[h.cusip] ?? h.qty) > 0);
+        tFundedYearQty = (diff < 0 && nonTargetStillHeld)
+          ? targetFundedHeld
+          : Math.max(0, targetFundedHeld + Math.round(diff / piMap[targetCUSIP]));
         for (const h of nonTarget) {
           if (postRebalQtyMap[h.cusip] !== h.qty) {
             const b = tipsMap.get(h.cusip);

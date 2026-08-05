@@ -1849,10 +1849,7 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
 // IRA holdings and must never be trimmed/altered to fit a test's convenience. Baseline DARA
 // mirrors runFullRebalanceTest's own self-financing scale, so "need unchanged" genuinely means
 // zero ladder-wide trades, not just an arbitrary raw-ARA mirror. All magnitudes below were
-// verified empirically against this real data (not guessed) to land cleanly away from small-
-// portfolio rounding-boundary noise (e.g. a too-small shrink can show a rank-2 CUSIP dipping by
-// one unit before rank-3 is fully drained -- real integer-quantity behavior, not a bug, just not
-// what these specific tests are isolating).
+// verified empirically against this real data (not guessed).
 {
   const fullPath = path.resolve('./data/SampleHoldings.csv');
   if (existsSync(fullPath)) {
@@ -1973,9 +1970,7 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
 
     // (2b) Need shrinks -> the LEAST preferred maturity sells first; the most preferred is
     // untouched. Under 'maturity', least-preferred = Jan (earliest-maturing); -3000 fully drains
-    // Jan's 2 bonds without touching Apr or Oct (verified empirically -- the clean point between
-    // a too-small cut, which can dip Oct instead due to rounding, and a too-large one, which
-    // would move on to Apr once Jan is exhausted).
+    // Jan's 2 bonds without touching Apr or Oct.
     const shrunkDara = new Map(baseDaraMap);
     shrunkDara.set(2027, Math.max(1000, (shrunkDara.get(2027) ?? 0) - 3000));
     {
@@ -1986,6 +1981,45 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
       assert("allocation policy 'maturity': need shrinks -> Jan (earliest-maturing, least preferred) sells", qtyDeltaFor(details, JAN27) < 0, true);
       assert("allocation policy 'maturity': need shrinks -> Apr untouched", qtyDeltaFor(details, APR27), 0);
       assert("allocation policy 'maturity': need shrinks -> Oct (latest-maturing, preferred) untouched", qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (2b-2) Rounding-boundary regression -- a live rebalance against real broker holdings showed
+    // Jan sell only PARTIALLY draining (qty > 0 left) while Oct (the target, most-preferred-to-
+    // hold) still lost a bond to the leftover fractional residual, and separately Apr (ranked
+    // between Jan and Oct) could sell before Jan -- the fully-held, least-preferred CUSIP -- was
+    // touched at all, purely because Apr's per-bond value happened to be smaller. Both violate the
+    // fixed sell order's core rule: never touch a more-preferred-to-hold CUSIP while a less-
+    // preferred one still holds any qty. -1500 lands exactly on that boundary for this holding
+    // (Jan sells 1 of its 2, not fully drained) -- Apr and Oct must stay untouched.
+    {
+      const boundaryDara = new Map(baseDaraMap);
+      boundaryDara.set(2027, Math.max(1000, (boundaryDara.get(2027) ?? 0) - 1500));
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: boundaryDara, allocationPolicy: 'maturity',
+      });
+      const janDelta = qtyDeltaFor(details, JAN27);
+      assert("allocation policy 'maturity': rounding boundary -> Jan sells partially (not fully drained)", janDelta < 0, true);
+      const janRow = details.find(d => d.cusip === JAN27 && d.fundedYear === 2027);
+      assert("allocation policy 'maturity': rounding boundary -> Jan still holds qty > 0 after the partial sell", janRow.qtyAfter > 0, true);
+      assert("allocation policy 'maturity': rounding boundary -> Apr untouched while Jan still held", qtyDeltaFor(details, APR27), 0);
+      assert("allocation policy 'maturity': rounding boundary -> Oct (target) untouched while Jan still held", qtyDeltaFor(details, OCT27), 0);
+    }
+
+    // (2b-3) A residual too small to justify selling even one more Jan bond must not skip ahead to
+    // Apr just because Apr's per-bond value is smaller (Apr < Jan here) -- -1200 is below Jan's
+    // per-bond value, so nothing should sell at all; regression for the same bug as (2b-2), caught
+    // at the point where Jan itself doesn't move (as opposed to (2b-2), where Jan moves partially).
+    {
+      const tinyDara = new Map(baseDaraMap);
+      tinyDara.set(2027, Math.max(1000, (tinyDara.get(2027) ?? 0) - 1200));
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: tinyDara, allocationPolicy: 'maturity',
+      });
+      assert("allocation policy 'maturity': sub-bond residual -> Jan untouched", qtyDeltaFor(details, JAN27), 0);
+      assert("allocation policy 'maturity': sub-bond residual -> Apr never sells ahead of a fully-held Jan", qtyDeltaFor(details, APR27), 0);
+      assert("allocation policy 'maturity': sub-bond residual -> Oct untouched", qtyDeltaFor(details, OCT27), 0);
     }
 
     // (2c) 'equal' shrink drains from the top down (largest held value first) rather than dumping
