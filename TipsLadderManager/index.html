@@ -2178,6 +2178,11 @@ document.getElementById('dara-plan-apply').addEventListener('click', () => {
   const fySel = document.getElementById(isRebal ? 'rebal-first-year' : 'first-year');
   if (fySel && saved.firstYear != null && [...fySel.options].some(o => +o.value === saved.firstYear)) fySel.value = String(saved.firstYear);
   _daraByYearStore = new Map(saved.daraByYear);
+  // Mark this an explicit import, same as the DARA Plan card's file Import (see the comment there) --
+  // a remembered/Applied plan must be honored as-is at Run, not silently overwritten by
+  // runFundedRebalance's self-financing scale (_storeIsPristineMirror() only checks this flag, not
+  // how the store got populated).
+  currentImportedDaraByYear = new Map(saved.daraByYear);
   // NOT marked manual — same reasoning as an explicit #fundedYear,dara import: a remembered plan is
   // a loaded baseline, and pinning it whole would make the segment tools inert on the very next use.
   _daraManualYears = new Set();
@@ -2256,6 +2261,14 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 
   _snapshotDara();
   _daraByYearStore = new Map(daraMap);
+  // Mark this an explicit #fundedYear,dara import, same as one carried by the holdings file itself
+  // (line ~2409) -- this is the SAME block format, just round-tripped through the DARA Plan card's
+  // own Import button instead of the holdings file. Without this, _storeIsPristineMirror() (which
+  // only checks currentImportedDaraByYear, not how the store got populated) can't tell this import
+  // apart from the default auto-derived mirror, so a Rebalance Ladder run on a ladder with a gap/
+  // Future-30Y block would silently discard the imported segmented plan and overwrite it with a
+  // freshly self-financing-scaled map derived from the portfolio's natural ARA shape.
+  currentImportedDaraByYear = new Map(daraMap);
   // NOT marked manual — same reasoning as an explicit #fundedYear,dara import: an imported plan is
   // a loaded baseline, and pinning it whole would make the segment tools inert on the very next use.
   _daraManualYears = new Set();

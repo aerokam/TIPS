@@ -8,7 +8,7 @@
 // every test hangs/fails at the beforeEach's data-load wait, not just tests that touch the new field.
 
 import { test, expect } from 'playwright/test';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { nextBondTradingDay, parseBondHolidays } from '../../src/data.js';
@@ -1456,6 +1456,47 @@ test('per-year DARA: standalone plan file exports and re-imports split years + p
   // The "$ each" boxes must be repopulated from the imported plan, not left blank.
   await expect(page.locator('#seg-rows .seg-const-input[data-idx="0"]')).toHaveValue('33000');
   await expect(page.locator('#seg-rows .seg-const-input[data-idx="1"]')).toHaveValue('66000');
+});
+
+// Regression: runFundedRebalance only applies its self-financing scale (3.0 §Funding the rebalance)
+// when isPristineMirror -- index.html's _storeIsPristineMirror() decides that from whether
+// currentImportedDaraByYear is set, NOT from how the store was actually populated. The DARA Plan
+// card's file-Import handler set _daraByYearStore AND _daraLoadedSnapshot to the imported values but
+// never set currentImportedDaraByYear, so an imported plan on a ladder with a gap/Future-30Y block to
+// fund (SampleHoldings has the structural 2037-39 gap) was silently discarded at Run and replaced
+// with a freshly self-financing-scaled map derived from the portfolio's own natural ARA shape --
+// Amt After tracked the untouched mirror, not the imported target, with no error or indication.
+test('per-year DARA: an imported plan is honored exactly at Run on a ladder with a gap block, not silently overwritten by the self-financing scale', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  // Re-export the as-loaded natural mirror as a #fundedYear,dara plan file, with ONE year spiked to
+  // a value clearly different from its natural ARA.
+  const rungs = await page.locator('.fy-dara-input[data-year]').evaluateAll(
+    els => els.map(el => [el.dataset.year, el.value])
+  );
+  const spikeYear = rungs[0][0];
+  const naturalVal = parseFloat(rungs[0][1]);
+  const spikedVal = Math.round(naturalVal * 4 + 20000);
+  const lines = ['#fundedYear,dara', ...rungs.map(([y, v]) => (y === spikeYear ? `${y},${spikedVal}` : `${y},${v}`))];
+  const planPath = test.info().outputPath('spiked-dara-plan.csv');
+  writeFileSync(planPath, lines.join('\n'));
+
+  await _openDaraPlan(page);
+  await page.locator('#dara-plan-more-btn').click();
+  await page.locator('#dara-plan-import-btn').click();
+  await page.locator('#dara-plan-import-file').setInputFiles(planPath);
+  await expect(page.locator(`.fy-dara-input[data-year="${spikeYear}"]`)).toHaveValue(String(spikedVal));
+
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table')).toBeVisible({ timeout: 4_000 });
+
+  const amtAfterCell = page.locator(`#simple-table tr.fy-group-header[data-fy="${spikeYear}"] td[data-col="amtAfter"]`);
+  await expect(amtAfterCell).toBeVisible();
+  const amtAfter = parseFloat((await amtAfterCell.textContent() ?? '').replace(/[^0-9.-]/g, ''));
+  expect(amtAfter, `Amt After (${amtAfter}) for the imported spike year must track the imported DARA (${spikedVal}), not fall back near the natural portfolio mirror (${naturalVal})`)
+    .toBeGreaterThan((naturalVal + spikedVal) / 2);
 });
 
 // ── Build-mode segment split + "$ each" + persistence (same tools, no Infer DARA) ──────────────
