@@ -1890,11 +1890,16 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
     grownDara.set(2027, (grownDara.get(2027) ?? 0) + 5000);
 
     // 'equal': Jan and Oct are the two lowest-held-value maturities and level toward each other,
-    // splitting the growth between them; Apr (highest held value) stays untouched throughout.
+    // splitting the growth between them; Apr (highest held value) stays untouched throughout. Uses
+    // its own smaller growth (not the shared +5000 grownDara below) -- a big enough increase always
+    // legitimately spills leveling past Apr too (correct levelValues behavior, just a different
+    // scenario than this assertion demonstrates), so this stays within the two-way leveling capacity.
+    const equalGrownDara = new Map(baseDaraMap);
+    equalGrownDara.set(2027, (equalGrownDara.get(2027) ?? 0) + 2500);
     {
       const { details } = runRebalance({
         dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
-        daraByYear: grownDara, allocationPolicy: 'equal',
+        daraByYear: equalGrownDara, allocationPolicy: 'equal',
       });
       assert("allocation policy 'equal': need grows -> Jan (lowest held value, tied w/ Oct) grows", qtyDeltaFor(details, JAN27) > 0, true);
       assert("allocation policy 'equal': need grows -> Oct (tied w/ Jan) grows by the same amount", qtyDeltaFor(details, OCT27), qtyDeltaFor(details, JAN27));
