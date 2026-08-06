@@ -1697,10 +1697,17 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     ]);
   }
 
-  // Emit synthetic rows for bracket/buy years with no current holdings (e.g. 3-bracket newLowerYear)
+  // Emit synthetic rows for a buy into targetCUSIP when that CUSIP itself has no current holdings
+  // (e.g. 3-bracket newLowerYear, or an ordinary 'all'/saYield year whose top-ranked candidate is a
+  // brand-new CUSIP the ladder never held before). Gated on the TARGET CUSIP specifically, not on
+  // "this funded year has zero holdings of any kind" -- a year can already have other held CUSIPs
+  // (already emitted via the main consolidatedHoldings loop above) while the target itself is still
+  // a fresh buy that loop never sees, and that buy would otherwise vanish from the table/Trade
+  // Ticket/export while still being counted in the year's Amount After total (3.0 §Named Quantities:
+  // same "skipped 2035" vanishing-rung failure mode, at CUSIP granularity instead of year granularity).
   for (const [bYearStr, bst] of Object.entries(buySellTargets)) {
     const bYear = parseInt(bYearStr);
-    if ((yearInfo[bYear]?.holdings?.length ?? 0) > 0) continue; // has holdings → already in main loop
+    if ((yearInfo[bYear]?.holdings ?? []).some(h => h.cusip === bst.targetCUSIP)) continue; // target already in main loop
     if (!(bst.qtyDelta > 0)) continue; // no buy
     const tb = tipsMap.get(bst.targetCUSIP);
     if (!tb?.maturity) continue;

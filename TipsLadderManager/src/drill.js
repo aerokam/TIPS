@@ -297,7 +297,11 @@ export function buildDrillHTML(d, colKey, summary) {
       ownSum += hTotal;
       const mo = MONTHS[h.maturityMonth];
       const yr = String(h.maturityYear).slice(2);
-      rows += row(mo + ' \u2019' + yr + ' \xd7 ' + h.qty, '<span class="drill-l3" data-l3="pipb-' + i + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + fm2(piPB) + '/TIPS</span>', fm(hTotal));
+      // Two distinct TIPS can share a maturity month/year (e.g. an 'all maturity months' funded
+      // year picking up a second, previously-unheld candidate) -- the CUSIP disambiguates what
+      // would otherwise render as an unexplained duplicate "Jan '27" line.
+      const label = mo + ' \u2019' + yr + (h.cusip ? ' (' + h.cusip + ')' : '') + ' \xd7 ' + h.qty;
+      rows += row(label, '<span class="drill-l3" data-l3="pipb-' + i + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + fm2(piPB) + '/TIPS</span>', fm(hTotal));
     });
     rows += sep()
       + row('Funded year TIPS subtotal', '', fm(ownSum))

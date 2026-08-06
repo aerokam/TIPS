@@ -1968,6 +1968,34 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
       tipsMap.get(APR27).saYield = saved.a; tipsMap.get(OCT27).saYield = saved.o; tipsMap.get(JAN27).saYield = saved.j;
     }
 
+    // Regression: a brand-new candidate CUSIP (never held) that wins the rank must still get its
+    // own visible row -- a live rebalance under maturityPref='all' showed the year's Amount After
+    // correctly grow, but the winning buy was completely absent from the table/Trade Ticket/export
+    // (qtyDelta/cashDelta both showed 0 at the year level) because the synthetic new-buy row was
+    // only ever emitted for a funded year with ZERO existing holdings, not for a year that already
+    // had other held CUSIPs but was missing this one specific new CUSIP. 912810PS1 is a second real
+    // TIPS also maturing Jan 2027 (distinct from the held 912828V49) present in the fixture universe
+    // but never held in SampleHoldings.csv -- forcing its SA yield above the three held maturities'
+    // makes it win the rank under 'all' (all three held maturities are legitimate targets too).
+    {
+      const NEW_JAN27 = '912810PS1';
+      const saved = { j: tipsMap.get(JAN27).saYield, a: tipsMap.get(APR27).saYield, o: tipsMap.get(OCT27).saYield, n: tipsMap.get(NEW_JAN27)?.saYield };
+      tipsMap.get(JAN27).saYield = 0.01; tipsMap.get(APR27).saYield = 0.01; tipsMap.get(OCT27).saYield = 0.01;
+      tipsMap.get(NEW_JAN27).saYield = 0.05;
+      const { details } = runRebalance({
+        dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+        daraByYear: grownDara, allocationPolicy: 'saYield', maturityPref: 'all',
+      });
+      const newRow = details.find(d => d.cusip === NEW_JAN27 && d.fundedYear === 2027);
+      assert('new-buy CUSIP regression: the winning new CUSIP gets its own row in details', !!newRow, true);
+      assert('new-buy CUSIP regression: its qtyBefore is 0 (never held)', newRow?.qtyBefore, 0);
+      assert('new-buy CUSIP regression: it actually bought a positive quantity', newRow?.qtyAfter > 0, true);
+      assert('new-buy CUSIP regression: the previously-held Jan CUSIP is untouched', qtyDeltaFor(details, JAN27), 0);
+      assert('new-buy CUSIP regression: Apr untouched', qtyDeltaFor(details, APR27), 0);
+      assert('new-buy CUSIP regression: Oct untouched', qtyDeltaFor(details, OCT27), 0);
+      tipsMap.get(JAN27).saYield = saved.j; tipsMap.get(APR27).saYield = saved.a; tipsMap.get(OCT27).saYield = saved.o; tipsMap.get(NEW_JAN27).saYield = saved.n;
+    }
+
     // (2b) Need shrinks -> the LEAST preferred maturity sells first; the most preferred is
     // untouched. Under 'maturity', least-preferred = Jan (earliest-maturing); -3000 fully drains
     // Jan's 2 bonds without touching Apr or Oct.
