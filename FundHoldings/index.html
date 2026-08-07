@@ -49,10 +49,10 @@ import { parseCsv } from "../shared/src/csv.js";
 import { calcMktWtdAvg } from "../shared/src/bond-math.js";
 
 // One entry per fund whose enriched CSV lives in data/. Add a ticker here
-// once the fund's scraper (vanguard/, fminvest/, pimco/, or schwab/) +
-// enrichHoldings.js have been run for it. Ordered nominal fund(s) first, then
-// TIPS funds by increasing weighted-average duration.
-const FUNDS = ["VBIL", "RBIL", "VTIP", "SCHP", "VTP", "LTPZ"];
+// once the fund's scraper (vanguard/, fminvest/, pimco/, schwab/, or
+// bondbloxx/) + enrichHoldings.js have been run for it. Ordered nominal
+// fund(s) first, then TIPS funds by increasing weighted-average duration.
+const FUNDS = ["VBIL", "XHLF", "RBIL", "VTIP", "SCHP", "VTP", "LTPZ"];
 const WEEKS_PER_YEAR = 365.25 / 7;
 const R2_BASE = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/FundHoldings";
 
