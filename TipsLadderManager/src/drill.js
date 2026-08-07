@@ -605,6 +605,54 @@ export function buildTradeTicketTotalDrill(r, label) {
   ];
 }
 
+// ─── Cash Flow Calendar: per-date breakdown (5.0 §Cash Flow Calendar) ─────────
+// bucket: { date, coupon, principal, events: [{ cusip, type, amount, qty, refCPI, baseCpi, indexRatio, principalPerBond, coupon, isActual, refCpiDateDisplay }] }
+// Ref CPI is a single national series, not per-bond, so every event sharing this date shares the
+// same refCPI/isActual/refCpiDateDisplay — shown once at the top rather than repeated per line.
+export function buildCashFlowDateDrill(bucket) {
+  const first = bucket.events[0];
+  const rows = [];
+  if (first) {
+    rows.push({ label: first.isActual ? 'Cpn Ref CPI date' : 'Ref CPI date', value: first.refCpiDateDisplay });
+    rows.push({ label: 'Ref CPI', value: fd(first.refCPI, 5) });
+    rows.push({ sep: true });
+  }
+  bucket.events.forEach((e, i) => {
+    rows.push({
+      label: '<span class="cf-event-drill" data-cf-event-idx="' + i + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">'
+        + e.cusip + (e.type === 'principal' ? ' — Principal' : ' — Coupon') + '</span>',
+      value: fm(e.amount),
+    });
+  });
+  rows.push({ sep: true });
+  rows.push({ label: 'Total', value: fm(bucket.coupon + bucket.principal), total: true });
+  return rows;
+}
+
+// Nested (click a CUSIP line inside the per-date popup): how that one CUSIP's payment was
+// calculated. The date's Ref CPI is already shown once above (buildCashFlowDateDrill) — this starts
+// from Dated Ref CPI so nothing is repeated.
+export function buildCashFlowEventDrill(e) {
+  const rows = [
+    { label: 'Ref CPI', value: fd(e.refCPI, 5) },
+    { label: 'Dated Ref CPI', value: fd(e.baseCpi, 5) },
+    { label: 'Index ratio', note: 'Ref CPI \xf7 Dated Ref CPI', value: fd(e.indexRatio, 5) },
+    { label: 'Par Value per TIPS', note: '1,000 \xd7 index ratio', value: fm2(e.principalPerBond) },
+  ];
+  if (e.type === 'coupon') {
+    rows.push({ label: 'Coupon per period', note: 'annual coupon \xf7 2', value: fd(e.coupon / 2 * 100, 5) + '%' });
+    rows.push({ sep: true });
+    rows.push({ label: 'Coupon per TIPS', note: 'Par Value/TIPS \xd7 coupon/period', value: fm2(e.principalPerBond * e.coupon / 2) });
+  } else {
+    rows.push({ sep: true });
+    rows.push({ label: 'Principal per TIPS', note: 'Par Value/TIPS at this index ratio', value: fm2(e.principalPerBond) });
+  }
+  rows.push({ label: 'Quantity', value: e.qty });
+  rows.push({ sep: true });
+  rows.push({ label: e.type === 'principal' ? 'Principal' : 'Coupon', note: 'Amount per TIPS \xd7 Quantity', value: fm(e.amount), total: true });
+  return rows;
+}
+
 export function buildRefCpiDrill(d, complexity = 'quant', refCpiRows = null) {
   const date = new Date(d.settlementDate || d.settlementDateStr || new Date());
   const day = date.getDate();

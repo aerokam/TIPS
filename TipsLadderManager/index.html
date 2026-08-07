@@ -173,7 +173,8 @@
   .info-link-btn:hover { background:#334155; }
 
   /* ── Trade Ticket modal ── */
-  #trade-ticket-modal { background:#fff;max-width:640px;margin:60px auto;border-radius:8px;padding:24px 28px;position:relative;font-size:13px;line-height:1.5; }
+  #trade-ticket-modal { background:#fff;width:640px;min-width:400px;min-height:200px;border-radius:8px;padding:24px 28px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;font-size:13px;line-height:1.5; }
+  #trade-ticket-content { overflow-y:auto;flex:1; }
   #trade-ticket-modal table { border-collapse:collapse;width:100%;font-size:13px; }
   #trade-ticket-modal th { text-align:left;padding:4px 10px 4px 0;border-bottom:2px solid #334155;color:#334155;font-weight:600;white-space:nowrap; }
   #trade-ticket-modal th:nth-child(n+3) { text-align:right; }
@@ -188,7 +189,20 @@
   .tt-section-head + table { margin-bottom:0; }
   .tt-buys { color:#16a34a; }
   .tt-sells { color:#dc2626; }
-  
+
+  /* ── Cash Flow Calendar modal ── */
+  #cash-flow-modal { background:#fff;width:720px;min-width:480px;min-height:250px;border-radius:8px;padding:24px 28px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;font-size:13px;line-height:1.5; }
+  #cash-flow-content { overflow-y:auto;flex:1; }
+  #cash-flow-content table { border-collapse:collapse;width:100%;font-size:13px; }
+  #cash-flow-content th { text-align:left;padding:4px 10px 4px 0;border-bottom:2px solid #334155;color:#334155;font-weight:600;white-space:nowrap;position:sticky;top:0;background:#fff; }
+  #cash-flow-content th:nth-child(n+2) { text-align:right; }
+  #cash-flow-content th:last-child { padding-right:0; }
+  #cash-flow-content td { padding:3px 10px 3px 0;border-bottom:1px solid #eee;white-space:nowrap;font-variant-numeric:tabular-nums; }
+  #cash-flow-content td:nth-child(n+2) { text-align:right; }
+  #cash-flow-content td:last-child { padding-right:0; }
+  #cash-flow-content tr.cf-year-header { cursor:pointer;font-weight:700;background:rgba(0,0,0,0.03); }
+  #cash-flow-content tr.cf-date-row td.cf-date-cell { cursor:pointer;text-decoration:underline dotted #94a3b8;padding-left:18px; }
+
   #net-cash-inline { display:none; flex-direction:row; gap:5px; align-items:baseline; white-space:nowrap; }
   #net-cash-inline .nc-label { font-size:13px; font-weight:700; color: var(--portal-card-text); text-transform:uppercase; letter-spacing:.06em; }
   #net-cash-inline .nc-val { font-size:16px; font-weight:800; color:#fff; }
@@ -296,14 +310,31 @@
 </div>
 
 <!-- Trade Ticket modal -->
-<div id="trade-ticket-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow-y:auto;">
+<div id="trade-ticket-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow:hidden;">
   <div id="trade-ticket-modal">
-    <button id="trade-ticket-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;">×</button>
-    <div style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;border-bottom:2px solid #1e293b;padding-bottom:6px;">Trade Ticket</div>
-    <div style="font-size:11px;color:#94a3b8;margin-bottom:14px;" id="trade-ticket-subtitle"></div>
+    <div class="resize-handle n"></div><div class="resize-handle s"></div><div class="resize-handle e"></div><div class="resize-handle w"></div>
+    <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
+    <button id="trade-ticket-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">×</button>
+    <div id="trade-ticket-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;flex-shrink:0;">Trade Ticket</div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:14px;flex-shrink:0;" id="trade-ticket-subtitle"></div>
     <div id="trade-ticket-content"></div>
-    <div style="margin-top:16px;text-align:right;">
+    <div style="margin-top:16px;text-align:right;flex-shrink:0;">
       <button id="trade-ticket-copy" style="padding:3px 12px;font-size:11px;" title="Copy CUSIP and Qty as CSV">Copy CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- Cash Flow Calendar modal -->
+<div id="cash-flow-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;overflow:hidden;">
+  <div id="cash-flow-modal">
+    <div class="resize-handle n"></div><div class="resize-handle s"></div><div class="resize-handle e"></div><div class="resize-handle w"></div>
+    <div class="resize-handle nw"></div><div class="resize-handle ne"></div><div class="resize-handle sw"></div><div class="resize-handle se"></div>
+    <button id="cash-flow-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">×</button>
+    <div id="cash-flow-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;flex-shrink:0;">Cash Flow Calendar</div>
+    <div style="font-size:11px;color:#94a3b8;margin-bottom:14px;flex-shrink:0;" id="cash-flow-subtitle"></div>
+    <div id="cash-flow-content"></div>
+    <div style="margin-top:16px;text-align:right;flex-shrink:0;">
+      <button id="cash-flow-export" style="padding:3px 12px;font-size:11px;" title="Export full cash flow calendar as CSV">Export CSV</button>
     </div>
   </div>
 </div>
@@ -417,6 +448,7 @@
       <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
       <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
       <button id="trade-ticket-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show trade ticket with cost breakdown">Trade Ticket</button>
+      <button id="cash-flow-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show coupon and principal payment calendar for held TIPS">Cash Flow</button>
       <div id="duration-links" style="align-self:flex-end"></div>
     </div>
     <!-- Row 3: post-run stats (Avg Yld / Avg SA Yld / Avg Mod Dur / Net Cash-Total Cost), side by side -->
@@ -565,11 +597,11 @@ import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, UPPER_
 import { segmentRanges, constantMap, applySegmentMap } from './src/segment-dara.js';
 import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable, COLS } from './src/render.js';
-import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill } from './src/drill.js';
+import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
 import { rankForYear } from './src/allocation-policy.js';
-import { accruedInterest } from '../shared/src/bond-math.js';
+import { accruedInterest, bondCalcs, couponSchedule } from '../shared/src/bond-math.js';
 import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
@@ -1634,6 +1666,159 @@ document.getElementById('trade-ticket-copy').addEventListener('click', () => {
   });
 });
 
+// ─── Cash Flow Calendar (5.0 §Cash Flow Calendar) ────────────────────────────
+// Every held TIPS's actual coupon dates (from today forward) plus its principal
+// repayment date, independent of ladder/funded-year construction — a fact about
+// the current portfolio, not a DARA-sizing quantity.
+function _cfFm(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+function _fmtLongDate(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+function _isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+
+function buildCashFlowData() {
+  if (!currentHoldingsArray || !tipsMap || !refCpiRows) return [];
+  const activeDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  const activeRc = lookupRefCpi(refCpiRows, activeDateIso);
+  const from = localDate(activeDateIso);
+  if (!activeRc || !from) return [];
+  const events = [];
+  for (const h of currentHoldingsArray) {
+    const b = tipsMap.get(h.cusip);
+    if (!b?.maturity || !h.qty) continue;
+    for (const d of couponSchedule(from, b.maturity)) {
+      // The Ref CPI series is published ~2 months ahead of the active Ref CPI date, so near-dated
+      // payments usually already have their own published Ref CPI — use it directly when present;
+      // otherwise fall back to the active Ref CPI date, same as every other Amount figure in this
+      // app. 5.0 §Cash Flow Calendar.
+      const dIso = _isoDate(d);
+      const actualRc = lookupRefCpi(refCpiRows, dIso);
+      const isActual = actualRc != null;
+      const eventRc = isActual ? actualRc : activeRc;
+      const { principalPerBond, indexRatio } = bondCalcs(b, eventRc);
+      const couponPerBond = principalPerBond * (b.coupon ?? 0) / 2;
+      const calc = {
+        qty: h.qty, refCPI: eventRc, baseCpi: b.baseCpi, indexRatio, principalPerBond, coupon: b.coupon ?? 0,
+        isActual, refCpiDateDisplay: _fmtLongDate(localDate(isActual ? dIso : activeDateIso)),
+      };
+      events.push({ date: d, cusip: h.cusip, type: 'coupon', amount: couponPerBond * h.qty, ...calc });
+      if (d.getTime() === b.maturity.getTime()) {
+        events.push({ date: d, cusip: h.cusip, type: 'principal', amount: principalPerBond * h.qty, ...calc });
+      }
+    }
+  }
+  events.sort((a, b) => a.date - b.date || a.cusip.localeCompare(b.cusip) || (a.type === 'principal' ? 1 : -1));
+  return events;
+}
+
+// Groups the flat event list into year → date buckets for the 3-level drill
+// (year rows → date rows → per-CUSIP breakdown popup).
+function _groupCashFlowByYear(events) {
+  const byYear = new Map();
+  for (const e of events) {
+    const y = e.date.getFullYear();
+    if (!byYear.has(y)) byYear.set(y, new Map());
+    const byDate = byYear.get(y);
+    const key = e.date.getTime();
+    if (!byDate.has(key)) byDate.set(key, { date: e.date, coupon: 0, principal: 0, events: [] });
+    const bucket = byDate.get(key);
+    bucket[e.type] += e.amount;
+    bucket.events.push(e);
+  }
+  return byYear;
+}
+
+let _cfEvents = [];
+let _cfDrillBuckets = [];
+
+function _cashFlowRowsHTML(byYear) {
+  const today = localDate(activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const curYear = today ? today.getFullYear() : null;
+  _cfDrillBuckets = [];
+  let html = '<table><thead><tr><th></th><th>Coupon</th><th>Principal</th><th>Total</th></tr></thead><tbody>';
+  const years = [...byYear.keys()].sort((a, b) => a - b);
+  for (const y of years) {
+    const dates = [...byYear.get(y).values()].sort((a, b) => a.date - b.date);
+    const yCoupon = dates.reduce((s, d) => s + d.coupon, 0);
+    const yPrincipal = dates.reduce((s, d) => s + d.principal, 0);
+    const expanded = y === curYear;
+    html += `<tr class="cf-year-header" data-cf-year="${y}" data-expanded="${expanded}">`
+      + `<td>${expanded ? '▼' : '▶'} ${y}</td>`
+      + `<td>${_cfFm(yCoupon)}</td><td>${_cfFm(yPrincipal)}</td><td>${_cfFm(yCoupon + yPrincipal)}</td></tr>`;
+    for (const bucket of dates) {
+      const idx = _cfDrillBuckets.push(bucket) - 1;
+      html += `<tr class="cf-date-row" data-cf-year="${y}" ${expanded ? '' : 'hidden'}>`
+        + `<td class="cf-date-cell" data-cf-idx="${idx}">${_fmtLongDate(bucket.date)}</td>`
+        + `<td>${_cfFm(bucket.coupon)}</td><td>${_cfFm(bucket.principal)}</td><td>${_cfFm(bucket.coupon + bucket.principal)}</td></tr>`;
+    }
+  }
+  html += '</tbody></table>';
+  return html;
+}
+
+function _updateCashFlowBtnVisibility() {
+  document.getElementById('cash-flow-btn').style.display =
+    (currentHoldingsArray && tipsMap && refCpiRows) ? 'inline-block' : 'none';
+}
+
+document.getElementById('cash-flow-btn').addEventListener('click', () => {
+  _cfEvents = buildCashFlowData();
+  const byYear = _groupCashFlowByYear(_cfEvents);
+  document.getElementById('cash-flow-subtitle').textContent = _cfEvents.length
+    ? `${_cfEvents[0].date.getFullYear()}–${_cfEvents[_cfEvents.length - 1].date.getFullYear()}`
+    : 'No holdings loaded.';
+  document.getElementById('cash-flow-content').innerHTML = _cashFlowRowsHTML(byYear);
+  document.getElementById('cash-flow-overlay').style.display = 'block';
+});
+
+document.getElementById('cash-flow-close').addEventListener('click', () => {
+  document.getElementById('cash-flow-overlay').style.display = 'none';
+});
+document.getElementById('cash-flow-overlay').addEventListener('click', e => {
+  if (e.target === e.currentTarget) e.currentTarget.style.display = 'none';
+});
+let _cfOpenBucket = null;
+
+document.getElementById('cash-flow-content').addEventListener('click', e => {
+  const dateCell = e.target.closest('td.cf-date-cell');
+  if (dateCell) {
+    const bucket = _cfDrillBuckets[parseInt(dateCell.dataset.cfIdx, 10)];
+    if (bucket) {
+      _cfOpenBucket = bucket;
+      showPopup(dateCell, _fmtLongDate(bucket.date), buildCashFlowDateDrill(bucket));
+    }
+    return;
+  }
+  const yearHdr = e.target.closest('tr.cf-year-header');
+  if (yearHdr) {
+    const y = yearHdr.dataset.cfYear;
+    const expanded = yearHdr.dataset.expanded === 'true';
+    yearHdr.dataset.expanded = expanded ? 'false' : 'true';
+    yearHdr.querySelector('td').textContent = (expanded ? '▶ ' : '▼ ') + y;
+    document.querySelectorAll(`#cash-flow-content tr.cf-date-row[data-cf-year="${y}"]`)
+      .forEach(r => { if (expanded) r.setAttribute('hidden', ''); else r.removeAttribute('hidden'); });
+  }
+});
+document.getElementById('cash-flow-export').addEventListener('click', () => {
+  const rows = ['Date,CUSIP,Type,Amount'];
+  for (const e of _cfEvents) rows.push(`${_isoDate(e.date)},${e.cusip},${e.type},${Math.round(e.amount)}`);
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
+  const url = window.URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `tips-cash-flow-${new Date().toISOString().split('T')[0]}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  window.URL.revokeObjectURL(url);
+});
+// Click a CUSIP line inside the per-date popup to see how that payment was calculated. Delegated on
+// document since the popup (#shared-popup, popup.js) is a body-level singleton, not a child of
+// #cash-flow-content — same pattern the main table's .drill-l3 nested drills use.
+document.addEventListener('click', e => {
+  const el = e.target.closest('.cf-event-drill');
+  if (!el || !_cfOpenBucket) return;
+  const ev = _cfOpenBucket.events[parseInt(el.dataset.cfEventIdx, 10)];
+  if (!ev) return;
+  showPopup(el, ev.cusip + (ev.type === 'principal' ? ' — Principal' : ' — Coupon'), buildCashFlowEventDrill(ev), _fmtLongDate(_cfOpenBucket.date));
+});
+
 // ─── Render rebalance output ──────────────────────────────────────────────────
 function renderOutput({ results, HDR, summary, details }, portfolioCash = null) {
   lastHDR = HDR; lastResults = results;
@@ -2317,6 +2502,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   const file = e.target.files[0];
   document.getElementById('holdings-file-name').textContent = file ? file.name : 'No file chosen';
   currentHoldingsArray = null;
+  _updateCashFlowBtnVisibility();
   window._pendingBrokerAccounts = null; // Clear any stale account data
   setStatus('');
   // Clear stale output and reset all inference state when a new file is loaded
@@ -2459,6 +2645,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     _initRebalDaraFromPortfolio();
     _lastAccountNames = acctNames.length === 1 ? acctNames : null;
     _updateDaraRememberUI(_lastAccountNames);
+    _updateCashFlowBtnVisibility();
   } catch (err) {
     setStatus('Error reading file: ' + err.message, true);
   }
@@ -2484,6 +2671,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     _initRebalDaraFromPortfolio();
     _lastAccountNames = selected;
     _updateDaraRememberUI(_lastAccountNames);
+    _updateCashFlowBtnVisibility();
   });
   const clearAllBtn = document.getElementById('account-clear-all');
   if (clearAllBtn) {
@@ -2497,6 +2685,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     currentHoldingsArray = null;
     document.getElementById('holdings-file').value = '';
     document.getElementById('holdings-file-name').textContent = 'No file chosen';
+    _updateCashFlowBtnVisibility();
   });
 
 // ─── Draggable drill modal ───────────────────────────────────────────────────
@@ -2529,6 +2718,8 @@ let _drillDragging = false;
 makeDraggableResizable(document.getElementById('tipsref-modal'), document.getElementById('tipsref-title'), { minWidth: 400, minHeight: 200 });
 makeDraggableResizable(document.getElementById('maturity-picker-modal'), document.getElementById('maturity-picker-title'), { minWidth: 500, minHeight: 250 });
 makeDraggableResizable(document.getElementById('rank-picker-modal'), document.getElementById('rank-picker-title'), { minWidth: 480, minHeight: 250 });
+makeDraggableResizable(document.getElementById('trade-ticket-modal'), document.getElementById('trade-ticket-title'), { minWidth: 400, minHeight: 200 });
+makeDraggableResizable(document.getElementById('cash-flow-modal'), document.getElementById('cash-flow-title'), { minWidth: 480, minHeight: 250 });
 
 // ─── Per-year DARA panel ──────────────────────────────────────────────────────
 let _daraByYearPanelDefault = null;
@@ -3473,6 +3664,14 @@ function _clearOutput() {
   document.getElementById('net-cash-inline').style.display = 'none';
   document.getElementById('ladder-stats-display').style.display = 'none';
   _clearAutoDara();
+  // Cash Flow's events/buckets are computed once per open (buildCashFlowData(), not live-bound to
+  // activeRefCpiDateStr) — closing here, rather than leaving stale data on screen, forces a fresh
+  // rebuild against the new Ref CPI date the next time it's opened. Without this, changing the RefCPI
+  // date while the modal (or one of its drill popups) was open left the old date's figures on screen
+  // even after the date was changed back.
+  document.getElementById('cash-flow-overlay').style.display = 'none';
+  _cfOpenBucket = null;
+  hidePopup();
 }
 
 document.getElementById('refcpi-date-input').addEventListener('keydown', e => {

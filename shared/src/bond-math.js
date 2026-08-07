@@ -92,6 +92,22 @@ function addSemiannualPeriods(date, n, matureDay) {
   return d;
 }
 
+// ─── Coupon payment schedule ──────────────────────────────────────────────────
+// All coupon dates from `settle` (inclusive) through `maturity` (inclusive) — the final
+// entry is also the principal repayment date. Spec: 5.0 §Cash Flow Calendar.
+export function couponSchedule(settle, maturity) {
+  const nextCpn = _nextCouponOnOrAfter(settle, maturity);
+  if (!nextCpn) return [];
+  const mDay = maturity.getDate();
+  const dates = [];
+  for (let k = 0; ; k++) {
+    const d = addSemiannualPeriods(nextCpn, k, mDay);
+    if (d > maturity) break;
+    dates.push(d);
+  }
+  return dates;
+}
+
 // ─── Leap-day day-count helper ────────────────────────────────────────────────
 // True if Feb 29 falls strictly after d1 and on/before d2.
 export function hasLeapDayBetween(d1, d2) {
