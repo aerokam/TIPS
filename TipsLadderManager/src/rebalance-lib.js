@@ -454,7 +454,7 @@ export function parseFundedYearDaraBlock(rawLines) {
     if (!inBlock) { if (norm === '#fundedyear,dara') inBlock = true; continue; }
     const parts = line.replace(/^#/, '').split(',').map(s => s.trim());
     const yr = parseInt(parts[0], 10), v = parseFloat(parts[1]);
-    if (parts.length >= 2 && yr >= 2000 && yr <= 2200 && !isNaN(v) && v > 0) map.set(yr, v);
+    if (parts.length >= 2 && yr >= 2000 && yr <= 2200 && !isNaN(v) && v >= 0) map.set(yr, v);
   }
   return map.size > 0 ? map : null;
 }

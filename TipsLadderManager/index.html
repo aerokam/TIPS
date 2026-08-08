@@ -1252,7 +1252,9 @@ function _openMaturityPickerModal() {
     const defaultCusips = isRebal
       ? (currentHoldingsArray ?? []).filter(h => tipsMap.get(h.cusip)?.maturity?.getFullYear() === year).map(h => h.cusip)
       : (buildDetails?.filter(d => d.fundedYear === year).map(d => d.cusip) ?? []);
-    const checkedCusips = new Set(override?.length ? override : defaultCusips);
+    // An override key that IS present — even an empty array, an explicit "nothing" pick — wins
+    // over the default; only a year with no key at all (never touched) falls back to the default.
+    const checkedCusips = new Set(override !== undefined ? override : defaultCusips);
     // Per column, the candidates for this year's month, lower coupon first (so row 0 is always
     // the lower-coupon issue when a month has two).
     const byCol = cols.map(mo => cands.filter(b => b.maturity.getMonth() + 1 === mo)
@@ -1320,6 +1322,12 @@ document.getElementById('build-maturity').addEventListener('change', () => {
     _openMaturityPickerModal();
   } else {
     _updateMaturityOptionLabel('Select maturities…');
+    // Select mode force-zeroed _daraByYearStore for every year with no explicit pick (see
+    // _runBuildFromForm below); leaving those zeros behind would silently zero the same years
+    // under the newly chosen named policy. Drop them so the panel re-fills with the flat default.
+    for (const [year, cusips] of _yearMaturityOverrides) {
+      if (!cusips.length) _daraByYearStore.delete(year);
+    }
     _yearMaturityOverrides.clear();     // picking a named policy replaces any custom picks
     _closeMaturityPickerModal();        // otherwise the picker for the old policy is left stranded open
     _maturityListOpenPending = false;
@@ -1363,11 +1371,13 @@ document.getElementById('maturity-picker-apply').addEventListener('click', () =>
     if (!byYear.has(yr)) byYear.set(yr, []);
     byYear.get(yr).push(cb.value);
   }
-  // The modal is authoritative for every year shown: a year with something checked gets that exact
-  // override; a year left with nothing checked (e.g. after Clear All) reverts to the base policy.
+  // The modal is authoritative for every year shown: a year with something checked gets that
+  // exact override; a year left with nothing checked (e.g. after Clear All) is an explicit pick
+  // of zero (2.0 §Picking Maturities for a Funded Year — "no explicit pick" forces DARA to $0, it
+  // is not a fallback to some other policy) and persists as an empty override so reopening the
+  // picker shows it deselected instead of reverting to whatever the policy fallback would pick.
   for (const year of _pickerYears()) {
-    if (byYear.has(year)) _yearMaturityOverrides.set(year, byYear.get(year));
-    else _yearMaturityOverrides.delete(year);
+    _yearMaturityOverrides.set(year, byYear.get(year) ?? []);
   }
   _closeMaturityPickerModal();
   // Build has no holdings, so "Apply" only ever means "re-run from scratch." Rebalance already has
@@ -3372,7 +3382,9 @@ function _runBuildFromForm() {
   // for a Funded Year): the ladder's actual last year is the latest year the user picked anything
   // for — the (now-disabled) Last Year field is ignored — and any in-range funded year the user
   // did NOT touch is intentionally left unfunded, the same precedence as a $0 per-year DARA entry.
-  const overrideYears = [..._yearMaturityOverrides.keys()];
+  // Only years with an actual pick count as "the latest year the user picked anything for" — an
+  // explicit empty pick (below) is intentionally unfunded and must not extend the range.
+  const overrideYears = [..._yearMaturityOverrides.entries()].filter(([, cusips]) => cusips.length > 0).map(([y]) => y);
   const lastYear = maturityPrefSel === 'select' && overrideYears.length
     ? Math.max(...overrideYears)
     : parseInt(document.getElementById('last-year').value);
@@ -3385,7 +3397,15 @@ function _runBuildFromForm() {
     daraByYear = new Map(daraByYear ?? []);
     for (const year of _pickerYears()) {
       if (year > lastYear) continue;
-      if (!_yearMaturityOverrides.get(year)?.length) daraByYear.set(year, 0);
+      if (!_yearMaturityOverrides.get(year)?.length) {
+        // No explicit pick this year forces its DARA to $0 (2.0 §Picking Maturities for a Funded
+        // Year — same precedence as a manual $0 per-year entry). Write it into _daraByYearStore
+        // too, not just this run's local copy — that's the same map the per-year DARA panel and
+        // the build table's DARA column both read (renderBuildOutput), so without this the table
+        // keeps showing the stale flat scalar for a year that's actually funding nothing.
+        daraByYear.set(year, 0);
+        _daraByYearStore.set(year, 0);
+      }
     }
   }
 
