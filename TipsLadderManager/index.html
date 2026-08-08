@@ -3062,7 +3062,7 @@ function _renderSegTools() {
   const tools = document.getElementById('dara-seg-tools');
   if (!_panelYearRange) { tools.style.display = 'none'; return; }
   const { fy, ly } = _panelYearRange;
-  _splitYears = _splitYears.filter(y => y > fy && y < ly);
+  _splitYears = _splitYears.filter(y => y >= fy && y < ly);
 
   const range = s => { const a = [...s]; return a.length ? `${Math.min(...a)}–${Math.max(...a)}` : '—'; };
 
@@ -3072,7 +3072,7 @@ function _renderSegTools() {
 
   const addSel = document.getElementById('split-year-add');
   let addOpts = '<option value="">+ add split year</option>';
-  for (let y = fy + 1; y < ly; y++) if (!_splitYears.includes(y)) addOpts += `<option value="${y}">${y}</option>`;
+  for (let y = fy; y < ly; y++) if (!_splitYears.includes(y)) addOpts += `<option value="${y}">${y}</option>`;
   addSel.innerHTML = addOpts;
 
   const segments = _segments();

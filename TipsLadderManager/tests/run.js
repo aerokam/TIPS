@@ -1347,6 +1347,13 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
   assert('segmentRanges: split=last (out of range) → single whole-ladder segment', segmentRanges(2055, 2026, 2055).length, 1);
   assert('segmentRanges: split=last → whole ladder LMP', allLmp.size, 30);
 
+  // split=firstYear is valid — it carves off a singleton first segment (only split=lastYear is dropped).
+  const [firstYearSeg, restSeg] = segmentRanges(2026, 2026, 2055);
+  assert('segmentRanges: split=first → two segments', segmentRanges(2026, 2026, 2055).length, 2);
+  assert('segmentRanges: split=first → seg1 is singleton', firstYearSeg.size, 1);
+  assert('segmentRanges: split=first → seg1 holds firstYear', firstYearSeg.has(2026), true);
+  assert('segmentRanges: split=first → seg2 count 2027–2055', restSeg.size, 29);
+
   // N-way split: two split years produce three consecutive segments.
   const [n1, n2, n3] = segmentRanges([2035, 2047], 2026, 2055);
   assert('segmentRanges: 3-way split count', segmentRanges([2035, 2047], 2026, 2055).length, 3);

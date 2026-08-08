@@ -11,14 +11,16 @@
 
 /**
  * Partition [firstYear, lastYear] at one or more split years into consecutive segments.
- * Split years outside (firstYear, lastYear) are dropped (they'd produce an empty segment);
- * duplicates are collapsed. With no usable split years the whole ladder is a single segment.
+ * A split at firstYear is valid — it carves off a singleton first segment. A split at lastYear
+ * is dropped, since it would produce an empty trailing segment; splits outside [firstYear, lastYear)
+ * are dropped too. Duplicates are collapsed. With no usable split years the whole ladder is a
+ * single segment.
  * @param {number|number[]} splitYears - one split year, or an array of them (any order).
  * @returns {Set<number>[]} segments in ascending year order, length = usable splits + 1.
  */
 export function segmentRanges(splitYears, firstYear, lastYear) {
   const splits = [...new Set([].concat(splitYears))]
-    .filter(y => y > firstYear && y < lastYear)
+    .filter(y => y >= firstYear && y < lastYear)
     .sort((a, b) => a - b);
   const bounds = [firstYear - 1, ...splits, lastYear];
   const segments = [];
