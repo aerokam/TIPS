@@ -246,8 +246,12 @@ async function loadFund(ticker) {
   const bondTerms = bondRows.map(r => r.Term).filter(t => t != null);
   const termUnit = bondTerms.length > 0 && bondTerms.every(t => t < 1) ? "w" : "y";
 
-  const fundName = fundMeta[ticker]?.fundName;
-  meta.textContent = `${ticker}${fundName ? " — " + fundName : ""} — ${rows.length} holdings, as of ${rows[0]["As of"]}`;
+  const fm = fundMeta[ticker] || {};
+  const metaParts = [`${ticker}${fm.fundName ? " — " + fm.fundName : ""}`];
+  if (fm.expenseRatio != null) metaParts.push(`Expense Ratio ${fm.expenseRatio.toFixed(2)}%`);
+  if (fm.secYield != null) metaParts.push(`30-Day SEC Yield ${fm.secYield.toFixed(2)}%`);
+  metaParts.push(`${rows.length} holdings, as of ${rows[0]["As of"]}`);
+  meta.textContent = metaParts.join(" — ");
 
   state = { rows, cols, wtdAvg, termUnit };
   renderTable();

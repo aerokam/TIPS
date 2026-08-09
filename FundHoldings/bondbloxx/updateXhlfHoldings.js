@@ -55,6 +55,18 @@ function parseAsOfDate(html) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+// Both figures are rendered directly into the page (no separate API call),
+// as percent-scale numbers (e.g. "0.03%"), matching the project's
+// Coupon-field convention.
+function parseExpenseRatioAndSecYield(html) {
+  const erMatch = html.match(/<h4>EXPENSE RATIO<\/h4>\s*<strong>([\d.]+)%<\/strong>/);
+  const secMatch = html.match(/<h4>30-Day Sec Yield<\/h4>\s*<strong>([\d.]+)%<\/strong>/i);
+  return {
+    expenseRatio: erMatch ? Number(erMatch[1]) : null,
+    secYield: secMatch ? Number(secMatch[1]) : null
+  };
+}
+
 // The "All Holdings" table is the only <table border="1"> on the page (every
 // other table on BondBloxx product pages omits the border attribute).
 function parseHoldingsTable(html) {
@@ -144,13 +156,14 @@ export async function updateBondbloxxHoldings(tickers) {
     const rows = parseHoldingsTable(html);
     const asOf = parseAsOfDate(html);
     console.log(`${ticker}: ${rows.length} holdings as of ${asOf}`);
+    const { expenseRatio, secYield } = parseExpenseRatioAndSecYield(html);
 
     const csv = toCsv(rows, asOf);
     const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
     fs.writeFileSync(filename, csv, "utf8");
     await upload(filename, "FundHoldings");
 
-    saveFundMeta(ticker, { fundName: FUND_NAMES[ticker] || "" });
+    saveFundMeta(ticker, { fundName: FUND_NAMES[ticker] || "", expenseRatio, secYield });
   }
 
   await upload(FUND_META_PATH, "FundHoldings", "application/json");

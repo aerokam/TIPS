@@ -29,6 +29,23 @@ async function getPortId(ticker) {
   return { portId: fundData.portId, fundName: fundData.fundName || "" };
 }
 
+// Expense ratio and SEC yield aren't in __INITIAL_FUND_DATA__; the product
+// page's own client-side JS bundle calls these two endpoints separately.
+async function getFeesAndYield(portId) {
+  const [feesRes, yieldsRes] = await Promise.all([
+    fetch(`https://advisors.vanguard.com/investments/products/api/funds/${portId}/fees`, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } }),
+    fetch(`https://advisors.vanguard.com/investments/products/api/funds/${portId}/analytics/yields`, { headers: { "User-Agent": USER_AGENT, Accept: "application/json" } })
+  ]);
+  if (!feesRes.ok) throw new Error(`Fees fetch failed for portId ${portId}: HTTP ${feesRes.status}`);
+  if (!yieldsRes.ok) throw new Error(`Yields fetch failed for portId ${portId}: HTTP ${yieldsRes.status}`);
+
+  const fees = await feesRes.json();
+  const yields = await yieldsRes.json();
+  const expenseRatio = fees.adjustedExpenseRatio?.value != null ? Number(fees.adjustedExpenseRatio.value) : null;
+  const secYield = yields.secYield?.percent != null ? Number(yields.secYield.percent) : null;
+  return { expenseRatio, secYield };
+}
+
 // Not every fund publishes a "daily" snapshot (money-market-like funds such as
 // VBIL do; standard index funds like VTIP 404 on it and only have "latest",
 // which for those funds is the last monthly/quarterly holdings disclosure).
@@ -132,13 +149,14 @@ export async function updateVanguardHoldings(tickers) {
 
     const { asOf, rows } = await getHoldings(portId);
     console.log(`${ticker}: ${rows.length} holdings as of ${asOf}`);
+    const { expenseRatio, secYield } = await getFeesAndYield(portId);
 
     const csv = toCsv(rows, asOf);
     const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
     fs.writeFileSync(filename, csv, "utf8");
     await upload(filename, "FundHoldings");
 
-    saveFundMeta(ticker, { fundName, portId });
+    saveFundMeta(ticker, { fundName, portId, expenseRatio, secYield });
   }
 
   await upload(FUND_META_PATH, "FundHoldings", "application/json");

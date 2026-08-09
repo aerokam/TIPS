@@ -17,29 +17,55 @@ const FUND_NAMES = { LTPZ: "PIMCO 15+ Year US TIPS Index ETF" };
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:143.0) Gecko/20100101 Firefox/143.0";
 
+// Every fund-detail-api endpoint (not just topTenHoldings/export) requires
+// asOfDate — confirmed from the product page's own JS bundle, which calls
+// each of these with an asOfDate param unconditionally. 9999-12-31 returns
+// the current/latest value, same trick as the holdings export.
+const PIMCO_API_HEADERS = {
+  "User-Agent": USER_AGENT,
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.5",
+  CountryCode: "US",
+  UserRole: "IND",
+  Client: "WEB",
+  LangCode: "en",
+  Origin: "https://www.pimco.com",
+  Referer: "https://www.pimco.com/"
+};
+
+function fundDetailUrl(cusip, endpoint) {
+  return `https://fund-ui.pimco.com/fund-detail-api/api/funds/${cusip}/${endpoint}?asOfDate=9999-12-31`;
+}
+
 // The endpoint is named topTenHoldings but with asOfDate=9999-12-31 returns
 // the full current holdings list, not just the top ten.
 function holdingsUrl(cusip) {
-  return `https://fund-ui.pimco.com/fund-detail-api/api/funds/${cusip}/topTenHoldings/export?asOfDate=9999-12-31`;
+  return fundDetailUrl(cusip, "topTenHoldings/export");
 }
 
 async function fetchWorkbook(cusip) {
-  const res = await fetch(holdingsUrl(cusip), {
-    headers: {
-      "User-Agent": USER_AGENT,
-      Accept: "application/json, text/plain, */*",
-      "Accept-Language": "en-US,en;q=0.5",
-      CountryCode: "US",
-      UserRole: "IND",
-      Client: "WEB",
-      LangCode: "en",
-      Origin: "https://www.pimco.com",
-      Referer: "https://www.pimco.com/"
-    }
-  });
+  const res = await fetch(holdingsUrl(cusip), { headers: PIMCO_API_HEADERS });
   if (!res.ok) throw new Error(`Holdings export fetch failed for CUSIP ${cusip}: HTTP ${res.status}`);
   const buf = new Uint8Array(await res.arrayBuffer());
   return XLSX.read(buf, { type: "array" });
+}
+
+// key-information carries the expense ratio; key-statistics carries the
+// (subsidized) 30-Day SEC yield. Both are percent-scale numbers already
+// (e.g. 0.200 = 0.20%), matching the project's Coupon-field convention.
+async function fetchExpenseRatioAndSecYield(cusip) {
+  const [keyInfoRes, keyStatsRes] = await Promise.all([
+    fetch(fundDetailUrl(cusip, "key-information"), { headers: PIMCO_API_HEADERS }),
+    fetch(fundDetailUrl(cusip, "key-statistics"), { headers: PIMCO_API_HEADERS })
+  ]);
+  if (!keyInfoRes.ok) throw new Error(`key-information fetch failed for CUSIP ${cusip}: HTTP ${keyInfoRes.status}`);
+  if (!keyStatsRes.ok) throw new Error(`key-statistics fetch failed for CUSIP ${cusip}: HTTP ${keyStatsRes.status}`);
+
+  const keyInfo = await keyInfoRes.json();
+  const keyStats = await keyStatsRes.json();
+  const expenseRatio = keyInfo.netExpenseRatio != null ? Number(keyInfo.netExpenseRatio) : null;
+  const secYield = keyStats.subsidizedSecYield != null ? Number(keyStats.subsidizedSecYield) : null;
+  return { expenseRatio, secYield };
 }
 
 const REQUIRED_COLS = ["CUSIP", "Description", "% of Net Assets"];
@@ -161,13 +187,14 @@ export async function updatePimcoHoldings(tickers) {
     const workbook = await fetchWorkbook(cusip);
     const { asOfDate, colIndex, body } = extractRows(workbook);
     console.log(`${ticker}: ${body.length} holdings as of ${asOfDate}`);
+    const { expenseRatio, secYield } = await fetchExpenseRatioAndSecYield(cusip);
 
     const csv = toCsv(body, colIndex, asOfDate);
     const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
     fs.writeFileSync(filename, csv, "utf8");
     await upload(filename, "FundHoldings");
 
-    saveFundMeta(ticker, { fundName: FUND_NAMES[ticker] || "", cusip });
+    saveFundMeta(ticker, { fundName: FUND_NAMES[ticker] || "", cusip, expenseRatio, secYield });
   }
 
   await upload(FUND_META_PATH, "FundHoldings", "application/json");

@@ -28,6 +28,21 @@ const FIDELITY_URL = "https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasu
 const GVMXX_NAME = "SSC GOVERNMENT MM GVMXX";
 const GVMXX_CUSIP = "7839989D1";
 
+// Both figures are rendered directly into the product page's key-stats
+// table (no separate API call), as percent-scale numbers (e.g. "0.030%"),
+// matching the project's Coupon-field convention. The page also repeats
+// Total Expense Ratio in a simpler summary-band span earlier in the page;
+// anchoring on the <th>...</th> table-row markup picks the detailed table
+// row specifically, avoiding ambiguity (both report the same value anyway).
+function parseExpenseRatioAndSecYield(html) {
+  const erMatch = html.match(/Total Expense Ratio<\/span><\/strong>[\s\S]{0,20}?<\/th>[\s\S]{0,100}?<td>([\d.]+)%<\/td>/);
+  const secMatch = html.match(/SEC Yield \(30 Day\)<\/span><\/strong>[\s\S]{0,300}?<td>([\d.]+)%<\/td>/);
+  return {
+    expenseRatio: erMatch ? Number(erMatch[1]) : null,
+    secYield: secMatch ? Number(secMatch[1]) : null
+  };
+}
+
 async function fetchHoldingsCsvText() {
   const browser = await puppeteer.launch({
     headless: true,
@@ -55,7 +70,7 @@ async function fetchHoldingsCsvText() {
       return res.text();
     }, csvUrl);
 
-    return text;
+    return { csvText: text, html };
   } finally {
     await browser.close();
   }
@@ -194,17 +209,18 @@ export async function updateSchwabHoldings(tickers) {
     if (ticker !== "SCHP") throw new Error(`Unknown Schwab ticker ${ticker}`);
 
     console.log(`\n=== Fetching ${ticker} ===`);
-    const [csvText, priceMap] = await Promise.all([fetchHoldingsCsvText(), loadFidelityTipsPriceMap()]);
+    const [{ csvText, html }, priceMap] = await Promise.all([fetchHoldingsCsvText(), loadFidelityTipsPriceMap()]);
     const rawRows = parseCsv(extractDataLines(csvText));
     const rows = buildRows(rawRows, priceMap);
     console.log(`${ticker}: ${rows.length} holdings`);
+    const { expenseRatio, secYield } = parseExpenseRatioAndSecYield(html);
 
     const csv = toCsv(rows);
     const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
     fs.writeFileSync(filename, csv, "utf8");
     await upload(filename, "FundHoldings");
 
-    saveFundMeta(ticker, { fundName: FUND_NAMES[ticker] || "" });
+    saveFundMeta(ticker, { fundName: FUND_NAMES[ticker] || "", expenseRatio, secYield });
   }
 
   await upload(FUND_META_PATH, "FundHoldings", "application/json");

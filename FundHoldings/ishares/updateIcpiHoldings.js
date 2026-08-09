@@ -13,6 +13,11 @@ const DATA_DIR = path.join(__dirname, "..", "data");
 // product page URL, e.g. .../products/347171/ishares-0-1-year-tips-bond-etf).
 const FUND_PORTFOLIO_IDS = { ICPI: "347171" };
 
+// Product page (separate from the holdings CSV export above), where expense
+// ratio and SEC yield are rendered — no further hardcoded id needed since the
+// full URL (including the fund's name-slug) is required to load it.
+const FUND_PRODUCT_PAGES = { ICPI: "https://www.blackrock.com/us/individual/products/347171/ishares-0-1-year-tips-bond-etf" };
+
 const USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/118.0.5993.117 Safari/537.36";
@@ -30,6 +35,31 @@ async function fetchHoldingsCsv(portfolioId) {
   const res = await fetch(holdingsUrl(portfolioId), { headers: { "User-Agent": USER_AGENT } });
   if (!res.ok) throw new Error(`Holdings export fetch failed for portfolioId ${portfolioId}: HTTP ${res.status}`);
   return res.text();
+}
+
+// Expense ratio and SEC yield are embedded in the product page's own
+// schema.org JSON-LD block (a "KeyDataPointsV3" node in its @graph), as
+// clean structured data rather than needing HTML-scraping — percent-scale
+// numbers (e.g. "0.09"), matching the project's Coupon-field convention.
+async function fetchExpenseRatioAndSecYield(ticker) {
+  const url = FUND_PRODUCT_PAGES[ticker];
+  if (!url) throw new Error(`Unknown iShares ticker ${ticker} — add it to FUND_PRODUCT_PAGES`);
+  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+  if (!res.ok) throw new Error(`Product page fetch failed for ${ticker}: HTTP ${res.status}`);
+  const html = await res.text();
+
+  const ldMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  if (!ldMatch) throw new Error(`Could not find JSON-LD block on product page for ${ticker}`);
+  const data = JSON.parse(ldMatch[1]);
+  const keyDataPoints = (data["@graph"] || []).find(n => String(n["@id"] || "").endsWith("#key-datapoints"));
+  const props = keyDataPoints?.additionalProperty || [];
+
+  const er = props.find(p => p.name === "Expense Ratio:");
+  const sec = props.find(p => p.name === "30 Day SEC Yield as of");
+  return {
+    expenseRatio: er ? Number(er.value) : null,
+    secYield: sec ? Number(String(sec.value).replace("%", "")) : null
+  };
 }
 
 const REQUIRED_COLS = ["Name", "CUSIP", "Market Value", "Weight (%)"];
@@ -131,13 +161,14 @@ export async function updateIsharesHoldings(tickers) {
     const text = await fetchHoldingsCsv(portfolioId);
     const { fundName, asOf, colIndex, body } = extractRows(text);
     console.log(`${ticker}: ${body.length} holdings as of ${asOf}`);
+    const { expenseRatio, secYield } = await fetchExpenseRatioAndSecYield(ticker);
 
     const csv = toCsv(body, colIndex, asOf);
     const filename = path.join(DATA_DIR, `Holdings-${ticker}.csv`);
     fs.writeFileSync(filename, csv, "utf8");
     await upload(filename, "FundHoldings");
 
-    saveFundMeta(ticker, { fundName, portfolioId });
+    saveFundMeta(ticker, { fundName, portfolioId, expenseRatio, secYield });
   }
 
   await upload(FUND_META_PATH, "FundHoldings", "application/json");
