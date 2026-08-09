@@ -1,0 +1,10 @@
+cusip,qty,excess
+91282CFR7,34,0
+91282CLV1,37,0
+91282CPH8,38,0
+#fundedYear,dara
+2027,40000
+2028,0
+2029,40000
+2030,40000
+#params,preLadderInterest=false,maturityPref=last,couponPref=higher

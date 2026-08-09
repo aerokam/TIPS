@@ -1505,6 +1505,19 @@ test('per-year DARA: an imported plan is honored exactly at Run on a ladder with
     .toBeGreaterThan((naturalVal + spikedVal) / 2);
 });
 
+// ── Holdings hole under an explicit #fundedYear,dara block still auto-splits ────────────────────
+// Regression: a Format-5 CusipQty file with its own #fundedYear,dara block takes the "honor it
+// exactly" load path, which used to return before the holdings-hole scan ever ran. CusipQtyEmptyRung
+// holds 2027/2029/2030 with 2028 stated at $0 DARA and no CUSIP of its own — a holdings hole exactly
+// like the mirror-path case, so the year before it (2027) must still appear as a split-year chip.
+test('rebalance: a holdings hole under an explicit #fundedYear,dara block still auto-splits at the year before it', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(path.join(FIXTURES, 'CusipQtyEmptyRung.csv'));
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+  await _openDaraPlan(page);
+  await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
+  await expect(page.locator('#split-year-chips')).toContainText('2027');
+});
+
 // ── Build-mode segment split + "$ each" + persistence (same tools, no Infer DARA) ──────────────
 // Build has no holdings to self-finance against, so it gets split years and the "$ each" constant
 // stamp (its batch-entry mechanism) but never the Infer DARA button. Opens the panel, expands it,

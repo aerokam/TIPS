@@ -2136,7 +2136,15 @@ function _initRebalDaraFromPortfolio() {
     if (fySel && [...fySel.options].some(o => +o.value === yrs[0])) fySel.value = String(yrs[0]);
     _daraLoadedSnapshot = new Map(_daraByYearStore);
     _daraManualLoadedSnapshot = new Set(_daraManualYears);
+    // A holdings hole still seeds an explicit split year here too — an explicit #fundedYear,dara
+    // block states DARA intent, not segmentation, and this file carries no #splitYears line of its
+    // own (the main holdings loader never parses one — only the standalone DARA-plan-file import
+    // does), so there is nothing more authoritative to defer to (3.0 §Auto split years from a
+    // holdings hole).
+    _splitYears = detectHoleSplitYears({ holdings: currentHoldingsArray, tipsMap, firstYear: yrs[0], lastYear: yrs[yrs.length - 1] });
     renderDaraByYearPanel();
+    _syncSegEchoFromStore();
+    _renderSegTools();
     return;
   }
 
