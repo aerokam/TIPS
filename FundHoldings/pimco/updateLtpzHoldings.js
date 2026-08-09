@@ -50,21 +50,26 @@ async function fetchWorkbook(cusip) {
   return XLSX.read(buf, { type: "array" });
 }
 
-// key-information carries the expense ratio; key-statistics carries the
-// (subsidized) 30-Day SEC yield. Both are percent-scale numbers already
-// (e.g. 0.200 = 0.20%), matching the project's Coupon-field convention.
+// key-information carries the expense ratio (percent-scale already, e.g.
+// 0.200 = 0.20%). The product page's own "30-Day SEC Yield" figure binds to
+// fund-stats' unsubsidized30SecYield with an explicit multiplyByOneHundred
+// (confirmed by grepping PIMCO's Angular bundle for the label's data
+// binding) — unlike every other PIMCO field used here, this one is a true
+// fraction, not already percent-scale. key-statistics' similarly-named
+// subsidizedSecYield is a different (month-end, not live-daily) figure and
+// is NOT what the page displays under this label — do not use it here.
 async function fetchExpenseRatioAndSecYield(cusip) {
-  const [keyInfoRes, keyStatsRes] = await Promise.all([
+  const [keyInfoRes, fundStatsRes] = await Promise.all([
     fetch(fundDetailUrl(cusip, "key-information"), { headers: PIMCO_API_HEADERS }),
-    fetch(fundDetailUrl(cusip, "key-statistics"), { headers: PIMCO_API_HEADERS })
+    fetch(fundDetailUrl(cusip, "fund-stats"), { headers: PIMCO_API_HEADERS })
   ]);
   if (!keyInfoRes.ok) throw new Error(`key-information fetch failed for CUSIP ${cusip}: HTTP ${keyInfoRes.status}`);
-  if (!keyStatsRes.ok) throw new Error(`key-statistics fetch failed for CUSIP ${cusip}: HTTP ${keyStatsRes.status}`);
+  if (!fundStatsRes.ok) throw new Error(`fund-stats fetch failed for CUSIP ${cusip}: HTTP ${fundStatsRes.status}`);
 
   const keyInfo = await keyInfoRes.json();
-  const keyStats = await keyStatsRes.json();
+  const fundStats = await fundStatsRes.json();
   const expenseRatio = keyInfo.netExpenseRatio != null ? Number(keyInfo.netExpenseRatio) : null;
-  const secYield = keyStats.subsidizedSecYield != null ? Number(keyStats.subsidizedSecYield) : null;
+  const secYield = fundStats.unsubsidized30SecYield != null ? Number(fundStats.unsubsidized30SecYield) * 100 : null;
   return { expenseRatio, secYield };
 }
 
