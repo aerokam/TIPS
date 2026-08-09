@@ -33,8 +33,24 @@ const PIMCO_API_HEADERS = {
   Referer: "https://www.pimco.com/"
 };
 
-function fundDetailUrl(cusip, endpoint) {
-  return `https://fund-ui.pimco.com/fund-detail-api/api/funds/${cusip}/${endpoint}?asOfDate=9999-12-31`;
+function fundDetailUrl(cusip, endpoint, asOfDate = "9999-12-31") {
+  return `https://fund-ui.pimco.com/fund-detail-api/api/funds/${cusip}/${endpoint}?asOfDate=${asOfDate}`;
+}
+
+// PIMCO's SEC yield figure goes through a compliance/certification step
+// before publishing — confirmed by direct testing: the "latest" record
+// (asOfDate=9999-12-31) already exists in their backend a business day
+// before the product page actually displays it under that date. Querying
+// the *prior* business day explicitly returns the exact value the page
+// shows. No holiday calendar here (weekend-skip only) — acceptable for a
+// display-only banner figure, not worth a shared holiday-calendar dependency.
+function previousBusinessDay(isoDate) {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  const day = d.getUTCDay(); // 0 = Sunday, 6 = Saturday
+  if (day === 0) d.setUTCDate(d.getUTCDate() - 2);
+  else if (day === 6) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
 }
 
 // The endpoint is named topTenHoldings but with asOfDate=9999-12-31 returns
@@ -54,21 +70,33 @@ async function fetchWorkbook(cusip) {
 // 0.200 = 0.20%). The product page's own "30-Day SEC Yield" figure binds to
 // fund-stats' unsubsidized30SecYield with an explicit multiplyByOneHundred
 // (confirmed by grepping PIMCO's Angular bundle for the label's data
-// binding) — unlike every other PIMCO field used here, this one is a true
+// binding, at two separate places on the page that both use this exact
+// field) — unlike every other PIMCO field used here, this one is a true
 // fraction, not already percent-scale. key-statistics' similarly-named
 // subsidizedSecYield is a different (month-end, not live-daily) figure and
 // is NOT what the page displays under this label — do not use it here.
 async function fetchExpenseRatioAndSecYield(cusip) {
-  const [keyInfoRes, fundStatsRes] = await Promise.all([
+  const [keyInfoRes, latestStatsRes] = await Promise.all([
     fetch(fundDetailUrl(cusip, "key-information"), { headers: PIMCO_API_HEADERS }),
     fetch(fundDetailUrl(cusip, "fund-stats"), { headers: PIMCO_API_HEADERS })
   ]);
   if (!keyInfoRes.ok) throw new Error(`key-information fetch failed for CUSIP ${cusip}: HTTP ${keyInfoRes.status}`);
-  if (!fundStatsRes.ok) throw new Error(`fund-stats fetch failed for CUSIP ${cusip}: HTTP ${fundStatsRes.status}`);
+  if (!latestStatsRes.ok) throw new Error(`fund-stats fetch failed for CUSIP ${cusip}: HTTP ${latestStatsRes.status}`);
 
   const keyInfo = await keyInfoRes.json();
-  const fundStats = await fundStatsRes.json();
+  const latestStats = await latestStatsRes.json();
   const expenseRatio = keyInfo.netExpenseRatio != null ? Number(keyInfo.netExpenseRatio) : null;
+
+  // "Latest" (asOfDate=9999-12-31) already has a business day's worth of SEC
+  // yield the page hasn't published yet — re-fetch at the prior business day
+  // to get the figure that actually matches the page.
+  let fundStats = latestStats;
+  if (latestStats.unsubsidized30SecYieldAsOfDate) {
+    const displayDate = previousBusinessDay(latestStats.unsubsidized30SecYieldAsOfDate);
+    const displayRes = await fetch(fundDetailUrl(cusip, "fund-stats", displayDate), { headers: PIMCO_API_HEADERS });
+    if (!displayRes.ok) throw new Error(`fund-stats fetch failed for CUSIP ${cusip} at ${displayDate}: HTTP ${displayRes.status}`);
+    fundStats = await displayRes.json();
+  }
   const secYield = fundStats.unsubsidized30SecYield != null ? Number(fundStats.unsubsidized30SecYield) * 100 : null;
   return { expenseRatio, secYield };
 }
