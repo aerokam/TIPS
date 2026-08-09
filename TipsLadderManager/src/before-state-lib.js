@@ -81,6 +81,45 @@ export function getLowerBracketCandidateYears(tipsMap) {
   return [...years].sort((a, b) => a - b);
 }
 
+// Years in [firstYear, lastYear] with NO held CUSIP at all (funded or excess) — a "holdings hole"
+// (3.0 §Intentional empty rungs' "empty interior funded year"). Excludes structural gap years
+// (2037-2039, no TIPS ever issued for anyone) and any year beyond the last-issued TIPS maturity
+// (the hypothetical Future 30Y range) — neither is a gap in what the USER holds, both are years
+// with no TIPS available to hold in the first place.
+export function getHoldingsHoleYears({ holdings, tipsMap, firstYear, lastYear }) {
+  const heldYears = new Set();
+  let maxTipsYear = 0;
+  for (const b of tipsMap.values()) {
+    if (b.maturity) maxTipsYear = Math.max(maxTipsYear, b.maturity.getFullYear());
+  }
+  for (const h of holdings) {
+    const bond = tipsMap.get(h.cusip);
+    if (bond?.maturity) heldYears.add(bond.maturity.getFullYear());
+  }
+  const gapYears = new Set(getGapYears(tipsMap));
+  const holes = [];
+  for (let y = firstYear; y <= lastYear; y++) {
+    if (gapYears.has(y) || y > maxTipsYear) continue;
+    if (!heldYears.has(y)) holes.push(y);
+  }
+  return holes;
+}
+
+// Split years implied by holdings holes (3.0 §Segmented DARA "Auto split years from a holdings
+// hole"): the year immediately before each maximal run of consecutive holes becomes a split year,
+// turning what file load used to mirror as a silent LMI-only stub into an explicit segment
+// boundary the moment the file loads. A run of holes starting AT firstYear has no year before it
+// to mark and is dropped — same as segmentRanges already drops any split outside
+// [firstYear, lastYear).
+export function detectHoleSplitYears({ holdings, tipsMap, firstYear, lastYear }) {
+  const holes = new Set(getHoldingsHoleYears({ holdings, tipsMap, firstYear, lastYear }));
+  const splitYears = [];
+  for (let y = firstYear; y <= lastYear; y++) {
+    if (holes.has(y) && !holes.has(y - 1) && y > firstYear) splitYears.push(y - 1);
+  }
+  return splitYears;
+}
+
 // Detect bracket-candidate excess flags (3.0 §Before-State Preview and Bracket-Year Excess
 // Detection). Returns Map<year, { median, excess }> — one entry per FLAGGED year only.
 //

@@ -823,6 +823,11 @@ test('rebalance: gap-free portfolio with interior holes makes no large trades', 
 // then FILL 2029 to that DARA (target ≥ 1 bond) — an explicitly-raised empty year is the user's
 // stated intent, not a hole. (The earlier hole-handling wrongly forced every unheld year to 0,
 // so the panel showed the LMP value but the rebalance ignored it.) 3.0 §Intentional empty rungs.
+//
+// File load itself now auto-splits at every holdings hole (3.0 §Segmented DARA "Auto split years
+// from a holdings hole") — this fixture's holes at 2029 and 2032 already seed split years at 2028
+// and 2031 before this test touches anything. The segment containing 2029 is located by its own
+// label text rather than a hardcoded index, so it doesn't matter how many auto-splits landed below it.
 test('rebalance: Infer LMP fills an empty interior year to the segment DARA', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(path.join(FIXTURES, 'OfxInteriorHoles.csv'));
@@ -830,9 +835,10 @@ test('rebalance: Infer LMP fills an empty interior year to the segment DARA', as
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
 
-  // Split so the empty year 2029 sits inside the bottom (LMP) segment, then infer it.
+  // Split so the empty year 2029 sits alone with 2030 in its own segment, then infer it.
   await page.locator('#split-year-add').selectOption({ value: '2030' });
-  await page.locator('#seg-rows .seg-infer-btn[data-idx="0"]').click();
+  const seg2029 = page.locator('.seg-row', { hasText: '2029' });
+  await seg2029.locator('.seg-infer-btn').click();
   // Panel now shows a flat LMP DARA on 2029 (the empty year).
   const lmp2029 = await page.locator('.fy-dara-input[data-year="2029"]').inputValue();
   expect(parseFloat(lmp2029.replace(/[^0-9.-]/g, '')), '2029 shows the LMP DARA in the panel').toBeGreaterThan(1000);

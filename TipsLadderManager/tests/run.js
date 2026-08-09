@@ -6,7 +6,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
 import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, inferDARAFromCash, inferScaledDARAFromPortfolio, inferSegmentedDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings } from '../src/rebalance-lib.js';
 import { segmentRanges, constantMap, applySegmentMap } from '../src/segment-dara.js';
-import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
+import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, getHoldingsHoleYears, detectHoleSplitYears } from '../src/before-state-lib.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
@@ -1848,6 +1848,52 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   const flags = detectBracketFlags({ heldARAByYear: heldARA, tipsMap, lastYear: 2039 });
   assert('before-state: two candidates exceed median → only one flagged', flags.size, 1);
   assert('before-state: the LATER-maturing of two exceeding candidates wins (2035, not 2034)', flags.has(2035), true);
+}
+
+// ── Auto split years from a holdings hole (3.0 §Intentional empty rungs, §Segmented DARA) ──────
+// A holdings hole — an ordinary funded year with no held CUSIP at all — becomes an explicit split
+// year at load (the year immediately before the hole), instead of being silently mirrored as an
+// LMI-only stub with no segment boundary.
+console.log('\nAuto split years from a holdings hole (before-state-lib.js)');
+{
+  const cusipFor = (year) => [...tipsMap.values()].find(b => b.maturity?.getFullYear() === year)?.cusip;
+
+  // Single hole: held 2028/2029/2031, nothing at 2030 -> split at 2029 (the year before the hole).
+  {
+    const holdings = [2028, 2029, 2031].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
+    assert('holdings hole: fixture holds 2028/2029/2031 (2030 genuinely has no holding)', holdings.length, 3);
+    const holes = getHoldingsHoleYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
+    assert('holdings hole: 2030 detected as the hole', holes.join(','), '2030');
+    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
+    assert('holdings hole: split year is 2029 (year before the hole)', splits.join(','), '2029');
+  }
+
+  // Consecutive holes collapse to ONE split, at the start of the run (2029/2030 both empty).
+  {
+    const holdings = [2028, 2031].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
+    assert('holdings hole: fixture holds 2028/2031 only', holdings.length, 2);
+    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
+    assert('holdings hole: consecutive holes (2029,2030) produce one split at 2028', splits.join(','), '2028');
+  }
+
+  // A hole AT firstYear has no year before it to mark — ignored, not an error.
+  {
+    const holdings = [2029, 2030, 2031].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
+    assert('holdings hole: fixture holds 2029/2030/2031 (2028 = firstYear, unheld)', holdings.length, 3);
+    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
+    assert('holdings hole: a hole at firstYear produces no split', splits.join(','), '');
+  }
+
+  // Structural gap years (2037-2039) are never holes — they can't be held by anyone, so an
+  // unheld gap year must not trigger a split.
+  {
+    const holdings = [2035, 2036, 2040].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
+    assert('holdings hole: fixture holds 2035/2036/2040 spanning the structural gap', holdings.length, 3);
+    const holes = getHoldingsHoleYears({ holdings, tipsMap, firstYear: 2035, lastYear: 2040 });
+    assert('holdings hole: no holes across a fully-held-around structural gap', holes.join(','), '');
+    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2035, lastYear: 2040 });
+    assert('holdings hole: structural gap years never produce a split on their own', splits.join(','), '');
+  }
 }
 
 // ── Within-Year Allocation Policy (2.0 §Within-Year Allocation Policy; the E invariant) ───────

@@ -593,7 +593,7 @@ import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAF
 // Standalone Before-state preview (3.0 §Before-State Preview and Bracket-Year Excess Detection) —
 // a holdings-valuation computation, architecturally decoupled from the runRebalance/
 // runFundedRebalance engine imported above. Never calls into it.
-import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, UPPER_BRACKET_YEAR, FUTURE30Y_COVER_YEARS } from './src/before-state-lib.js';
+import { computeBeforeState, detectBracketFlags, detectHoleSplitYears, heldYearMedianExcluding, UPPER_BRACKET_YEAR, FUTURE30Y_COVER_YEARS } from './src/before-state-lib.js';
 import { segmentRanges, constantMap, applySegmentMap } from './src/segment-dara.js';
 import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable, COLS } from './src/render.js';
@@ -2151,6 +2151,12 @@ function _initRebalDaraFromPortfolio() {
   const firstYear = Math.min(...heldYearNums);
   const lastYear = parseInt(document.getElementById('rebal-last-year').value) || Math.max(...heldYearNums);
 
+  // A holdings hole (an ordinary funded year with no held CUSIP at all) becomes an explicit split
+  // year at load, instead of a silently-mirrored LMI-only stub (3.0 §Intentional empty rungs,
+  // §Segmented DARA). _splitYears was already reset to [] by the file-load handler, so this is a
+  // fresh detection from the just-loaded holdings, not a merge with anything prior.
+  _splitYears = detectHoleSplitYears({ holdings: currentHoldingsArray, tipsMap, firstYear, lastYear });
+
   // Scalar fallback (top DARA box / years with no other source) — plain held-year median, same
   // "middle of sorted array" convention as derivePerYearDara, but with no candidate set so nothing
   // is capped here (derivePerYearDara's own 1.5x-median auto-cap stays reserved for the Run-time
@@ -2203,7 +2209,12 @@ function _initRebalDaraFromPortfolio() {
   _daraLoadedSnapshot = new Map(_daraByYearStore);
   _daraManualLoadedSnapshot = new Set();  // load mirror — nothing hand-typed yet
   document.getElementById('dara').value = median;
-  renderDaraByYearPanel();
+  renderDaraByYearPanel();  // sets _panelYearRange from the just-updated dropdowns first
+  // Auto-detected split years may have just created new segments — recompute their "$ each"
+  // echoes from the store and re-render the segment rows, same pattern the cache-Apply and
+  // DARA-plan-Import restores already use (3.0 §Restoring the "$ each" echoes).
+  _syncSegEchoFromStore();
+  _renderSegTools();
   _renderBeforeStatePreview();
 }
 
