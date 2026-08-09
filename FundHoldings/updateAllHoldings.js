@@ -15,6 +15,7 @@ import { updateFminvestHoldings } from "./fminvest/updateFminvestHoldings.js";
 import { updatePimcoHoldings } from "./pimco/updateLtpzHoldings.js";
 import { updateSchwabHoldings } from "./schwab/updateSchpHoldings.js";
 import { updateBondbloxxHoldings } from "./bondbloxx/updateXhlfHoldings.js";
+import { updateIsharesHoldings } from "./ishares/updateIcpiHoldings.js";
 import { enrichHoldingsFile } from "./enrichHoldings.js";
 
 const VANGUARD_TICKERS = ["VBIL", "VTIP", "VTP"];
@@ -22,7 +23,8 @@ const FMINVEST_TICKERS = ["RBIL"];
 const PIMCO_TICKERS = ["LTPZ"];
 const SCHWAB_TICKERS = ["SCHP"];
 const BONDBLOXX_TICKERS = ["XHLF"];
-const ALL_TICKERS = [...VANGUARD_TICKERS, ...FMINVEST_TICKERS, ...PIMCO_TICKERS, ...SCHWAB_TICKERS, ...BONDBLOXX_TICKERS];
+const ISHARES_TICKERS = ["ICPI"];
+const ALL_TICKERS = [...VANGUARD_TICKERS, ...FMINVEST_TICKERS, ...PIMCO_TICKERS, ...SCHWAB_TICKERS, ...BONDBLOXX_TICKERS, ...ISHARES_TICKERS];
 
 async function main() {
   await updateVanguardHoldings(VANGUARD_TICKERS);
@@ -30,6 +32,7 @@ async function main() {
   await updatePimcoHoldings(PIMCO_TICKERS);
   await updateSchwabHoldings(SCHWAB_TICKERS);
   await updateBondbloxxHoldings(BONDBLOXX_TICKERS);
+  await updateIsharesHoldings(ISHARES_TICKERS);
 
   for (const ticker of ALL_TICKERS) {
     await enrichHoldingsFile(ticker);
