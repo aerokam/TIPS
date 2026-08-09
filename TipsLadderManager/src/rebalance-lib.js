@@ -396,6 +396,19 @@ export function getGapYears(tipsMap) {
   return gapYears;
 }
 
+// Years with NO TIPS instrument available at all, up through `lastYear` — structural gap years
+// (2037-2039) plus any year beyond the last-issued TIPS maturity (the hypothetical Future 30Y
+// range). Neither is a "hole" in what's held/picked; there's nothing to hold/pick there in the
+// first place. Single source shared by both modes' hole detection (before-state-lib.js's
+// getHoldingsHoleYears, Build's own per-year DARA scan — 3.0 §Auto split years from a holdings hole).
+export function getYearsWithNoTips(tipsMap, lastYear) {
+  let maxTipsYear = 0;
+  for (const b of tipsMap.values()) { if (b.maturity) maxTipsYear = Math.max(maxTipsYear, b.maturity.getFullYear()); }
+  const years = new Set(getGapYears(tipsMap));
+  for (let y = maxTipsYear + 1; y <= lastYear; y++) years.add(y);
+  return years;
+}
+
 // Years adjacent to the structural gap (2037-2039) that may carry bracket excess: the
 // 2040 upper bracket and any Jan TIPS in [2032, minGap) that could have been an old lower
 // bracket. Holdings in these years with ARA > 1.5× median are auto-capped to median.

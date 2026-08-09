@@ -611,6 +611,29 @@ test('build: editing a per-year DARA input blanks the DARA field to "by year"', 
   await expect(page.locator('#dara')).toHaveAttribute('placeholder', 'by year');
 });
 
+// Build has no holdings, so its "hole" signal is a $0 per-year DARA target — however it got there
+// (a manual entry here, or an unpicked Select-maturities year). Committing a 0 must isolate that
+// year as its own segment live, before any export/import round-trip (3.0 §Auto split years from a
+// holdings hole).
+test('build: typing 0 into a per-year DARA input auto-splits around that year', async ({ page }) => {
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await page.locator('#last-year').selectOption({ value: '2035' });
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#build-table .fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  // Not the very first rendered year, so a "before" split is possible too (a hole at firstYear only
+  // gets the trailing split — 3.0 §Auto split years from a holdings hole).
+  const target = page.locator('#build-table .fy-dara-input[data-year]').nth(1);
+  const targetYear = await target.getAttribute('data-year');
+  await target.fill('0');   // 'input' listener writes the 0 into _daraByYearStore immediately
+  await page.locator('#run-btn').click();   // re-run picks it up (Tab would just move to the NEXT
+                                             // .fy-dara-input, which the commit handler treats as
+                                             // "still editing another rung" and skips the rebuild)
+  await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
+  await expect(page.locator('#split-year-chips .plan-chip', { hasText: targetYear })).toBeVisible();
+  await expect(page.locator('#seg-rows .seg-row', { hasText: `${targetYear}–${targetYear}` })).toBeVisible();
+});
+
 // Rebuilding #simple-table on every Rebalance Ladder run wipes every fy-group-header's
 // data-expanded attribute -- _captureExpandedState/_restoreOrDefaultGroupsExpanded carry the prior
 // expand/collapse state across the rebuild so re-running after a Maturity preference/Allocation
@@ -824,19 +847,22 @@ test('rebalance: gap-free portfolio with interior holes makes no large trades', 
 // stated intent, not a hole. (The earlier hole-handling wrongly forced every unheld year to 0,
 // so the panel showed the LMP value but the rebalance ignored it.) 3.0 §Intentional empty rungs.
 //
-// File load itself now auto-splits at every holdings hole (3.0 §Segmented DARA "Auto split years
-// from a holdings hole") — this fixture's holes at 2029 and 2032 already seed split years at 2028
-// and 2031 before this test touches anything. The segment containing 2029 is located by its own
-// label text rather than a hardcoded index, so it doesn't matter how many auto-splits landed below it.
+// File load itself now isolates every holdings hole as its OWN segment (3.0 §Segmented DARA "Auto
+// split years from a holdings hole") — this fixture's holes at 2029 and 2032 seed splits at
+// 2028/2029/2031/2032 before this test touches anything, so 2029 already sits alone in its own
+// segment. A singleton empty-year segment has nothing of its own to self-finance against, so this
+// test removes the auto split AT 2029 (merging it back into the 2030/2031 segment, which holds
+// real bonds) to reconstruct the "empty year inside a larger segment" shape the regression targets
+// — demonstrating that an auto-added split is an ordinary, removable chip, not a locked one.
 test('rebalance: Infer LMP fills an empty interior year to the segment DARA', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(path.join(FIXTURES, 'OfxInteriorHoles.csv'));
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
+  await expect(page.locator('#split-year-chips .plan-chip', { hasText: '2029' })).toBeVisible();
 
-  // Split so the empty year 2029 sits alone with 2030 in its own segment, then infer it.
-  await page.locator('#split-year-add').selectOption({ value: '2030' });
+  await page.locator('.plan-chip-remove[data-year="2029"]').click();
   const seg2029 = page.locator('.seg-row', { hasText: '2029' });
   await seg2029.locator('.seg-infer-btn').click();
   // Panel now shows a flat LMP DARA on 2029 (the empty year).
@@ -1508,14 +1534,18 @@ test('per-year DARA: an imported plan is honored exactly at Run on a ladder with
 // ── Holdings hole under an explicit #fundedYear,dara block still auto-splits ────────────────────
 // Regression: a Format-5 CusipQty file with its own #fundedYear,dara block takes the "honor it
 // exactly" load path, which used to return before the holdings-hole scan ever ran. CusipQtyEmptyRung
-// holds 2027/2029/2030 with 2028 stated at $0 DARA and no CUSIP of its own — a holdings hole exactly
-// like the mirror-path case, so the year before it (2027) must still appear as a split-year chip.
-test('rebalance: a holdings hole under an explicit #fundedYear,dara block still auto-splits at the year before it', async ({ page }) => {
+// holds 2027/2029/2030 with 2028 stated at $0 DARA and no CUSIP of its own — a holdings hole. It
+// must isolate itself as its OWN segment: a split at 2027 (before it) AND at 2028 (its own end),
+// producing three segments — {2027}, {2028}, {2029,2030} — not just a leading split that lumps 2028
+// in with 2029/2030.
+test('rebalance: a holdings hole under an explicit #fundedYear,dara block isolates itself as its own segment', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(path.join(FIXTURES, 'CusipQtyEmptyRung.csv'));
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await _openDaraPlan(page);
   await expect(page.locator('#dara-seg-tools')).toBeVisible({ timeout: 2_000 });
-  await expect(page.locator('#split-year-chips')).toContainText('2027');
+  await expect(page.locator('#split-year-chips .plan-chip', { hasText: '2027' })).toBeVisible();
+  await expect(page.locator('#split-year-chips .plan-chip', { hasText: '2028' })).toBeVisible();
+  await expect(page.locator('#seg-rows .seg-row', { hasText: '2028–2028' })).toBeVisible();
 });
 
 // ── Build-mode segment split + "$ each" + persistence (same tools, no Infer DARA) ──────────────

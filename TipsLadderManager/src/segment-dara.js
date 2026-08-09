@@ -32,6 +32,28 @@ export function segmentRanges(splitYears, firstYear, lastYear) {
   return segments;
 }
 
+/**
+ * Split years that isolate every "hole" year (a funded year with no bond of its own — no held
+ * CUSIP in Rebalance, a forced-$0 DARA in Build) as its OWN segment, framed by a split immediately
+ * before the hole run and a split at the hole run's own last year. A single isolated hole therefore
+ * produces TWO split years (before it and at it), not one — e.g. holes={2028} in [2027,2030] yields
+ * [2027,2028]: segments {2027}, {2028}, {2029,2030}. A run of consecutive holes collapses to one
+ * segment covering the whole run, still framed on both sides. Mode-agnostic — callers supply their
+ * own domain-specific hole set (3.0 §Auto split years from a holdings hole).
+ * @param {number[]|Set<number>} holeYears
+ * @returns {number[]} split years, ascending, deduplicated.
+ */
+export function splitYearsFromHoles(holeYears, firstYear, lastYear) {
+  const holes = new Set(holeYears);
+  const splits = new Set();
+  for (let y = firstYear; y <= lastYear; y++) {
+    if (!holes.has(y)) continue;
+    if (y > firstYear && !holes.has(y - 1)) splits.add(y - 1);   // frame the start of the run
+    if (y < lastYear && !holes.has(y + 1)) splits.add(y);        // frame the end of the run
+  }
+  return [...splits].sort((a, b) => a - b);
+}
+
 /** Map of every year in `years` (Set or array) → constant `value`. */
 export function constantMap(years, value) {
   const m = new Map();

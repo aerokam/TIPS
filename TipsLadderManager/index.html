@@ -589,12 +589,12 @@
 </div>
 
 <script type="module">
-import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate, calculatePIPerBond } from './src/rebalance-lib.js';
+import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, getYearsWithNoTips, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate, calculatePIPerBond } from './src/rebalance-lib.js';
 // Standalone Before-state preview (3.0 §Before-State Preview and Bracket-Year Excess Detection) —
 // a holdings-valuation computation, architecturally decoupled from the runRebalance/
 // runFundedRebalance engine imported above. Never calls into it.
 import { computeBeforeState, detectBracketFlags, detectHoleSplitYears, heldYearMedianExcluding, UPPER_BRACKET_YEAR, FUTURE30Y_COVER_YEARS } from './src/before-state-lib.js';
-import { segmentRanges, constantMap, applySegmentMap } from './src/segment-dara.js';
+import { segmentRanges, constantMap, applySegmentMap, splitYearsFromHoles } from './src/segment-dara.js';
 import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill } from './src/drill.js';
@@ -2251,6 +2251,20 @@ function _renderBeforeStatePreview() {
   // panel never live-updated an already-rendered result table).
   if (rebalanceRendered) return;
 
+  // Holdings holes union into _splitYears on every preview render (per-rung edit, Select-maturities
+  // Apply, RefCPI change, ...), never removing a split the user took off (3.0 §Auto split years
+  // from a holdings hole). When Select maturities is active, a year the user has explicitly
+  // deselected (a held CUSIP unchecked = a deliberate future sell) counts as a hole too, even
+  // though it's still currently held — the TARGET for that year is already zero.
+  const extraHoleYears = document.getElementById('build-maturity').value === 'select'
+    ? [..._yearMaturityOverrides.entries()].filter(([y, cusips]) => y >= firstYear && y <= lastYear && cusips.length === 0).map(([y]) => y)
+    : [];
+  const holeSplits = detectHoleSplitYears({ holdings: currentHoldingsArray, tipsMap, firstYear, lastYear, extraHoleYears });
+  if (holeSplits.some(y => !_splitYears.includes(y))) {
+    _splitYears = [...new Set([..._splitYears, ...holeSplits])].sort((a, b) => a - b);
+  }
+  _renderSegTools();
+
   const { rows, gapYears, future30yYears } = computeBeforeState({
     holdings: currentHoldingsArray, tipsMap, refCPI: rc, firstYear, lastYear, daraByYear: _daraByYearStore,
   });
@@ -3450,7 +3464,27 @@ function _runBuildFromForm() {
 
   document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
   document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
+  _autoSplitBuildFromZeroDara(result.summary.firstYear, result.summary.lastYear);
   return true;
+}
+
+// A Build funded year with a $0 target — forced by Select maturities leaving it unpicked, or typed
+// directly into its per-year DARA input — is the same structural situation as a Rebalance holdings
+// hole (3.0 §Auto split years from a holdings hole): no bond of its own. Isolates it as its own
+// segment via the shared before/after rule, unioned into `_splitYears` — never removes a split the
+// user has taken off (only ever adds), so this is safe to call on every Build run.
+function _autoSplitBuildFromZeroDara(firstYear, lastYear) {
+  const ineligible = getYearsWithNoTips(tipsMap, lastYear);
+  const holeYears = [];
+  for (let y = firstYear; y <= lastYear; y++) {
+    if (ineligible.has(y)) continue;
+    if ((_daraByYearStore.get(y) ?? null) === 0) holeYears.push(y);
+  }
+  const auto = splitYearsFromHoles(holeYears, firstYear, lastYear);
+  if (auto.some(y => !_splitYears.includes(y))) {
+    _splitYears = [...new Set([..._splitYears, ...auto])].sort((a, b) => a - b);
+    _renderSegTools();
+  }
 }
 
 // ─── Run handler ──────────────────────────────────────────────────────────────
