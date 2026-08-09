@@ -641,14 +641,26 @@ function _updateCouponFieldVisibility() {
   const pref = document.getElementById('build-maturity').value;
   const show = currentMode === 'build' && pref !== 'last' && pref !== 'select';
   document.getElementById('field-build-coupon').style.display = show ? '' : 'none';
-  // In Select mode the maturity picks dictate the ladder's range (2.0 §Picking Maturities for a
-  // Funded Year) — First/Last Year no longer drive anything, so hide them rather than leave
-  // controls on-screen that look live but are ignored. Only touch these in Build mode; Rebalance
-  // mode's own visibility rules (elsewhere) own these fields there.
-  if (currentMode === 'build') {
-    const hideYearFields = pref === 'select';
-    document.getElementById('field-first-year').style.display = hideYearFields ? 'none' : '';
-    document.getElementById('field-last-year').style.display = hideYearFields ? 'none' : '';
+  _syncYearFieldsForMaturityPref();
+}
+
+// In Select mode the maturity picks dictate the ladder's range (2.0 §Picking Maturities for a
+// Funded Year) — First/Last Year no longer drive anything. Rather than hide them (which left no
+// way to SEE what range the picks had settled on), they stay visible but disabled, their value
+// kept in sync with `_effectiveYearRange()`. Not authoritative for any actual computation — Build/
+// Rebalance run and the DARA Plan card all read `_effectiveYearRange()` directly — this only
+// updates what's on screen. Applies to whichever mode's field pair is currently showing.
+function _syncYearFieldsForMaturityPref() {
+  const isSelect = document.getElementById('build-maturity').value === 'select';
+  const isRebal = currentMode === 'rebalance';
+  const fyEl = document.getElementById(isRebal ? 'rebal-first-year' : 'first-year');
+  const lyEl = document.getElementById(isRebal ? 'rebal-last-year' : 'last-year');
+  fyEl.disabled = isSelect;
+  lyEl.disabled = isSelect;
+  if (isSelect) {
+    const { firstYear, lastYear } = _effectiveYearRange();
+    if (firstYear != null && [...fyEl.options].some(o => +o.value === firstYear)) fyEl.value = String(firstYear);
+    if (lastYear != null && [...lyEl.options].some(o => +o.value === lastYear)) lyEl.value = String(lastYear);
   }
 }
 document.getElementById('build-maturity').addEventListener('change', _updateCouponFieldVisibility);
@@ -945,8 +957,8 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     document.getElementById('field-rebal-last-year').style.display = isRebalance ? '' : 'none';
     document.getElementById('field-last-year').style.display = isRebalance ? 'none' : '';
     document.getElementById('field-pre-ladder').style.display = '';
-    // Runs last: in Build+Select mode this re-hides First/Last Year, overriding the isRebalance-
-    // based sets just above (which always show them for Build regardless of maturity pref).
+    // Runs last: applies the just-restored mode's own maturityPref, disabling + syncing the
+    // now-visible First/Last Year pair (set just above) when that mode is mid-Select-maturities.
     _updateCouponFieldVisibility();
     _updateAllocPolicyLock();
 
@@ -1192,13 +1204,42 @@ function _pickerCandidates(year) {
   return cands.sort((a, b) => a.maturity - b.maturity);
 }
 
-// Every funded year currently in range (mirrors the year gathering in selectLadderBonds).
-// Mode-aware: Rebalance and Build keep First/Last Year in separate fields (rebal-first-year/
-// rebal-last-year vs first-year/last-year — see 6.0 §Form Card Layout).
-function _pickerYears() {
+// The range implied by Select maturities' pick set — [min picked year, max picked year] — or null
+// when Select isn't active or nothing has been picked yet. A single source shared by every caller
+// below; each applies its OWN fallback for the null case, because "no picks yet" means something
+// different to each: the picker/DARA panel want a concrete year to work with (settlement year),
+// while Rebalance's run-time firstYearOverride/lastYearOverride must stay genuinely unset so the
+// engine keeps deriving the range from holdings, not silently pinned to a default.
+function _pickedYearRange() {
+  if (document.getElementById('build-maturity').value !== 'select') return null;
+  const pickedYears = [..._yearMaturityOverrides.entries()].filter(([, cusips]) => cusips.length > 0).map(([y]) => y);
+  return pickedYears.length ? { firstYear: Math.min(...pickedYears), lastYear: Math.max(...pickedYears) } : null;
+}
+
+// Effective [firstYear, lastYear] for the CURRENT mode — the single source the picker's own year
+// range, the Build run, and the DARA Plan card all read instead of each re-deriving its own. While
+// Select maturities is active and at least one pick has been made, the pick set itself determines
+// BOTH ends (2.0 §Picking Maturities for a Funded Year — a dictate, not a preference): First/Last
+// Year stop driving anything and are kept as a disabled, synced display of this range instead
+// (`_syncYearFieldsForMaturityPref`). With no picks yet (just switched into Select) or when Select
+// isn't active, falls back to the First/Last Year fields for the active mode, exactly as before
+// this feature existed. NOT used for Rebalance's run-time firstYearOverride/lastYearOverride — see
+// `_pickedYearRange` above for why.
+function _effectiveYearRange() {
+  const picked = _pickedYearRange();
+  if (picked) return picked;
   const isRebal = currentMode === 'rebalance';
-  const firstYear = parseInt(document.getElementById(isRebal ? 'rebal-first-year' : 'first-year').value) || settlementDate.getFullYear();
-  const lastYear = parseInt(document.getElementById(isRebal ? 'rebal-last-year' : 'last-year').value);
+  const fyEl = document.getElementById(isRebal ? 'rebal-first-year' : 'first-year');
+  const lyEl = document.getElementById(isRebal ? 'rebal-last-year' : 'last-year');
+  return { firstYear: parseInt(fyEl.value) || settlementDate.getFullYear(), lastYear: parseInt(lyEl.value) };
+}
+
+// Every funded year currently in range (mirrors the year gathering in selectLadderBonds). Reads
+// the effective range above, so once picks exist under Select maturities, the picker itself is
+// bounded to the already-picked span — widening past it means leaving Select to adjust First/Last
+// Year (now preserved, not wiped, when returning — 2.0 §Picking Maturities for a Funded Year).
+function _pickerYears() {
+  const { firstYear, lastYear } = _effectiveYearRange();
   const years = new Set();
   for (const bond of tipsMap.values()) {
     if (!bond.maturity || bond.maturity <= settlementDate) continue;
@@ -1328,7 +1369,11 @@ document.getElementById('build-maturity').addEventListener('change', () => {
     for (const [year, cusips] of _yearMaturityOverrides) {
       if (!cusips.length) _daraByYearStore.delete(year);
     }
-    _yearMaturityOverrides.clear();     // picking a named policy replaces any custom picks
+    // _yearMaturityOverrides is deliberately NOT cleared here — the picks are remembered so that
+    // switching back to Select maturities later (e.g. after widening First/Last Year, now the only
+    // way to change them while a pick set exists) restores exactly what was picked before, instead
+    // of forcing the whole picker to be redone from scratch (2.0 §Picking Maturities for a Funded
+    // Year).
     _closeMaturityPickerModal();        // otherwise the picker for the old policy is left stranded open
     _maturityListOpenPending = false;
   }
@@ -1380,6 +1425,7 @@ document.getElementById('maturity-picker-apply').addEventListener('click', () =>
     _yearMaturityOverrides.set(year, byYear.get(year) ?? []);
   }
   _closeMaturityPickerModal();
+  _syncYearFieldsForMaturityPref();   // the pick set may have just moved firstYear/lastYear
   // Build has no holdings, so "Apply" only ever means "re-run from scratch." Rebalance already has
   // a portfolio to value — Apply only updates which candidates are in play; it does not itself
   // trigger a trade (3.0 §Within-Year Allocation Policy, the E invariant), so it refreshes the
@@ -3008,20 +3054,30 @@ function renderDaraByYearPanel() {
     }
   }
 
+  // Select maturities' pick set overrides the field-derived range here too, once picks exist (2.0
+  // §Picking Maturities for a Funded Year) — this is what keeps the DARA Plan card in sync with a
+  // ladder that Select maturities actually shrank/grew, instead of showing stale years the fields
+  // never got updated to reflect. With no picks yet, each mode falls back to its own existing
+  // range derivation below, unchanged.
+  const picked = _pickedYearRange();
   if (currentMode === 'rebalance') {
     if (!currentHoldingsArray) { _setDaraPlanAvailable(false); return; }
-    const ly = parseInt(document.getElementById('rebal-last-year').value);
-    // Respect an explicit First Year override — same range the actual rebalance run uses — instead
-    // of always starting from the earliest year you happen to hold.
-    const fyOverrideStr = document.getElementById('rebal-first-year').value;
-    let fy;
-    if (fyOverrideStr !== '' && !isNaN(parseInt(fyOverrideStr, 10))) {
-      fy = parseInt(fyOverrideStr, 10);
+    let fy, ly;
+    if (picked) {
+      fy = picked.firstYear; ly = picked.lastYear;
     } else {
-      fy = Infinity;
-      for (const h of currentHoldingsArray) {
-        const b = tipsMap.get(h.cusip);
-        if (b?.maturity) fy = Math.min(fy, b.maturity.getFullYear());
+      ly = parseInt(document.getElementById('rebal-last-year').value);
+      // Respect an explicit First Year override — same range the actual rebalance run uses —
+      // instead of always starting from the earliest year you happen to hold.
+      const fyOverrideStr = document.getElementById('rebal-first-year').value;
+      if (fyOverrideStr !== '' && !isNaN(parseInt(fyOverrideStr, 10))) {
+        fy = parseInt(fyOverrideStr, 10);
+      } else {
+        fy = Infinity;
+        for (const h of currentHoldingsArray) {
+          const b = tipsMap.get(h.cusip);
+          if (b?.maturity) fy = Math.min(fy, b.maturity.getFullYear());
+        }
       }
     }
     if (!isFinite(fy) || !ly) return;
@@ -3030,8 +3086,8 @@ function renderDaraByYearPanel() {
       yearEntries.push({ year: y, suffix });
     }
   } else {
-    const fy = parseInt(document.getElementById('first-year').value) || settlementDate.getFullYear();
-    const ly = parseInt(document.getElementById('last-year').value);
+    const fy = picked ? picked.firstYear : (parseInt(document.getElementById('first-year').value) || settlementDate.getFullYear());
+    const ly = picked ? picked.lastYear : parseInt(document.getElementById('last-year').value);
     if (!ly) return;
     for (let y = fy; y <= ly; y++) {
       const suffix = !tipsYearSet.has(y) ? (y <= maxTipsYear ? '(gap)' : '(30Y)') : '';
@@ -3053,6 +3109,7 @@ function renderDaraByYearPanel() {
 
   _daraByYearPanelDefault = defaultDara;
   _panelYearRange = { fy: yearEntries[0].year, ly: yearEntries[yearEntries.length - 1].year };
+  _syncYearFieldsForMaturityPref();
   _renderSegTools();
   _renderDaraHistoryBtns();
   _setDaraPlanAvailable(true);
@@ -3411,16 +3468,12 @@ function _runBuildFromForm() {
   const dara = _getDefaultDara();
   const maturityPrefSel = document.getElementById('build-maturity').value;
 
-  // In Select mode the maturity picks are a dictate, not a preference (2.0 §Picking Maturities
-  // for a Funded Year): the ladder's actual last year is the latest year the user picked anything
-  // for — the (now-disabled) Last Year field is ignored — and any in-range funded year the user
-  // did NOT touch is intentionally left unfunded, the same precedence as a $0 per-year DARA entry.
-  // Only years with an actual pick count as "the latest year the user picked anything for" — an
-  // explicit empty pick (below) is intentionally unfunded and must not extend the range.
-  const overrideYears = [..._yearMaturityOverrides.entries()].filter(([, cusips]) => cusips.length > 0).map(([y]) => y);
-  const lastYear = maturityPrefSel === 'select' && overrideYears.length
-    ? Math.max(...overrideYears)
-    : parseInt(document.getElementById('last-year').value);
+  // In Select mode the maturity picks are a dictate, not a preference (2.0 §Picking Maturities for
+  // a Funded Year): the pick set determines BOTH ends of the ladder's actual range — First/Last
+  // Year no longer drive anything — and any in-range funded year the user did NOT touch is
+  // intentionally left unfunded, the same precedence as a $0 per-year DARA entry. `_effectiveYearRange`
+  // is the single source for this (also drives the picker's own year range and the DARA Plan card).
+  const { firstYear, lastYear } = _effectiveYearRange();
 
   if (!dara || !lastYear) { setStatus('DARA and Last Year required.', true); return false; }
   if (dara < 1000) { setStatus('DARA must be at least $1,000.', true); return false; }
@@ -3444,7 +3497,7 @@ function _runBuildFromForm() {
 
   const result = runBuild({
     dara,
-    firstYear: parseInt(document.getElementById('first-year').value) || undefined,
+    firstYear,
     lastYear,
     tipsMap,
     refCPI,
@@ -3465,6 +3518,7 @@ function _runBuildFromForm() {
   document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
   document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
   _autoSplitBuildFromZeroDara(result.summary.firstYear, result.summary.lastYear);
+  _syncYearFieldsForMaturityPref();
   return true;
 }
 
@@ -3515,14 +3569,19 @@ document.getElementById('run-btn').addEventListener('click', async () => {
       // Run the rebalance with self-financing funding (gap/Future-30Y scale applied only when the
       // store is the untouched mirror AND there's a block to fund). All orchestration lives in the
       // library (3.0 §Funding the rebalance); the shell just passes the store + pristine flag.
+      // Select maturities' pick set overrides the range fields here too (2.0 §Picking Maturities
+      // for a Funded Year), same as Build — but only when picks actually exist; with none yet,
+      // firstYearOverride/lastYearOverride stay whatever the (possibly blank) fields hold, so the
+      // engine keeps deriving the range from holdings exactly as before this feature existed.
+      const picked = _pickedYearRange();
       const result = runFundedRebalance({
         dara: finalDara,
         bracketMode: document.getElementById('bracket-mode').value,
         holdings: currentHoldingsArray, tipsMap, refCPI, settlementDate,
         daraByYear: getDaraByYear(),
         isPristineMirror: _storeIsPristineMirror(),
-        lastYearOverride: parseInt(document.getElementById('rebal-last-year').value),
-        firstYearOverride: parseInt(document.getElementById('rebal-first-year').value),
+        lastYearOverride: picked ? picked.lastYear : parseInt(document.getElementById('rebal-last-year').value),
+        firstYearOverride: picked ? picked.firstYear : parseInt(document.getElementById('rebal-first-year').value),
         preLadderInterest: document.getElementById('pre-ladder-interest').checked,
         maturityPref: document.getElementById('build-maturity').value,
         yearOverrides: _yearMaturityOverrides,
@@ -3536,6 +3595,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
         document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
       }
+      _syncYearFieldsForMaturityPref();
     }
     if (!_hasCustomDara()) _setDaraByYearCollapsed(true);
     updateDaraInput();

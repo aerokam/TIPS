@@ -634,6 +634,102 @@ test('build: typing 0 into a per-year DARA input auto-splits around that year', 
   await expect(page.locator('#seg-rows .seg-row', { hasText: `${targetYear}–${targetYear}` })).toBeVisible();
 });
 
+// ── Select maturities determines the ladder's real range, not the stale First/Last Year fields ──
+// Regression: picking only October maturities (which run out well before 2056) left the DARA Plan
+// card still showing a segment out to the untouched Last Year field's value. Clearing every column
+// then picking one column's "All" reproduces "select just one maturity month" without depending on
+// which exact years that column happens to cover in the fixture data.
+async function _pickOnlyColumn(page, monthLabel) {
+  for (const btn of await page.locator('.mp-col-none').all()) await btn.click();
+  const col = await page.locator('.mp-col-hdr', { hasText: monthLabel }).locator('.mp-col-all').getAttribute('data-col');
+  await page.locator(`.mp-col-all[data-col="${col}"]`).click();
+}
+
+test('build: Select maturities picks determine the ladder range, not the stale Last Year field', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await page.locator('#last-year').selectOption({ value: '2056' });
+  await page.locator('#build-maturity').selectOption({ value: 'select' });
+  await expect(page.locator('#maturity-picker-overlay')).toBeVisible({ timeout: 2_000 });
+
+  await _pickOnlyColumn(page, 'Oct');
+  await page.locator('#maturity-picker-apply').click();
+  await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
+
+  const rangeText = await page.locator('#val-range').textContent();
+  expect(rangeText, `Range should reflect the October-only picks, not the untouched 2056 field (got "${rangeText}")`).not.toContain('2056');
+
+  // Last Year stays visible (not hidden) but disabled, and mirrors what the picks actually produced.
+  await expect(page.locator('#last-year')).toBeDisabled();
+  const lastYearShown = await page.locator('#last-year').inputValue();
+  expect(lastYearShown).not.toBe('2056');
+  expect(rangeText).toContain(lastYearShown);
+});
+
+// Regression: deselecting every maturity in the year the ladder started at, and picking the NEXT
+// year instead, must move the ladder's real first year forward — it previously stayed pinned to
+// the original (now fully-deselected) first year with a forced $0 there.
+test('build: deselecting the first year entirely moves the ladder\'s real first year forward', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await page.locator('#last-year').selectOption({ value: '2030' });
+  await page.locator('#build-maturity').selectOption({ value: 'select' });
+  await expect(page.locator('#maturity-picker-overlay')).toBeVisible({ timeout: 2_000 });
+
+  for (const btn of await page.locator('.mp-col-none').all()) await btn.click();
+  await page.locator('input[type=checkbox][data-year="2027"]').first().check();
+  await page.locator('#maturity-picker-apply').click();
+  await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
+
+  const rangeText = await page.locator('#val-range').textContent();
+  expect(rangeText, `Range should start at 2027 (the earliest actual pick), not 2026 (got "${rangeText}")`).toContain('2027');
+  expect(rangeText).not.toContain('2026');
+  await expect(page.locator('#first-year')).toBeDisabled();
+  await expect(page.locator('#first-year')).toHaveValue('2027');
+});
+
+// Regression: switching the Maturity preference away from "Select maturities" used to wipe every
+// pick, forcing the whole picker to be redone from scratch just to adjust the range via a named
+// policy and come back. Picks must now survive that round trip.
+test('build: Select maturities picks survive switching to a named policy and back', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await page.locator('#last-year').selectOption({ value: '2030' });
+  await page.locator('#build-maturity').selectOption({ value: 'select' });
+  await expect(page.locator('#maturity-picker-overlay')).toBeVisible({ timeout: 2_000 });
+
+  for (const btn of await page.locator('.mp-col-none').all()) await btn.click();
+  await page.locator('input[type=checkbox][data-year="2027"]').first().check();
+  await page.locator('#maturity-picker-apply').click();
+  await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
+
+  await page.locator('#build-maturity').selectOption({ value: 'last' });
+  await page.locator('#build-maturity').selectOption({ value: 'select' });
+  await expect(page.locator('#maturity-picker-overlay')).toBeVisible({ timeout: 2_000 });
+  await expect(page.locator('input[type=checkbox][data-year="2027"]').first()).toBeChecked();
+});
+
+// Same rule applies in Rebalance — not just Build. Loads real holdings, then narrows via Select
+// maturities to a single year; First/Last Year must go disabled-but-visible and mirror that year,
+// same as Build.
+test('rebalance: Select maturities picks determine the effective range there too', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('#build-maturity').selectOption({ value: 'select' });
+  await expect(page.locator('#maturity-picker-overlay')).toBeVisible({ timeout: 2_000 });
+  for (const btn of await page.locator('.mp-col-none').all()) await btn.click();
+  await page.locator('input[type=checkbox][data-year="2027"]').first().check();
+  await page.locator('#maturity-picker-apply').click();
+  await expect(page.locator('#maturity-picker-overlay')).toBeHidden();
+
+  await expect(page.locator('#rebal-first-year')).toBeDisabled();
+  await expect(page.locator('#rebal-last-year')).toBeDisabled();
+  await expect(page.locator('#rebal-first-year')).toHaveValue('2027');
+  await expect(page.locator('#rebal-last-year')).toHaveValue('2027');
+});
+
 // Rebuilding #simple-table on every Rebalance Ladder run wipes every fy-group-header's
 // data-expanded attribute -- _captureExpandedState/_restoreOrDefaultGroupsExpanded carry the prior
 // expand/collapse state across the rebuild so re-running after a Maturity preference/Allocation
