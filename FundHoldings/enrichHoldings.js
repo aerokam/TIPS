@@ -85,6 +85,14 @@ function enrichRow(row, settle, { tipsByCusip, nominalByCusip }) {
     enriched["Ask Yield"] = askYield;
   }
 
+  // Coupon (display, percent-scale, matching the raw fetchers' convention)
+  // always comes from the matched S10/S7 row, overwriting whatever the
+  // fund's own raw export reported: some providers round it in their export
+  // (e.g. BlackRock/ICPI reports "0.13" for TIPS's actual 0.125% coupon).
+  // `coupon` above is a true fraction in both branches, so *100 recovers the
+  // display value uniformly.
+  if (coupon != null) enriched.Coupon = coupon * 100;
+
   if (maturity && maturity > settle && askYield != null && coupon != null && !Number.isNaN(askYield)) {
     const duration = calculateDuration(settle, maturity, coupon, askYield);
     if (duration != null) enriched.Duration = duration;

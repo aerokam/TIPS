@@ -103,6 +103,12 @@ try {
 // without refetching.
 let state = null;
 
+// Sort column/direction persist across fund switches (module-level, not part
+// of per-fund state) so a comparison sort (e.g. by Maturity Date) carries
+// over from one tab to the next instead of resetting each time.
+let sortCol = null;
+let sortDir = 1;
+
 function fmt(col, val, termUnit) {
   if (val === "" || val == null || Number.isNaN(Number(val))) return "";
   const n = Number(val);
@@ -137,7 +143,7 @@ function sortRows(rows, col, dir) {
 }
 
 function renderTable() {
-  const { rows, cols, wtdAvg, termUnit, sortCol, sortDir } = state;
+  const { rows, cols, wtdAvg, termUnit } = state;
   const displayRows = sortCol ? sortRows(rows, sortCol, sortDir) : rows;
 
   const colgroup = `<colgroup>${cols.map(c =>
@@ -173,8 +179,8 @@ function renderTable() {
     th.addEventListener("click", e => {
       if (e.target.classList.contains("col-resizer")) return;
       const col = th.dataset.col;
-      state.sortDir = state.sortCol === col ? -state.sortDir : 1;
-      state.sortCol = col;
+      sortDir = sortCol === col ? -sortDir : 1;
+      sortCol = col;
       renderTable();
     });
   });
@@ -243,7 +249,7 @@ async function loadFund(ticker) {
   const fundName = fundMeta[ticker]?.fundName;
   meta.textContent = `${ticker}${fundName ? " — " + fundName : ""} — ${rows.length} holdings, as of ${rows[0]["As of"]}`;
 
-  state = { rows, cols, wtdAvg, termUnit, sortCol: null, sortDir: 1 };
+  state = { rows, cols, wtdAvg, termUnit };
   renderTable();
 }
 
