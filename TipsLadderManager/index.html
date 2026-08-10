@@ -143,7 +143,7 @@
   table.simple tr.excess-subrow td { background: #e2f3f3; color: #1e4f4f; font-size: 12px; font-style: italic; }
   table.simple tr.bracket:not(.excess-subrow):not(.fy-group-header) td { background: #c0e0e0; }
   table.simple tfoot td { font-weight: 700; border-top: 2px solid var(--portal-text-main); background: var(--portal-text-main); color: var(--portal-text-on-dark); padding: 6px 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-  table.simple tr.fy-group-header td { background: #dce8e8; font-weight: 700; cursor: pointer; border-top: 2px solid #aac8c8; }
+  table.simple tr.fy-group-header td { background: #dce8e8; font-weight: 700; cursor: pointer; border-top: 2px solid #aac8c8; user-select: none; }
   table.simple tr.fy-group-header.bracket td { background: #c0d8d8; border-top-color: #88b8b8; }
   table.simple tr.fy-group-header:hover td { background: #ccdede !important; }
   table.simple tr.fy-group-header.bracket:hover td { background: #b0cccc !important; }
@@ -430,9 +430,14 @@
         </label>
       </div>
     </div>
-    <!-- Row 2: construction policy — Maturity preference / Coupon pick / Allocation policy. Shared
-         between both modes (2.0 §Maturity Selection Within a Funded Year, §Within-Year Allocation
-         Policy); Coupon pick and Allocation policy show/hide per their own existing rules. -->
+    <!-- Row 2: construction policy — Maturity preference / Coupon pick / Allocation policy — plus
+         DARA-plan export/import (a standalone year->DARA file, the only way to carry a desired-DARA
+         plan across a fresh broker re-upload, which never carries per-year DARA of its own; 2.1
+         §Standalone DARA-plan file). Grouped here rather than in Row 3 because, like the policy
+         controls, both are available before a Run — unlike Row 3's other buttons, which stay hidden
+         until one completes. Shared between both modes (2.0 §Maturity Selection Within a Funded
+         Year, §Within-Year Allocation Policy); Coupon pick and Allocation policy show/hide per their
+         own existing rules. -->
     <div class="card-inputs" style="margin-top:8px">
       <div class="field" id="field-build-maturity">
         <label>Maturity preference</label>
@@ -460,17 +465,16 @@
           <option value="select">Set priority order&hellip;</option>
         </select>
       </div>
+      <button id="dara-plan-export-btn" style="padding:2px 10px;font-size:11px;align-self:flex-end" title="Save the current per-year DARA to a file you can re-apply later, on any device">Export DARA Plan</button>
+      <button id="dara-plan-import-btn" style="padding:2px 10px;font-size:11px;align-self:flex-end" title="Load a previously exported DARA-plan file and overlay it on the current holdings">Import DARA Plan</button>
+      <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
     </div>
-    <!-- Row 3: Run + post-run actions, plus DARA-plan export/import (a standalone year->DARA file
-         — the only way to carry a desired-DARA plan across a fresh broker re-upload, which never
-         carries per-year DARA of its own; 2.1 §Standalone DARA-plan file). -->
+    <!-- Row 3: Run + post-run actions — everything here stays hidden (or disabled, for Run) until a
+         Run completes. -->
     <div class="card-inputs" style="margin-top:8px">
       <button id="run-btn" disabled style="align-self:flex-end">Rebalance Ladder</button>
       <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
       <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
-      <button id="dara-plan-export-btn" style="padding:2px 10px;font-size:11px;align-self:flex-end" title="Save the current per-year DARA to a file you can re-apply later, on any device">Export DARA Plan</button>
-      <button id="dara-plan-import-btn" style="padding:2px 10px;font-size:11px;align-self:flex-end" title="Load a previously exported DARA-plan file and overlay it on the current holdings">Import DARA Plan</button>
-      <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
       <button id="trade-ticket-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show trade ticket with cost breakdown">Trade Ticket</button>
       <button id="cash-flow-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show coupon and principal payment calendar for held TIPS">Cash Flow</button>
       <div id="duration-links" style="align-self:flex-end"></div>
@@ -496,28 +500,31 @@
     </div>
     <div id="status"></div>
   </div>
-</div>
 
-<!-- Table-level controls: expand/collapse, DARA edit history. -->
-<div id="table-controls" style="display:none;padding:6px 16px 2px;gap:6px;align-items:center;">
-  <button id="expand-collapse-all-btn" style="padding:2px 10px;font-size:11px" title="Expand all funded year groups">Expand All</button>
-  <button id="expand-collapse-bracket-btn" style="padding:2px 10px;font-size:11px" title="Expand bracket/cover year groups">Expand Bracket/Cover Years</button>
-  <span id="dara-history-tools" style="display:none;gap:6px;align-items:center">
-    <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
-    <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
-  </span>
-</div>
+  <!-- Table-level controls: expand/collapse, DARA edit history. Kept inside the sticky #top-row
+       (not a plain sibling) so it can never scroll up and land underneath the card — it used to sit
+       below #top-row in normal flow, which let the page's own scroll carry it under the sticky card. -->
+  <div id="table-controls" style="display:none;padding:6px 16px 2px;gap:6px;align-items:center;">
+    <button id="expand-collapse-all-btn" style="padding:2px 10px;font-size:11px" title="Expand all funded year groups">Expand All</button>
+    <button id="expand-collapse-bracket-btn" style="padding:2px 10px;font-size:11px" title="Expand bracket/cover year groups">Expand Bracket/Cover Years</button>
+    <span id="dara-history-tools" style="display:none;gap:6px;align-items:center">
+      <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
+      <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
+    </span>
+  </div>
 
-<!-- Selection toolbar: appears only while one or more funded-year rungs are selected in the ladder
-     table below (click, Shift-click, or click-drag a group-header row — 3.0 §Per-Rung DARA
-     Selection). Set DARA stamps one value across the selection; Infer DARA (Rebalance only)
-     self-finances it, then cascades below. -->
-<div id="selection-toolbar">
-  <span id="selection-label"></span>
-  <input type="number" id="selection-dara-input" placeholder="Set DARA" step="1000" min="0">
-  <button type="button" class="plan-btn" id="selection-set-btn">Apply</button>
-  <button type="button" class="plan-btn" id="selection-infer-btn" style="display:none">Infer DARA</button>
-  <button type="button" class="plan-btn" id="selection-clear-btn" title="Clear selection">✕ Clear</button>
+  <!-- Selection toolbar: appears only while one or more funded-year rungs are selected in the ladder
+       table below (click, Shift-click, or click-drag a group-header row — 3.0 §Per-Rung DARA
+       Selection). Set DARA stamps one value across the selection; Infer DARA (Rebalance only)
+       self-finances it, then cascades below. Also kept inside #top-row for the same reason as
+       #table-controls above — see comment there. -->
+  <div id="selection-toolbar">
+    <span id="selection-label"></span>
+    <input type="number" id="selection-dara-input" placeholder="Set DARA" step="1000" min="0">
+    <button type="button" class="plan-btn" id="selection-set-btn">Apply</button>
+    <button type="button" class="plan-btn" id="selection-infer-btn" style="display:none">Infer DARA</button>
+    <button type="button" class="plan-btn" id="selection-clear-btn" title="Clear selection">✕ Clear</button>
+  </div>
 </div>
 
 <!-- Rebalance output -->
@@ -1100,6 +1107,10 @@ function _updateExpandCollapseLabels() {
   tbl.addEventListener('mousedown', e => {
     const hdr = e.target.closest('tr.fy-group-header');
     if (!hdr || e.target.closest('.fy-dara-input') || e.target.closest('td.drillable') || e.shiftKey) return;
+    // Prevent the browser's own native text-selection drag from starting here — otherwise dragging
+    // across rows to build a range selection also paints its own blue text highlight underneath our
+    // yellow row highlight, which is confusing since the two selections don't agree on what's selected.
+    e.preventDefault();
     _dragStartYear = +hdr.dataset.fy;
     _dragSelecting = false;
   });
