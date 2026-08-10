@@ -246,7 +246,7 @@
 91282CEJ6,30
 912810QF8,100</pre>
     <p><b>DARA</b> — Target annual real amount. Auto-computed from holdings on file load (equilibrium value that makes the rebalance self-financing). After loading, a per-year table lets you override individual year targets — changes may result in non-zero net cash. The DARA field shows <b style="color:#7c3aed">by year</b> when any year's target differs from the default.</p>
-    <p><b>Selecting rungs</b> — Click a funded-year row in the table to select it; Shift-click another row to select the whole range between them, or click and drag across rows to select a range live. A toolbar appears above the table with <b>Set DARA</b> (type one value and apply it to every selected rung) and, in Rebalance, <b>Infer DARA</b> (solves a self-financing value for the selected rungs against current holdings). Either action also re-solves every year below the selection, since coupon income only flows from longer maturities to shorter ones — so a single action keeps the whole ladder self-financing without having to repeat it for the years below by hand. A year typed directly is never overwritten by this. Every bulk change is undoable — <b>Undo</b> (Ctrl+Z) or <b>Revert to loaded</b> restores prior values without reloading the CSV.</p>
+    <p><b>Selecting rungs</b> — Click a funded-year row in the table to select it; Shift-click another row to select the whole range between them, or click and drag across rows to select a range live. A toolbar appears above the table with <b>Set DARA</b> (type one value and apply it to every selected rung) and, in Rebalance, <b>Infer DARA</b> (solves a self-financing value for the selected rungs against current holdings). Either action also re-solves every year below the selection, since coupon income only flows from longer maturities to shorter ones — so a single action keeps the whole ladder self-financing without having to repeat it for the years below by hand. A year typed directly is never overwritten by this.</p>
     <p><b>Net Cash</b> — Net proceeds (sells minus buys). Negative = net purchase.</p>
 
     <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Mode: Build</h3>
@@ -507,10 +507,6 @@
   <div id="table-controls" style="display:none;padding:6px 16px 2px;gap:6px;align-items:center;">
     <button id="expand-collapse-all-btn" style="padding:2px 10px;font-size:11px" title="Expand all funded year groups">Expand All</button>
     <button id="expand-collapse-bracket-btn" style="padding:2px 10px;font-size:11px" title="Expand bracket/cover year groups">Expand Bracket/Cover Years</button>
-    <span id="dara-history-tools" style="display:none;gap:6px;align-items:center">
-      <button type="button" class="plan-btn" id="dara-undo" title="Undo the last DARA change (Ctrl+Z)" disabled>↶ Undo</button>
-      <button type="button" class="plan-btn" id="dara-revert" title="Restore the per-year DARA to what it was when the file loaded" style="display:none">⟲ Revert to loaded</button>
-    </span>
   </div>
 
   <!-- Selection toolbar: appears only while one or more funded-year rungs are selected in the ladder
@@ -824,33 +820,33 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     if (isRebalance) {
       _daraBuild = daraEl.value;
       _daraByYearStoreBuild = _daraByYearStore; _daraByYearPanelDefaultBuild = _daraByYearPanelDefault;
-      _daraUndoStackBuild = _daraUndoStack; _daraLoadedSnapshotBuild = _daraLoadedSnapshot;
-      _daraManualYearsBuild = _daraManualYears; _daraManualLoadedSnapshotBuild = _daraManualLoadedSnapshot;
+      _daraLoadedSnapshotBuild = _daraLoadedSnapshot;
+      _daraManualYearsBuild = _daraManualYears;
       _bracketAutoCapYearsBuild = _bracketAutoCapYears;
       _maturityPrefBuild = document.getElementById('build-maturity').value;
       _yearMaturityOverridesBuild = _yearMaturityOverrides;
       _yearMaturityOverrides = _yearMaturityOverridesRebal;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
-      _daraUndoStack = _daraUndoStackRebal; _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
-      _daraManualYears = _daraManualYearsRebal; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotRebal;
+      _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
+      _daraManualYears = _daraManualYearsRebal;
       _bracketAutoCapYears = _bracketAutoCapYearsRebal;
     } else {
       _daraRebal = daraEl.value;
       _daraByYearStoreRebal = _daraByYearStore; _daraByYearPanelDefaultRebal = _daraByYearPanelDefault;
-      _daraUndoStackRebal = _daraUndoStack; _daraLoadedSnapshotRebal = _daraLoadedSnapshot;
-      _daraManualYearsRebal = _daraManualYears; _daraManualLoadedSnapshotRebal = _daraManualLoadedSnapshot;
+      _daraLoadedSnapshotRebal = _daraLoadedSnapshot;
+      _daraManualYearsRebal = _daraManualYears;
       _bracketAutoCapYearsRebal = _bracketAutoCapYears;
       _maturityPrefRebal = document.getElementById('build-maturity').value;
       _yearMaturityOverridesRebal = _yearMaturityOverrides;
       _yearMaturityOverrides = _yearMaturityOverridesBuild;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
-      _daraUndoStack = _daraUndoStackBuild; _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
-      _daraManualYears = _daraManualYearsBuild; _daraManualLoadedSnapshot = _daraManualLoadedSnapshotBuild;
+      _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
+      _daraManualYears = _daraManualYearsBuild;
       _bracketAutoCapYears = _bracketAutoCapYearsBuild;
     }
-    _rungPreEdit = null; _rungDirty = false;
+    _rungEditSessionOpen = false; _rungDirty = false;
     _clearSelection();
     
     // Toggle field visibility
@@ -2100,9 +2096,7 @@ function _initRebalDaraFromPortfolio() {
   _daraByYearPanelDefault = null;
   _daraManualYears = new Set();
   _bracketAutoCapYears = new Set();
-  _daraUndoStack = [];
   _daraLoadedSnapshot = null;
-  _daraManualLoadedSnapshot = null;
   document.getElementById('dara').value = '';
 
   if (currentMode !== 'rebalance' || !currentHoldingsArray || !tipsMap || !refCpiRows || !settlementDate) {
@@ -2132,7 +2126,6 @@ function _initRebalDaraFromPortfolio() {
     const fySel = document.getElementById('rebal-first-year');
     if (fySel && [...fySel.options].some(o => +o.value === yrs[0])) fySel.value = String(yrs[0]);
     _daraLoadedSnapshot = new Map(_daraByYearStore);
-    _daraManualLoadedSnapshot = new Set(_daraManualYears);
     renderDaraByYearPanel();
     return;
   }
@@ -2198,7 +2191,6 @@ function _initRebalDaraFromPortfolio() {
   _daraByYearStore = store;
   _daraByYearPanelDefault = median;
   _daraLoadedSnapshot = new Map(_daraByYearStore);
-  _daraManualLoadedSnapshot = new Set();  // load mirror — nothing hand-typed yet
   document.getElementById('dara').value = median;
   renderDaraByYearPanel();
   _renderBeforeStatePreview();
@@ -2293,7 +2285,6 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   const yrs = [...daraMap.keys()].sort((a, b) => a - b);
   const vals = [...daraMap.values()].sort((a, b) => a - b);
 
-  _snapshotDara();
   _daraByYearStore = new Map(daraMap);
   // Mark this an explicit #fundedYear,dara import, same as one carried by the holdings file itself
   // -- this is the SAME block format, just imported as its own file. Without this,
@@ -2313,7 +2304,6 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   const fySel = document.getElementById(isRebal ? 'rebal-first-year' : 'first-year');
   if (fySel && [...fySel.options].some(o => +o.value === yrs[0])) fySel.value = String(yrs[0]);
   _daraLoadedSnapshot = new Map(_daraByYearStore);
-  _daraManualLoadedSnapshot = new Set(_daraManualYears);
 
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput();
@@ -2364,9 +2354,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   _daraByYearPanelDefault = null;
   _daraManualYears = new Set();
   _bracketAutoCapYears = new Set();
-  _daraUndoStack = [];
   _daraLoadedSnapshot = null;
-  _daraManualLoadedSnapshot = null;
   _clearSelection();
   currentImportedDaraByYear = null;
   currentImportedParams = null;
@@ -2562,7 +2550,6 @@ let _daraByYearPanelDefault = null;
 let _daraByYearStore = new Map();  // year → value; persists across year-range changes
 let _daraManualYears = new Set();  // years the user hand-typed into that year's own row — protected
                                     // from selection Infer/Set DARA (and its auto-cascade); see mode-swap above
-let _daraManualLoadedSnapshot = null;  // manual-year set paired with _daraLoadedSnapshot, for Revert
 let _bracketAutoCapYears = new Set();  // years auto-capped to median (bracket excess detected)
 let _lastKnownDara = null;          // last DARA used (including auto-inferred)
 let _daraAutoInferred = false;      // true when DARA field was populated by inferDARAFromCash
@@ -2572,57 +2559,14 @@ let _daraByYearBodyCollapsed = true;
 // panel (and vice versa) after a tab switch.
 let _bracketAutoCapYearsRebal = new Set(), _bracketAutoCapYearsBuild = new Set();
 let _panelYearRange = null;         // { fy, ly } of the years currently shown in the per-year panel
-// Per-year DARA history (for Undo / Revert). Stacks hold pre-mutation clones of _daraByYearStore;
-// loaded snapshot is the as-imported map (rebalance only). All swap with the store on mode change.
-let _daraUndoStack = [], _daraLoadedSnapshot = null;
-let _daraUndoStackRebal = [], _daraLoadedSnapshotRebal = null;
-let _daraUndoStackBuild = [], _daraLoadedSnapshotBuild = null;
-let _daraManualLoadedSnapshotRebal = null, _daraManualLoadedSnapshotBuild = null;
-let _rungPreEdit = null, _rungDirty = false, _rungEditYear = null;  // one undo entry per committed per-rung edit session
-
-// Push a clone of the current store + manual-year set before a bulk DARA mutation, so it can be undone.
-function _snapshotDara() {
-  _daraUndoStack.push({ store: new Map(_daraByYearStore), manual: new Set(_daraManualYears) });
-  if (_daraUndoStack.length > 50) _daraUndoStack.shift();
-  _renderDaraHistoryBtns();
-}
-
-// Restore the store + manual-year set from a snapshot, then refresh panel + clear stale output.
-function _restoreDara(snap) {
-  _daraByYearStore = snap.store;
-  _daraManualYears = snap.manual ?? new Set();
-  const wasBuilt = currentMode === 'build' && buildRendered;
-  _clearOutput();
-  renderDaraByYearPanel();
-  if (wasBuilt) _runBuildFromForm();
-  updateDaraInput(true);
-  _renderDaraHistoryBtns();
-}
-
-function _undoDara() {
-  if (!_daraUndoStack.length) return;
-  _restoreDara(_daraUndoStack.pop());
-}
-
-function _revertDaraToLoaded() {
-  if (!_daraLoadedSnapshot) return;
-  _snapshotDara();  // the revert itself is undoable
-  _restoreDara({ store: new Map(_daraLoadedSnapshot), manual: new Set(_daraManualLoadedSnapshot ?? []) });
-}
-
-function _renderDaraHistoryBtns() {
-  const tools = document.getElementById('dara-history-tools');
-  const undo  = document.getElementById('dara-undo');
-  const revert = document.getElementById('dara-revert');
-  if (!tools) return;
-  const hasUndo = _daraUndoStack.length > 0;
-  const hasLoaded = !!_daraLoadedSnapshot;
-  undo.disabled = !hasUndo;
-  undo.style.opacity = hasUndo ? '1' : '.5';
-  undo.style.cursor = hasUndo ? 'pointer' : 'default';
-  revert.style.display = hasLoaded ? '' : 'none';
-  tools.style.display = (hasUndo || hasLoaded) ? 'flex' : 'none';
-}
+// The as-loaded/imported map, kept solely so _storeIsPristineMirror() can tell whether the store has
+// been touched since load — not user-facing (Undo/Revert to loaded were removed; edits are cheap
+// enough now, via selection Set/Infer DARA, that a history stack wasn't earning its clutter). All
+// swap with the store on mode change.
+let _daraLoadedSnapshot = null;
+let _daraLoadedSnapshotRebal = null;
+let _daraLoadedSnapshotBuild = null;
+let _rungEditSessionOpen = false, _rungDirty = false, _rungEditYear = null;  // tracks one open per-rung edit session, for the manual-year marking on commit
 
 function _setDaraByYearCollapsed(collapsed) {
   _daraByYearBodyCollapsed = collapsed;
@@ -2664,7 +2608,7 @@ function _medianOfStore() {
 // Blanks the top DARA box (with a "by year" placeholder hint) whenever a single number would be
 // misleading — a custom per-year shape — and shows the real number otherwise.
 // force=true bypasses the active-element guard (used when per-year table fires input events) AND
-// overwrites a non-empty field — needed so a programmatic restore (Apply/Import/Undo/Revert) that
+// overwrites a non-empty field — needed so a programmatic restore (Apply/Import) that
 // makes the store flat again actually replaces whatever stale text the field showed beforehand,
 // not just the placeholder. Without the force branch below, a flat restore left the field showing
 // its pre-restore number even though the store (and the per-year table, once built) had moved on.
@@ -2771,7 +2715,6 @@ function renderDaraByYearPanel() {
   _daraByYearPanelDefault = defaultDara;
   _panelYearRange = { fy: yearEntries[0].year, ly: yearEntries[yearEntries.length - 1].year };
   _syncYearFieldsForMaturityPref();
-  _renderDaraHistoryBtns();
   updateDaraInput();
 
   // Refresh the inline group-header DARA inputs + Before-state figures — but never while a real
@@ -2784,9 +2727,8 @@ function renderDaraByYearPanel() {
 // Selecting a range of funded-year rungs directly in the ladder table (click, Shift-click, or
 // click-drag on their group-header rows — wired where the expand/collapse click handler lives)
 // replaces the old segment/split-year system: select a range, then either stamp one value across
-// it (both modes) or self-finance it against holdings (Rebalance only), with a shared "Undo"
-// history. There is no persisted boundary — a selection is transient UI state, cleared on every
-// table rebuild.
+// it (both modes) or self-finance it against holdings (Rebalance only). There is no persisted
+// boundary — a selection is transient UI state, cleared on every table rebuild.
 let _selectedYears = new Set();
 let _lastClickedYear = null;
 let _dragStartYear = null, _dragSelecting = false;
@@ -2844,8 +2786,8 @@ function _inferCtx() {
 
 // Solve + stamp a flat self-financing DARA across `scopeYears` against the store as it stands right
 // now. A year the user typed directly into its own row (_daraManualYears) is held fixed — its real
-// cash flow still counts toward the scope's net-cash target, it just isn't restamped. No snapshot,
-// no re-render — callers batch those around the whole cascade so one user action = one Undo entry.
+// cash flow still counts toward the scope's net-cash target, it just isn't restamped. No re-render —
+// callers batch that around the whole cascade.
 function _inferYearsFlat(scopeYears) {
   if (!scopeYears || !scopeYears.size) return true;
   const ctx = _inferCtx(); if (!ctx) return false;
@@ -2874,7 +2816,6 @@ function _cascadeReinferBelow(belowYear) {
 // Infer the current selection's self-financing flat DARA (Rebalance only), then cascade below it.
 function _runSelectionInfer() {
   if (!_selectedYears.size) return;
-  _snapshotDara();
   if (!_inferYearsFlat(_selectedYears)) return;
   _cascadeReinferBelow(Math.min(..._selectedYears));
   const wasBuilt = currentMode === 'build' && buildRendered;
@@ -2885,7 +2826,6 @@ function _runSelectionInfer() {
 // Stamp one typed value across every currently selected rung (both modes), then cascade below.
 function _runSelectionSetDara(val) {
   if (!_selectedYears.size || isNaN(val) || val < 0) return;
-  _snapshotDara();
   for (const y of _selectedYears) { _daraByYearStore.set(y, val); _daraManualYears.add(y); }
   _cascadeReinferBelow(Math.min(..._selectedYears));
   const wasBuilt = currentMode === 'build' && buildRendered;
@@ -2899,21 +2839,8 @@ document.getElementById('selection-set-btn').addEventListener('click', () => {
 });
 document.getElementById('selection-infer-btn').addEventListener('click', _runSelectionInfer);
 
-document.getElementById('dara-undo').addEventListener('click', _undoDara);
-document.getElementById('dara-revert').addEventListener('click', _revertDaraToLoaded);
-// Ctrl/Cmd+Z undoes a DARA change whenever the per-year store is in play — but defer to native
-// field undo while a DARA input is focused, so per-keystroke edits behave normally.
-document.addEventListener('keydown', e => {
-  if (!((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey)) return;
-  const ae = document.activeElement;
-  if (ae && (ae.id === 'dara' || ae.closest?.('.fy-dara-input'))) return;
-  if (!_daraUndoStack.length) return;
-  e.preventDefault();
-  _undoDara();
-});
-
 // True when the per-year store is still the as-loaded mirror (no per-rung edits / selection Infer /
-// Set DARA since load or revert) AND the file carried no explicit #fundedYear,dara block.
+// Set DARA since load) AND the file carried no explicit #fundedYear,dara block.
 // Only this default-mirror shape is self-finance-scaled at Run (3.0 §Funding the rebalance); an
 // explicitly reshaped store, or an our-export DARA block, is honored as-is.
 function _storeIsPristineMirror() {
@@ -2937,20 +2864,20 @@ function getDaraByYear() {
   return map.size > 0 ? map : null;
 }
 
-// Per-rung edits — now the inline `.fy-dara-input` elements inside each funded-year group header
-// row (5.0 §Funded Year Group Header Row §DARA Input), delegated from the two table containers
-// since rows are re-rendered wholesale on every table (re)render. Same snapshot-on-focus-in /
-// commit-on-focus-out session pattern the old standalone panel used, so Undo still yields one
-// entry per deliberately edited rung. Committing an edit also clears that year's amber "auto-set to
-// median" flag (3.0 §Before-State Preview: "If the user edits a flagged year's DARA input, the ⚠
-// clears") and, in Rebalance mode pre-Run, live-recalculates that year's Amount Before / Gap excess
-// via `_renderBeforeStatePreview()` — but only on commit (not every keystroke), so the input the
-// user is actively typing into is never yanked out from under them by the table's innerHTML replace.
+// Per-rung edits — the inline `.fy-dara-input` elements inside each funded-year group header row
+// (5.0 §Funded Year Group Header Row §DARA Input), delegated from the two table containers since
+// rows are re-rendered wholesale on every table (re)render. Tracks one open edit session per rung
+// (focus-in to focus-out) purely to know, on commit, which year to mark manual — not for history:
+// committing an edit also clears that year's amber "auto-set to median" flag (3.0 §Before-State
+// Preview: "If the user edits a flagged year's DARA input, the ⚠ clears") and, in Rebalance mode
+// pre-Run, live-recalculates that year's Amount Before / Gap excess via `_renderBeforeStatePreview()`
+// — but only on commit (not every keystroke), so the input the user is actively typing into is never
+// yanked out from under them by the table's innerHTML replace.
 [simpleEl, tableEl].forEach(tbl => {
   tbl.addEventListener('focusin', e => {
     const inp = e.target.closest('.fy-dara-input');
     if (!inp) return;
-    if (!_rungPreEdit) { _rungPreEdit = { store: new Map(_daraByYearStore), manual: new Set(_daraManualYears) }; _rungDirty = false; }
+    if (!_rungEditSessionOpen) { _rungEditSessionOpen = true; _rungDirty = false; }
     _rungEditYear = parseInt(inp.dataset.year, 10);
   });
   tbl.addEventListener('input', e => {
@@ -2969,14 +2896,10 @@ function getDaraByYear() {
     // Defer so a focus move between two rung inputs keeps the same edit session open.
     setTimeout(() => {
       if (tbl.contains(document.activeElement) && document.activeElement.closest?.('.fy-dara-input')) return;  // still editing another rung
-      if (_rungPreEdit && _rungDirty) {
-        _daraUndoStack.push(_rungPreEdit);
-        // A hand-typed year is the user's stated intent for that specific rung — protected from
-        // being restamped by a later selection Infer/Set DARA (and its auto-cascade).
-        if (_rungEditYear != null) _daraManualYears.add(_rungEditYear);
-        _renderDaraHistoryBtns();
-      }
-      _rungPreEdit = null; _rungDirty = false; _rungEditYear = null;
+      // A hand-typed year is the user's stated intent for that specific rung — protected from
+      // being restamped by a later selection Infer/Set DARA (and its auto-cascade).
+      if (_rungEditSessionOpen && _rungDirty && _rungEditYear != null) _daraManualYears.add(_rungEditYear);
+      _rungEditSessionOpen = false; _rungDirty = false; _rungEditYear = null;
       if (tbl === simpleEl && currentMode === 'rebalance' && !rebalanceRendered) _renderBeforeStatePreview();
       else if (tbl === tableEl && currentMode === 'build' && buildRendered) _runBuildFromForm();
     }, 0);
@@ -3000,8 +2923,6 @@ document.getElementById('dara').addEventListener('blur', () => {
   const raw = document.getElementById('dara').value;
   const val = parseFloat(raw);
   if (!isNaN(val) && val >= 1000) {
-    // Snapshot only if this stamp will actually change a stored value.
-    if ([..._daraByYearStore.values()].some(v => v !== val)) _snapshotDara();
     _daraByYearPanelDefault = val;
     _daraManualYears.clear();
     // Update store and existing input elements in-place — avoids replacing innerHTML
@@ -3028,7 +2949,6 @@ function _daraStep(delta) {
   const inp = document.getElementById('dara');
   const cur = _getDefaultDara() || 10000;
   const newVal = Math.max(1000, cur + delta);
-  if (_daraByYearStore.size) _snapshotDara();
   inp.value = newVal;
   _daraByYearPanelDefault = newVal;
   _daraManualYears.clear();

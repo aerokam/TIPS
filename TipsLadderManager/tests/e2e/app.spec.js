@@ -1243,34 +1243,6 @@ test('Infer DARA over the top range alone drives the whole portfolio to near-zer
   expect(Math.abs(nc), `net cash ≈ 0 after inferring the top range alone (got ${nc})`).toBeLessThan(3000);
 });
 
-test('per-year DARA: Undo and Revert restore prior values', async ({ page }) => {
-  test.setTimeout(20_000);
-  await _selRebalSetup(page, 'undo.csv');
-
-  const rung = page.locator('#simple-table .fy-dara-input[data-year="2030"]');
-  const loaded = await rung.inputValue();
-
-  // Inferring a range is a bulk change → the rung's own value may or may not move — a build→export→
-  // import round-trip is already exactly self-financing, so inferring an already-optimal range can
-  // correctly land right back on what it held; that's the search confirming no adjustment was
-  // needed, not a no-op bug. Capture the pre-infer value fresh rather than assuming it must change.
-  await _selectRange(page, '#simple-table', 2026, 2047);
-  const beforeInfer = await rung.inputValue();
-  await page.locator('#selection-infer-btn').click();
-  await expect(page.locator('#dara-undo')).toBeEnabled();
-
-  // Undo restores the pre-infer value.
-  await page.locator('#dara-undo').click();
-  expect(await rung.inputValue()).toBe(beforeInfer);
-
-  // Make another bulk change, then Revert-to-loaded jumps straight back to the import state.
-  await _selectRange(page, '#simple-table', 2026, 2047);
-  await page.locator('#selection-infer-btn').click();
-  await expect(page.locator('#dara-revert')).toBeVisible();
-  await page.locator('#dara-revert').click();
-  expect(await rung.inputValue()).toBe(loaded);
-});
-
 // ── Standalone DARA-plan file (portable export/import) ────────────────────────
 // Export writes a #fundedYear,dara file with no CUSIP rows; re-importing it onto a freshly
 // (re-)loaded holdings file overlays the saved per-year values exactly.
