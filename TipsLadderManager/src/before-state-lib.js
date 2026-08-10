@@ -16,8 +16,7 @@
 
 import { bondCalcs } from '../../shared/src/bond-math.js';
 import { fmtDate } from './date-util.js';
-import { computePortfolioARAByYear, getGapYears, getYearsWithNoTips } from './rebalance-lib.js';
-import { splitYearsFromHoles } from './segment-dara.js';
+import { computePortfolioARAByYear, getGapYears } from './rebalance-lib.js';
 
 export const LOWEST_LOWER_BRACKET_YEAR = 2032;
 export const UPPER_BRACKET_YEAR = 2040;
@@ -80,40 +79,6 @@ export function getLowerBracketCandidateYears(tipsMap) {
     if (mo === 1 && yr >= LOWEST_LOWER_BRACKET_YEAR && yr < activeYear) years.add(yr);
   }
   return [...years].sort((a, b) => a - b);
-}
-
-// Years in [firstYear, lastYear] with NO held CUSIP at all (funded or excess) — a "holdings hole"
-// (3.0 §Intentional empty rungs' "empty interior funded year"). Excludes structural gap years
-// (2037-2039, no TIPS ever issued for anyone) and any year beyond the last-issued TIPS maturity
-// (the hypothetical Future 30Y range) — neither is a gap in what the USER holds, both are years
-// with no TIPS available to hold in the first place.
-export function getHoldingsHoleYears({ holdings, tipsMap, firstYear, lastYear }) {
-  const heldYears = new Set();
-  for (const h of holdings) {
-    const bond = tipsMap.get(h.cusip);
-    if (bond?.maturity) heldYears.add(bond.maturity.getFullYear());
-  }
-  const ineligible = getYearsWithNoTips(tipsMap, lastYear);
-  const holes = [];
-  for (let y = firstYear; y <= lastYear; y++) {
-    if (ineligible.has(y)) continue;
-    if (!heldYears.has(y)) holes.push(y);
-  }
-  return holes;
-}
-
-// Split years implied by holdings holes (3.0 §Segmented DARA "Auto split years from a holdings
-// hole"): each hole becomes its OWN segment (a split before it and a split at its own end),
-// turning what file load used to mirror as a silent LMI-only stub into an explicit segment
-// boundary the moment the file loads. `extraHoleYears` folds in years the caller knows are holes
-// for a reason outside pure holdings-presence — e.g. an explicit empty pick-set for a year in
-// Rebalance's own Select-maturities picker (3.0 §Auto split years from a holdings hole: "In
-// Rebalance's OWN Select-maturities picker..."). Delegates the before/after boundary math to the
-// shared, mode-agnostic `splitYearsFromHoles` (segment-dara.js) — Build's own hole detection
-// (index.html, from `_daraByYearStore`) uses the same function on its own hole set.
-export function detectHoleSplitYears({ holdings, tipsMap, firstYear, lastYear, extraHoleYears = [] }) {
-  const holes = new Set([...getHoldingsHoleYears({ holdings, tipsMap, firstYear, lastYear }), ...extraHoleYears]);
-  return splitYearsFromHoles(holes, firstYear, lastYear);
 }
 
 // Detect bracket-candidate excess flags (3.0 §Before-State Preview and Bracket-Year Excess

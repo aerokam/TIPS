@@ -4,9 +4,8 @@
 
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
-import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, inferDARAFromCash, inferScaledDARAFromPortfolio, inferSegmentedDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, getYearsWithNoTips, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings } from '../src/rebalance-lib.js';
-import { segmentRanges, constantMap, applySegmentMap, splitYearsFromHoles } from '../src/segment-dara.js';
-import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, getHoldingsHoleYears, detectHoleSplitYears } from '../src/before-state-lib.js';
+import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, inferDARAFromCash, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings } from '../src/rebalance-lib.js';
+import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
@@ -1333,102 +1332,10 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
   assert('inferFirstYear from build firstYear=2036 → null (2036 is funded, not pure bracket)', inferred36, null);
 }
 
-// ── Test: segment-dara pure helpers (shared build/rebalance layer) ────────────
-{
-  console.log('\nsegment-dara helpers — partition / constant / no-clobber merge');
-  const [lmpYears, specYears] = segmentRanges(2047, 2026, 2055);
-  assert('segmentRanges: 2-way split count', segmentRanges(2047, 2026, 2055).length, 2);
-  assert('segmentRanges: LMP count 2026–2047', lmpYears.size, 22);
-  assert('segmentRanges: spec count 2048–2055', specYears.size, 8);
-  assert('segmentRanges: split year is LMP', lmpYears.has(2047), true);
-  assert('segmentRanges: split+1 is spec', specYears.has(2048), true);
-
-  const [allLmp] = segmentRanges(2055, 2026, 2055);
-  assert('segmentRanges: split=last (out of range) → single whole-ladder segment', segmentRanges(2055, 2026, 2055).length, 1);
-  assert('segmentRanges: split=last → whole ladder LMP', allLmp.size, 30);
-
-  // split=firstYear is valid — it carves off a singleton first segment (only split=lastYear is dropped).
-  const [firstYearSeg, restSeg] = segmentRanges(2026, 2026, 2055);
-  assert('segmentRanges: split=first → two segments', segmentRanges(2026, 2026, 2055).length, 2);
-  assert('segmentRanges: split=first → seg1 is singleton', firstYearSeg.size, 1);
-  assert('segmentRanges: split=first → seg1 holds firstYear', firstYearSeg.has(2026), true);
-  assert('segmentRanges: split=first → seg2 count 2027–2055', restSeg.size, 29);
-
-  // N-way split: two split years produce three consecutive segments.
-  const [n1, n2, n3] = segmentRanges([2035, 2047], 2026, 2055);
-  assert('segmentRanges: 3-way split count', segmentRanges([2035, 2047], 2026, 2055).length, 3);
-  assert('segmentRanges: 3-way seg1 count 2026–2035', n1.size, 10);
-  assert('segmentRanges: 3-way seg2 count 2036–2047', n2.size, 12);
-  assert('segmentRanges: 3-way seg3 count 2048–2055', n3.size, 8);
-  assert('segmentRanges: 3-way segments partition with no overlap', n1.size + n2.size + n3.size, 30);
-  // Order of split years supplied shouldn't matter — they're sorted internally.
-  const [r1, r2, r3] = segmentRanges([2047, 2035], 2026, 2055);
-  assert('segmentRanges: split-year order is normalized', r1.size === n1.size && r2.size === n2.size && r3.size === n3.size, true);
-
-  const cm = constantMap(specYears, 50000);
-  assert('constantMap: covers every spec year', cm.size, 8);
-  assert('constantMap: value stamped', cm.get(2050), 50000);
-
-  // No-clobber: stamping the spec segment must not touch LMP entries.
-  const store = new Map([[2030, 40000], [2047, 40000], [2050, 11111]]);
-  applySegmentMap(store, specYears, constantMap(specYears, 60000));
-  assert('applySegmentMap: spec year written', store.get(2050), 60000);
-  assert('applySegmentMap: LMP year 2030 untouched', store.get(2030), 40000);
-  assert('applySegmentMap: LMP year 2047 untouched', store.get(2047), 40000);
-}
-
-// ── Test: two-segment cascade self-finances each segment AND the whole portfolio ──
-// Build a flat 2026–2055 ladder, hold it, then run the LMP/speculative cascade at split 2047.
-// Each segment's own net cash (cost delta summed over its funded years) must be ≈ 0, the whole
-// portfolio must be ≈ 0, and both segment medians must be positive (≈ the flat build DARA).
-{
-  console.log('\nTwo-segment cascade — split 2047, LMP 2026–2047 / speculative 2048–2055, DARA=40000');
-  const DARA = 40000, firstYear = settlementDate.getFullYear(), lastYear = 2055, splitYear = 2047;
-
-  const { details: bD } = runBuild({ dara: DARA, firstYear, lastYear, tipsMap, refCPI, settlementDate });
-  const holdings = bD
-    .map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }))
-    .filter(h => h.qty > 0);
-
-  const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
-  const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap));
-
-  const seg = inferSegmentedDARAFromPortfolio({
-    daraMap, holdings, tipsMap, refCPI, settlementDate, splitYear, firstYear, lastYear,
-  });
-
-  assert('cascade: LMP median positive',  seg.lmpMedian > 0, true);
-  assert('cascade: speculative median positive', seg.specMedian > 0, true);
-
-  // Flat (even real income): every in-scope rung equals its segment median.
-  const lmpEven  = [...seg.lmpMap.values()].every(v => v === seg.lmpMedian);
-  const specEven = [...seg.specMap.values()].every(v => v === seg.specMedian);
-  assert('cascade: LMP rungs are flat (even income)',  lmpEven, true);
-  assert('cascade: speculative rungs are flat (even income)', specEven, true);
-
-  // Run the actual rebalance with the merged map and partition cost delta by segment.
-  const { results, details } = runRebalance({
-    dara: seg.lmpMedian, holdings, tipsMap, refCPI, settlementDate,
-    daraByYear: seg.combinedMap, lastYearOverride: lastYear, firstYearOverride: firstYear,
-  });
-  let lmpNet = 0, specNet = 0;
-  for (let i = 0; i < results.length; i++) {
-    const cd = results[i][11];
-    if (typeof cd !== 'number') continue;
-    if (details[i].fundedYear <= splitYear) lmpNet += cd; else specNet += cd;
-  }
-  const wholeNet = lmpNet + specNet;
-
-  assert('cascade: LMP segment net cash within ±$4000', Math.abs(Math.round(lmpNet)) <= 4000, true);
-  assert('cascade: speculative segment net cash within ±$4000', Math.abs(Math.round(specNet)) <= 4000, true);
-  assert('cascade: whole-portfolio net cash within ±$4000', Math.abs(Math.round(wholeNet)) <= 4000, true);
-  console.log(`        LMP median: ${Math.round(seg.lmpMedian).toLocaleString()}  spec median: ${Math.round(seg.specMedian).toLocaleString()}`);
-  console.log(`        net cash — LMP: ${Math.round(lmpNet).toLocaleString()}  spec: ${Math.round(specNet).toLocaleString()}  whole: ${Math.round(wholeNet).toLocaleString()}`);
-}
-
-// Spec-only infer must NOT throw when probing high DARA floods later-maturity interest into a fixed
-// downstream LMP year (regression: this aborted _runSegmentInferSpec before re-render → "does nothing").
-// Build data is too uniform to hit it; the real-ish SampleHoldings (2040 gap, lumpy ARA) does.
+// Scoped infer must NOT throw when probing high DARA floods later-maturity interest into a fixed
+// downstream year outside its scope (regression: this used to abort the caller before re-render,
+// reading as "the action does nothing"). Build data is too uniform to hit it; the real-ish
+// SampleHoldings (2040 gap, lumpy ARA) does.
 {
   const fp = path.resolve('./data/SampleHoldings.csv');
   if (existsSync(fp)) {
@@ -1848,89 +1755,6 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   const flags = detectBracketFlags({ heldARAByYear: heldARA, tipsMap, lastYear: 2039 });
   assert('before-state: two candidates exceed median → only one flagged', flags.size, 1);
   assert('before-state: the LATER-maturing of two exceeding candidates wins (2035, not 2034)', flags.has(2035), true);
-}
-
-// ── Auto split years from a holdings hole (3.0 §Intentional empty rungs, §Segmented DARA) ──────
-// A holdings hole — an ordinary funded year with no held CUSIP at all — isolates itself as its OWN
-// segment at load: a split before the hole run AND a split at the hole run's own end, instead of
-// being silently mirrored as an LMI-only stub with no segment boundary.
-console.log('\nAuto split years from a holdings hole (before-state-lib.js)');
-{
-  const cusipFor = (year) => [...tipsMap.values()].find(b => b.maturity?.getFullYear() === year)?.cusip;
-
-  // Single hole: held 2028/2029/2031, nothing at 2030 -> splits at 2029 AND 2030, isolating 2030
-  // as its own segment (not lumped with 2031 the way a leading-split-only rule would).
-  {
-    const holdings = [2028, 2029, 2031].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
-    assert('holdings hole: fixture holds 2028/2029/2031 (2030 genuinely has no holding)', holdings.length, 3);
-    const holes = getHoldingsHoleYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
-    assert('holdings hole: 2030 detected as the hole', holes.join(','), '2030');
-    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
-    assert('holdings hole: splits at 2029 (before) and 2030 (its own end) isolate the hole', splits.join(','), '2029,2030');
-  }
-
-  // Consecutive holes (2029,2030) collapse to ONE segment together, still framed on both sides:
-  // a split before the run (2028) and a split at the run's own end (2030).
-  {
-    const holdings = [2028, 2031].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
-    assert('holdings hole: fixture holds 2028/2031 only', holdings.length, 2);
-    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
-    assert('holdings hole: consecutive holes (2029,2030) frame one segment: splits at 2028 and 2030', splits.join(','), '2028,2030');
-  }
-
-  // A hole AT firstYear has no year before it to mark, but STILL gets the trailing split that
-  // isolates it from what follows — only the leading split is dropped, not both.
-  {
-    const holdings = [2029, 2030, 2031].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
-    assert('holdings hole: fixture holds 2029/2030/2031 (2028 = firstYear, unheld)', holdings.length, 3);
-    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
-    assert('holdings hole: a hole at firstYear still isolates itself via the trailing split (2028)', splits.join(','), '2028');
-  }
-
-  // Structural gap years (2037-2039) are never holes — they can't be held by anyone, so an
-  // unheld gap year must not trigger a split.
-  {
-    const holdings = [2035, 2036, 2040].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
-    assert('holdings hole: fixture holds 2035/2036/2040 spanning the structural gap', holdings.length, 3);
-    const holes = getHoldingsHoleYears({ holdings, tipsMap, firstYear: 2035, lastYear: 2040 });
-    assert('holdings hole: no holes across a fully-held-around structural gap', holes.join(','), '');
-    const splits = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2035, lastYear: 2040 });
-    assert('holdings hole: structural gap years never produce a split on their own', splits.join(','), '');
-  }
-
-  // extraHoleYears folds in a caller-supplied hole (e.g. an empty Select-maturities pick-set) even
-  // when the year IS held today — Rebalance's own picker can mark a currently-held year as a hole
-  // for NEXT trade purposes (3.0 §Auto split years from a holdings hole).
-  {
-    const holdings = [2028, 2029, 2030, 2031].map(y => ({ cusip: cusipFor(y), qty: 10 })).filter(h => h.cusip);
-    assert('holdings hole: extraHoleYears fixture fully held, no holdings-based hole on its own', holdings.length, 4);
-    const noExtra = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031 });
-    assert('holdings hole: with no extraHoleYears, a fully-held range has no splits', noExtra.join(','), '');
-    const withExtra = detectHoleSplitYears({ holdings, tipsMap, firstYear: 2028, lastYear: 2031, extraHoleYears: [2029] });
-    assert('holdings hole: extraHoleYears=[2029] isolates 2029 exactly like a real holdings hole', withExtra.join(','), '2028,2029');
-  }
-
-  // splitYearsFromHoles (segment-dara.js) directly — the shared, mode-agnostic isolation rule both
-  // Rebalance (via detectHoleSplitYears above) and Build rely on.
-  console.log('\nsplitYearsFromHoles (segment-dara.js) — shared before/after isolation rule');
-  assert('splitYearsFromHoles: single interior hole isolates on both sides', splitYearsFromHoles([2028], 2027, 2030).join(','), '2027,2028');
-  assert('splitYearsFromHoles: consecutive holes frame one segment', splitYearsFromHoles([2029, 2030], 2028, 2031).join(','), '2028,2030');
-  assert('splitYearsFromHoles: hole at firstYear drops only the leading split', splitYearsFromHoles([2028], 2028, 2031).join(','), '2028');
-  assert('splitYearsFromHoles: hole at lastYear drops only the trailing split', splitYearsFromHoles([2031], 2028, 2031).join(','), '2030');
-  assert('splitYearsFromHoles: no holes -> no splits', splitYearsFromHoles([], 2028, 2031).join(','), '');
-  assert('splitYearsFromHoles: two separate isolated holes each get both boundaries', splitYearsFromHoles([2028, 2030], 2027, 2031).join(','), '2027,2028,2029,2030');
-
-  // getYearsWithNoTips (rebalance-lib.js) — structural gap years plus any year beyond the
-  // last-issued TIPS maturity, the shared "no TIPS available at all" exclusion set.
-  console.log('\ngetYearsWithNoTips (rebalance-lib.js)');
-  {
-    const noTips = getYearsWithNoTips(tipsMap, 2060);
-    const gapSet = new Set(getGapYears(tipsMap));
-    assert('getYearsWithNoTips: includes every structural gap year', [...gapSet].every(y => noTips.has(y)), true);
-    const maxTipsYear = Math.max(...[...tipsMap.values()].filter(b => b.maturity).map(b => b.maturity.getFullYear()));
-    assert('getYearsWithNoTips: includes a year beyond the last-issued TIPS maturity', noTips.has(maxTipsYear + 1), true);
-    assert('getYearsWithNoTips: does NOT include the last-issued TIPS maturity year itself', noTips.has(maxTipsYear), false);
-  }
 }
 
 // ── Within-Year Allocation Policy (2.0 §Within-Year Allocation Policy; the E invariant) ───────
