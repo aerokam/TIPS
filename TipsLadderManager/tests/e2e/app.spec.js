@@ -94,26 +94,23 @@ test('data loads: info strip shows Trade/Settle/Ref CPI dates, run button enable
 test('mode toggle: switching to Build narrows the Import menu to DARA Plan, shows year fields; run button re-labeled', async ({ page }) => {
   // Start in Rebalance mode
   await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
-  await expect(page.locator('#field-holdings')).toBeVisible();
+  await expect(page.locator('#import-menu')).toBeVisible();
   await expect(page.locator('#import-opt-cusip-qty')).toBeEnabled();
-  await expect(page.locator('#holdings-file-name')).toBeVisible();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
 
   // Switch to Build — Import menu stays visible (DARA Plan still importable there) but loses the
-  // CUSIP/Qty option and the loaded-filename display, since Build has no holdings to browse for.
+  // CUSIP/Qty option, since Build has no holdings to browse for.
   await page.locator('.tab-btn[data-mode="build"]').click();
   await expect(page.locator('#run-btn')).toHaveText('Build Ladder');
-  await expect(page.locator('#field-holdings')).toBeVisible();
+  await expect(page.locator('#import-menu')).toBeVisible();
   await expect(page.locator('#import-opt-cusip-qty')).toBeHidden();
-  await expect(page.locator('#holdings-file-name')).toBeHidden();
   await expect(page.locator('#field-last-year')).toBeVisible();
 
   // Switch back to Rebalance
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
   await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
-  await expect(page.locator('#field-holdings')).toBeVisible();
+  await expect(page.locator('#import-menu')).toBeVisible();
   await expect(page.locator('#import-opt-cusip-qty')).toBeEnabled();
-  await expect(page.locator('#holdings-file-name')).toBeVisible();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
 });
 

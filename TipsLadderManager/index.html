@@ -61,14 +61,11 @@
   .field input:focus, .field select:focus { outline: none; border-color: var(--tab-active-bg); box-shadow: 0 0 0 2px rgba(91,164,164,0.4); }
   .field select:disabled { opacity: .55; cursor: not-allowed; }
   .field input[type="file"] { display: none; }
-  #import-menu { width: auto; flex-shrink: 0; }
   #field-pre-ladder label:last-child { height: auto; }
-  #holdings-file-row { display: flex; align-items: center; gap: 6px; overflow: hidden; }
-  #holdings-file-name { font-size: 11px; color: rgba(255,255,255,0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-  /* Import/Export menus (2.1 §Import/Export Menus): action selects, not persisted-state ones — every
-     option performs its action then the select resets straight back to its placeholder, so there's
-     no "currently selected" value to keep visible. Button-themed (not `.field select`-themed) since
-     they read as compact actions among the other Row 2/3 buttons, not as input fields. */
+  /* Import/Export menus (2.1 §Import/Export Menus, 6.0 §Row 1): action selects, not persisted-state
+     ones — every option performs its action then the select resets straight back to its placeholder,
+     so there's no "currently selected" value to keep visible. Button-themed (not `.field select`-
+     themed) and identically styled to each other, sitting side by side at the front of Row 1. */
   .menu-select { padding: 2px 10px; font-size: 11px; font-weight: 700; border: none; border-radius: 4px; background: var(--btn-bg); color: var(--btn-text); cursor: pointer; align-self: flex-end; }
   .menu-select:hover { background: var(--btn-hover-bg); }
 
@@ -384,21 +381,21 @@
     </div>
   </div>
   <div class="form-card">
-    <!-- Row 1: CSV, DARA, Years -->
+    <!-- Row 1: Import/Export, DARA, Years -->
     <div class="card-inputs">
-      <div class="field" id="field-holdings" style="width:180px">
-        <label>Import</label>
-        <input type="file" id="holdings-file" accept=".csv">
-        <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
-        <div id="holdings-file-row">
-          <select id="import-menu" title="CUSIP/Qty: a broker holdings file or a previously exported CUSIP/Qty file. DARA Plan: a previously exported per-year DARA plan.">
-            <option value="" selected disabled hidden>Import&hellip;</option>
-            <option value="cusip-qty" id="import-opt-cusip-qty">CUSIP/Qty</option>
-            <option value="dara-plan">DARA Plan</option>
-          </select>
-          <span id="holdings-file-name">No file chosen</span>
-        </div>
-      </div>
+      <input type="file" id="holdings-file" accept=".csv" style="display:none">
+      <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
+      <select id="import-menu" class="menu-select" title="CUSIP/Qty: a broker holdings file or a previously exported CUSIP/Qty file. DARA Plan: a previously exported per-year DARA plan.">
+        <option value="" selected disabled hidden>Import&hellip;</option>
+        <option value="cusip-qty" id="import-opt-cusip-qty">CUSIP/Qty</option>
+        <option value="dara-plan">DARA Plan</option>
+      </select>
+      <select id="export-menu" class="menu-select" title="Ladder CSV and CUSIP/Qty need a completed Run; DARA Plan is available any time there's a per-year DARA to save.">
+        <option value="" selected disabled hidden>Export&hellip;</option>
+        <option value="ladder-csv" id="export-opt-ladder-csv" disabled>Ladder CSV</option>
+        <option value="cusip-qty" id="export-opt-cusip-qty" disabled>CUSIP/Qty</option>
+        <option value="dara-plan">DARA Plan</option>
+      </select>
       <div class="field" id="field-dara">
         <label>DARA – all yrs ($)</label>
         <div style="display:flex;align-items:center;gap:2px">
@@ -425,7 +422,15 @@
         <label>Last Year</label>
         <select id="last-year"><option value="">—</option></select>
       </div>
-<div class="field" id="field-bracket-mode">
+    </div>
+    <!-- Row 2: construction/computation policy — Brackets / Pre-ladder int. / Maturity preference /
+         Coupon pick / Allocation policy. Shared between both modes (2.0 §Maturity Selection Within a
+         Funded Year, §Within-Year Allocation Policy); Coupon pick and Allocation policy show/hide per
+         their own existing rules. Brackets and Pre-ladder int. moved here from Row 1 (were never
+         "ladder target" fields, always construction policy) once Import/Export moved to Row 1's front,
+         to keep the two rows about the same length (6.0 §Row 1 / §Row 2). -->
+    <div class="card-inputs" style="margin-top:8px">
+      <div class="field" id="field-bracket-mode">
         <label>Brackets</label>
         <div style="display:flex;align-items:center;gap:4px">
           <select id="bracket-mode">
@@ -442,12 +447,6 @@
           <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.08em">Include</span>
         </label>
       </div>
-    </div>
-    <!-- Row 2: construction policy — Maturity preference / Coupon pick / Allocation policy — plus
-         the Export menu (Ladder CSV / CUSIP-Qty / DARA Plan, 2.1 §Import/Export Menus). Shared
-         between both modes (2.0 §Maturity Selection Within a Funded Year, §Within-Year Allocation
-         Policy); Coupon pick and Allocation policy show/hide per their own existing rules. -->
-    <div class="card-inputs" style="margin-top:8px">
       <div class="field" id="field-build-maturity">
         <label>Maturity preference</label>
         <select id="build-maturity">
@@ -474,12 +473,6 @@
           <option value="select">Set priority order&hellip;</option>
         </select>
       </div>
-      <select id="export-menu" class="menu-select" title="Ladder CSV and CUSIP/Qty need a completed Run; DARA Plan is available any time there's a per-year DARA to save.">
-        <option value="" selected disabled hidden>Export&hellip;</option>
-        <option value="ladder-csv" id="export-opt-ladder-csv" disabled>Ladder CSV</option>
-        <option value="cusip-qty" id="export-opt-cusip-qty" disabled>CUSIP/Qty</option>
-        <option value="dara-plan">DARA Plan</option>
-      </select>
     </div>
     <!-- Row 3: Run + post-run actions — everything here stays hidden (or disabled, for Run) until a
          Run completes. -->
@@ -861,11 +854,10 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     
     // Toggle field visibility
     // Import (2.1 §Import/Export Menus) is available in both modes now — Build only ever imports a
-    // DARA plan (no holdings to browse for), so the CUSIP/Qty option and the loaded-filename display
-    // (which only ever reflects a CUSIP/Qty load) are Rebalance-only; the field itself stays visible.
+    // DARA plan (no holdings to browse for), so the CUSIP/Qty option is Rebalance-only; the menu
+    // itself stays visible.
     document.getElementById('import-opt-cusip-qty').hidden = !isRebalance;
     document.getElementById('import-opt-cusip-qty').disabled = !isRebalance;
-    document.getElementById('holdings-file-name').style.display = isRebalance ? '' : 'none';
     document.getElementById('import-menu').value = '';
 
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
@@ -2373,7 +2365,6 @@ let _holdingsLoadToken = 0;
 document.getElementById('holdings-file').addEventListener('change', async (e) => {
   const myLoadToken = ++_holdingsLoadToken;
   const file = e.target.files[0];
-  document.getElementById('holdings-file-name').textContent = file ? file.name : 'No file chosen';
   currentHoldingsArray = null;
   _updateCashFlowBtnVisibility();
   window._pendingBrokerAccounts = null; // Clear any stale account data
@@ -2546,7 +2537,6 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
     setStatus('Account selection cancelled.', true);
     currentHoldingsArray = null;
     document.getElementById('holdings-file').value = '';
-    document.getElementById('holdings-file-name').textContent = 'No file chosen';
     _updateCashFlowBtnVisibility();
   });
 
