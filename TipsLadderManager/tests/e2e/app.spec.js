@@ -1253,6 +1253,8 @@ test('Infer DARA over a selected range cascades down, never up', async ({ page }
   await expect(page.locator('#simple-table .fy-dara-input[data-year="2050"]')).toHaveValue('55000');
   const lmp3 = await _lmpVals(page);
   expect(new Set(lmp3).size, 'the bottom range stays flat after the typed stamp cascades down').toBe(1);
+  // Set DARA has nothing left to show once applied — the selection (and its toolbar) closes.
+  await expect(page.locator('#selection-toolbar'), 'Set DARA clears the selection on Apply').not.toBeVisible();
 
   await page.locator('#run-btn').click();
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 6_000 });
@@ -1392,6 +1394,7 @@ test('build: Set DARA over a selected range works; Infer DARA never renders in B
   for (const y of years) {
     await expect(page.locator(`#build-table .fy-dara-input[data-year="${y}"]`)).toHaveValue('25000');
   }
+  await expect(page.locator('#selection-toolbar'), 'Set DARA clears the selection on Apply').not.toBeVisible();
 });
 
 // Regression guard for the selection state added alongside this feature: switching modes must not

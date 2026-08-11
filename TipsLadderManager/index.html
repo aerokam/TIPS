@@ -2842,6 +2842,9 @@ function _cascadeReinferBelow(belowYear) {
 }
 
 // Infer the current selection's self-financing flat DARA (Rebalance only), then cascade below it.
+// Deliberately leaves the selection (and toolbar) open, unlike Set DARA below — the point is to show
+// the just-solved value in #selection-dara-input, which only means something while the selection
+// that produced it is still visible.
 function _runSelectionInfer() {
   if (!_selectedYears.size) return;
   if (!_inferYearsFlat(_selectedYears)) return;
@@ -2854,12 +2857,15 @@ function _runSelectionInfer() {
 }
 
 // Stamp one typed value across every currently selected rung (both modes), then cascade below.
+// Clears the selection afterward (unlike Infer, §_runSelectionInfer above) — Set DARA has nothing
+// left to show the user once applied, since the value came from what they just typed, not solved.
 function _runSelectionSetDara(val) {
   if (!_selectedYears.size || isNaN(val) || val < 0) return;
   for (const y of _selectedYears) { _daraByYearStore.set(y, val); _daraManualYears.add(y); }
   _cascadeReinferBelow(Math.min(..._selectedYears));
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
+  _clearSelection();
   if (wasBuilt) _runBuildFromForm();
 }
 
