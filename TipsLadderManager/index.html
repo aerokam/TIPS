@@ -147,6 +147,10 @@
   table.simple tr.fy-group-header.bracket td { background: #c0d8d8; border-top-color: #88b8b8; }
   table.simple tr.fy-group-header:hover td { background: #ccdede !important; }
   table.simple tr.fy-group-header.bracket:hover td { background: #b0cccc !important; }
+  /* Same specificity as the two hover rules above, so source order alone decides — placed after
+     them so a selected row keeps its yellow highlight while the mouse still hovers it (e.g. the
+     last row under the cursor mid-drag), instead of the hover teal winning. */
+  table.simple tr.fy-group-header.selected:hover td { background: #ffe9a8 !important; }
   table.simple tr.fy-group-header td:first-child::before { content: '▼\00a0\00a0'; font-size: 10px; }
   table.simple tr.fy-group-header[data-expanded="false"] td:first-child::before { content: '▶\00a0\00a0'; }
   /* All cols fit their content */

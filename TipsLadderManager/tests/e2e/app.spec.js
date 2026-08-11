@@ -936,6 +936,39 @@ test('rebalance: Infer DARA over a selected range fills an empty interior year',
   expect(rowText, `2029 must FILL to the inferred DARA (got "${rowText.trim()}"), not stay an empty hole`).toMatch(/\+\s*[1-9]\d*/);
 });
 
+// A click-drag across rows (3.0 §Per-Rung DARA Selection §Selecting rungs) must show the row under
+// the cursor as selected (yellow) WHILE the mouse is still over it, mid-drag, not only after the
+// mouse leaves — a same-specificity `:hover` CSS rule used to win over `.selected` and mask the
+// yellow until the cursor moved off the row (6.0 §Selection Toolbar).
+test('rebalance: click-drag selection highlights the row under the cursor immediately, before mouseup', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  const rows = page.locator('#simple-table tr.fy-group-header');
+
+  // Real dragging sweeps the cursor continuously through the rows as they're actually laid out on
+  // screen (re-reading each row's position right before moving to it), not to stale precomputed
+  // coordinates — the selection toolbar appearing mid-drag grows #top-row and shifts every row down,
+  // so a naive one-shot jump to a coordinate captured before the drag started can under- or
+  // over-shoot once that reflow happens.
+  const startBox = await rows.nth(0).boundingBox();
+  await page.mouse.move(startBox.x + 10, startBox.y + startBox.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 2; i++) {
+    const box = await rows.nth(i).boundingBox();
+    await page.mouse.move(box.x + 10, box.y + box.height / 2);
+  }
+
+  // Still holding the mouse over the last row (row index 2) — assert it's visibly yellow now, not
+  // masked by the hover teal.
+  const lastRow = rows.nth(2);
+  await expect(lastRow).toHaveClass(/selected/);
+  const bg = await lastRow.locator('td').first().evaluate(td => getComputedStyle(td).backgroundColor);
+  expect(bg, 'row under the cursor mid-drag must already show the yellow selected background').toBe('rgb(255, 233, 168)');
+
+  await page.mouse.up();
+});
+
 // ── 17. RefCPI date change clears output but preserves DARA ──────────────────
 test('rebalance: changing RefCPI date clears output and does not alter DARA', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
