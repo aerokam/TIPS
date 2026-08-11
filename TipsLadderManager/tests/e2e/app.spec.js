@@ -920,6 +920,10 @@ test('rebalance: Infer DARA over a selected range fills an empty interior year',
   const val2029 = await page.locator('.fy-dara-input[data-year="2029"]').inputValue();
   expect(parseFloat(val2029.replace(/[^0-9.-]/g, '')), '2029 shows the inferred DARA in the panel').toBeGreaterThan(1000);
 
+  // The selection toolbar's own Set-DARA field also updates to the just-solved flat value.
+  const selVal = await page.locator('#selection-dara-input').inputValue();
+  expect(parseFloat(selVal), 'selection field reflects the inferred DARA').toBeCloseTo(parseFloat(val2029.replace(/[^0-9.-]/g, '')), 0);
+
   await page.locator('#run-btn').click();
   await expect(page.locator('#simple-table')).toBeVisible({ timeout: 4_000 });
 

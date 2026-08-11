@@ -2820,6 +2820,8 @@ function _runSelectionInfer() {
   _cascadeReinferBelow(Math.min(..._selectedYears));
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
+  const inferredYear = [..._selectedYears].find(y => _daraByYearStore.has(y));
+  if (inferredYear !== undefined) document.getElementById('selection-dara-input').value = _daraByYearStore.get(inferredYear);
   if (wasBuilt) _runBuildFromForm();
 }
 
