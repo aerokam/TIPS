@@ -36,10 +36,8 @@
   /* ── Form card ── */
   .form-card { width: fit-content; min-width: 845px; background: var(--portal-card-bg); border: 1px solid var(--portal-header-bg); border-radius: 0 0 8px 8px; padding: 10px 24px 8px; color: var(--portal-card-text); box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.4); position: relative; transition: width 0.2s ease-out; }
 
-  /* Small secondary-action buttons (Export/Import DARA Plan) living directly in .form-card now —
-     no longer scoped to a separate card, since the DARA Plan card was removed (segments/split
-     years eliminated in favor of selecting rungs directly in the ladder table — 3.0 §Per-Rung DARA
-     Selection). */
+  /* Selection toolbar's Set DARA / Infer DARA / Clear buttons (#selection-toolbar, 3.0 §Per-Rung
+     DARA Selection). */
   .plan-btn { padding: 3px 8px; font-size: 11px; font-weight: 700; border: 1px solid var(--tab-active-bg); border-radius: 4px; background: var(--portal-header-bg); color: var(--portal-card-text); cursor: pointer; white-space: nowrap; }
   .plan-btn:hover:not(:disabled) { background: var(--tab-active-bg); color: var(--portal-text-on-dark); }
   .plan-btn:disabled { opacity: .5; cursor: default; }
@@ -63,10 +61,16 @@
   .field input:focus, .field select:focus { outline: none; border-color: var(--tab-active-bg); box-shadow: 0 0 0 2px rgba(91,164,164,0.4); }
   .field select:disabled { opacity: .55; cursor: not-allowed; }
   .field input[type="file"] { display: none; }
-  #holdings-file-btn { padding: 7px 10px; flex-shrink: 0; }
+  #import-menu { width: auto; flex-shrink: 0; }
   #field-pre-ladder label:last-child { height: auto; }
   #holdings-file-row { display: flex; align-items: center; gap: 6px; overflow: hidden; }
   #holdings-file-name { font-size: 11px; color: rgba(255,255,255,0.55); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  /* Import/Export menus (2.1 §Import/Export Menus): action selects, not persisted-state ones — every
+     option performs its action then the select resets straight back to its placeholder, so there's
+     no "currently selected" value to keep visible. Button-themed (not `.field select`-themed) since
+     they read as compact actions among the other Row 2/3 buttons, not as input fields. */
+  .menu-select { padding: 2px 10px; font-size: 11px; font-weight: 700; border: none; border-radius: 4px; background: var(--btn-bg); color: var(--btn-text); cursor: pointer; align-self: flex-end; }
+  .menu-select:hover { background: var(--btn-hover-bg); }
 
   /* ── Status ── */
   #run-btn { padding: 5px 18px; }
@@ -244,7 +248,7 @@
     <p>For existing TIPS ladder holders. Sells excess bracket TIPS and buys into newly available maturities (former gap years). Support for extending the ladder beyond 2040 is included.</p>
     <p><b>Last Year</b> — Automatically detected from holdings. If your last maturity is 2040, it defaults to 2040 (or the last gap year, 2039). If your holdings end before 2040, that year is used. You can override this to extend the ladder to 2041+; the tool will identify the appropriate TIPS for those years automatically.</p>
     <p><b>Brackets</b> — <i>2-bracket</i>: always uses the latest Jan 10-year TIPS before the gap (Jan 2036) as the lower bracket; any older lower bracket holdings (e.g. Jan 2034) become regular funded years and their full excess is sold. <i>3-bracket</i> (default): lower bracket excess is managed with a priority rule — when over-allocated, Jan 2034 excess is sold only as far as restoring the duration match requires (not depleted outright unless the match still needs more), and Jan 2036 excess only if Jan 2034 is fully sold and still over target; when under-allocated, Jan 2034 is frozen at current and Jan 2036 is bought to fill the gap. Jan 2034 excess is never increased or bought back. (A very small residual trade, at most about one bond, can appear on a reload after a partial sell — an ordinary whole-bond-rounding artifact, not an error.) Click the <b>?</b> next to the Brackets selector for a quick comparison.</p>
-    <p><b>Holdings CSV</b> — Two columns: <code>cusip</code> and <code>qty</code>. A sample is pre-filled when you click the file input.</p>
+    <p><b>Import → CUSIP/Qty</b> — Two columns: <code>cusip</code> and <code>qty</code>. A sample is pre-filled on load.</p>
     <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:8px;font-size:12px;margin:6px 0;">cusip,qty
 912828S50,50
 91282CEJ6,30
@@ -383,10 +387,15 @@
     <!-- Row 1: CSV, DARA, Years -->
     <div class="card-inputs">
       <div class="field" id="field-holdings" style="width:180px">
-        <label>Holdings CSV</label>
+        <label>Import</label>
         <input type="file" id="holdings-file" accept=".csv">
+        <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
         <div id="holdings-file-row">
-          <button type="button" id="holdings-file-btn">Browse</button>
+          <select id="import-menu" title="CUSIP/Qty: a broker holdings file or a previously exported CUSIP/Qty file. DARA Plan: a previously exported per-year DARA plan.">
+            <option value="" selected disabled hidden>Import&hellip;</option>
+            <option value="cusip-qty" id="import-opt-cusip-qty">CUSIP/Qty</option>
+            <option value="dara-plan">DARA Plan</option>
+          </select>
           <span id="holdings-file-name">No file chosen</span>
         </div>
       </div>
@@ -435,13 +444,9 @@
       </div>
     </div>
     <!-- Row 2: construction policy — Maturity preference / Coupon pick / Allocation policy — plus
-         DARA-plan export/import (a standalone year->DARA file, the only way to carry a desired-DARA
-         plan across a fresh broker re-upload, which never carries per-year DARA of its own; 2.1
-         §Standalone DARA-plan file). Grouped here rather than in Row 3 because, like the policy
-         controls, both are available before a Run — unlike Row 3's other buttons, which stay hidden
-         until one completes. Shared between both modes (2.0 §Maturity Selection Within a Funded
-         Year, §Within-Year Allocation Policy); Coupon pick and Allocation policy show/hide per their
-         own existing rules. -->
+         the Export menu (Ladder CSV / CUSIP-Qty / DARA Plan, 2.1 §Import/Export Menus). Shared
+         between both modes (2.0 §Maturity Selection Within a Funded Year, §Within-Year Allocation
+         Policy); Coupon pick and Allocation policy show/hide per their own existing rules. -->
     <div class="card-inputs" style="margin-top:8px">
       <div class="field" id="field-build-maturity">
         <label>Maturity preference</label>
@@ -469,16 +474,17 @@
           <option value="select">Set priority order&hellip;</option>
         </select>
       </div>
-      <button id="dara-plan-export-btn" style="padding:2px 10px;font-size:11px;align-self:flex-end" title="Save the current per-year DARA to a file you can re-apply later, on any device">Export DARA Plan</button>
-      <button id="dara-plan-import-btn" style="padding:2px 10px;font-size:11px;align-self:flex-end" title="Load a previously exported DARA-plan file and overlay it on the current holdings">Import DARA Plan</button>
-      <input type="file" id="dara-plan-import-file" accept=".csv,.txt" style="display:none">
+      <select id="export-menu" class="menu-select" title="Ladder CSV and CUSIP/Qty need a completed Run; DARA Plan is available any time there's a per-year DARA to save.">
+        <option value="" selected disabled hidden>Export&hellip;</option>
+        <option value="ladder-csv" id="export-opt-ladder-csv" disabled>Ladder CSV</option>
+        <option value="cusip-qty" id="export-opt-cusip-qty" disabled>CUSIP/Qty</option>
+        <option value="dara-plan">DARA Plan</option>
+      </select>
     </div>
     <!-- Row 3: Run + post-run actions — everything here stays hidden (or disabled, for Run) until a
          Run completes. -->
     <div class="card-inputs" style="margin-top:8px">
       <button id="run-btn" disabled style="align-self:flex-end">Rebalance Ladder</button>
-      <button id="export-csv-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export table to CSV">Export CSV</button>
-      <button id="export-cusip-qty-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Export CUSIP/Qty for Rebalance import">Export CUSIP/Qty</button>
       <button id="trade-ticket-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show trade ticket with cost breakdown">Trade Ticket</button>
       <button id="cash-flow-btn" style="display:none;padding:2px 10px;font-size:11px;align-self:flex-end" title="Show coupon and principal payment calendar for held TIPS">Cash Flow</button>
       <div id="duration-links" style="align-self:flex-end"></div>
@@ -854,7 +860,13 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     _clearSelection();
     
     // Toggle field visibility
-    document.getElementById('field-holdings').style.display = isRebalance ? '' : 'none';
+    // Import (2.1 §Import/Export Menus) is available in both modes now — Build only ever imports a
+    // DARA plan (no holdings to browse for), so the CUSIP/Qty option and the loaded-filename display
+    // (which only ever reflects a CUSIP/Qty load) are Rebalance-only; the field itself stays visible.
+    document.getElementById('import-opt-cusip-qty').hidden = !isRebalance;
+    document.getElementById('import-opt-cusip-qty').disabled = !isRebalance;
+    document.getElementById('holdings-file-name').style.display = isRebalance ? '' : 'none';
+    document.getElementById('import-menu').value = '';
 
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
     // Maturity preference (2.0 §Maturity Selection Within a Funded Year) is shared UI, visible in
@@ -885,8 +897,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
 
     document.getElementById('output').style.display     = isRebalance && (rebalanceRendered || _rebalBeforeStateShown) ? 'block' : 'none';
     document.getElementById('build-output').style.display = !isRebalance && buildRendered     ? 'block' : 'none';
-    document.getElementById('export-csv-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
-    document.getElementById('export-cusip-qty-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'block' : 'none';
+    _syncExportMenu();
     document.getElementById('trade-ticket-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'inline-block' : 'none';
     // #table-controls (Expand/Collapse All) tracks the table's own visibility, not just a real Run
     // result — in Rebalance it's available as soon as the before-state preview renders (6.0
@@ -915,8 +926,45 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
   });
 });
 
+// ─── Import / Export menus (2.1 §Import/Export Menus) ────────────────────────
+// Action selects, not persisted-state ones: each option performs its action immediately on
+// 'change', then the select resets straight back to its placeholder — there's no "current value"
+// to leave selected, unlike #build-maturity/#rebal-alloc-policy's Select-maturities/priority-order
+// options (which stay selected as an ongoing state and need click/mousedown disambiguation to
+// reopen their modal; not needed here since every choice here always starts from '').
+document.getElementById('import-menu').addEventListener('change', () => {
+  const sel = document.getElementById('import-menu');
+  const choice = sel.value;
+  sel.value = '';
+  if (choice === 'cusip-qty') {
+    const fi = document.getElementById('holdings-file');
+    fi.value = '';
+    fi.click();
+  } else if (choice === 'dara-plan') {
+    const fi = document.getElementById('dara-plan-import-file');
+    fi.value = '';
+    fi.click();
+  }
+});
+document.getElementById('export-menu').addEventListener('change', () => {
+  const sel = document.getElementById('export-menu');
+  const choice = sel.value;
+  sel.value = '';
+  if (choice === 'ladder-csv') _exportLadderCsv();
+  else if (choice === 'cusip-qty') _exportCusipQty();
+  else if (choice === 'dara-plan') _exportDaraPlan();
+});
+// Ladder CSV / CUSIP-Qty need a completed Run for the current mode; DARA Plan doesn't (it just
+// saves whatever's in the per-year DARA store). Called everywhere rebalanceRendered/buildRendered
+// change: the mode-switch handler above, both render* functions, and every output-clearing reset.
+function _syncExportMenu() {
+  const available = currentMode === 'build' ? buildRendered : rebalanceRendered;
+  document.getElementById('export-opt-ladder-csv').disabled = !available;
+  document.getElementById('export-opt-cusip-qty').disabled = !available;
+}
+
 // ─── Export table CSV ────────────────────────────────────────────────────────
-document.getElementById('export-csv-btn').addEventListener('click', () => {
+function _exportLadderCsv() {
   const mode = currentMode === 'build' ? 'build' : 'rebal';
   const details = mode === 'build' ? buildDetails : rebalDetails;
   if (!details) return;
@@ -970,10 +1018,10 @@ document.getElementById('export-csv-btn').addEventListener('click', () => {
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   window.URL.revokeObjectURL(url);
-});
+}
 
 // ─── Export CUSIP/Qty (for Rebalance import) ─────────────────────────────────
-document.getElementById('export-cusip-qty-btn').addEventListener('click', () => {
+function _exportCusipQty() {
   const details = currentMode === 'build' ? buildDetails : rebalDetails;
   if (!details) return;
   const rows = ['cusip,qty,excess'];
@@ -1018,7 +1066,7 @@ document.getElementById('export-cusip-qty-btn').addEventListener('click', () => 
   document.body.appendChild(a); a.click();
   document.body.removeChild(a);
   window.URL.revokeObjectURL(url);
-});
+}
 
 // ─── Collapsible funded-year groups ──────────────────────────────────────────
 function _activeTable() {
@@ -1872,8 +1920,7 @@ function renderOutput({ results, HDR, summary, details }, portfolioCash = null) 
     rebalanceRendered = true;
   _rebalBeforeStateShown = true;
   document.getElementById('output').style.display = 'block';
-  document.getElementById('export-csv-btn').style.display = 'block';
-  document.getElementById('export-cusip-qty-btn').style.display = 'block';
+  _syncExportMenu();
   document.getElementById('trade-ticket-btn').style.display = 'inline-block';
   document.getElementById('table-controls').style.display = 'flex';
 }
@@ -1920,8 +1967,7 @@ function renderBuildOutput({ results, HDR, summary, details }) {
 
     buildRendered = true;
   document.getElementById('build-output').style.display = 'block';
-  document.getElementById('export-csv-btn').style.display = 'block';
-  document.getElementById('export-cusip-qty-btn').style.display = 'block';
+  _syncExportMenu();
   document.getElementById('trade-ticket-btn').style.display = 'inline-block';
   document.getElementById('table-controls').style.display = 'flex';
 }
@@ -2204,8 +2250,9 @@ function _initRebalDaraFromPortfolio() {
 // Renders Qty/Cost/Amount Before for every ordinary funded year as soon as holdings are loaded /
 // account(s) selected — before Rebalance Ladder is clicked. Standalone holdings-valuation computation
 // (before-state-lib.js `computeBeforeState`) — does NOT call runRebalance/runFundedRebalance.
-// After-side columns and genuinely After-dependent controls (Export CSV, Export CUSIP/Qty, Trade
-// Ticket, Duration links, #ladder-stats-display) stay hidden/blank until Rebalance Ladder; see the
+// After-side columns and genuinely After-dependent controls (the Export menu's Ladder CSV/CUSIP-Qty
+// options, Trade Ticket, Duration links, #ladder-stats-display) stay hidden/blank until Rebalance
+// Ladder; see the
 // `renderTable` call below (After-side fields are simply never set on these rows) and the gating
 // already in place for those controls' `rebalanceRendered`-only display. #table-controls (Expand
 // All / Collapse All) is NOT in that list — the ladder table with its collapsible funded-year
@@ -2245,8 +2292,7 @@ function _renderBeforeStatePreview() {
   // Load (Rebalance)) — only the genuinely After-dependent controls below stay hidden.
   document.getElementById('table-controls').style.display = 'flex';
   _updateExpandCollapseLabels();
-  document.getElementById('export-csv-btn').style.display = 'none';
-  document.getElementById('export-cusip-qty-btn').style.display = 'none';
+  _syncExportMenu();
   document.getElementById('trade-ticket-btn').style.display = 'none';
   document.getElementById('ladder-stats-display').style.display = 'none';
   document.getElementById('net-cash-inline').style.display = 'none';
@@ -2258,7 +2304,7 @@ function _renderBeforeStatePreview() {
 // carries a desired plan across a FRESH broker re-upload (Vanguard/Fidelity/Schwab), which never
 // has per-year DARA of its own to read — re-importing our own CUSIP/Qty export only reproduces a
 // plan exactly when re-importing that SAME export.
-document.getElementById('dara-plan-export-btn').addEventListener('click', () => {
+function _exportDaraPlan() {
   if (!_daraByYearStore.size) { setStatus('Nothing to export — no per-year DARA to save yet.', true); return; }
   const lines = ['#fundedYear,dara'];
   for (const [y, v] of [..._daraByYearStore.entries()].sort((a, b) => a[0] - b[0])) lines.push(`${y},${Math.round(v)}`);
@@ -2271,12 +2317,7 @@ document.getElementById('dara-plan-export-btn').addEventListener('click', () => 
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-});
-document.getElementById('dara-plan-import-btn').addEventListener('click', () => {
-  const fi = document.getElementById('dara-plan-import-file');
-  fi.value = '';
-  fi.click();
-});
+}
 document.getElementById('dara-plan-import-file').addEventListener('change', async e => {
   const file = e.target.files[0];
   if (!file) return;
@@ -2329,12 +2370,6 @@ let currentImportedParams = null; // construction params from our own export's #
 // and drops its result if a newer load has started by the time its await resumes.
 let _holdingsLoadToken = 0;
 
-document.getElementById('holdings-file-btn').addEventListener('click', () => {
-  const fi = document.getElementById('holdings-file');
-  fi.value = '';
-  fi.click();
-});
-
 document.getElementById('holdings-file').addEventListener('change', async (e) => {
   const myLoadToken = ++_holdingsLoadToken;
   const file = e.target.files[0];
@@ -2348,8 +2383,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   rebalanceRendered = false; _rebalBeforeStateShown = false; rebalDetails = null; rebalSummary = null;
   document.getElementById('output').style.display = 'none';
   document.getElementById('table-controls').style.display = 'none';
-  document.getElementById('export-csv-btn').style.display = 'none';
-  document.getElementById('export-cusip-qty-btn').style.display = 'none';
+  _syncExportMenu();
   document.getElementById('trade-ticket-btn').style.display = 'none';
   // Clear all form fields and per-year DARA state for fresh file
   document.getElementById('dara').value = '';
@@ -3272,8 +3306,7 @@ function _clearOutput() {
   rebalDetails = null; rebalSummary = null; buildDetails = null; buildSummary = null;
   document.getElementById('output').style.display = 'none';
   document.getElementById('build-output').style.display = 'none';
-  document.getElementById('export-csv-btn').style.display = 'none';
-  document.getElementById('export-cusip-qty-btn').style.display = 'none';
+  _syncExportMenu();
   document.getElementById('net-cash-inline').style.display = 'none';
   document.getElementById('ladder-stats-display').style.display = 'none';
   _clearAutoDara();
