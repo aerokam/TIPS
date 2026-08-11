@@ -1936,11 +1936,31 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
     // between Jan and Oct) could sell before Jan -- the fully-held, least-preferred CUSIP -- was
     // touched at all, purely because Apr's per-bond value happened to be smaller. Both violate the
     // fixed sell order's core rule: never touch a more-preferred-to-hold CUSIP while a less-
-    // preferred one still holds any qty. -1500 lands exactly on that boundary for this holding
-    // (Jan sells 1 of its 2, not fully drained) -- Apr and Oct must stay untouched.
+    // preferred one still holds any qty. The boundary cut in dollars is a function of Jan's live
+    // market price (via costPerBond), so it can't be hardcoded -- a fixed dollar figure here drifts
+    // out of the partial-sell window as prices move day to day (this literally happened: the
+    // original -1500 landed on the boundary when written, then drifted below it). Instead, binary-
+    // search for the smallest cut that makes Jan sell anything at all; by construction that's the
+    // rounding boundary, and it should land on a partial sell (Jan qty 2 -> 1, not 2 -> 0) the same
+    // way it always has for this real holding.
     {
+      function janQtyAfterCut(cut) {
+        const dm = new Map(baseDaraMap);
+        dm.set(2027, Math.max(1000, (dm.get(2027) ?? 0) - cut));
+        const { details: d } = runRebalance({
+          dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
+          daraByYear: dm, allocationPolicy: 'maturity',
+        });
+        return d.find(x => x.cusip === JAN27 && x.fundedYear === 2027).qtyAfter;
+      }
+      const janQtyBefore = janQtyAfterCut(0);  // qtyBefore, read via a zero-cut baseline run
+      let lo = 0, hi = 10000;  // hi comfortably drains Jan's whole holding at any plausible price
+      while (hi - lo > 1) {
+        const mid = Math.floor((lo + hi) / 2);
+        if (janQtyAfterCut(mid) < janQtyBefore) hi = mid; else lo = mid;
+      }
       const boundaryDara = new Map(baseDaraMap);
-      boundaryDara.set(2027, Math.max(1000, (boundaryDara.get(2027) ?? 0) - 1500));
+      boundaryDara.set(2027, Math.max(1000, (boundaryDara.get(2027) ?? 0) - hi));
       const { details } = runRebalance({
         dara: scaledMedian, holdings, tipsMap, refCPI, settlementDate,
         daraByYear: boundaryDara, allocationPolicy: 'maturity',
