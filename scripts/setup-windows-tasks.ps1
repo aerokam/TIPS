@@ -95,8 +95,8 @@ $legacy = @(
     'SnapYieldHistory', 'YieldHistorySnap',
     # SA Factor variants
     'SaFactorUpdate',
-    # Ref CPI variants
-    'RefCPI', 'RefCpiRefresh',
+    # Ref CPI variants (now chained from inside CpiHistory's wrapper, not its own task)
+    'RefCPI', 'RefCpi', 'RefCpiRefresh',
     # CPI History variants
     'FetchCpiHistory', 'CpiHistoryRefresh',
     # Fidelity variants
@@ -260,20 +260,20 @@ if ($futureDates.Count -gt 0) {
         New-ScheduledTaskTrigger -Once -At ($_.Date.AddHours(5).AddMinutes(35))
     }
 
-    Register-NodeTask "RefCpi" `
-        "Fetch daily interpolated Ref CPI from TreasuryDirect on BLS release dates, upload TIPS/RefCPI.csv" `
+    # RefCpi (TIPS/RefCPI.csv) is chained from inside run-cpi-history.cmd, run right after
+    # the BLS fetch succeeds, rather than given its own same-time trigger. RefCpi pulls from
+    # TreasuryDirect, a separate source that lags BLS's 8:30am ET print by an unknown amount;
+    # chaining runs it as soon as our own fetch confirms release day instead of guessing a
+    # fixed clock offset (the old fixed 11am PT trigger was confirmed too conservative).
+    Register-CmdTask "CpiHistory" `
+        "Fetch full CPI-U history from BLS on release dates, upload bls/CPI_history.csv; then chain-run Ref CPI fetch (TIPS/RefCPI.csv)" `
         $cpiTriggers `
-        "scripts/fetchRefCpi.js"
-
-    Register-NodeTask "CpiHistory" `
-        "Fetch full CPI-U history from BLS on release dates, upload bls/CPI.csv" `
-        $cpiTriggers `
-        "scripts/fetchCpiHistory.js"
+        "$ProjectDir\scripts\run-cpi-history.cmd"
 
     $nextDate = ($futureDates | Sort-Object | Select-Object -First 1).ToString('yyyy-MM-dd')
     Write-Host "  Registered $($futureDates.Count) CPI date triggers (next: $nextDate)"
 } else {
-    Write-Warning "  No future CPI dates found  -  RefCpi and CpiHistory NOT registered."
+    Write-Warning "  No future CPI dates found  -  CpiHistory NOT registered."
 }
 
 # ---------------------------------------------------------------------------

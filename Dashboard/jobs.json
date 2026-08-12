@@ -5,7 +5,7 @@
     "cmd": "YieldCurves\\scripts\\run-fidelity.cmd",
     "cwd": ".",
     "apps": ["yieldcurves"],
-    "windowsTaskNames": ["FidelityDownload-Morning", "FidelityDownload-Midday", "FidelityDownload-Close"]
+    "windowsTaskNames": ["FidelityQuotes"]
   },
   {
     "id": "fedinvest-download",

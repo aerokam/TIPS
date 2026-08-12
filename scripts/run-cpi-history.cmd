@@ -18,4 +18,16 @@ echo [%DATE% %TIME%] Release day confirmed — fetching CPI history... >> "%LOG%
 set RC=%ERRORLEVEL%
 echo [%DATE% %TIME%] Exited with code %RC% >> "%LOG%"
 echo. >> "%LOG%"
-exit /b %RC%
+
+if %RC% neq 0 (
+  echo [%DATE% %TIME%] CPI history fetch failed — skipping Ref CPI chain. >> "%LOG%"
+  echo. >> "%LOG%"
+  exit /b %RC%
+)
+
+REM Ref CPI is sourced independently from TreasuryDirect, not from CPI_history.csv,
+REM but TreasuryDirect's own recompute only reflects today's BLS print once it has
+REM caught up — chaining here (rather than a same-time trigger) runs it right after
+REM our own CPI fetch confirms the release is out, not on a guessed clock offset.
+call "%REPO%\scripts\run-ref-cpi.cmd"
+exit /b %ERRORLEVEL%

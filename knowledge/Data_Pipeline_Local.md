@@ -29,10 +29,7 @@ Public pipeline architecture is in `knowledge/Data_Pipeline.md`.
 - Do NOT spoof `navigator.webdriver` — makes it worse
 
 ### Scheduled Tasks (Windows Task Scheduler)
-Three tasks registered via `YieldCurves/scripts/setup-tasks.ps1` (gitignored):
-- `FidelityDownload-Morning`: 5:00 AM PT (8 AM ET), retries every 30 min × 9
-- `FidelityDownload-Midday`: 10:00 AM PT (1 PM ET)
-- `FidelityDownload-Close`: 2:00 PM PT (5 PM ET)
+One consolidated task, `FidelityQuotes`, registered via `scripts/setup-windows-tasks.ps1`, with three weekday trigger windows: 5:05 AM PT (8:05 AM ET), 9:35 AM PT (12:35 PM ET), 2:05 PM PT (5:05 PM ET).
 
 Wrapper: `YieldCurves/scripts/run-fidelity.cmd` (gitignored)
 Log: `YieldCurves/logs/fidelity.log` (gitignored)

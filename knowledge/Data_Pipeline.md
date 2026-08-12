@@ -33,11 +33,11 @@ These jobs run on the host machine via Windows Task Scheduler.
 | **TreasuryAuctions** | Weekdays 8:35/10:05am PT | `scripts/getAuctions.js` | `Auctions.csv` |
 | **TIPS Ref Refresh** | Mondays 7am PT | `scripts/fetchTipsRef.js` | `TipsRef.csv` |
 | **Update Yields History** | Weekdays 2:00pm PT | `YieldsMonitor/scripts/updateYieldsHistory.js` | `yields-history/history.json` |
-| **Ref CPI Refresh** | 8:35 AM ET on each BLS release date | `scripts/fetchRefCpi.js` (`run-ref-cpi.cmd`) | `TIPS/RefCPI.csv` |
 | **SA Factor Update** | Daily 6:35am | `YieldCurves/scripts/updateRefCpi.js` | `RefCpiNsaSa.csv` |
-| **CPI History Refresh** | 8:35 AM ET on each BLS release date | `scripts/fetchCpiHistory.js` (`run-cpi-history.cmd`) | `bls/CPI_history.csv` |
+| **CPI History Refresh** | 8:35 AM ET on each BLS release date, then chains Ref CPI Refresh | `scripts/fetchCpiHistory.js` (`run-cpi-history.cmd`) | `bls/CPI_history.csv` |
+| **Ref CPI Refresh** | Chained from CPI History Refresh (not independently scheduled) | `scripts/fetchRefCpi.js` (`run-ref-cpi.cmd`) | `TIPS/RefCPI.csv` |
 
-**CPI release date triggers:** `RefCPI` and `FetchCpiHistory` tasks use date-specific `Once` triggers (not a daily poll). Triggers are set by `scripts/setup-cpi-release-tasks.ps1`, which reads `bls/CpiReleaseSchedule{year}.csv` from R2 and registers one trigger per release date. A `RefreshCpiTasks` task runs Dec 29 each year to reload the next year's schedule and self-reschedule. Re-run the script manually if the schedule changes.
+**CPI release date triggers:** the `CpiHistory` task uses date-specific `Once` triggers (not a daily poll). Triggers are set by `scripts/setup-windows-tasks.ps1`, the single script that registers every local task (see also rows above) — it reads `bls/CpiReleaseSchedule{year}.csv` from R2 and registers one trigger per release date. On each firing, `run-cpi-history.cmd` fetches BLS CPI history, then on success chains straight into `run-ref-cpi.cmd` to fetch Ref CPI from TreasuryDirect — `RefCpi` has no scheduled trigger of its own, since TreasuryDirect's Ref CPI is a separate source that lags the BLS release by an unknown amount and chaining runs it as soon as the BLS fetch confirms the release is out, rather than on a fixed guessed offset. A `CpiTasks` task runs Dec 29 each year to reload the next year's schedule and self-reschedule. Re-run `scripts/setup-windows-tasks.ps1` manually if the schedule changes.
 
 ---
 
