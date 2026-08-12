@@ -2781,6 +2781,9 @@ let _dragStartYear = null, _dragSelecting = false;
 function _clearSelection() {
   _selectedYears = new Set();
   document.querySelectorAll('tr.fy-group-header.selected').forEach(tr => tr.classList.remove('selected'));
+  // Clear any typed/inferred value left in the field — otherwise it's merely hidden, not gone, and
+  // reappears pre-filled (looking already-applied) the next time a selection is made.
+  document.getElementById('selection-dara-input').value = '';
   _updateSelectionToolbar();
 }
 
@@ -2848,25 +2851,22 @@ function _inferYearsFlat(scopeYears) {
 }
 
 // Infer the current selection's self-financing flat DARA (Rebalance only) — touches ONLY the
-// selected rungs' DARA (3.0 §Per-Rung DARA Selection). Any LMI/AMD change this throws off to
-// shorter, unselected rungs is absorbed entirely by their trade sizing at Run, not by rewriting
-// their DARA. Deliberately leaves the selection (and toolbar) open, unlike Set DARA below — the
-// point is to show the just-solved value in #selection-dara-input, which only means something
-// while the selection that produced it is still visible.
+// selected rungs' DARA (3.0 §Per-Rung DARA Selection), applied immediately (no separate Apply step
+// — there's nothing to type or confirm, the value is solved). Clears the selection afterward, same
+// as Set DARA below: the solved value is visible in the rungs themselves once the panel re-renders,
+// so there's nothing left to show by keeping the toolbar's own field around.
 function _runSelectionInfer() {
   if (!_selectedYears.size) return;
   if (!_inferYearsFlat(_selectedYears)) return;
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
-  const inferredYear = [..._selectedYears].find(y => _daraByYearStore.has(y));
-  if (inferredYear !== undefined) document.getElementById('selection-dara-input').value = _daraByYearStore.get(inferredYear);
+  _clearSelection();
   if (wasBuilt) _runBuildFromForm();
 }
 
 // Stamp one typed value across every currently selected rung (both modes) — touches ONLY those
-// rungs' DARA, same as Infer above. Clears the selection afterward (unlike Infer, §_runSelectionInfer
-// above) — Set DARA has nothing left to show the user once applied, since the value came from what
-// they just typed, not solved.
+// rungs' DARA, same as Infer above. Clears the selection afterward, same as Infer — neither action
+// has anything left to show once applied, the value is visible in the rungs themselves.
 function _runSelectionSetDara(val) {
   if (!_selectedYears.size || isNaN(val) || val < 0) return;
   for (const y of _selectedYears) { _daraByYearStore.set(y, val); _daraManualYears.add(y); }
