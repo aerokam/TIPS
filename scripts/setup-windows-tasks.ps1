@@ -48,7 +48,9 @@ function Register-DataTask {
         [object[]] $Triggers,
         [string]   $Execute,
         [string]   $Argument,
-        [string]   $Cwd = $ProjectDir
+        [string]   $Cwd = $ProjectDir,
+        [TimeSpan] $RestartInterval,
+        [int]      $RestartCount = 0
     )
     if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
         Unregister-ScheduledTask -TaskName $Name -Confirm:$false
@@ -59,7 +61,12 @@ function Register-DataTask {
     $conhost   = "$env:WINDIR\System32\conhost.exe"
     $hiddenArg = "--headless `"$Execute`" $Argument"
     $action    = New-ScheduledTaskAction -Execute $conhost -Argument $hiddenArg -WorkingDirectory $Cwd
-    $settings  = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 30) -StartWhenAvailable
+    $settingsArgs = @{ ExecutionTimeLimit = (New-TimeSpan -Minutes 30); StartWhenAvailable = $true }
+    if ($RestartCount -gt 0) {
+        $settingsArgs.RestartInterval = $RestartInterval
+        $settingsArgs.RestartCount    = $RestartCount
+    }
+    $settings  = New-ScheduledTaskSettingsSet @settingsArgs
     $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive -RunLevel Limited
     $task      = New-ScheduledTask -Action $action -Trigger $Triggers -Settings $settings -Principal $principal -Description $Description
     Register-ScheduledTask -TaskName $Name -InputObject $task | Out-Null
@@ -73,9 +80,14 @@ function Register-NodeTask {
 }
 
 function Register-CmdTask {
-    param([string]$Name, [string]$Description, [object[]]$Triggers, [string]$CmdFile)
+    param(
+        [string]   $Name, [string]$Description, [object[]]$Triggers, [string]$CmdFile,
+        [TimeSpan] $RestartInterval,
+        [int]      $RestartCount = 0
+    )
     Register-DataTask -Name $Name -Description $Description -Triggers $Triggers `
-        -Execute "cmd.exe" -Argument "/c `"$CmdFile`""
+        -Execute "cmd.exe" -Argument "/c `"$CmdFile`"" `
+        -RestartInterval $RestartInterval -RestartCount $RestartCount
 }
 
 [System.DayOfWeek[]] $Weekdays = 'Monday','Tuesday','Wednesday','Thursday','Friday'
@@ -265,10 +277,13 @@ if ($futureDates.Count -gt 0) {
     # TreasuryDirect, a separate source that lags BLS's 8:30am ET print by an unknown amount;
     # chaining runs it as soon as our own fetch confirms release day instead of guessing a
     # fixed clock offset (the old fixed 11am PT trigger was confirmed too conservative).
+    # Retry every 30 min, up to 12x (6h), if the Ref CPI chain step reports TreasuryDirect
+    # hasn't caught up yet (non-zero exit from run-ref-cpi.cmd's freshness check).
     Register-CmdTask "CpiHistory" `
-        "Fetch full CPI-U history from BLS on release dates, upload bls/CPI_history.csv; then chain-run Ref CPI fetch (TIPS/RefCPI.csv)" `
+        "Fetch full CPI-U history from BLS on release dates, upload bls/CPI_history.csv; then chain-run Ref CPI fetch (TIPS/RefCPI.csv), retrying if TreasuryDirect hasn't caught up yet" `
         $cpiTriggers `
-        "$ProjectDir\scripts\run-cpi-history.cmd"
+        "$ProjectDir\scripts\run-cpi-history.cmd" `
+        -RestartInterval (New-TimeSpan -Minutes 30) -RestartCount 12
 
     $nextDate = ($futureDates | Sort-Object | Select-Object -First 1).ToString('yyyy-MM-dd')
     Write-Host "  Registered $($futureDates.Count) CPI date triggers (next: $nextDate)"

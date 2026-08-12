@@ -22,6 +22,29 @@ if (existsSync(_envPath)) {
 }
 
 const CUSIP = '912810FD5';
+const R2_PUBLIC_BASE = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
+
+// Ref CPI for the 1st of month M = CPI-U NSA for month M-3; interpolation across month M
+// needs the month-M and month-(M+1) anchors, so a value published through month M+2 the CPI
+// for month M is known covers all of month M+2. Used to detect whether TreasuryDirect has
+// caught up to today's BLS release yet (TreasuryDirect lags BLS by an unknown amount).
+async function expectedMinRefCpiDate() {
+  const res = await fetch(`${R2_PUBLIC_BASE}/bls/CPI_history.csv`, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`CPI_history.csv fetch failed: ${res.status}`);
+  const lines = (await res.text()).trim().split('\n');
+  const [lastYear, lastPeriod] = lines[lines.length - 1].split(',');
+  const year = parseInt(lastYear, 10);
+  const month = parseInt(lastPeriod.slice(1), 10); // "M07" -> 7
+  // Last day of (month+2), computed as day-before-1st-of-(month+3), pure integer math (no Date/TZ).
+  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  let targetMonth = month + 2; // last day of month+2 = target month whose length we need
+  let targetYear = year;
+  while (targetMonth > 12) { targetMonth -= 12; targetYear += 1; }
+  let lastDay = daysInMonth[targetMonth - 1];
+  const isLeap = (targetYear % 4 === 0 && targetYear % 100 !== 0) || targetYear % 400 === 0;
+  if (targetMonth === 2 && isLeap) lastDay = 29;
+  return `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+}
 
 async function uploadToR2(key, body) {
   const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');
@@ -80,6 +103,20 @@ async function main() {
   }
 
   if (arg === '--write') {
+    // TreasuryDirect lags BLS by an unknown amount; verify it has actually caught up to the
+    // latest BLS CPI month before publishing, so a same-day chained run doesn't overwrite
+    // R2 with data that looks "successful" but is still missing the newest month.
+    const latestDate = rows[rows.length - 1].date;
+    try {
+      const expected = await expectedMinRefCpiDate();
+      if (latestDate < expected) {
+        console.error(`TreasuryDirect not yet caught up: latest date ${latestDate}, expected through ${expected}. Not writing — will retry.`);
+        process.exit(1);
+      }
+    } catch (err) {
+      console.error(`Freshness check skipped (${err.message}) — writing anyway.`);
+    }
+
     // Write all rows to RefCPI.csv in R2
     const header = 'date,refCpi';
     const lines = rows.map(r => `${r.date},${r.refCpi}`);
