@@ -980,6 +980,36 @@ test('rebalance: click-drag selection highlights the row under the cursor immedi
   await page.mouse.up();
 });
 
+// A completed cross-row drag never fires a native 'click' event at all (mousedown and mouseup land
+// on different rows; browsers only fire click when both share a target), so `_dragSelecting` used to
+// stay stuck `true` — a plain click's own mousedown reset it, but a Shift-click's mousedown returned
+// early before reaching that reset, so the stale flag silently swallowed the Shift-click instead of
+// extending the range (3.0 §Selecting rungs). Regression guard, also covers the anchor: the extension
+// must run from the drag's START row, matching standard drag-then-Shift-click convention elsewhere.
+test('rebalance: Shift-click after a click-and-drag extends the selection from the drag start', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  const rows = page.locator('#simple-table tr.fy-group-header');
+  const startBox = await rows.nth(0).boundingBox();
+  await page.mouse.move(startBox.x + 10, startBox.y + startBox.height / 2);
+  await page.mouse.down();
+  for (let i = 1; i <= 2; i++) {
+    const box = await rows.nth(i).boundingBox();
+    await page.mouse.move(box.x + 10, box.y + box.height / 2);
+  }
+  await page.mouse.up();
+  const dragYears = await page.locator('#simple-table tr.fy-group-header.selected').evaluateAll(els => els.map(e => e.dataset.fy));
+  expect(dragYears.length, 'drag selects rows 0-2').toBe(3);
+
+  const laterYear = await rows.nth(6).getAttribute('data-fy');
+  await rows.nth(6).click({ modifiers: ['Shift'] });
+  const afterYears = await page.locator('#simple-table tr.fy-group-header.selected').evaluateAll(els => els.map(e => e.dataset.fy));
+  expect(afterYears.length, 'Shift-click after a drag must extend the range, not no-op').toBe(7);
+  expect(afterYears[0], 'range still starts at the drag START row').toBe(dragYears[0]);
+  expect(afterYears[afterYears.length - 1], 'range reaches the Shift-clicked row').toBe(laterYear);
+});
+
 // ── 17. RefCPI date change clears output but preserves DARA ──────────────────
 test('rebalance: changing RefCPI date clears output and does not alter DARA', async ({ page }) => {
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);

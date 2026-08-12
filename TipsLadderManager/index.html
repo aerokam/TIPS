@@ -1150,13 +1150,26 @@ function _updateExpandCollapseLabels() {
 [simpleEl, tableEl].forEach(tbl => {
   tbl.addEventListener('mousedown', e => {
     const hdr = e.target.closest('tr.fy-group-header');
-    if (!hdr || e.target.closest('.fy-dara-input') || e.target.closest('td.drillable') || e.shiftKey) return;
+    if (!hdr || e.target.closest('.fy-dara-input') || e.target.closest('td.drillable')) return;
+    // A fresh press always clears leftover drag state from a prior gesture, BEFORE the Shift-click
+    // early-return below — otherwise a completed cross-row drag (whose mouseup lands on a different
+    // row than its mousedown, so the browser never fires 'click' at all — click only fires when
+    // mousedown/mouseup share a target) leaves `_dragSelecting` stuck `true`. A plain click's own
+    // mousedown clears it via this same line, but a Shift-click's mousedown used to return first,
+    // so the stale flag survived into the click handler and silently swallowed the Shift-click
+    // instead of extending the range.
+    _dragSelecting = false;
+    if (e.shiftKey) return;
     // Prevent the browser's own native text-selection drag from starting here — otherwise dragging
     // across rows to build a range selection also paints its own blue text highlight underneath our
     // yellow row highlight, which is confusing since the two selections don't agree on what's selected.
     e.preventDefault();
     _dragStartYear = +hdr.dataset.fy;
-    _dragSelecting = false;
+    // Anchor the future Shift-click extension at the drag's START row, set here (not in the click
+    // handler) because a real cross-row drag never reaches that handler at all (see above) — matches
+    // the standard drag-then-Shift-click convention (extend from where the drag began, not where it
+    // ended).
+    _lastClickedYear = _dragStartYear;
   });
   tbl.addEventListener('mousemove', e => {
     if (_dragStartYear == null) return;
