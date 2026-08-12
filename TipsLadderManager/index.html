@@ -806,7 +806,7 @@ let _daraRebal = '', _daraBuild = '40000';
 let _daraByYearStoreRebal = new Map(), _daraByYearPanelDefaultRebal = null;
 let _daraByYearStoreBuild = new Map(), _daraByYearPanelDefaultBuild = null;
 // Years whose per-year DARA the user typed directly into that year's own row — protected from
-// being restamped by a selection Infer/Set DARA action (including the auto-cascade below).
+// being restamped by a selection Infer/Set DARA action that includes it in its own scope.
 let _daraManualYearsRebal = new Set(), _daraManualYearsBuild = new Set();
 const _infoPopups = {};
 let _rebalDurationRows = null, _buildDurationRows = null;
@@ -2834,25 +2834,15 @@ function _inferYearsFlat(scopeYears) {
   return true;
 }
 
-// LMI+AMD flows only downward (longer -> shorter maturities), so a value change anywhere above a
-// given year changes what that year needs. Rather than track fixed segment boundaries, the cascade
-// is now one flat re-solve of everything strictly below the just-changed selection, down to the
-// start of the ladder — same net-cash-≈-0 guarantee, without needing a boundary to trigger it.
-function _cascadeReinferBelow(belowYear) {
-  if (!_panelYearRange) return;
-  const scope = new Set();
-  for (let y = _panelYearRange.fy; y < belowYear; y++) scope.add(y);
-  _inferYearsFlat(scope);
-}
-
-// Infer the current selection's self-financing flat DARA (Rebalance only), then cascade below it.
-// Deliberately leaves the selection (and toolbar) open, unlike Set DARA below — the point is to show
-// the just-solved value in #selection-dara-input, which only means something while the selection
-// that produced it is still visible.
+// Infer the current selection's self-financing flat DARA (Rebalance only) — touches ONLY the
+// selected rungs' DARA (3.0 §Per-Rung DARA Selection). Any LMI/AMD change this throws off to
+// shorter, unselected rungs is absorbed entirely by their trade sizing at Run, not by rewriting
+// their DARA. Deliberately leaves the selection (and toolbar) open, unlike Set DARA below — the
+// point is to show the just-solved value in #selection-dara-input, which only means something
+// while the selection that produced it is still visible.
 function _runSelectionInfer() {
   if (!_selectedYears.size) return;
   if (!_inferYearsFlat(_selectedYears)) return;
-  _cascadeReinferBelow(Math.min(..._selectedYears));
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
   const inferredYear = [..._selectedYears].find(y => _daraByYearStore.has(y));
@@ -2860,13 +2850,13 @@ function _runSelectionInfer() {
   if (wasBuilt) _runBuildFromForm();
 }
 
-// Stamp one typed value across every currently selected rung (both modes), then cascade below.
-// Clears the selection afterward (unlike Infer, §_runSelectionInfer above) — Set DARA has nothing
-// left to show the user once applied, since the value came from what they just typed, not solved.
+// Stamp one typed value across every currently selected rung (both modes) — touches ONLY those
+// rungs' DARA, same as Infer above. Clears the selection afterward (unlike Infer, §_runSelectionInfer
+// above) — Set DARA has nothing left to show the user once applied, since the value came from what
+// they just typed, not solved.
 function _runSelectionSetDara(val) {
   if (!_selectedYears.size || isNaN(val) || val < 0) return;
   for (const y of _selectedYears) { _daraByYearStore.set(y, val); _daraManualYears.add(y); }
-  _cascadeReinferBelow(Math.min(..._selectedYears));
   const wasBuilt = currentMode === 'build' && buildRendered;
   _clearOutput(); renderDaraByYearPanel(); updateDaraInput(true);
   _clearSelection();

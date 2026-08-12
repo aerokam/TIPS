@@ -1221,38 +1221,35 @@ async function _selectRange(page, tableSel, fromYear, toYear) {
 const _lmpVals  = (page) => page.locator('#simple-table .fy-dara-input[data-year]').evaluateAll(els => els.filter(e => +e.dataset.year <= 2047).map(e => e.value));
 const _specVals = (page) => page.locator('#simple-table .fy-dara-input[data-year]').evaluateAll(els => els.filter(e => +e.dataset.year >  2047).map(e => e.value));
 
-test('Infer DARA over a selected range cascades down, never up', async ({ page }) => {
+test('Set/Infer DARA touch only the selected rungs, never any other rung', async ({ page }) => {
   test.setTimeout(20_000);
   await _selRebalSetup(page, 'seltest.csv');
 
   const specBefore = await _specVals(page);
 
-  // 1. Infer the bottom range alone (2026-2047) → it flattens to one value; nothing sits below it
-  //    to cascade into, so the top range is untouched (income never flows upward).
+  // 1. Infer the bottom range alone (2026-2047) → it flattens to one value; the top range, which was
+  //    never selected, is untouched.
   await _selectRange(page, '#simple-table', 2026, 2047);
   await page.locator('#selection-infer-btn').click();
   const lmp1 = await _lmpVals(page);
   expect(new Set(lmp1).size, 'all rungs in the selection share one flat DARA').toBe(1);
-  expect(await _specVals(page), 'inferring the bottom range leaves the top as-is (nothing above it to cascade into)').toEqual(specBefore);
+  expect(await _specVals(page), 'inferring the bottom range leaves the top exactly as-is').toEqual(specBefore);
 
-  // 2. Infer the top range (2048-2055) → it flattens, AND the LMI/AMD it now throws off changes
-  //    what the bottom range needs, so the cascade automatically re-infers it too.
+  // 2. Infer the top range (2048-2055) → it flattens to its own value; the bottom range, set in step
+  //    1 and not reselected here, stays exactly as step 1 left it (no downstream restamping).
   await _selectRange(page, '#simple-table', 2048, 2055);
   await page.locator('#selection-infer-btn').click();
   const spec1 = await _specVals(page);
   expect(new Set(spec1).size, 'all top-range rungs share one flat DARA').toBe(1);
-  const lmp2 = await _lmpVals(page);
-  expect(new Set(lmp2).size, 'the cascade keeps the bottom range flat too').toBe(1);
+  expect(await _lmpVals(page), 'inferring the top range leaves the bottom exactly as step 1 left it').toEqual(lmp1);
 
-  // 3. A typed Set DARA stamp cascades the same way. (55000 is an arbitrary, not necessarily
-  //    self-financing, number — this step checks the cascade *reaches* the bottom and re-flattens
-  //    it, not that the whole portfolio nets to zero; that's covered by the next test.)
+  // 3. A typed Set DARA stamp behaves the same way — it only ever touches the rungs selected right
+  //    now. (55000 is an arbitrary, not necessarily self-financing, number.)
   await _selectRange(page, '#simple-table', 2048, 2055);
   await page.locator('#selection-dara-input').fill('55000');
   await page.locator('#selection-set-btn').click();
   await expect(page.locator('#simple-table .fy-dara-input[data-year="2050"]')).toHaveValue('55000');
-  const lmp3 = await _lmpVals(page);
-  expect(new Set(lmp3).size, 'the bottom range stays flat after the typed stamp cascades down').toBe(1);
+  expect(await _lmpVals(page), 'the bottom range is untouched by a Set DARA stamp on the top range').toEqual(lmp1);
   // Set DARA has nothing left to show once applied — the selection (and its toolbar) closes.
   await expect(page.locator('#selection-toolbar'), 'Set DARA clears the selection on Apply').not.toBeVisible();
 
@@ -1260,7 +1257,7 @@ test('Infer DARA over a selected range cascades down, never up', async ({ page }
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 6_000 });
 });
 
-test('a hand-typed rung survives a selection Infer that would otherwise cascade over it', async ({ page }) => {
+test('a hand-typed rung survives an Infer over a selection that includes it', async ({ page }) => {
   test.setTimeout(20_000);
   await _selRebalSetup(page, 'selpin.csv');
 
@@ -1270,27 +1267,34 @@ test('a hand-typed rung survives a selection Infer that would otherwise cascade 
   await pinnedRung.blur();
   await expect(pinnedRung).toHaveValue('12345');
 
-  // Infer the top range — its cascade reaches down into the bottom range, but the pinned 2030 rung
-  // must survive untouched even though the rest of the bottom range gets restamped.
-  await _selectRange(page, '#simple-table', 2048, 2055);
+  const specBefore = await _specVals(page);
+
+  // Infer the bottom range, which includes the pinned 2030 rung — it must survive untouched even
+  // though the rest of the bottom range (its own selection) gets restamped around it. The top range,
+  // never selected, is untouched.
+  await _selectRange(page, '#simple-table', 2026, 2047);
   await page.locator('#selection-infer-btn').click();
-  await expect(pinnedRung, 'hand-typed rung is not overwritten by the cascade').toHaveValue('12345');
+  await expect(pinnedRung, 'hand-typed rung is not overwritten by its own selection\'s Infer').toHaveValue('12345');
   const lmpAfter = await _lmpVals(page);
   expect(new Set(lmpAfter.filter(v => v !== '12345')).size, 'the rest of the bottom range still flattens to one value').toBe(1);
+  expect(await _specVals(page), 'the top range, never selected, is untouched').toEqual(specBefore);
 });
 
-test('Infer DARA over the top range alone drives the whole portfolio to near-zero net cash', async ({ page }) => {
+test('inferring every segment of the ladder drives whole-portfolio net cash toward zero', async ({ page }) => {
   test.setTimeout(20_000);
   await _selRebalSetup(page, 'selorder.csv');
 
-  // Inferring just the top range is enough — the cascade automatically reaches everything below it
-  // (this used to require a manual "go back and re-click the bottom segment too" step).
+  // A single scoped Infer only guarantees ITS OWN segment nets to ~0 — inferring the top range alone
+  // says nothing about the untouched bottom range. Only inferring every segment (their scopes union
+  // to the whole ladder) drives whole-portfolio net cash toward zero.
   await _selectRange(page, '#simple-table', 2048, 2055);
+  await page.locator('#selection-infer-btn').click();
+  await _selectRange(page, '#simple-table', 2026, 2047);
   await page.locator('#selection-infer-btn').click();
   await page.locator('#run-btn').click();
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 6_000 });
   const nc = parseNetCash(await page.locator('#net-cash-val').textContent());
-  expect(Math.abs(nc), `net cash ≈ 0 after inferring the top range alone (got ${nc})`).toBeLessThan(3000);
+  expect(Math.abs(nc), `net cash ≈ 0 after inferring every segment (got ${nc})`).toBeLessThan(3000);
 });
 
 // ── Standalone DARA-plan file (portable export/import) ────────────────────────
