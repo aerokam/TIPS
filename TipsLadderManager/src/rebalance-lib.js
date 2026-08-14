@@ -8,6 +8,7 @@ import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, exc
 import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover } from './ladder-core.js';
 import { localDate, fmtDate, toDateStr } from './date-util.js';
 import { rankForYear, levelValues } from './allocation-policy.js';
+import { parseCSVLine } from './broker-import.js';
 
 // Re-export date helpers so existing importers (index.html, tests) keep working.
 export { localDate, fmtDate };
@@ -445,15 +446,17 @@ export function derivePerYearDara(araByYear, bracketCandidates = new Set()) {
 // (see 2.1 Broker Import). Returns Map<year, dara> — the durable build intent for EVERY year
 // in [firstYear, lastYear], incl. gap + future-30Y — or null if absent. When present, the
 // import honors it directly (exact round-trip, no DARA/last-year inference). Backward-compatible:
-// the holdings parsers skip these lines (they aren't valid CUSIP rows).
+// the holdings parsers skip these lines (they aren't valid CUSIP rows). Uses the same
+// quote-aware line splitter as broker-import.js so amount fields survive a round-trip through
+// a spreadsheet (quoted thousands separators, currency symbols).
 export function parseFundedYearDaraBlock(rawLines) {
   const map = new Map();
   let inBlock = false;
   for (const line of rawLines) {
     const norm = line.replace(/\s/g, '').toLowerCase();
     if (!inBlock) { if (norm === '#fundedyear,dara') inBlock = true; continue; }
-    const parts = line.replace(/^#/, '').split(',').map(s => s.trim());
-    const yr = parseInt(parts[0], 10), v = parseFloat(parts[1]);
+    const parts = parseCSVLine(line.replace(/^#/, ''));
+    const yr = parseInt(parts[0], 10), v = parseFloat((parts[1] || '').replace(/[^0-9.-]/g, ''));
     if (parts.length >= 2 && yr >= 2000 && yr <= 2200 && !isNaN(v) && v >= 0) map.set(yr, v);
   }
   return map.size > 0 ? map : null;
