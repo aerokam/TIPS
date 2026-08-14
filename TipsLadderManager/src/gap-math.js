@@ -2,7 +2,7 @@
 // Spec: knowledge/4.0_Computation_Modules.md §gap-math.js
 // Math reference: knowledge/3.0_TIPS_Ladder_Rebalancing.md Phase 2, Phase 3, Phase 4
 
-import { calculateMDuration, priceFromYield } from '../../shared/src/bond-math.js';
+import { calculateMDuration, calculateDurationDetail, priceFromYield } from '../../shared/src/bond-math.js';
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 
 // ─── Yield interpolation ──────────────────────────────────────────────────────
@@ -184,7 +184,8 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
     const synMat = new Date(year, 1, 15); // Feb 15
     const synYld = interpolateYield(anchorBefore, anchorAfter, synMat);
     const synCpn = syntheticCoupon(synYld);
-    const synDur = calculateMDuration(settlementDate, synMat, synCpn, synYld);
+    const durDetail = calculateDurationDetail(settlementDate, synMat, synCpn, synYld);
+    const synDur = durDetail ? durDetail.macaulay / (1 + synYld / 2) : null;
     totalDuration += synDur;
 
     // LMI = synthetic interest from longer gap years already processed + actual TIPS interest above.
@@ -199,7 +200,7 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
     const amd = amdByYear?.get(year) ?? 0;
     const qty = Math.max(0, Math.round((yearDara - laterMatInt - (pliCreditByGapYear[year] ?? 0) - amd) / piPerBond));
     totalCost += qty * 1000;
-    breakdown.push({ year, qty, piPerBond, laterMatInt, pliCredit: pliCreditByGapYear[year] ?? 0, amd, dur: synDur });
+    breakdown.push({ year, qty, piPerBond, laterMatInt, pliCredit: pliCreditByGapYear[year] ?? 0, amd, dur: synDur, synYld, synCpn, durDetail });
     runningSynLMI += qty * 1000 * synCpn;
     count++;
   }
@@ -211,7 +212,7 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
   const avgDuration = _qtySum > 0
     ? breakdown.reduce((s, g) => s + g.qty * g.dur, 0) / _qtySum
     : (count > 0 ? totalDuration / count : 0);
-  return { avgDuration, totalCost, breakdown, gapLMITotal };
+  return { avgDuration, totalCost, breakdown, gapLMITotal, anchors: { before: anchorBefore, after: anchorAfter } };
 }
 
 // ─── Gap params with upper-bracket excess-coupon feedback (View A fixpoint) ─────
@@ -280,11 +281,12 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
   const breakdown = [];
   for (const year of [...future30yYears].sort((a, b) => b - a)) {
     const mat = new Date(year, 1, 15); // Feb 15
-    const dur = calculateMDuration(settlementDate, mat, synCoupon, yield2056);
+    const durDetail = calculateDurationDetail(settlementDate, mat, synCoupon, yield2056);
+    const dur = durDetail ? durDetail.macaulay / (1 + yield2056 / 2) : null;
     totalDuration += dur;
     const yearDara = daraByYear?.get(year) ?? dara;
     const qty = Math.max(0, Math.round((yearDara - runningLMI) / piPerBond));
-    breakdown.push({ year, qty, piPerBond, laterMatInt: runningLMI, dur });
+    breakdown.push({ year, qty, piPerBond, laterMatInt: runningLMI, dur, synYld: yield2056, synCpn: synCoupon, durDetail });
     runningLMI += qty * 1000 * synCoupon;
     future30yTotalCost += qty * 1000;
   }
@@ -293,7 +295,7 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
   const avgDuration = _qtySum > 0
     ? breakdown.reduce((s, b) => s + b.qty * b.dur, 0) / _qtySum
     : (future30yYears.length > 0 ? totalDuration / future30yYears.length : 0);
-  return { avgDuration, future30yTotalCost, breakdown, future30ySeedLMI: runningLMI };
+  return { avgDuration, future30yTotalCost, breakdown, future30ySeedLMI: runningLMI, anchorBond: coverBond2056 };
 }
 
 // ─── Excess-holding AMD schedule (Accrued Market Discount as interest) ──────────

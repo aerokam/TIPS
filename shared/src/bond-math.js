@@ -25,8 +25,12 @@ export function _nextCouponOnOrAfter(settle, mature) {
   return candidates.find(c => c >= settle && c <= mature) || null;
 }
 
-// Returns Macaulay duration in years, or null if inputs are degenerate.
-export function calculateDuration(settlement, maturity, coupon, yld) {
+// Full Macaulay-duration workings: coupon-date walk, day-count fractions, per-period cash
+// flows/PVs. calculateDuration/calculateMDuration are thin wrappers over this — single source
+// for both the final number and any UI that needs to show how it was derived (5.0 §Nested
+// (Level-3) drills, gap/Future 30Y synthetic-duration drill-downs).
+// Returns null if inputs are degenerate (settlement >= maturity, yld <= -2, or no coupon dates).
+export function calculateDurationDetail(settlement, maturity, coupon, yld) {
   if (settlement >= maturity || yld <= -2) return null;
   const nextCpn = _nextCouponOnOrAfter(settlement, maturity);
   if (!nextCpn) return null;
@@ -47,14 +51,22 @@ export function calculateDuration(settlement, maturity, coupon, yld) {
   const semiCpn = coupon / 2 * 1000;
   const r = yld / 2;
   let wSum = 0, pvSum = 0;
+  const periods = [];
   for (let j = 0; j < N; j++) {
     const cf = j === N - 1 ? semiCpn + 1000 : semiCpn;
     const t  = w + j;
     const pv = cf / Math.pow(1 + r, t);
     wSum  += t * pv;
     pvSum += pv;
+    periods.push({ date: coupons[j], t, cf, pv });
   }
-  return wSum / pvSum / 2;
+  return { nextCpn, lastCpn, E, DSC, w, periods, macaulay: wSum / pvSum / 2 };
+}
+
+// Returns Macaulay duration in years, or null if inputs are degenerate.
+export function calculateDuration(settlement, maturity, coupon, yld) {
+  const detail = calculateDurationDetail(settlement, maturity, coupon, yld);
+  return detail ? detail.macaulay : null;
 }
 
 export function calculateMDuration(settlement, maturity, coupon, yld) {

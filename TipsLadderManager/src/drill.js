@@ -766,7 +766,10 @@ export function buildDurationPopupRows(summary, mode) {
     rows.push({ heading: 'Gap Year Durations' });
     const durSum = gapParams.breakdown.reduce((s, b) => s + (b.dur ?? 0), 0);
     gapParams.breakdown.forEach(b => {
-      rows.push({ label: b.year + ' (Feb 15)', note: 'mod. duration (interpolated)', value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
+      const label = b.durDetail
+        ? '<span class="drill-l3" data-l3="gapdur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + b.year + ' (Feb 15)</span>'
+        : b.year + ' (Feb 15)';
+      rows.push({ label, note: 'mod. duration (interpolated)', value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
     });
     rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + gapParams.breakdown.length + ')', value: avg.toFixed(2) + ' yr', total: true });
     rows.push({ sep: true });
@@ -880,7 +883,10 @@ export function buildFuture30yDurationPopupRows(summary) {
     rows.push({ heading: 'Hypothetical TIPS Durations' });
     const durSum = future30yParams.breakdown.reduce((s, b) => s + (b.dur ?? 0), 0);
     future30yParams.breakdown.forEach(b => {
-      rows.push({ label: b.year + ' (Feb 15)', note: 'mod. duration', value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
+      const label = b.durDetail
+        ? '<span class="drill-l3" data-l3="f30dur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + b.year + ' (Feb 15)</span>'
+        : b.year + ' (Feb 15)';
+      rows.push({ label, note: 'mod. duration', value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
     });
     rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + future30yParams.breakdown.length + ')', value: avg.toFixed(2) + ' yr', total: true });
     rows.push({ sep: true });
@@ -915,4 +921,80 @@ export function buildFuture30yDurationPopupRows(summary) {
   }
 
   return rows;
+}
+
+function fmtDate(d) {
+  return MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+}
+
+// Shared body for the Macaulay-duration walk (5.0 §Duration Disclosure Standards): coupon-date
+// schedule, day-count fractions (E/DSC/w), per-period cash flows/PVs, Macaulay sum, then
+// Modified duration. `durDetail`/`dur` come straight from gap-math.js's breakdown entry
+// (calculateDurationDetail, shared/src/bond-math.js) — never recomputed here.
+function macaulayWalkRows(durDetail, dur) {
+  const rows = [
+    { heading: 'Macaulay Duration' },
+    { label: 'Next coupon date', value: fmtDate(durDetail.nextCpn) },
+    { label: 'Last coupon date', value: fmtDate(durDetail.lastCpn) },
+    { label: 'E (days in period)', value: fd(durDetail.E, 2) },
+    { label: 'DSC (days to next coupon)', value: fd(durDetail.DSC, 2) },
+    { label: 'w = DSC ÷ E', value: fd(durDetail.w, 4) },
+    { sep: true },
+  ];
+  durDetail.periods.forEach((p, i) => {
+    rows.push({ label: 'Period ' + (i + 1) + ' — ' + fmtDate(p.date), note: 't = ' + fd(p.t, 3), value: 'CF ' + fm2(p.cf) + ' → PV ' + fm2(p.pv) });
+  });
+  rows.push(
+    { label: 'Macaulay duration', note: 'Σ(t × PV) ÷ Σ(PV) ÷ 2', value: fd(durDetail.macaulay, 4) + ' yr', total: true },
+    { sep: true },
+    { heading: 'Modified Duration' },
+    { label: 'Modified duration', note: 'Macaulay ÷ (1 + yield ÷ 2)', value: fd(dur, 4) + ' yr', total: true }
+  );
+  return rows;
+}
+
+// Level-3 drill for one synthetic Gap-year TIPS's duration (5.0 §Nested (Level-3) drills,
+// key `gapdur-<year>`). Shows the yield interpolation, the synthetic coupon derived from it,
+// and the full Macaulay/Modified duration walk — everything `calcGapParams`'s breakdown entry
+// already carries (gap-math.js gapParamsCore), nothing recomputed.
+export function buildGapYearDurationDrill(summary, year) {
+  const gapParams = summary?.gapParams;
+  const b = gapParams?.breakdown?.find(g => g.year === year);
+  const anchors = gapParams?.anchors;
+  if (!b || !anchors || !b.durDetail) return [{ label: 'No data', total: true }];
+  const synMat = new Date(year, 1, 15);
+  return [
+    { heading: 'Yield Interpolation' },
+    { label: 'Most recently issued 10-year TIPS', note: fmtDate(anchors.before.maturity), value: fd(anchors.before.yield * 100, 3) + '%' },
+    { label: 'Feb 2040 TIPS', note: fmtDate(anchors.after.maturity), value: fd(anchors.after.yield * 100, 3) + '%' },
+    { label: 'Target date', value: fmtDate(synMat) },
+    { sep: true },
+    { label: 'Interpolated yield', note: 'linear, by maturity date, between the two anchors above', value: fd(b.synYld * 100, 3) + '%', total: true },
+    { sep: true },
+    { heading: 'Synthetic Coupon' },
+    { label: 'Synthetic coupon', note: 'MAX(0.125%, FLOOR(yield × 100 ÷ 0.125) × 0.125%)', value: fd(b.synCpn * 100, 3) + '%', total: true },
+    { sep: true },
+    ...macaulayWalkRows(b.durDetail, b.dur),
+  ];
+}
+
+// Level-3 drill for one synthetic Future 30Y TIPS's duration (5.0 §Nested (Level-3) drills,
+// key `f30dur-<year>`). Unlike Gap years, Future 30Y years have no upper anchor to interpolate
+// against — every year is priced flat off the same anchor bond (gap-math.js future30yParamsCore).
+export function buildFuture30yYearDurationDrill(summary, year) {
+  const future30yParams = summary?.future30yParams;
+  const b = future30yParams?.breakdown?.find(g => g.year === year);
+  const anchorBond = future30yParams?.anchorBond;
+  if (!b || !anchorBond || !b.durDetail) return [{ label: 'No data', total: true }];
+  const synMat = new Date(year, 1, 15);
+  return [
+    { heading: 'Anchor Yield' },
+    { label: 'Most recently issued 30-year TIPS', note: fmtDate(anchorBond.maturity) + ' — used directly (flat-curve assumption, no second anchor)', value: fd(b.synYld * 100, 3) + '%', total: true },
+    { label: 'Target date', value: fmtDate(synMat) },
+    { sep: true },
+    { heading: 'Synthetic Coupon' },
+    { label: 'Synthetic coupon', note: 'MAX(0.125%, FLOOR(yield × 100 ÷ 0.125) × 0.125%)', value: fd(b.synCpn * 100, 3) + '%', total: true },
+    { sep: true },
+    ...macaulayWalkRows(b.durDetail, b.dur),
+  ];
 }
