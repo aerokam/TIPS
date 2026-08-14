@@ -702,6 +702,7 @@ document.getElementById('help-overlay').addEventListener('click', e => {
 // ─── Load data CSVs ───────────────────────────────────────────────────────────
 let tipsMap = null, refCpiRows = null, settlementDate = null, tipsRefMap = null;
 let _tradeDateStr = null, _settleDateStr = null; // Trade = "today" (asOfDate); Settle = T+1 (or T for dormant FedInvest)
+let _bondHolidays = null;
 
 // Market (Fidelity) ask prices/yields are the only source surfaced to users. FedInvest
 // stays available as a dormant cross-check path (matches tipsladder.com) via
@@ -726,6 +727,7 @@ async function loadData() {
     // settleDateStr is already T+1, so its "today"/trade reference is asOfDate.
     _tradeDateStr = YIELD_SOURCE === 'fedinvest' ? settleDateStr : asOfDate;
     _defaultRefCpiDateStr = nextBondTradingDay(_tradeDateStr, bondHolidays);
+    _bondHolidays = bondHolidays;
     tipsMap = buildTipsMapFromYields(yieldsRows, saYieldByCusip);
 
     const bfsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity && b.maturity > settlementDate).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
@@ -1769,17 +1771,31 @@ function _cfFm(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
 function _fmtLongDate(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
 function _isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
+// A coupon dated on a weekend/holiday is actually paid the next bond trading day, so the event
+// must stay on the calendar (still "unpaid") through that day (5.0 §Cash Flow Calendar).
+function _actualPaymentDate(d) {
+  const iso = _isoDate(d);
+  const isTradingDay = d.getDay() !== 0 && d.getDay() !== 6 && !_bondHolidays.has(iso);
+  return isTradingDay ? d : localDate(nextBondTradingDay(iso, _bondHolidays));
+}
+
 function buildCashFlowData() {
   if (!currentHoldingsArray || !tipsMap || !refCpiRows) return [];
   const activeDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
   const activeRc = lookupRefCpi(refCpiRows, activeDateIso);
-  const from = localDate(activeDateIso);
-  if (!activeRc || !from) return [];
+  const today = localDate(_tradeDateStr);
+  if (!activeRc || !today) return [];
+  // Walk from a few days before today, not from the settlement/Ref-CPI date used for pricing
+  // elsewhere in the app: a coupon due this week hasn't actually been paid yet. The buffer covers
+  // the longest holiday weekend a coupon date can hide behind; _actualPaymentDate below drops
+  // anything already paid.
+  const walkFrom = new Date(today); walkFrom.setDate(walkFrom.getDate() - 10);
   const events = [];
   for (const h of currentHoldingsArray) {
     const b = tipsMap.get(h.cusip);
     if (!b?.maturity || !h.qty) continue;
-    for (const d of couponSchedule(from, b.maturity)) {
+    for (const d of couponSchedule(walkFrom, b.maturity)) {
+      if (_actualPaymentDate(d) < today) continue;
       // The Ref CPI series is published ~2 months ahead of the active Ref CPI date, so near-dated
       // payments usually already have their own published Ref CPI — use it directly when present;
       // otherwise fall back to the active Ref CPI date, same as every other Amount figure in this
