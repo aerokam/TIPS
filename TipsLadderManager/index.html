@@ -66,8 +66,20 @@
      ones — every option performs its action then the select resets straight back to its placeholder,
      so there's no "currently selected" value to keep visible. Button-themed (not `.field select`-
      themed) and identically styled to each other, sitting side by side at the front of Row 1. */
-  .menu-select { padding: 2px 10px; font-size: 11px; font-weight: 700; border: none; border-radius: 4px; background: var(--btn-bg); color: var(--btn-text); cursor: pointer; align-self: flex-end; }
+  .menu-dropdown-wrap { position: relative; align-self: flex-end; }
+  .menu-select { padding: 2px 10px; font-size: 11px; font-weight: 700; border: none; border-radius: 4px; background: var(--btn-bg); color: var(--btn-text); cursor: pointer; }
   .menu-select:hover { background: var(--btn-hover-bg); }
+  /* Real buttons in a floating popup, not a native <select>: WebKit only honors a script-triggered
+     input.click()/anchor.click() when it happens synchronously inside a direct user gesture on the
+     control itself. A <select>'s 'change' event doesn't carry that gesture in Safari/WebKit (desktop
+     Safari, DuckDuckGo-on-Mac, and every browser on iOS since Apple mandates WebKit there), so the
+     file-open dialog (Import) and the download (Export) silently never opened. */
+  .menu-dropdown { position: absolute; top: 100%; left: 0; margin-top: 2px; background: #fff; border: 1px solid var(--border-med); border-radius: 4px; box-shadow: 0 4px 10px rgba(0,0,0,0.25); z-index: 30; display: flex; flex-direction: column; min-width: 130px; overflow: hidden; }
+  .menu-dropdown[hidden] { display: none; }
+  .menu-dropdown-item { display: block; width: 100%; text-align: left; padding: 6px 12px; background: #fff; color: var(--portal-text-main); border: none; border-radius: 0; font-size: 12px; font-weight: 500; cursor: pointer; }
+  .menu-dropdown-item:hover:not(:disabled) { background: var(--chip-bg); transform: none; box-shadow: none; }
+  .menu-dropdown-item:disabled { opacity: .5; cursor: not-allowed; }
+  .menu-dropdown-item[hidden] { display: none; }
   /* Not display:none: Safari/WebKit only honors a script-triggered .click() on a file input if it
      has a real layout box, so display:none silently no-ops the file picker there (though Chrome/
      Firefox tolerate it). Kept in-flow but zero-size and invisible instead. */
@@ -389,17 +401,21 @@
     <div class="card-inputs">
       <input type="file" id="holdings-file" accept=".csv" class="visually-hidden-file">
       <input type="file" id="dara-plan-import-file" accept=".csv,.txt" class="visually-hidden-file">
-      <select id="import-menu" class="menu-select" title="CUSIP/Qty: a broker holdings file or a previously exported CUSIP/Qty file. DARA Plan: a previously exported per-year DARA plan.">
-        <option value="" selected disabled hidden>Import&hellip;</option>
-        <option value="cusip-qty" id="import-opt-cusip-qty">CUSIP/Qty</option>
-        <option value="dara-plan">DARA Plan</option>
-      </select>
-      <select id="export-menu" class="menu-select" title="Ladder CSV and CUSIP/Qty need a completed Run; DARA Plan is available any time there's a per-year DARA to save.">
-        <option value="" selected disabled hidden>Export&hellip;</option>
-        <option value="ladder-csv" id="export-opt-ladder-csv" disabled>Ladder CSV</option>
-        <option value="cusip-qty" id="export-opt-cusip-qty" disabled>CUSIP/Qty</option>
-        <option value="dara-plan">DARA Plan</option>
-      </select>
+      <div class="menu-dropdown-wrap">
+        <button type="button" id="import-menu-btn" class="menu-select" title="CUSIP/Qty: a broker holdings file or a previously exported CUSIP/Qty file. DARA Plan: a previously exported per-year DARA plan.">Import&hellip;</button>
+        <div id="import-menu-list" class="menu-dropdown" hidden>
+          <button type="button" class="menu-dropdown-item" data-choice="cusip-qty" id="import-opt-cusip-qty">CUSIP/Qty</button>
+          <button type="button" class="menu-dropdown-item" data-choice="dara-plan">DARA Plan</button>
+        </div>
+      </div>
+      <div class="menu-dropdown-wrap">
+        <button type="button" id="export-menu-btn" class="menu-select" title="Ladder CSV and CUSIP/Qty need a completed Run; DARA Plan is available any time there's a per-year DARA to save.">Export&hellip;</button>
+        <div id="export-menu-list" class="menu-dropdown" hidden>
+          <button type="button" class="menu-dropdown-item" data-choice="ladder-csv" id="export-opt-ladder-csv" disabled>Ladder CSV</button>
+          <button type="button" class="menu-dropdown-item" data-choice="cusip-qty" id="export-opt-cusip-qty" disabled>CUSIP/Qty</button>
+          <button type="button" class="menu-dropdown-item" data-choice="dara-plan">DARA Plan</button>
+        </div>
+      </div>
       <div class="field" id="field-dara">
         <label>DARA – all yrs ($)</label>
         <div style="display:flex;align-items:center;gap:2px">
@@ -862,7 +878,6 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     // itself stays visible.
     document.getElementById('import-opt-cusip-qty').hidden = !isRebalance;
     document.getElementById('import-opt-cusip-qty').disabled = !isRebalance;
-    document.getElementById('import-menu').value = '';
 
     document.getElementById('field-bracket-mode').style.display = isRebalance ? '' : 'none';
     // Maturity preference (2.0 §Maturity Selection Within a Funded Year) is shared UI, visible in
@@ -923,15 +938,35 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
 });
 
 // ─── Import / Export menus (2.1 §Import/Export Menus) ────────────────────────
-// Action selects, not persisted-state ones: each option performs its action immediately on
-// 'change', then the select resets straight back to its placeholder — there's no "current value"
-// to leave selected, unlike #build-maturity/#rebal-alloc-policy's Select-maturities/priority-order
-// options (which stay selected as an ongoing state and need click/mousedown disambiguation to
-// reopen their modal; not needed here since every choice here always starts from '').
-document.getElementById('import-menu').addEventListener('change', () => {
-  const sel = document.getElementById('import-menu');
-  const choice = sel.value;
-  sel.value = '';
+// Button + popup, not a native <select>: a <select>'s 'change' event doesn't carry a strong enough
+// user gesture in Safari/WebKit to open a second native picker (file-open dialog, file save) — see
+// the .menu-dropdown CSS comment above. Each item is a real button so its 'click' fires synchronously
+// inside a direct user gesture on every engine. Action items, not persisted-state ones: choosing one
+// performs its action immediately and the popup closes — there's no "current value" to leave
+// selected, unlike #build-maturity/#rebal-alloc-policy's Select-maturities/priority-order options
+// (which stay selected as an ongoing state; not applicable here).
+function _setupMenuDropdown(btnId, listId, onChoice) {
+  const btn = document.getElementById(btnId);
+  const list = document.getElementById(listId);
+  const close = () => { list.hidden = true; };
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    const wasOpen = !list.hidden;
+    document.querySelectorAll('.menu-dropdown').forEach(el => { el.hidden = true; });
+    list.hidden = wasOpen;
+  });
+  list.addEventListener('click', e => {
+    const item = e.target.closest('.menu-dropdown-item');
+    if (!item || item.disabled) return;
+    close();
+    onChoice(item.dataset.choice);
+  });
+  document.addEventListener('click', e => {
+    if (!list.hidden && !list.contains(e.target) && e.target !== btn) close();
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+}
+_setupMenuDropdown('import-menu-btn', 'import-menu-list', choice => {
   if (choice === 'cusip-qty') {
     const fi = document.getElementById('holdings-file');
     fi.value = '';
@@ -942,10 +977,7 @@ document.getElementById('import-menu').addEventListener('change', () => {
     fi.click();
   }
 });
-document.getElementById('export-menu').addEventListener('change', () => {
-  const sel = document.getElementById('export-menu');
-  const choice = sel.value;
-  sel.value = '';
+_setupMenuDropdown('export-menu-btn', 'export-menu-list', choice => {
   if (choice === 'ladder-csv') _exportLadderCsv();
   else if (choice === 'cusip-qty') _exportCusipQty();
   else if (choice === 'dara-plan') _exportDaraPlan();

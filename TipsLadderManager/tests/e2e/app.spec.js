@@ -62,6 +62,14 @@ async function daraDisplay(page) {
   return placeholder === 'by year' ? 'by year' : '';
 }
 
+// Import/Export are a button+popup, not a native <select> (2.1 §Import/Export Menus — WebKit doesn't
+// carry a strong enough user gesture through a <select>'s 'change' event to open a file picker/save).
+// `menu` is 'import-menu' or 'export-menu'; `choice` is the target item's data-choice value.
+async function chooseMenu(page, menu, choice) {
+  await page.locator(`#${menu}-btn`).click();
+  await page.locator(`#${menu}-list .menu-dropdown-item[data-choice="${choice}"]`).click();
+}
+
 test.beforeEach(async ({ page }) => {
   const yieldsBody = yieldsWithTodaySettlement();
   await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r =>
@@ -94,7 +102,7 @@ test('data loads: info strip shows Trade/Settle/Ref CPI dates, run button enable
 test('mode toggle: switching to Build narrows the Import menu to DARA Plan, shows year fields; run button re-labeled', async ({ page }) => {
   // Start in Rebalance mode
   await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
-  await expect(page.locator('#import-menu')).toBeVisible();
+  await expect(page.locator('#import-menu-btn')).toBeVisible();
   await expect(page.locator('#import-opt-cusip-qty')).toBeEnabled();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
 
@@ -102,16 +110,31 @@ test('mode toggle: switching to Build narrows the Import menu to DARA Plan, show
   // CUSIP/Qty option, since Build has no holdings to browse for.
   await page.locator('.tab-btn[data-mode="build"]').click();
   await expect(page.locator('#run-btn')).toHaveText('Build Ladder');
-  await expect(page.locator('#import-menu')).toBeVisible();
+  await expect(page.locator('#import-menu-btn')).toBeVisible();
   await expect(page.locator('#import-opt-cusip-qty')).toBeHidden();
   await expect(page.locator('#field-last-year')).toBeVisible();
 
   // Switch back to Rebalance
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
   await expect(page.locator('#run-btn')).toHaveText('Rebalance Ladder');
-  await expect(page.locator('#import-menu')).toBeVisible();
+  await expect(page.locator('#import-menu-btn')).toBeVisible();
   await expect(page.locator('#import-opt-cusip-qty')).toBeEnabled();
   await expect(page.locator('#field-last-year')).not.toBeVisible();
+});
+
+// ── 2b. Import/Export popup open/close ─────────────────────────────────────────
+// Regression test for a real bug this exact setup produced: `.menu-dropdown`/`.menu-dropdown-item`
+// both set `display` explicitly, which silently overrides the `[hidden]` attribute's default
+// `display:none` at equal CSS specificity — the popup rendered open at all times regardless of the
+// `hidden` attribute the toggle logic was setting. Playwright's .click() doesn't care whether an
+// element was already visually open, so every earlier test still passed even with this bug present;
+// this test asserts the actual visual open/closed state, not just that a click has an effect.
+test('Import menu popup is closed by default, opens on button click, closes on outside click', async ({ page }) => {
+  await expect(page.locator('#import-menu-list')).toBeHidden();
+  await page.locator('#import-menu-btn').click();
+  await expect(page.locator('#import-menu-list')).toBeVisible();
+  await page.locator('body').click({ position: { x: 5, y: 5 } });
+  await expect(page.locator('#import-menu-list')).toBeHidden();
 });
 
 // ── 3. Rebalance run ──────────────────────────────────────────────────────────
@@ -787,7 +810,7 @@ test('rebalance: export menu Ladder CSV/CUSIP-Qty options stay disabled until a 
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   await expect(page.locator('#export-opt-ladder-csv')).toBeDisabled();
   await expect(page.locator('#export-opt-cusip-qty')).toBeDisabled();
-  await expect(page.locator('#export-menu option[value="dara-plan"]')).toBeEnabled();
+  await expect(page.locator('#export-menu-list .menu-dropdown-item[data-choice="dara-plan"]')).toBeEnabled();
 });
 
 test('rebalance: export button visible after run and triggers CSV download', async ({ page }) => {
@@ -799,7 +822,7 @@ test('rebalance: export button visible after run and triggers CSV download', asy
 
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.locator('#export-menu').selectOption('ladder-csv'),
+    chooseMenu(page, 'export-menu', 'ladder-csv'),
   ]);
   expect(download.suggestedFilename()).toMatch(/\.csv$/i);
 });
@@ -1144,7 +1167,7 @@ test('build variable DARA then rebalance: per-year panel round-trips exactly', a
   // Export CUSIP/qty
   const [download] = await Promise.all([
     page.waitForEvent('download'),
-    page.locator('#export-menu').selectOption('cusip-qty'),
+    chooseMenu(page, 'export-menu', 'cusip-qty'),
   ]);
   const exportPath = await download.path();
   expect(exportPath, 'export file should exist').toBeTruthy();
@@ -1195,7 +1218,7 @@ test('round-trip: build 2026–2066 → export CUSIP/Qty → import → last-yea
 
   // 2. Export CUSIP/Qty (captures the Format-5 file the app produces)
   const downloadPromise = page.waitForEvent('download');
-  await page.locator('#export-menu').selectOption('cusip-qty');
+  await chooseMenu(page, 'export-menu', 'cusip-qty');
   const download = await downloadPromise;
   const csvPath = test.info().outputPath('roundtrip.csv');
   await download.saveAs(csvPath);
@@ -1229,7 +1252,7 @@ async function _selRebalSetup(page, name) {
   await page.locator('#run-btn').click();
   await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
   const dl = page.waitForEvent('download');
-  await page.locator('#export-menu').selectOption('cusip-qty');
+  await chooseMenu(page, 'export-menu', 'cusip-qty');
   const csvPath = test.info().outputPath(name);
   await (await dl).saveAs(csvPath);
 
@@ -1340,7 +1363,7 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
   await expect(rung, 'rung reflects the typed value before export').toHaveValue('33000');
 
   const downloadPromise = page.waitForEvent('download');
-  await page.locator('#export-menu').selectOption('dara-plan');
+  await chooseMenu(page, 'export-menu', 'dara-plan');
   const download = await downloadPromise;
   const planPath = test.info().outputPath('dara-plan.csv');
   await download.saveAs(planPath);
@@ -1353,7 +1376,7 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
   expect(await rung.inputValue(), 'fresh reload is the plain mirror again').not.toBe('33000');
 
-  await page.locator('#import-menu').selectOption('dara-plan');
+  await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
   await expect(rung).toHaveValue('33000');
 });
@@ -1383,7 +1406,7 @@ test('per-year DARA: an imported plan is honored exactly at Run on a ladder with
   const planPath = test.info().outputPath('spiked-dara-plan.csv');
   writeFileSync(planPath, lines.join('\n'));
 
-  await page.locator('#import-menu').selectOption('dara-plan');
+  await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
   await expect(page.locator(`.fy-dara-input[data-year="${spikeYear}"]`)).toHaveValue(String(spikedVal));
 
@@ -1453,7 +1476,7 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
   await expect(rung, 'rung reflects the typed value before export').toHaveValue('33000');
 
   const downloadPromise = page.waitForEvent('download');
-  await page.locator('#export-menu').selectOption('dara-plan');
+  await chooseMenu(page, 'export-menu', 'dara-plan');
   const download = await downloadPromise;
   const planPath = test.info().outputPath('build-dara-plan.csv');
   await download.saveAs(planPath);
@@ -1464,7 +1487,7 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
   await _buildSetup(page);
   expect(await rung.inputValue(), 'fresh reload is the plain default again').not.toBe('33000');
 
-  await page.locator('#import-menu').selectOption('dara-plan');
+  await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
   await expect(rung).toHaveValue('33000');
 });
