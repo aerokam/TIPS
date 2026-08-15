@@ -3203,6 +3203,25 @@ document.getElementById('drill-overlay').addEventListener('click', e => {
   if (e.target.id === 'drill-overlay') e.target.style.display = 'none';
 });
 
+// Hovering a formula-var span (e.g. "Quantity") highlights just the value it's sourced
+// from (matched by data-row-id, on that row's last cell), within whichever popup
+// container the hover happened in — the main drill overlay (#drill-content) or either
+// shared popup instance (#shared-popup / #shared-popup-l3, popup.js).
+document.addEventListener('mouseover', e => {
+  const target = e.target.closest('.formula-var');
+  if (!target) return;
+  const sourceId = target.dataset.source;
+  const container = target.closest('#drill-content, #shared-popup, #shared-popup-l3');
+  if (!sourceId || !container) return;
+  const sourceEl = container.querySelector('[data-row-id="' + sourceId + '"]');
+  const valueCell = sourceEl?.closest('tr')?.lastElementChild;
+  if (valueCell) valueCell.classList.add('source-highlight');
+});
+document.addEventListener('mouseout', e => {
+  if (!e.target.closest('.formula-var')) return;
+  document.querySelectorAll('.source-highlight').forEach(el => el.classList.remove('source-highlight'));
+});
+
 let _currentDrillData = null, _currentDrillColKey = null;
 
 document.addEventListener('click', e => {

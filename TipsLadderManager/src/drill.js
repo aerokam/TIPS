@@ -11,7 +11,7 @@ function row(label, formula, value, isTotal, drillKey, rowId) {
   const rid = rowId ? ' data-row-id="' + rowId + '"' : '';
   const lblStyle = drillKey ? 'text-decoration:underline dotted #94a3b8;' : '';
   const f  = formula
-    ? '<td style="padding:3px 14px;color:#64748b;font-size:11px;' + ts + '">' + formula + '</td>'
+    ? '<td style="padding:3px 14px;color:#334155;font-size:11px;' + ts + '">' + formula + '</td>'
     : '<td style="padding:3px 14px;' + ts + '"></td>';
   return '<tr' + dk + '>'
     + '<td' + rid + ' style="padding:3px 16px 3px 0;white-space:nowrap;' + ts + lblStyle + '">' + label + '</td>'
@@ -72,19 +72,32 @@ function future30yBreakdownRows(future30yParams) {
   return rows;
 }
 
-function gapBreakdownRows(gapParams, dara) {
+// `compact`: the caller has already stated the general (variable-name) formula once, in a legend
+// defining LMI/PLI/P+I, so each year's row instead substitutes that year's actual numbers into the
+// same formula shape \u2014 the reader maps numbers back to terms via the legend rather than re-reading
+// "LMI"/"P+I" spelled out on every row. The P+I, LMI, and PLI sub-rows are all dropped in this mode
+// since each already appears, substituted, in the row's own formula.
+function gapBreakdownRows(gapParams, dara, opts) {
   if (!gapParams?.breakdown) return '';
+  const compact = opts?.compact;
   let rows = '';
   gapParams.breakdown.forEach((g, i) => {
     const id = 'gap' + i;
     const pliCredit = g.pliCredit ?? 0;
-    let fmla = 'round((DARA \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>';
-    if (pliCredit > 0) fmla += ' \u2212 <span class="formula-var" data-source="' + id + 'pli">PLI</span>';
-    fmla += ') \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
+    let fmla;
+    if (compact) {
+      fmla = 'round((DARA \u2212 ' + fm(g.laterMatInt);
+      if (pliCredit > 0) fmla += ' \u2212 ' + fm(pliCredit);
+      fmla += ') \u00f7 ' + fm2(g.piPerBond) + ')';
+    } else {
+      fmla = 'round((DARA \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>';
+      if (pliCredit > 0) fmla += ' \u2212 <span class="formula-var" data-source="' + id + 'pli">PLI</span>';
+      fmla += ') \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
+    }
     rows += row(g.year + ' quantity', fmla, g.qty, false, undefined, id + 'qty')
-          + row('\u21b3 P+I per synthetic TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi')
-          + row('\u21b3 LMI (actual TIPS + longer synth)', 'coupon from funded years above + synth LMI from longer gap years', fm(g.laterMatInt), false, undefined, id + 'lmi')
-          + (pliCredit > 0 ? row('\u21b3 PLI credit', 'pre-ladder pool applied to this gap year', fm(pliCredit), false, 'plcpool:' + Math.round(pliCredit), id + 'pli') : '')
+          + (compact ? '' : row('\u21b3 P+I per synthetic TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi'))
+          + (compact ? '' : row('\u21b3 LMI (actual TIPS + longer synth)', 'coupon from funded years above + synth LMI from longer gap years', fm(g.laterMatInt), false, undefined, id + 'lmi'))
+          + (!compact && pliCredit > 0 ? row('\u21b3 PLI credit', 'pre-ladder pool applied to this gap year', fm(pliCredit), false, 'plcpool:' + Math.round(pliCredit), id + 'pli') : '')
           + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000', fm(g.qty * 1000));
   });
   return rows;
@@ -726,18 +739,18 @@ function renderDurationBeam(buckets, avgDur) {
     bucketHtml += 
       '<div style="position:absolute;top:-24px;left:' + p + '%;transform:translateX(-50%);text-align:center;">'
         + '<div style="font-weight:700;color:#1a56db">' + w + '%</div>'
-        + '<div style="font-size:9px;color:#64748b">' + b.label + '</div>'
+        + '<div style="font-size:9px;color:#334155">' + b.label + '</div>'
         + '<div style="width:2px;height:24px;background:#3b82f6;margin:2px auto 0;opacity:0.4;"></div>'
       + '</div>';
   });
 
   return '<div style="margin:0 0 8px;padding:32px 10px 32px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;position:relative;user-select:none;">'
     + '<div style="height:4px;background:#cbd5e1;border-radius:2px;position:relative;margin:0 20px;">'
-      + [min, max].map(v => '<div style="position:absolute;top:8px;left:' + px(v) + '%;transform:translateX(-50%);font-size:9px;color:#94a3b8">' + v + 'y</div>').join('')
+      + [min, max].map(v => '<div style="position:absolute;top:8px;left:' + px(v) + '%;transform:translateX(-50%);font-size:9px;color:#334155">' + v + 'y</div>').join('')
       + '<div style="position:absolute;top:-2px;left:' + ap + '%;width:12px;height:12px;background:#1e293b;transform:translate(-50%, -50%) rotate(45deg);z-index:1;" title="Fulcrum: Avg Duration (' + avgDur.toFixed(2) + 'y)"></div>'
       + '<div style="position:absolute;top:12px;left:' + ap + '%;transform:translateX(-50%);text-align:center;white-space:nowrap;">'
         + '<div style="font-weight:700;color:#1e293b">' + avgDur.toFixed(2) + 'y</div>'
-        + '<div style="font-size:9px;color:#64748b">Average</div>'
+        + '<div style="font-size:9px;color:#334155">Average</div>'
       + '</div>'
       + bucketHtml
     + '</div>'
@@ -758,18 +771,18 @@ export function buildDurationPopupRows(summary, mode) {
   const avg = gapParams.avgDuration;
 
   const rows = [
-    { label: 'Gap average duration', value: avg.toFixed(2) + ' yr' },
+    { label: 'Gap average modified duration', value: avg.toFixed(2) + ' yr' },
     { sep: true },
   ];
 
   if (gapParams.breakdown?.length) {
-    rows.push({ heading: 'Gap Year Durations' });
+    rows.push({ heading: 'Gap Year Modified Durations' });
     const durSum = gapParams.breakdown.reduce((s, b) => s + (b.dur ?? 0), 0);
     gapParams.breakdown.forEach(b => {
       const label = b.durDetail
         ? '<span class="drill-l3" data-l3="gapdur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + b.year + ' (Feb 15)</span>'
         : b.year + ' (Feb 15)';
-      rows.push({ label, note: 'mod. duration (interpolated)', value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
+      rows.push({ label, value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
     });
     rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + gapParams.breakdown.length + ')', value: avg.toFixed(2) + ' yr', total: true });
     rows.push({ sep: true });
@@ -788,13 +801,12 @@ export function buildDurationPopupRows(summary, mode) {
     const upperFml = '((avg dur \u2212 w1\u00d7orig dur) \u2212 (1\u2212w1)\u00d7new lower dur) / (upper dur \u2212 new lower dur)';
 
     rows.push(
-      { label: 'Orig lower (' + lowerYear + ')',    note: 'mod. duration', value: lowerDuration.toFixed(2) + ' yr' },
-      { label: 'New lower (' + newLowerYear + ')',  note: 'mod. duration', value: newLowerDuration.toFixed(2) + ' yr' },
-      { label: 'Upper (' + upperYear + ')',         note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
+      { label: 'Bracket modified duration (orig lower ' + lowerYear + ', new lower ' + newLowerYear + ', upper ' + upperYear + ')',
+        value: lowerDuration.toFixed(2) + ', ' + newLowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) + ' yr' },
       { sep: true },
-      { label: 'Orig lower weight (w1)', note: 'held excess / gap total cost (frozen; sold down only as far as the match requires if over-allocated)', value: w1.toFixed(4) },
-      { label: 'Upper weight',           note: upperFml,                                                                                                value: w3.toFixed(4) },
-      { label: 'New lower weight',       note: '(1 \u2212 w1) \u2212 upper weight',                                                                                value: w2.toFixed(4) }
+      { label: 'Bracket weight (orig lower, new lower, upper)',
+        note: 'orig lower (w1) = held excess / gap total cost (frozen; sold down only as far as the match requires if over-allocated); upper = ' + upperFml + '; new lower = (1 \u2212 w1) \u2212 upper weight',
+        value: w1.toFixed(4) + ', ' + w2.toFixed(4) + ', ' + w3.toFixed(4) }
     );
     buckets.push({ dur: lowerDuration, weight: w1, label: String(lowerYear) });
     buckets.push({ dur: newLowerDuration, weight: w2, label: String(newLowerYear) });
@@ -804,29 +816,27 @@ export function buildDurationPopupRows(summary, mode) {
                 + ' + ' + w2.toFixed(4) + ' \u00d7 ' + newLowerDuration.toFixed(2)
                 + ' + ' + w3.toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2)
                 + ' = ' + avg.toFixed(2);
-    rows.push({ sep: true }, { label: 'Duration match', note: match, total: true });
+    rows.push({ sep: true }, { label: 'Modified duration match', note: match, total: true });
     if (fellBack) rows.push({ sep: true }, { label: 'Degenerate inputs', note: 'Bracket durations coincide, or the gap average falls outside the active-lower/upper span \u2014 the duration match has no ordinary solution.' });
 
   } else if (lowerYear == null) {
     // No lower bracket (firstYear is inside the gap \u2014 all coverage on upper bracket alone)
     rows.push(
-      { label: 'Lower bracket', note: 'none \u2014 firstYear is inside the gap block', value: '\u2014' },
-      { label: 'Upper bracket (' + upperLabel + ')', note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
+      { label: 'Bracket modified duration (none, ' + upperLabel + ')',
+        note: 'no lower bracket \u2014 firstYear is inside the gap block', value: '\u2014, ' + upperDuration.toFixed(2) + ' yr' },
       { sep: true },
-      { label: 'Lower weight', note: 'n/a', value: '0.0000' },
-      { label: 'Upper weight', note: 'all coverage on upper bracket', value: (upperWeight ?? 1).toFixed(4) }
+      { label: 'Bracket weight (lower, upper)', note: 'all coverage on upper bracket', value: '0.0000, ' + (upperWeight ?? 1).toFixed(4) }
     );
     buckets.push({ dur: upperDuration, weight: upperWeight ?? 1, label: upperLabel });
     const match = '0.0000 \u00d7 n/a + ' + (upperWeight ?? 1).toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2) + ' = ' + avg.toFixed(2);
-    rows.push({ sep: true }, { label: 'Duration match', note: match, total: true });
+    rows.push({ sep: true }, { label: 'Modified duration match', note: match, total: true });
   } else {
     const wFml = '(upper dur \u2212 avg dur) / (upper dur \u2212 lower dur)';
     rows.push(
-      { label: 'Lower bracket (' + lowerLabel + ')', note: 'mod. duration', value: lowerDuration.toFixed(2) + ' yr' },
-      { label: 'Upper bracket (' + upperLabel + ')', note: 'mod. duration', value: upperDuration.toFixed(2) + ' yr' },
+      { label: 'Bracket modified duration (' + lowerLabel + ', ' + upperLabel + ')',
+        value: lowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) + ' yr' },
       { sep: true },
-      { label: 'Lower weight', note: wFml,                    value: lowerWeight.toFixed(4) },
-      { label: 'Upper weight', note: '1 \u2212 lower weight', value: upperWeight.toFixed(4) }
+      { label: 'Bracket weight (lower, upper)', note: wFml + '; upper = 1 \u2212 lower', value: lowerWeight.toFixed(4) + ', ' + upperWeight.toFixed(4) }
     );
     buckets.push({ dur: lowerDuration, weight: lowerWeight, label: lowerLabel });
     buckets.push({ dur: upperDuration, weight: upperWeight, label: upperLabel });
@@ -834,21 +844,29 @@ export function buildDurationPopupRows(summary, mode) {
     const match = lowerWeight.toFixed(4) + ' \u00d7 ' + lowerDuration.toFixed(2)
                 + ' + ' + upperWeight.toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2)
                 + ' = ' + avg.toFixed(2);
-    rows.push({ sep: true }, { label: 'Duration match', note: match, total: true });
+    rows.push({ sep: true }, { label: 'Modified duration match', note: match, total: true });
   }
 
   rows.push(
     { sep: true },
-    { heading: 'Duration Balance (Mod. Duration)' },
+    { heading: 'Modified Duration Balance' },
     { html: renderDurationBeam(buckets, avg) }
   );
 
   if (gapParams.breakdown?.length) {
     rows.push({ sep: true }, { heading: 'Gap Year Breakdown (theoretical qty)' });
-    gapParams.breakdown.forEach(g => {
-      rows.push({ label: g.year + ' qty', note: 'round((DARA \u2212 ' + Math.round(g.laterMatInt) + ') \u00f7 ' + g.piPerBond.toFixed(2) + ')', value: String(g.qty) });
+    rows.push({ html:
+      '<div style="font-size:11px;color:#334155;margin:0 0 6px;line-height:1.6;">'
+      + 'qty = round((DARA \u2212 LMI \u2212 PLI) \u00f7 P+I)<br>'
+      + '<b>LMI</b> = Later Maturity Interest \u2014 coupon income from TIPS maturing after this year, including hypothetical interest from synthetic gap year TIPS<br>'
+      + '<b>PLI</b> = Pre-Ladder Interest credit applied to this gap year (0 unless a pre-ladder credit applies)<br>'
+      + '<b>P+I</b> = Principal + Interest per synthetic TIPS for this year'
+      + '</div>'
+      + '<table style="border-collapse:collapse;width:100%">'
+      + gapBreakdownRows(gapParams, summary.DARA, { compact: true })
+      + row('Theoretical gap cost (Total)', 'Sum of individual gap theoretical costs', fm(gapParams.totalCost), true)
+      + '</table>'
     });
-    rows.push({ label: 'Theoretical gap cost (Total)', note: 'Sum of individual gap theoretical costs', value: '$' + Math.round(gapParams.totalCost).toLocaleString(), total: true });
     const totalExcess = summary.totalExcessCost;
     if (totalExcess) {
       rows.push({ label: 'Total excess cost', note: 'Cost of excess TIPS now held in brackets', value: '$' + Math.round(totalExcess).toLocaleString() });
