@@ -4,6 +4,17 @@
 
 import { indexRatio as calcIndexRatio } from './ref-cpi.js';
 
+// ─── Calendar-day count ───────────────────────────────────────────────────────
+// Date objects here are local-midnight timestamps (`new Date(y, m, d)`). Diffing
+// their .getTime() values directly is WRONG whenever the interval crosses a DST
+// transition: the local clock gains/loses an hour, so the ms delta is off by
+// ±3,600,000ms (±1/24 day ≈ ±0.0417) from the true calendar-day count. Normalizing
+// both endpoints to UTC-midnight before diffing removes the DST artifact.
+export function daysBetween(a, b) {
+  const utc = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+  return (utc(b) - utc(a)) / 86400000;
+}
+
 // ─── Macaulay / Modified duration ────────────────────────────────────────────
 // Matches Google Sheets DURATION/MDURATION (Actual/Actual, semi-annual).
 // Uses fractional first coupon period w = DSC/E to avoid the ±0.5y error
@@ -36,9 +47,8 @@ export function calculateDurationDetail(settlement, maturity, coupon, yld) {
   if (!nextCpn) return null;
   const mDay   = maturity.getDate();
   const lastCpn = addSemiannualPeriods(nextCpn, -1, mDay);
-  const days = (a, b) => (b - a) / 86400000;
-  const E   = days(lastCpn, nextCpn);
-  const DSC = days(settlement, nextCpn);
+  const E   = daysBetween(lastCpn, nextCpn);
+  const DSC = daysBetween(settlement, nextCpn);
   const w   = DSC / E;
   const coupons = [];
   for (let k = 0; ; k++) {
@@ -136,7 +146,7 @@ export function hasLeapDayBetween(d1, d2) {
 // 1 year or more: 365.25, the long-run average that avoids a single term's
 // leap-year placement skewing a multi-year figure.
 export function termYears(settle, maturity) {
-  const daysToMat = (maturity.getTime() - settle.getTime()) / 86400000;
+  const daysToMat = daysBetween(settle, maturity);
   if (daysToMat < 365) {
     return daysToMat / (hasLeapDayBetween(settle, maturity) ? 366 : 365);
   }
@@ -153,9 +163,8 @@ export function accruedInterest(coupon, settle, mature) {
   const nextCoupon = _nextCouponOnOrAfter(settle, mature);
   if (!nextCoupon) return { accrued: 0, A: 0, E: 0, lastCoupon: null, nextCoupon: null };
   const lastCoupon = addSemiannualPeriods(nextCoupon, -1, mature.getDate());
-  const days = (a, b) => (b.getTime() - a.getTime()) / 86400000;
-  const E = days(lastCoupon, nextCoupon);
-  const A = days(lastCoupon, settle);
+  const E = daysBetween(lastCoupon, nextCoupon);
+  const A = daysBetween(lastCoupon, settle);
   const semiCoupon = (coupon / 2) * 100;
   return { accrued: semiCoupon * (A / E), A, E, lastCoupon, nextCoupon };
 }
@@ -170,8 +179,7 @@ export function yieldFromPrice(cleanPrice, coupon, settle, mature) {
   if (!cleanPrice || cleanPrice <= 0) return null;
   if (settle >= mature) return null;
 
-  const days = (a, b) => (b.getTime() - a.getTime()) / 86400000;
-  const daysToMat = days(settle, mature);
+  const daysToMat = daysBetween(settle, mature);
   const semiCoupon = (coupon / 2) * 100;
 
   // Zero-coupon bills: simple investment rate 365/d, or 366/d if the period spans
@@ -202,7 +210,7 @@ export function yieldFromPrice(cleanPrice, coupon, settle, mature) {
   const nextCoupon = nextCouponOnOrAfter(settle);
   if (!nextCoupon) return null;
   const { accrued, E } = accruedInterest(coupon, settle, mature);
-  const DSC = days(settle, nextCoupon);
+  const DSC = daysBetween(settle, nextCoupon);
   const dirtyPrice = cleanPrice + accrued;
   const w = DSC / E;
 
@@ -279,9 +287,8 @@ export function priceFromYield(yld, coupon, settle, mature) {
   const nextCoupon = nextCouponOnOrAfter(settle);
   if (!nextCoupon) return null;
 
-  const days = (a, b) => (b.getTime() - a.getTime()) / 86400000;
   const { accrued, E } = accruedInterest(coupon, settle, mature);
-  const DSC = days(settle, nextCoupon);
+  const DSC = daysBetween(settle, nextCoupon);
   const w = DSC / E;
 
   const coupons = [];

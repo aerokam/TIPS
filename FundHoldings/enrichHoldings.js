@@ -49,7 +49,7 @@ function enrichRow(row, settle, { tipsByCusip, nominalByCusip }) {
   // multi-year figure.
   const isCashSweep = row["Holding Name"] === "MKTLIQ" || row["Holding Name"] === "SSC GOVERNMENT MM GVMXX";
   const maturity = isCashSweep
-    ? new Date(settle.getTime() + 86400000)
+    ? new Date(settle.getFullYear(), settle.getMonth(), settle.getDate() + 1)
     : row["Maturity Date"] ? parseDate(row["Maturity Date"]) : null;
 
   const enriched = {

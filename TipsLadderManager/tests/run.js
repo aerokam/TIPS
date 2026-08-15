@@ -11,7 +11,7 @@ import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
 import { nextBondTradingDay, parseBondHolidays, lookupRefCpi } from '../src/data.js';
-import { accruedInterest, bondCalcs } from '../../shared/src/bond-math.js';
+import { accruedInterest, bondCalcs, daysBetween } from '../../shared/src/bond-math.js';
 
 // ── CSV helpers (match index.html exactly) ────────────────────────────────────
 function parseCsv(text) {
@@ -1505,7 +1505,7 @@ console.log('\naccruedInterest — day-count proration');
   const coupon = 0.02; // 2% annual → 1.0 per $100 semiannual
   const maturity = new Date(2036, 0, 15); // Jan 15, 2036 — coupon dates Jan15/Jul15
   const periodStart = new Date(2025, 6, 15); // Jul 15, 2025
-  const E_expected = (new Date(2026, 0, 15) - periodStart) / 86400000; // 184 days
+  const E_expected = daysBetween(periodStart, new Date(2026, 0, 15)); // 184 days
 
   // One day after the coupon date: A=1, accrued is a thin sliver of the semiannual coupon.
   const early = accruedInterest(coupon, new Date(2025, 6, 16), maturity);

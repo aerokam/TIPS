@@ -1,8 +1,8 @@
-﻿import fs from 'fs';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { uploadToR2 } from './r2.js';
-import { yieldFromPrice } from '../../shared/src/bond-math.js';
+import { yieldFromPrice, daysBetween } from '../../shared/src/bond-math.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -96,7 +96,7 @@ function calculateSAO(bonds) {
     
     let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
     for (let j = 1; j <= actualWindow; j++) {
-      const x = (bonds[i + j].maturityDate - bond.maturityDate) / 86400000;
+      const x = daysBetween(bond.maturityDate, bonds[i + j].maturityDate);
       const y = sao[i + j];
       sumX += x; sumY += y; sumXY += x * y; sumX2 += x * x;
     }

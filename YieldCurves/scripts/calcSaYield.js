@@ -37,7 +37,9 @@ function yieldFromPrice(cleanPrice, coupon, settleDate, matureDate) {
   const mature = matureDate;
   if (settle >= mature) return null;
 
-  const days = (a, b) => (b.getTime() - a.getTime()) / 86400000;
+  // UTC-normalized: raw (b-a)/86400000 on local-midnight Dates is off by ±1h across
+  // a DST transition, corrupting the day count by ±1/24.
+  const days = (a, b) => (Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000;
   const daysToMat = days(settle, mature);
 
   function hasLeapDayBetween(d1, d2) {

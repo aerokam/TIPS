@@ -936,8 +936,8 @@ function macaulayWalkRows(durDetail, dur) {
     { heading: 'Macaulay Duration' },
     { label: 'Next coupon date', value: fmtDate(durDetail.nextCpn) },
     { label: 'Last coupon date', value: fmtDate(durDetail.lastCpn) },
-    { label: 'E (days in period)', value: fd(durDetail.E, 2) },
-    { label: 'DSC (days to next coupon)', value: fd(durDetail.DSC, 2) },
+    { label: 'E (days in period)', value: fd(durDetail.E, 0) },
+    { label: 'DSC (days to next coupon)', value: fd(durDetail.DSC, 0) },
     { label: 'w = DSC ÷ E', value: fd(durDetail.w, 4) },
     { sep: true },
   ];

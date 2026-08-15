@@ -1,6 +1,6 @@
 // SA / SAO residual analysis harness — reproduces every table in
 // knowledge/2.2_SAO_Residual_Analysis.md against live R2 data.
-import { yieldFromPrice, calculateDuration } from '../../shared/src/bond-math.js';
+import { yieldFromPrice, calculateDuration, daysBetween } from '../../shared/src/bond-math.js';
 
 const R2 = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const fetchText = async u => (await fetch(u, { cache: 'no-cache' })).text();
@@ -55,7 +55,7 @@ function calculateSAO(bonds) {
     const windowSize = 4; const actualWindow = Math.min(windowSize, n-1-i);
     let sumX=0,sumY=0,sumXY=0,sumX2=0;
     for (let j=1;j<=actualWindow;j++){
-      const x=(bonds[i+j].maturityDate-bond.maturityDate)/86400000; const y=sao[i+j];
+      const x=daysBetween(bond.maturityDate, bonds[i+j].maturityDate); const y=sao[i+j];
       sumX+=x;sumY+=y;sumXY+=x*y;sumX2+=x*x;
     }
     const slope=(actualWindow*sumXY-sumX*sumY)/(actualWindow*sumX2-sumX*sumX);
