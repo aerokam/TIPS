@@ -7,6 +7,7 @@
 - Face Value (unadjusted baseline), Coupon Rate, Maturity Date, Settlement
 - Semi-Annual Payment, Annual Interest per TIPS, Price
 - Last-Year Interest Payments (general principle)
+- Yield Calculation Conventions (frequency=2, no near-maturity exception)
 
 ---
 
@@ -111,15 +112,7 @@ Total settlement cost to acquire a TIPS = Cost per TIPS + Accrued Interest.
 
 ## Yield Calculation Conventions
 
-TIPS yield-to-maturity (YTM) always uses semi-annual compounding, Actual/Actual day count — matching Excel's `YIELD(settlement, maturity, rate, pr, redemption, 2, 1)` with `frequency=2` fixed, regardless of how close settlement is to maturity. There is **no separate near-maturity/short-dated convention** for coupon-bearing TIPS, notes, or bonds — every remaining-period count (including the final period) is priced with the same multi-period PV formula.
-
-A prior version of this app special-cased settlements within ~6 months of maturity with a simple/linear single-period formula. That was removed: deciding "is this the last period" from days-to-maturity alone is unsafe (a settlement date landing just before an *intermediate*, non-final coupon can also be under 6 months from maturity, which wrongly priced that intermediate coupon as the final payment), and it made `yieldFromPrice`/`priceFromYield` round-trip inconsistently near maturity even when correctly triggered. Always using `frequency=2` matches real-world spreadsheet YIELD calculations validated against broker data.
-
-**Exception — zero-coupon Treasury Bills**: Bills have no coupon schedule to apply frequency/day-count to, so they use the simple investment-rate convention instead: `Yield = (100/Price − 1) × 365/DaysToMaturity` (366 if a leap day falls within the period). This is a different instrument, not a "near-maturity TIPS" case.
-
-**Validated 2026-07-24** against the live `FidelityTreasuriesTips.csv` (settlement = T+1 business day, which Fidelity uses): spreadsheet `YIELD(settle, maturity, rate, price, 100, frequency, 1)` with `frequency=1` on a bill matched Fidelity's displayed yield to 0.1bp, but that's a coincidence of the bill case (frequency algebraically cancels out of Excel's own "one period or less remaining" formula for a zero-coupon instrument — it doesn't mean bills want `frequency=1`, and `frequency=2` matched equally well there). On an actual coupon-bearing security, `frequency=2` matched Fidelity to 3 decimal places while `frequency=1` was off by 1.8bp — confirming there is no near-maturity/frequency=1 case for coupon bonds, matching the rule above. A companion sweep across 1,400+ bid/ask observations in that file (bucketed by days-to-maturity) confirmed `frequency=2` wins decisively for coupon bonds beyond ~180 days (sub-0.1bp error vs several bp for `frequency=1`); under ~90 days both frequencies leave a few bp of residual, attributable to day-count/settlement precision (the same extreme yield-sensitivity-to-price effect noted for bills), not a real frequency effect.
-
-**Computed yield vs. vendor-supplied yield field**: prefer computing yield from price (`yieldFromPrice`) over trusting a vendor's own displayed yield column directly. Vendor yield fields are rounded for display (Fidelity's to 3 decimals = 0.1bp granularity) while price fields carry more precision (Fidelity's to 6 decimals); the 2026-07-24 validation above confirms `yieldFromPrice` reproduces Fidelity's displayed yield to the limit of *their* rounding, so computing from price recovers real precision Fidelity's display already discarded, not formula error. See `knowledge/DATA_DICTIONARY.md` §S7 for where this is (and isn't yet) applied consistently across Treasury vs. TIPS parsing.
+Inherited unchanged from **1.0 Bond Basics §Yield Calculation Conventions**: always `frequency=2`, Actual/Actual day count, no near-maturity exception. (TIPS carry a coupon, so the separate Bond Basics §Treasury Bill Yield convention — bills have no coupon at all — does not apply to TIPS.)
 
 ---
 

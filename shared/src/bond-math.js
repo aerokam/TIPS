@@ -140,15 +140,28 @@ export function hasLeapDayBetween(d1, d2) {
   return false;
 }
 
+// ─── Days in the year following a given date ──────────────────────────────────
+// Per Treasury's Treasury-bill investment-rate formula (ofcalc6decbill.pdf, "Price,
+// Yield and Rate Calculations for a Treasury Bill"): y = the actual number of days
+// from settlement to the same calendar date one year later — 365, or 366 if that
+// twelve-month span crosses Feb 29. This is NOT the same question as whether the
+// (shorter) settlement-to-maturity window itself contains Feb 29 — a short bill
+// settling in January and maturing in February, for example, never reaches Feb 29
+// in its own window even in a leap year, but still uses y=366 because the year
+// following settlement does. Spec: 1.0 Bond Basics §Treasury Bill Yield.
+export function daysInYearFrom(settle) {
+  const oneYearLater = new Date(settle.getFullYear() + 1, settle.getMonth(), settle.getDate());
+  return daysBetween(settle, oneYearLater);
+}
+
 // ─── Term (years to maturity) ─────────────────────────────────────────────────
-// Under 1 year: actual/actual (365, or 366 if the span crosses Feb 29) — same
-// leap-day convention as the zero-coupon bill yield formula below.
+// Under 1 year: actual/actual (365, or 366 per daysInYearFrom above).
 // 1 year or more: 365.25, the long-run average that avoids a single term's
 // leap-year placement skewing a multi-year figure.
 export function termYears(settle, maturity) {
   const daysToMat = daysBetween(settle, maturity);
   if (daysToMat < 365) {
-    return daysToMat / (hasLeapDayBetween(settle, maturity) ? 366 : 365);
+    return daysToMat / daysInYearFrom(settle);
   }
   return daysToMat / 365.25;
 }
@@ -182,12 +195,19 @@ export function yieldFromPrice(cleanPrice, coupon, settle, mature) {
   const daysToMat = daysBetween(settle, mature);
   const semiCoupon = (coupon / 2) * 100;
 
-  // Zero-coupon bills: simple investment rate 365/d, or 366/d if the period spans
-  // a leap day (matches Treasury's published convention). No coupon schedule
-  // exists to check against, so this stays a pure day-count test.
+  // Zero-coupon bills: Treasury's own investment-rate (coupon-equivalent yield)
+  // formula, per ofcalc6decbill.pdf. For bills of not more than one half-year to
+  // maturity: i = ((100-P)/P) × (y/r), where y = daysInYearFrom(settle) (365 or
+  // 366) and r = daysToMat. Bills of more than one half-year to maturity use
+  // Treasury's quadratic CEY formula — validated (see knowledge/Bond_Basics.md
+  // §Treasury Bill Yield) to match the standard frequency=2 YIELD formula below
+  // to within rounding, so no separate quadratic solver is needed here; falling
+  // through to the frequency=2 path (zero coupon, one synthetic final cash flow)
+  // reproduces it. No coupon schedule exists for the ≤6mo case, so it stays a
+  // pure day-count test.
   if (semiCoupon === 0) {
-    const leapSpan = hasLeapDayBetween(settle, mature);
-    if (daysToMat < (leapSpan ? 183 : 182.5)) return (100 / cleanPrice - 1) * (leapSpan ? 366 : 365) / daysToMat;
+    const daysInYear = daysInYearFrom(settle);
+    if (daysToMat < daysInYear / 2) return (100 / cleanPrice - 1) * daysInYear / daysToMat;
   }
 
   const matMon = mature.getMonth() + 1;

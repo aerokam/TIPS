@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { yieldFromPrice } from '../../shared/src/bond-math.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REF_CPI_PATH = path.join(__dirname, '../data/RefCpiNsaSa.csv');
@@ -27,122 +28,6 @@ function findMostRecentSaFactor(refCpiRows, targetDate) {
 function localDate(s) {
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d);
-}
-
-// --- Yield from price (actual/actual, matches Excel YIELD(...,2,1)) ---
-// Migrated from getTipsYields.js
-function yieldFromPrice(cleanPrice, coupon, settleDate, matureDate) {
-  if (!cleanPrice || cleanPrice <= 0) return null;
-  const settle = settleDate;
-  const mature = matureDate;
-  if (settle >= mature) return null;
-
-  // UTC-normalized: raw (b-a)/86400000 on local-midnight Dates is off by ±1h across
-  // a DST transition, corrupting the day count by ±1/24.
-  const days = (a, b) => (Date.UTC(b.getFullYear(), b.getMonth(), b.getDate()) - Date.UTC(a.getFullYear(), a.getMonth(), a.getDate())) / 86400000;
-  const daysToMat = days(settle, mature);
-
-  function hasLeapDayBetween(d1, d2) {
-    for (let yr = d1.getFullYear(); yr <= d2.getFullYear(); yr++) {
-      const feb29 = new Date(yr, 1, 29);
-      if (feb29.getMonth() === 1 && feb29 > d1 && feb29 <= d2) return true;
-    }
-    return false;
-  }
-  const leapSpan = hasLeapDayBetween(settle, mature);
-  const freq = daysToMat < (leapSpan ? 183 : 182.5) ? 1 : 2;
-
-  const semiCoupon = (coupon / 2) * 100;
-  const matMon = mature.getMonth() + 1;
-  const cm1 = matMon <= 6 ? matMon : matMon - 6;
-  const cm2 = cm1 + 6;
-
-  function nextCouponOnOrAfter(d) {
-    const candidates = [];
-    for (let y = d.getFullYear() - 1; y <= d.getFullYear() + 1; y++) {
-      candidates.push(new Date(y, cm1 - 1, 15));
-      candidates.push(new Date(y, cm2 - 1, 15));
-    }
-    candidates.sort((a, b) => a - b);
-    return candidates.find(c => c >= d && c <= mature) || null;
-  }
-
-  // ── Freq=1: single-period annual yield ──
-  if (freq === 1) {
-    const daysInYear = leapSpan ? 366 : 365;
-    const w = daysToMat / daysInYear;
-    let dirtyPrice = cleanPrice;
-    if (semiCoupon > 0) {
-      const nextCoupon = nextCouponOnOrAfter(settle);
-      if (nextCoupon) {
-        const lastCoupon = new Date(nextCoupon.getFullYear(), nextCoupon.getMonth() - 6, 15);
-        const E = days(lastCoupon, nextCoupon);
-        const A = days(lastCoupon, settle);
-        dirtyPrice = cleanPrice + semiCoupon * (A / E);
-      }
-    }
-    const lastCF = semiCoupon + 100;
-    let y = coupon > 0.005 ? coupon : 0.02;
-    for (let i = 0; i < 200; i++) {
-      const pv = lastCF / Math.pow(1 + y, w);
-      const diff = pv - dirtyPrice;
-      if (Math.abs(diff) < 1e-10) break;
-      const dpv = -lastCF * w / Math.pow(1 + y, w + 1);
-      if (Math.abs(dpv) < 1e-15) break;
-      y -= diff / dpv;
-    }
-    return y;
-  }
-
-  // ── Freq=2: semi-annual BEY ──
-  const nextCoupon = nextCouponOnOrAfter(settle);
-  if (!nextCoupon) return null;
-  const lastCoupon = new Date(nextCoupon.getFullYear(), nextCoupon.getMonth() - 6, 15);
-
-  const E = days(lastCoupon, nextCoupon);
-  const A = days(lastCoupon, settle);
-  const DSC = days(settle, nextCoupon);
-  const accrued = semiCoupon * (A / E);
-  const dirtyPrice = cleanPrice + accrued;
-  const w = DSC / E;
-
-  const coupons = [];
-  let d = new Date(nextCoupon);
-  while (d <= mature) {
-    coupons.push(new Date(d));
-    d = new Date(d.getFullYear(), d.getMonth() + 6, 15);
-  }
-  const N = coupons.length;
-  if (N === 0) return null;
-
-  function pv(y) {
-    const r = y / 2;
-    let s = 0;
-    for (let k = 0; k < N; k++) {
-      const cf = k === N - 1 ? semiCoupon + 100 : semiCoupon;
-      s += cf / Math.pow(1 + r, w + k);
-    }
-    return s;
-  }
-  function dpv(y) {
-    const r = y / 2;
-    let s = 0;
-    for (let k = 0; k < N; k++) {
-      const cf = k === N - 1 ? semiCoupon + 100 : semiCoupon;
-      s += (-cf * (w + k)) / (2 * Math.pow(1 + r, w + k + 1));
-    }
-    return s;
-  }
-
-  let y = coupon > 0.005 ? coupon : 0.02;
-  for (let i = 0; i < 200; i++) {
-    const diff = pv(y) - dirtyPrice;
-    if (Math.abs(diff) < 1e-10) break;
-    const deriv = dpv(y);
-    if (Math.abs(deriv) < 1e-15) break;
-    y -= diff / deriv;
-  }
-  return y;
 }
 
 function main() {
