@@ -18,12 +18,12 @@
    - [Amortization Method: Constant Yield (Semi-Annual Periods)](#amortization-method-constant-yield-semi-annual-periods)
    - [Example: CUSIP 91282CEJ6](#example-cusip-91282cej6)
    - [Notes on Broker ABP Reporting](#notes-on-broker-abp-reporting)
-8. [Cost Basis Step-Up](#cost-basis-step-up)
-9. [Vanguard Online Statement — TIPS Field Definitions](#vanguard-online-statement-tips-field-definitions)
-10. [Broker Error Case Studies](#broker-error-case-studies)
+8. [Box 1f: Accrued Market Discount (AMD)](#box-1f-accrued-market-discount-amd)
+   - [Example: Projecting Accrued Market Discount Before Maturity (CUSIP 91282CAQ4)](#example-projecting-accrued-market-discount-before-maturity-cusip-91282caq4)
+9. [Cost Basis Step-Up](#cost-basis-step-up)
+10. [Vanguard Online Statement — TIPS Field Definitions](#vanguard-online-statement-tips-field-definitions)
+11. [Broker Error Case Studies](#broker-error-case-studies)
     - [Schwab — CUSIP 91282CDX6](#broker-error-case-study-schwab-cusip-91282cdx6)
-11. [Agent Instructions](#agent-instructions)
-    - [Dependencies](#dependencies)
 
 ---
 
@@ -217,8 +217,6 @@ The sum of all ABP over the life equals bond_premium to within rounding (e.g., 2
 
 ### Example: CUSIP 91282CEJ6
 
-> **Verification only. All inputs below were sourced from `TipsAuctionResults.csv` and the ref CPI CSV. Do not hardcode these values.**
-
 0.125% 5-Year TIPS | Issued 4/29/2022 | Matures 4/15/2027 | Face $10,000  
 Unadj price: 102.328775 | IR on issue: 1.00424 | Real yield: -0.340%  
 Inflation-adjusted principal: $10,042.40 | Cost basis: $10,276.26 | Bond premium: $233.86
@@ -268,6 +266,58 @@ ABP figures per #Cruncher and FactualFran; use of `inflation_adjusted_principal 
 
 ---
 
+## Box 1f: Accrued Market Discount (AMD)
+
+Applies when a TIPS is purchased below its inflation-adjusted principal on the acquisition date and the resulting market discount exceeds the de minimis threshold. See [Market Discount and Premium for Subsequent Holders — Treas. Reg. §1.1275-7(f)(3)](#market-discount-and-premium-for-subsequent-holders-treas-reg-11275-7f3) above for the regulatory basis, and [TaxationOfTreasuryNotesAndBonds.md](TaxationOfTreasuryNotesAndBonds.md#market-discount-and-accrued-market-discount-amd) for reporting mechanics and the annual-inclusion election.
+
+### Example: Projecting Accrued Market Discount Before Maturity (CUSIP 91282CAQ4)
+
+Market discount depends on what the individual holder actually paid, so it has to be calculated from the trade confirmation or brokerage transaction history for that specific purchase. This example is based on the actual purchase and disposition at maturity of 20 of the Oct 15, 2025 TIPS. The brokerage transaction history is used as input to the calculations, and the accrued market discount reported on the 1099-B is used to check the calculations.
+
+**The transaction:** 0.125% TIPS due 10/15/2025, dated date 10/15/2020, base ref CPI 259.469968.
+
+| Trade date | Settlement date | Shares | Price | Interest | Amount |
+|---|---|---|---|---|---|
+| 6/13/2024 | 6/14/2024 | 20,000 | $96.66 | $4.94 | −$23,315.66 |
+
+**Step 1 — Recover the exact adjusted cost.** The Amount already includes both the inflation-adjusted principal paid and the accrued interest paid to the seller. Subtract the interest to isolate the principal:
+```
+adj_cost = $23,315.66 − $4.94 = $23,310.72
+```
+
+**Step 2 — Index ratio on the acquisition date.** Use the settlement date, not the trade date: settlement is when the cash actually changes hands and the inflation adjustment embedded in the price is fixed.
+```
+RefCPI(dated date, 10/15/2020) = 259.469968
+RefCPI(settlement date, 6/14/2024) = 312.858933
+IR(6/14/2024) = 312.858933 / 259.469968 = 1.205762
+```
+Ref CPI and Index Ratio are always truncated to 7 decimals, then rounded to 6 (31 CFR Part 356 Appendix B).
+
+**Step 3 — Adjusted issue price on the acquisition date.** Per Treas. Reg. §1.1275-7(f)(3), market discount is measured against "the adjusted issue price of the instrument on the date the holder acquires the instrument." For a TIPS, that is the inflation-adjusted principal on that date:
+```
+inflation_adjusted_principal(6/14/2024) = $20,000 × 1.205762 = $24,115.24
+```
+
+**Step 4 — Market discount.**
+```
+market_discount = $24,115.24 − $23,310.72 = $804.52
+```
+Because the adjusted cost is less than the adjusted issue price, this is a market discount, not a premium.
+
+**Step 5 — De minimis check.** About 1.34 years from settlement to maturity: `$20,000 × 0.0025 × 1.34 = $66.80`. The $804.52 discount is well above that, so this is not de minimis: full AMD treatment applies.
+
+**Step 6 — What this means.** Held to maturity, the full $804.52 is recognized at redemption regardless of accrual method, since by that point the entire discount has accrued either way: it is what will be reported as ordinary interest income (1099-B Box 1f, Form 8949 Code D). If the TIPS are instead sold before maturity, only the portion accrued by the sale date counts as AMD, computed by the ratable accrual method by default (this document does not include a worked constant yield example; see IRC §1276(b) for the election).
+
+**Verification.** This position was held to maturity and redeemed 10/15/2025. The actual 1099-B issued for it reports:
+
+| Action | Quantity | Date Acquired | Date Sold/Disposed | Proceeds (1d) | Cost Basis (1e) | Accrued Market Discount (1f) | Gain/Loss |
+|---|---|---|---|---|---|---|---|
+| Redemption | 20,000.000 | 06/13/24 | 10/15/25 | $24,933.00 | $24,128.40 | $804.51 | $804.60 |
+
+The 1099-B's "Date Acquired" is the trade date (6/13/24); the calculation above uses the settlement date (6/14/24), one day later, per Step 2. Box 1f is within a penny of the $804.52 projected above. Note that Box 1f is not the same as the Gain/Loss column: Proceeds minus Cost Basis is $804.60, of which $804.51 is reclassified from capital gain to ordinary interest income via Form 8949 Code D, leaving $0.09 as capital gain.
+
+---
+
 ## Cost Basis Step-Up
 
 All brokers step up TIPS cost basis annually by the OID reported on 1099-OID, so that OID already taxed as ordinary income is not taxed again as capital gain at disposition.
@@ -300,8 +350,6 @@ Small discrepancies (a few dollars on $100K face) between calculated and display
 ## Broker Error Case Studies
 
 ### Broker Error Case Study: Schwab — CUSIP 91282CDX6
-
-> **Verification only. All inputs sourced from `TipsAuctionResults.csv`. Do not hardcode these values.**
 
 **Summary:** Schwab reported correct ABP for 2022–2023, then silently dropped to roughly 55% of the correct value in 2024 and 2025, consistent with applying the ABP rate to a partial lot. The holder independently calculated correct values and is seeking corrected 1099-OIDs. Schwab had previously self-corrected a 2022 error (original Box 10 = $0; corrected to $282.24 in Nov 2023).
 
@@ -350,38 +398,3 @@ Total  6009.04   (bond premium 6009.05 — diff $0.01, rounding)
 **Reporting configuration confirmed:** Schwab reported QSI in 1099-INT Box 3 and ABP in 1099-OID Box 10 (no Box 2 entry). This confirms the hybrid configuration documented in the broker table above.
 
 **Remediation:** Request corrected 1099-OID from Schwab for each affected year. If Schwab does not correct, the taxpayer may use the independently calculated figure and attach a statement. Source: Bogleheads forum, post by Klewles, thread "Taxation of Treasury bills, notes and bonds."
-
----
-
-## Agent Instructions
-
-> This section is for automated use only. Human readers can skip it.
-
-**Examples caveat:** All examples in this document are for illustrative and verification purposes only. Never use hardcoded example values as algorithmic inputs. Always source inputs from `TipsAuctionResults.csv` and the ref CPI CSV as specified below.
-
-### Dependencies
-
-**Requires:** 2_1_TIPS_Basics.md (ref CPI formula, index ratio, adjusted principal), TaxationOfTreasuries_Foundation.md (shared tax principles), TaxationOfTreasuryNotesAndBonds.md (TIPS scenario coverage)
-
-**Adds:** Regulatory basis for 1099 reporting, qualified stated interest definition, OID calculation detail, amortized bond premium (ABP) calculation, market discount (AMD) basis for TIPS, broker 1099 reporting differences, cost basis step-up, online statement field interpretation, verification workflow.
-
-### Data Sources — Always Fetch, Never Guess
-
-- **Daily ref CPI values:** `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/RefCpiNsaSa.csv`
-- **Dated-date ref CPI, issue-date IR, unadj price, accrued int per 1000:** `TipsAuctionResults.csv` (project file)
-
-Ref CPI values are rounded to 5 decimal places in the CSV — use them as-is. Never use index ratios from TreasuryDirect XML/PDF for broker OID verification (TD rounds IR to 5 decimal places and uses 12/31 not 1/1 as year-end).
-
-### Verification Workflow
-
-1. Identify CUSIP → look up in `TipsAuctionResults.csv`: dated date, `ref_cpi_on_dated_date`, issue date, `unadj_price`, `adj_accrued_int_per1000`, real yield.
-2. Fetch ref CPI CSV for all daily values needed.
-3. Calculate Box 3 (QSI), Box 8 (OID), and Box 12 (ABP) from formulas above.
-4. **If Box 8 doesn't match:** work backwards — `implied_refCPI_end = (OID × refCPI_datedDate / face) + refCPI_start` — then look up that value in the CSV to identify the correct end date. Do not guess dates.
-5. **If Box 3 doesn't match:** confirm par amount held. Box 3 = face × (coupon/2) × IR(payment date). An apparent mismatch often reveals the correct par amount.
-6. **If Box 12 doesn't match:** check whether broker used straight-line vs constant yield, and whether the starting premium was computed correctly (must use inflation-adjusted principal, not par).
-7. Never assume broker is wrong before verifying your own inputs.
-
-### Project File Access Rule
-
-For any content in project files including PDFs: **use `project_knowledge_search` first.** It reads PDFs and all project files. Do not attempt bash-based PDF extraction.
