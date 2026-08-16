@@ -9,7 +9,7 @@
 // trades. Holdings never enter the sizing — only DARA does. This is the single source of
 // truth that kills the build↔rebalance duplication.
 
-import { bondCalcs, calculateMDuration } from '../../shared/src/bond-math.js';
+import { bondCalcs, calculateMDuration, couponSchedule } from '../../shared/src/bond-math.js';
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 import { bracketWeights, bracketExcessQtys, fyQty as _fyQty, gapParamsWithUpperFeedback, future30yParamsCore, excessAmdSchedule } from './gap-math.js';
 
@@ -297,6 +297,17 @@ function aggregateRungs(rungs) {
   return { qty, annualInterest, piTotal };
 }
 
+// ─── Current-year remaining-coupon count ────────────────────────────────────────
+// How many of a bond's semiannual coupon dates still fall in settlementDate's own calendar
+// year, on or after settlementDate. 0, 1, or 2. Reuses the same coupon-date walk the cash
+// flow calendar uses (shared/src/bond-math.js couponSchedule) — single source, no parallel
+// date logic. For every year other than the settlement year this is irrelevant (that year's
+// coupons haven't happened yet, so the normal full-annual assumption already holds).
+export function remainingCouponPaymentsThisYear(maturity, settlementDate) {
+  const year = settlementDate.getFullYear();
+  return couponSchedule(settlementDate, maturity).filter(d => d.getFullYear() === year).length;
+}
+
 // ─── The shared sizing pipeline ─────────────────────────────────────────────────
 export function sizeLadder({
   dara, daraByYear = null, firstYear, lastYear, optionalYears = null,
@@ -526,27 +537,40 @@ export function sizeLadder({
     if (lowerYear != null) exByYear[lowerYear] = (exByYear[lowerYear] ?? 0) + lowerExQty;
     if (upperYear != null) exByYear[upperYear] = (exByYear[upperYear] ?? 0) + upperExQty;
 
-    let runningLMI = 0;
+    let runningLMI = 0;             // full-annual convention — correct for every year but the settlement year
+    let runningLMIRemaining = 0;    // same pool, but each holding's coupon capped to dates not yet paid this year
     for (const year of [...rangeYears].sort((a, b) => b - a)) {
-      corrLMI[year] = runningLMI;
       const bond    = yearBondMap[year];                        // representative (excess coupon keys off this)
       const { indexRatio: ir } = bondCalcs(bond, refCPI);
       const yearDara = daraByYear?.get(year) ?? dara;
       const isZrd   = zeroedFundedYears.has(year);
+      // The funded year containing settlementDate is already partway through its calendar
+      // year: whichever of its incoming coupons already paid have already been received (and,
+      // per the RMD/DARA planning use case, already reinvested) — they are not still-forthcoming
+      // cash for this year. Every other funded year is entirely in the future, so its incoming
+      // coupons haven't happened yet and the full-annual assumption is exactly right there.
+      const isSettlementYear = year === settlementYear;
+      const incomingLMI = isSettlementYear ? runningLMIRemaining : runningLMI;
+      corrLMI[year] = incomingLMI;
 
       const exQty = exByYear[year] ?? 0;
-      const excessLMI = exQty * 1000 * ir * (bond.coupon ?? 0);
+      const excessLMIFull = exQty * 1000 * ir * (bond.coupon ?? 0);
+      const excessLMI = isSettlementYear
+        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate)
+        : excessLMIFull;
       const future30yExtra = calcFuture30yExtraIncome(year);   // AMD (≤2052) + roll coupon (2053–56)
 
       // Funded-year real P+I need after the year-level income offsets, split across the year's TIPS.
       const need = (isZrd || year > lastYear || year < firstYear) ? 0
-        : Math.max(0, yearDara - runningLMI - excessLMI - future30yExtra - (year === partialCreditYear ? partialCredit : 0));
+        : Math.max(0, yearDara - incomingLMI - excessLMI - future30yExtra - (year === partialCreditYear ? partialCredit : 0));
       const rungs = sizeYearRungs(tipsList(year), need, refCPI);
       const { qty: fyQty, annualInterest: fundedCoupon } = aggregateRungs(rungs);
 
       corrRungs[year] = rungs;
       corrFYQty[year] = fyQty;
-      runningLMI += fundedCoupon + exQty * 1000 * ir * (bond.coupon ?? 0);
+      runningLMI += fundedCoupon + excessLMIFull;
+      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * remainingCouponPaymentsThisYear(r.bond.maturity, settlementDate), 0)
+        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate);
     }
   }
 

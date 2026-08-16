@@ -5,7 +5,7 @@ import { bondCalcs, calculateMDuration, yieldFromPrice, calcMktWtdAvg } from '..
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 export { yieldFromPrice };
 import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
-import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover } from './ladder-core.js';
+import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover, remainingCouponPaymentsThisYear } from './ladder-core.js';
 import { localDate, fmtDate, toDateStr } from './date-util.js';
 import { rankForYear, levelValues } from './allocation-policy.js';
 import { parseCSVLine } from './broker-import.js';
@@ -746,16 +746,24 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   }
 
   const araLaterMaturityInterestByYear = {};
+  // Remaining-coupon-only counterpart of the map above, used only when reading INTO the funded
+  // year that contains settlementDate: that year is already partway through its calendar year,
+  // so coupons already paid by its LMI-donor holdings are no longer forthcoming cash for it.
+  // Every other year is entirely in the future and keeps the full-annual figure. 3.0 §Per-Year DARA.
+  const araLaterMaturityInterestRemainingByYear = {};
   const araByYear = {};
   const allYearsSorted = Object.keys(yearInfo).map(Number).sort((a, b) => b - a);
+  const _settlementYearForARA = settlementDate.getFullYear();
 
   for (const year of allYearsSorted) {
     let laterMatInt = 0;
+    const useRemaining = year === _settlementYearForARA;
     for (const y in araLaterMaturityInterestByYear) {
-      if (parseInt(y) > year) laterMatInt += araLaterMaturityInterestByYear[y];
+      if (parseInt(y) > year) laterMatInt += useRemaining ? araLaterMaturityInterestRemainingByYear[y] : araLaterMaturityInterestByYear[y];
     }
     let yearPrincipal = 0, yearLastYearInterest = 0;
     araLaterMaturityInterestByYear[year] = 0;
+    araLaterMaturityInterestRemainingByYear[year] = 0;
     for (const holding of yearInfo[year].holdings) {
       const b = tipsMap.get(holding.cusip);
       const cp = b?.coupon ?? 0;
@@ -767,6 +775,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       yearPrincipal += holding.qty * ap;
       yearLastYearInterest += holding.qty * lastYI;
       araLaterMaturityInterestByYear[year] += holding.qty * ap * cp;
+      araLaterMaturityInterestRemainingByYear[year] += holding.qty * ap * cp / 2 * remainingCouponPaymentsThisYear(holding.maturity, settlementDate);
     }
     araByYear[year] = yearPrincipal + yearLastYearInterest + laterMatInt;
   }
@@ -1172,13 +1181,15 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const nonTargetSells = {};
   const postRebalQtyMap = {};
   let rebuildLaterMatInt = 0;
+  let rebuildLaterMatIntRemaining = 0;  // remaining-coupon counterpart, used only at year === settlementYear
   const yearLaterMatIntSnapshot = {};
   const allProcessYears = new Set([...holdingsYears, ...gapYears, ...bracketYearSet]);
   for (let y = firstYear; y <= lastYear; y++) allProcessYears.add(y);
   const sortedToProcess = Array.from(allProcessYears).sort((a, b) => b - a);
 
   for (const year of sortedToProcess) {
-    yearLaterMatIntSnapshot[year] = rebuildLaterMatInt;
+    const isSettlementYear = year === settlementYear;
+    yearLaterMatIntSnapshot[year] = isSettlementYear ? rebuildLaterMatIntRemaining : rebuildLaterMatInt;
     if (gapYearSet.has(year) || future30yYearSet.has(year)) continue;
 
     const yi = yearInfo[year] || { holdings: [] };
@@ -1245,12 +1256,14 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       }
       
       // 2. Calculate LMI from this year's own excess bonds
-      const excessLMI = excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0);
+      const excessLMI = isSettlementYear && tBond?.maturity
+        ? excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(tBond.maturity, settlementDate)
+        : excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0);
 
       // 3. Calculate needed P+I, subtracting both incoming LMI and current year excess LMI
       const effectivePartialCredit = (year === partialCreditYear) ? partialCredit : 0;
       const future30yExtra = calcFuture30yUpperAnnualAmd(year) + calcFuture30yRollCoupon(year);  // AMD (≤2052) + roll coupon (2053–56)
-      const needed = yearDara - rebuildLaterMatInt - excessLMI - effectivePartialCredit - future30yExtra;
+      const needed = yearDara - (isSettlementYear ? rebuildLaterMatIntRemaining : rebuildLaterMatInt) - excessLMI - effectivePartialCredit - future30yExtra;
 
       if (zeroedFundedYears.has(year)) {
         // PLI covers this year's funded need — zero funded qty AND sell all non-target holdings
@@ -1376,14 +1389,24 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     postRebalQtyMap[targetCUSIP] = postQ;
     for (const h of yi.holdings) {
       const b = tipsMap.get(h.cusip);
-      if (b) rebuildLaterMatInt += (postRebalQtyMap[h.cusip] ?? h.qty) * (calcIndexRatio(refCPI, b.baseCpi || refCPI)) * 1000 * b.coupon;
+      if (b) {
+        const qty = postRebalQtyMap[h.cusip] ?? h.qty;
+        const ir2 = calcIndexRatio(refCPI, b.baseCpi || refCPI);
+        rebuildLaterMatInt += qty * ir2 * 1000 * b.coupon;
+        rebuildLaterMatIntRemaining += qty * ir2 * 1000 * b.coupon / 2 * remainingCouponPaymentsThisYear(b.maturity, settlementDate);
+      }
     }
     // Ensure target CUSIP contributes to LMI pool even when it has no prior holdings (new bracket buy)
     if (targetCUSIP && !yi.holdings.some(h => h.cusip === targetCUSIP) && (postRebalQtyMap[targetCUSIP] ?? 0) > 0) {
       const _blmi = tipsMap.get(targetCUSIP);
-      if (_blmi) rebuildLaterMatInt += postRebalQtyMap[targetCUSIP] * (calcIndexRatio(refCPI, _blmi.baseCpi || refCPI)) * 1000 * _blmi.coupon;
+      if (_blmi) {
+        const ir3 = calcIndexRatio(refCPI, _blmi.baseCpi || refCPI);
+        rebuildLaterMatInt += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon;
+        rebuildLaterMatIntRemaining += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon / 2 * remainingCouponPaymentsThisYear(_blmi.maturity, settlementDate);
+      }
     }
     if (!isFinite(rebuildLaterMatInt)) rebuildLaterMatInt = 0; // safety guard against NaN/Infinity cascade
+    if (!isFinite(rebuildLaterMatIntRemaining)) rebuildLaterMatIntRemaining = 0;
   }
 
   // Before/After ARA calculations (totals + per-component breakdown for drill popup)
@@ -1391,7 +1414,8 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const beforeARABreakdown = {}, postARABreakdown = {};
   for (const year of sortedToProcess) {
     let lBefore = 0;
-    for (const y in araLaterMaturityInterestByYear) if (parseInt(y) > year) lBefore += araLaterMaturityInterestByYear[y];
+    const useRemainingBefore = year === _settlementYearForARA;
+    for (const y in araLaterMaturityInterestByYear) if (parseInt(y) > year) lBefore += useRemainingBefore ? araLaterMaturityInterestRemainingByYear[y] : araLaterMaturityInterestByYear[y];
     let pB = 0, cB = 0, exIntB = 0;
     const holdingsBefore = [];
     if (yearInfo[year]) {
