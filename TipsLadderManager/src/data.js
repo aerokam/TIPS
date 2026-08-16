@@ -42,6 +42,18 @@ export function nextBondTradingDay(isoDateStr, bondHolidays) {
   } while (true);
 }
 
+// A coupon/principal dated on a weekend or bond holiday is actually paid the next bond trading
+// day — the cash isn't in hand until then. `bondHolidays` defaults to an empty Set (weekend-only
+// rolling still applies via the day-of-week check in nextBondTradingDay; pass real holiday data
+// for full accuracy). 5.0 §Cash Flow Calendar.
+export function actualPaymentDate(d, bondHolidays = new Set()) {
+  const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  const isTradingDay = d.getDay() !== 0 && d.getDay() !== 6 && !bondHolidays.has(iso);
+  if (isTradingDay) return d;
+  const [ny, nmo, nd] = nextBondTradingDay(iso, bondHolidays).split('-').map(Number);
+  return new Date(ny, nmo - 1, nd);
+}
+
 export function parseCsv(text) {
   const lines = text.trim().split('\n').filter(l => l.trim());
   if (lines.length < 2) return [];

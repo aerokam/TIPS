@@ -577,7 +577,7 @@ import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
 import { rankForYear } from './src/allocation-policy.js';
 import { accruedInterest, bondCalcs, couponSchedule } from '../shared/src/bond-math.js';
-import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay } from './src/data.js';
+import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay, actualPaymentDate } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
 
@@ -1773,10 +1773,10 @@ function _isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).p
 
 // A coupon dated on a weekend/holiday is actually paid the next bond trading day, so the event
 // must stay on the calendar (still "unpaid") through that day (5.0 §Cash Flow Calendar).
+// Single source: src/data.js actualPaymentDate() — also used by the settlement-year remaining-
+// coupon LMI logic in ladder-core.js/rebalance-lib.js, so the two stay in agreement.
 function _actualPaymentDate(d) {
-  const iso = _isoDate(d);
-  const isTradingDay = d.getDay() !== 0 && d.getDay() !== 6 && !_bondHolidays.has(iso);
-  return isTradingDay ? d : localDate(nextBondTradingDay(iso, _bondHolidays));
+  return actualPaymentDate(d, _bondHolidays);
 }
 
 function buildCashFlowData() {
@@ -2893,6 +2893,7 @@ function _inferYearsFlat(scopeYears) {
     daraMap: ctx.daraMap, holdings: currentHoldingsArray, tipsMap, refCPI: ctx.rc, settlementDate,
     bracketMode: ctx.bracketMode, lastYearOverride: ctx.lastYearOverride, firstYearOverride: ctx.firstYearOverride,
     preLadderInterest: ctx.preLadderInterest, scopeYears, fixedDaraByYear: _daraByYearStore, pinnedDaraByYear, flat: true,
+    bondHolidays: _bondHolidays,
   });
   for (const y of scopeYears) if (scaledMap.has(y)) _daraByYearStore.set(y, scaledMap.get(y));
   return true;
@@ -3101,7 +3102,8 @@ function _runBuildFromForm() {
     couponPref: document.getElementById('build-coupon').value,
     preLadderInterest: document.getElementById('pre-ladder-interest').checked,
     daraByYear,
-    yearOverrides: _yearMaturityOverrides
+    yearOverrides: _yearMaturityOverrides,
+    bondHolidays: _bondHolidays,
   });
   _lastKnownDara = dara;
   renderBuildOutput(result);
@@ -3158,6 +3160,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         yearOverrides: _yearMaturityOverrides,
         allocationPolicy: _allocationPolicy,
         yearRankOverrides: _yearRankOverrides,
+        bondHolidays: _bondHolidays,
       });
       _lastKnownDara = finalDara;
       renderOutput(result);

@@ -10,6 +10,7 @@
 // truth that kills the build↔rebalance duplication.
 
 import { bondCalcs, calculateMDuration, couponSchedule } from '../../shared/src/bond-math.js';
+import { actualPaymentDate } from './data.js';
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 import { bracketWeights, bracketExcessQtys, fyQty as _fyQty, gapParamsWithUpperFeedback, future30yParamsCore, excessAmdSchedule } from './gap-math.js';
 
@@ -303,9 +304,17 @@ function aggregateRungs(rungs) {
 // flow calendar uses (shared/src/bond-math.js couponSchedule) — single source, no parallel
 // date logic. For every year other than the settlement year this is irrelevant (that year's
 // coupons haven't happened yet, so the normal full-annual assumption already holds).
-export function remainingCouponPaymentsThisYear(maturity, settlementDate) {
+export function remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays = new Set()) {
   const year = settlementDate.getFullYear();
-  return couponSchedule(settlementDate, maturity).filter(d => d.getFullYear() === year).length;
+  // Walk from a few days before settlementDate, not from settlementDate itself: a coupon
+  // scheduled just before settlement but rolled past a weekend/holiday hasn't actually been paid
+  // yet, and couponSchedule(settlementDate, ...) would otherwise skip its (pre-settlement) raw
+  // date entirely. Mirrors index.html's buildCashFlowData() walk-back. 5.0 §Cash Flow Calendar.
+  const walkFrom = new Date(settlementDate); walkFrom.setDate(walkFrom.getDate() - 10);
+  return couponSchedule(walkFrom, maturity)
+    .map(d => actualPaymentDate(d, bondHolidays))
+    .filter(actual => actual >= settlementDate && actual.getFullYear() === year)
+    .length;
 }
 
 // ─── The shared sizing pipeline ─────────────────────────────────────────────────
@@ -313,7 +322,7 @@ export function sizeLadder({
   dara, daraByYear = null, firstYear, lastYear, optionalYears = null,
   rangeYears, gapYears, future30yYears,
   yearBondMap, yearTipsListMap = null, tipsMap, refCPI, settlementDate, settlementYear,
-  preLadderInterest = false,
+  preLadderInterest = false, bondHolidays = new Set(),
   future30yLowerCoverBond = null, future30yUpperCoverBond = null,
   future30yLowerYear = null, future30yUpperYear = null,
 }) {
@@ -556,7 +565,7 @@ export function sizeLadder({
       const exQty = exByYear[year] ?? 0;
       const excessLMIFull = exQty * 1000 * ir * (bond.coupon ?? 0);
       const excessLMI = isSettlementYear
-        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate)
+        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate, bondHolidays)
         : excessLMIFull;
       const future30yExtra = calcFuture30yExtraIncome(year);   // AMD (≤2052) + roll coupon (2053–56)
 
@@ -569,8 +578,8 @@ export function sizeLadder({
       corrRungs[year] = rungs;
       corrFYQty[year] = fyQty;
       runningLMI += fundedCoupon + excessLMIFull;
-      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * remainingCouponPaymentsThisYear(r.bond.maturity, settlementDate), 0)
-        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate);
+      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * remainingCouponPaymentsThisYear(r.bond.maturity, settlementDate, bondHolidays), 0)
+        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate, bondHolidays);
     }
   }
 

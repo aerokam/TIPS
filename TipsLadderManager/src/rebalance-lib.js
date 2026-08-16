@@ -302,7 +302,7 @@ export function inferLastYearFromHoldings({ holdings, tipsMap, refCPI, settlemen
   return best ? best.L : null;
 }
 
-export function inferDARAFromCash({ bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate, lastYearOverride = null, preLadderInterest = false, firstYearOverride = null }) {
+export function inferDARAFromCash({ bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate, lastYearOverride = null, preLadderInterest = false, firstYearOverride = null, bondHolidays = new Set() }) {
   let portfolioCash = 0;
   for (const h of holdingsRaw) {
     const bond = tipsMap.get(h.cusip);
@@ -314,7 +314,7 @@ export function inferDARAFromCash({ bracketMode = '2bracket', holdings: holdings
   // Binary search for the largest INTEGER DARA that results in delta >= 0
   while (lo <= hi) {
     const mid = Math.floor((lo + hi) / 2);
-    const { summary } = runRebalance({ dara: mid, bracketMode, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, lastYearOverride, preLadderInterest, firstYearOverride });
+    const { summary } = runRebalance({ dara: mid, bracketMode, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, lastYearOverride, preLadderInterest, firstYearOverride, bondHolidays });
     if (summary.costDeltaSum >= 0) {
       foundDARA = mid;
       lo = mid + 1;
@@ -504,7 +504,7 @@ export function parseParamsBlock(rawLines) {
 // `flat = true` makes the in-scope solve target a SINGLE flat DARA across every in-scope rung
 // (even real income — the liability-matching use case) instead of the proportionally-scaled
 // natural-ARA shape; the binary search then finds the one flat level that self-finances the segment.
-export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, bracketMode = '2bracket', lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, scopeYears = null, fixedDaraByYear = null, pinnedDaraByYear = null, flat = false }) {
+export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, bracketMode = '2bracket', lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, scopeYears = null, fixedDaraByYear = null, pinnedDaraByYear = null, flat = false, bondHolidays = new Set() }) {
   // Cover-year income correction: build's per-year DARA identity is
   //   DARA_y = (P+I)_y + LMI_y + ownExcessCoupon_y + AMD_y
   // but computePortfolioARAByYear recovers only (P+I)+LMI. Add the two cover terms back so the
@@ -624,7 +624,7 @@ export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holding
     const mid = Math.floor((lo + hi) / 2);
     let result;
     try {
-      result = runRebalance({ dara: mid, bracketMode, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear: buildMap(mid), lastYearOverride, firstYearOverride, preLadderInterest });
+      result = runRebalance({ dara: mid, bracketMode, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear: buildMap(mid), lastYearOverride, firstYearOverride, preLadderInterest, bondHolidays });
     } catch (e) {
       if (e && e.daraTooLowYear != null && sweepable(e.daraTooLowYear)) lo = mid + 1;
       else hi = mid - 1;
@@ -639,7 +639,7 @@ export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holding
   return { scaledMedian: foundDARA, scaledMap };
 }
 
-export function runRebalance({ dara, bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear = null, lastYearOverride = null, preLadderInterest = false, firstYearOverride = null, maturityPref = 'last', allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null }) {
+export function runRebalance({ dara, bracketMode = '2bracket', holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear = null, lastYearOverride = null, preLadderInterest = false, firstYearOverride = null, maturityPref = 'last', allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null, bondHolidays = new Set() }) {
   const settleDateStr  = toDateStr(settlementDate);
   const settleDateDisp = fmtDate(settlementDate);
 
@@ -775,7 +775,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       yearPrincipal += holding.qty * ap;
       yearLastYearInterest += holding.qty * lastYI;
       araLaterMaturityInterestByYear[year] += holding.qty * ap * cp;
-      araLaterMaturityInterestRemainingByYear[year] += holding.qty * ap * cp / 2 * remainingCouponPaymentsThisYear(holding.maturity, settlementDate);
+      araLaterMaturityInterestRemainingByYear[year] += holding.qty * ap * cp / 2 * remainingCouponPaymentsThisYear(holding.maturity, settlementDate, bondHolidays);
     }
     araByYear[year] = yearPrincipal + yearLastYearInterest + laterMatInt;
   }
@@ -931,7 +931,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     dara: DARA, daraByYear, firstYear, lastYear, optionalYears: optionalRungYears,
     rangeYears: _canon.rangeYears, gapYears: _canon.gapYears, future30yYears: _canon.future30yYears,
     yearBondMap: _canon.yearBondMap, yearTipsListMap: _canon.yearTipsListMap, tipsMap, refCPI, settlementDate, settlementYear,
-    preLadderInterest,
+    preLadderInterest, bondHolidays,
     future30yLowerCoverBond: _canon.future30yLowerCoverBond, future30yUpperCoverBond: _canon.future30yUpperCoverBond,
     future30yLowerYear: _canon.future30yLowerYear, future30yUpperYear: _canon.future30yUpperYear,
   });
@@ -1257,7 +1257,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       
       // 2. Calculate LMI from this year's own excess bonds
       const excessLMI = isSettlementYear && tBond?.maturity
-        ? excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(tBond.maturity, settlementDate)
+        ? excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(tBond.maturity, settlementDate, bondHolidays)
         : excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0);
 
       // 3. Calculate needed P+I, subtracting both incoming LMI and current year excess LMI
@@ -1393,7 +1393,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         const qty = postRebalQtyMap[h.cusip] ?? h.qty;
         const ir2 = calcIndexRatio(refCPI, b.baseCpi || refCPI);
         rebuildLaterMatInt += qty * ir2 * 1000 * b.coupon;
-        rebuildLaterMatIntRemaining += qty * ir2 * 1000 * b.coupon / 2 * remainingCouponPaymentsThisYear(b.maturity, settlementDate);
+        rebuildLaterMatIntRemaining += qty * ir2 * 1000 * b.coupon / 2 * remainingCouponPaymentsThisYear(b.maturity, settlementDate, bondHolidays);
       }
     }
     // Ensure target CUSIP contributes to LMI pool even when it has no prior holdings (new bracket buy)
@@ -1402,7 +1402,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       if (_blmi) {
         const ir3 = calcIndexRatio(refCPI, _blmi.baseCpi || refCPI);
         rebuildLaterMatInt += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon;
-        rebuildLaterMatIntRemaining += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon / 2 * remainingCouponPaymentsThisYear(_blmi.maturity, settlementDate);
+        rebuildLaterMatIntRemaining += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon / 2 * remainingCouponPaymentsThisYear(_blmi.maturity, settlementDate, bondHolidays);
       }
     }
     if (!isFinite(rebuildLaterMatInt)) rebuildLaterMatInt = 0; // safety guard against NaN/Infinity cascade
@@ -1879,11 +1879,11 @@ export function runFundedRebalance({
   dara, bracketMode = '2bracket', holdings, tipsMap, refCPI, settlementDate,
   daraByYear = null, isPristineMirror = false,
   lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, maturityPref = 'last',
-  allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null,
+  allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null, bondHolidays = new Set(),
 }) {
   const base = { dara, bracketMode, holdings, tipsMap, refCPI, settlementDate,
     lastYearOverride, firstYearOverride, preLadderInterest, maturityPref,
-    allocationPolicy, yearRankOverrides, yearOverrides };
+    allocationPolicy, yearRankOverrides, yearOverrides, bondHolidays };
   let result = runRebalance({ ...base, daraByYear });
   const needsFunding = result.summary.gapYears.length > 0 || result.summary.future30yYears.length > 0;
   if (isPristineMirror && needsFunding) {
@@ -1891,7 +1891,7 @@ export function runFundedRebalance({
     const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap, result.summary.lastYear));
     const { scaledMap, scaledMedian } = inferScaledDARAFromPortfolio({
       daraMap, holdings, tipsMap, refCPI, settlementDate,
-      bracketMode, lastYearOverride, firstYearOverride, preLadderInterest, flat: false,
+      bracketMode, lastYearOverride, firstYearOverride, preLadderInterest, flat: false, bondHolidays,
     });
     result = runRebalance({ ...base, dara: scaledMedian, daraByYear: scaledMap });
   }
