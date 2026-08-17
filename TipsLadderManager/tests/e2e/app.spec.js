@@ -1637,3 +1637,49 @@ test('Cash Flow Calendar: amounts show to the penny, for exact comparison agains
   expect(dataLines.length).toBeGreaterThan(0);
   for (const line of dataLines) expect(line.split(',')[3]).toMatch(/^-?\d+\.\d{2}$/);
 });
+
+// The Before/After toggle only makes sense once a rebalance plan exists to preview — before that,
+// there is no target portfolio to show. The toggle must stay hidden until Run has produced one.
+test('Cash Flow Calendar: Before/After toggle hidden before a rebalance is rendered', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#cash-flow-btn')).toBeVisible({ timeout: 4_000 });
+  await page.locator('#cash-flow-btn').click();
+  await expect(page.locator('#cash-flow-overlay')).toBeVisible();
+  await expect(page.locator('#cash-flow-toggle')).toBeHidden();
+});
+
+// After a rebalance is rendered, the toggle appears, defaults to Before, and switching to After
+// rebuilds the calendar from the trade ticket's target holdings (rebalDetails[].qtyAfter) rather
+// than the currently-held portfolio — the two states are expected to differ for a real ladder.
+test('Cash Flow Calendar: Before/After toggle appears after rebalance, switches data source', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('#cash-flow-btn').click();
+  await expect(page.locator('#cash-flow-overlay')).toBeVisible();
+  const toggle = page.locator('#cash-flow-toggle');
+  await expect(toggle).toBeVisible();
+  const beforeBtn = page.locator('#cash-flow-before-btn');
+  const afterBtn = page.locator('#cash-flow-after-btn');
+  await expect(beforeBtn).toHaveClass(/active/);
+  await expect(afterBtn).not.toHaveClass(/active/);
+
+  // A rebalance that recommends no trades leaves quantities identical, so Before and After
+  // legitimately show the same real cash flow — the toggle isn't asserting the two must differ,
+  // only that switching re-renders cleanly and is fully reversible.
+  const beforeTotal = await page.locator('#cash-flow-content tr.cf-year-header td:last-child').first().textContent();
+  expect(beforeTotal).toMatch(/^\$[\d,]+\.\d{2}$/);
+  await afterBtn.click();
+  await expect(afterBtn).toHaveClass(/active/);
+  await expect(beforeBtn).not.toHaveClass(/active/);
+  const afterTotal = await page.locator('#cash-flow-content tr.cf-year-header td:last-child').first().textContent();
+  expect(afterTotal).toMatch(/^\$[\d,]+\.\d{2}$/);
+
+  // Switching back to Before restores the original figure.
+  await beforeBtn.click();
+  const backToBefore = await page.locator('#cash-flow-content tr.cf-year-header td:last-child').first().textContent();
+  expect(backToBefore).toBe(beforeTotal);
+});

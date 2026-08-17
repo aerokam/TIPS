@@ -3,7 +3,7 @@
 //
 // Entry point: runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate })
 
-import { fmtDate, fmtDateLong } from './date-util.js';
+import { fmtDate } from './date-util.js';
 import { bondCalcs, calculateMDuration, rungAmount, calcMktWtdAvg } from '../../shared/src/bond-math.js';
 import { sizeLadder, selectLadderBonds, fundedYearAmount } from './ladder-core.js';
 
@@ -212,7 +212,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
 
   const summary = {
     settleDateDisp, refCPI, dara, daraByYearResolved,
-    settlementYear, rmdCashOverride, rmdCouponMode, tradeDateDisp: fmtDateLong(tradeDate),
+    settlementYear, rmdCashOverride, rmdCouponMode,
     firstYear, lastYear, gapYears, future30yYears,
     gapParams, lowerYear, upperYear,
     lowerDuration, upperDuration, lowerWeight, upperWeight, lowerMonth, upperMonth,

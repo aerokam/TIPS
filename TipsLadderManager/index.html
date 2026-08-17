@@ -355,6 +355,10 @@
     <button id="cash-flow-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:22px;color:#888;cursor:pointer;padding:0;line-height:1;z-index:20;">×</button>
     <div id="cash-flow-title" style="font-size:14px;font-weight:700;margin-bottom:4px;color:#1e293b;padding-right:24px;border-bottom:2px solid #1e293b;padding-bottom:6px;cursor:move;user-select:none;flex-shrink:0;">Cash Flow Calendar</div>
     <div style="font-size:11px;color:#94a3b8;margin-bottom:14px;flex-shrink:0;" id="cash-flow-subtitle"></div>
+    <div id="cash-flow-toggle" style="display:none;gap:6px;margin-bottom:10px;flex-shrink:0;">
+      <button id="cash-flow-before-btn" class="tab-btn active">Before</button>
+      <button id="cash-flow-after-btn" class="tab-btn">After</button>
+    </div>
     <div id="cash-flow-content"></div>
     <div style="margin-top:16px;text-align:right;flex-shrink:0;">
       <button id="cash-flow-export" style="padding:3px 12px;font-size:11px;" title="Export full cash flow calendar as CSV">Export CSV</button>
@@ -1784,7 +1788,7 @@ document.getElementById('trade-ticket-copy').addEventListener('click', () => {
 // Penny-precise (unlike the rest of the app's whole-dollar fmtCell/fm) — the Cash Flow Calendar
 // exists specifically to compare against real brokerage transactions, which post to the cent.
 function _cfFm(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-const _fmtLongDate = fmtDateLong; // src/date-util.js — single source, shared with build/rebalance summaries' tradeDateDisp
+const _fmtLongDate = fmtDateLong; // src/date-util.js — single source, shared with the Cash Flow Calendar's own date formatting
 function _isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 // A coupon dated on a weekend/holiday is actually paid the next bond trading day, so the event
@@ -1795,8 +1799,11 @@ function _actualPaymentDate(d) {
   return actualPaymentDate(d, _bondHolidays);
 }
 
-function buildCashFlowData() {
-  if (!currentHoldingsArray || !tipsMap || !refCpiRows) return [];
+// holdingsArr: the portfolio to walk. Before = currentHoldingsArray (what's actually held today,
+// the only source of real cash flow); After = _afterRebalHoldings() (the rebalance's target
+// portfolio, for previewing what the calendar looks like once the trades settle).
+function buildCashFlowData(holdingsArr) {
+  if (!holdingsArr || !tipsMap || !refCpiRows) return [];
   const activeDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
   const activeRc = lookupRefCpi(refCpiRows, activeDateIso);
   const today = localDate(_tradeDateStr);
@@ -1807,7 +1814,7 @@ function buildCashFlowData() {
   // anything already paid.
   const walkFrom = new Date(today); walkFrom.setDate(walkFrom.getDate() - 10);
   const events = [];
-  for (const h of currentHoldingsArray) {
+  for (const h of holdingsArr) {
     const b = tipsMap.get(h.cusip);
     if (!b?.maturity || !h.qty) continue;
     for (const d of couponSchedule(walkFrom, b.maturity)) {
@@ -1853,8 +1860,22 @@ function _groupCashFlowByYear(events) {
   return byYear;
 }
 
+// The after-rebalance target portfolio, for the Cash Flow Calendar's After view — the same
+// per-CUSIP post-trade quantity already shown in the rebalance table's Qty After column
+// (rebalDetails[].qtyAfter, the trade ticket's own source of truth), summed in case a CUSIP
+// spans more than one row. A CUSIP fully sold (qtyAfter 0) drops out, same as never having held it.
+function _afterRebalHoldings() {
+  const byCusip = new Map();
+  for (const d of rebalDetails ?? []) {
+    if (!d.cusip || !(d.qtyAfter > 0)) continue;
+    byCusip.set(d.cusip, (byCusip.get(d.cusip) ?? 0) + d.qtyAfter);
+  }
+  return [...byCusip].map(([cusip, qty]) => ({ cusip, qty }));
+}
+
 let _cfEvents = [];
 let _cfDrillBuckets = [];
+let _cfMode = 'before';
 
 function _cashFlowRowsHTML(byYear) {
   const today = localDate(activeRefCpiDateStr ?? _defaultRefCpiDateStr);
@@ -1886,15 +1907,29 @@ function _updateCashFlowBtnVisibility() {
     (currentHoldingsArray && tipsMap && refCpiRows) ? 'inline-block' : 'none';
 }
 
-document.getElementById('cash-flow-btn').addEventListener('click', () => {
-  _cfEvents = buildCashFlowData();
+// Renders the calendar for the given state and updates the toggle buttons to match.
+function _renderCashFlowMode(mode) {
+  _cfMode = mode;
+  document.getElementById('cash-flow-before-btn').classList.toggle('active', mode === 'before');
+  document.getElementById('cash-flow-after-btn').classList.toggle('active', mode === 'after');
+  _cfEvents = buildCashFlowData(mode === 'after' ? _afterRebalHoldings() : currentHoldingsArray);
   const byYear = _groupCashFlowByYear(_cfEvents);
   document.getElementById('cash-flow-subtitle').textContent = _cfEvents.length
     ? `${_cfEvents[0].date.getFullYear()}–${_cfEvents[_cfEvents.length - 1].date.getFullYear()}`
     : 'No holdings loaded.';
   document.getElementById('cash-flow-content').innerHTML = _cashFlowRowsHTML(byYear);
+}
+
+document.getElementById('cash-flow-btn').addEventListener('click', () => {
+  // After is only meaningful once a rebalance plan exists to preview — Build mode has no
+  // "before" holdings to rebalance from, and an unrendered rebalance has no target portfolio yet.
+  const afterAvailable = currentMode === 'rebalance' && rebalanceRendered && rebalDetails?.length > 0;
+  document.getElementById('cash-flow-toggle').style.display = afterAvailable ? 'flex' : 'none';
+  _renderCashFlowMode('before');
   document.getElementById('cash-flow-overlay').style.display = 'block';
 });
+document.getElementById('cash-flow-before-btn').addEventListener('click', () => _renderCashFlowMode('before'));
+document.getElementById('cash-flow-after-btn').addEventListener('click', () => _renderCashFlowMode('after'));
 
 document.getElementById('cash-flow-close').addEventListener('click', () => {
   document.getElementById('cash-flow-overlay').style.display = 'none';
@@ -2357,8 +2392,7 @@ function _renderBeforeStatePreview() {
   });
 
   const summary = { firstYear, lastYear, gapYears, future30yYears, brackets: {}, bracketMode: document.getElementById('bracket-mode')?.value ?? '2bracket',
-    settlementYear: settlementDate.getFullYear(), rmdCashOverride: _rmdCashOverride, rmdCouponMode: _rmdCouponMode,
-    tradeDateDisp: _fmtLongDate(localDate(_tradeDateStr)) };
+    settlementYear: settlementDate.getFullYear(), rmdCashOverride: _rmdCashOverride, rmdCouponMode: _rmdCouponMode };
   rebalDetails = rows;
   rebalSummary = summary;
 
