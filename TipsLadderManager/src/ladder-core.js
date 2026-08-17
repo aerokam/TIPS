@@ -329,19 +329,56 @@ export function remainingCouponPaymentsThisYear(maturity, settlementDate, bondHo
     .length;
 }
 
+// ─── RMD Options 'last' mode: the pool's single latest remaining coupon date ────
+// Scans every bond's still-unpaid-this-year coupon dates and returns the single latest one across
+// the WHOLE set of bonds that can contribute to the settlement year's LMI (or null if none remain).
+// 'last' mode counts only coupons landing on this one shared date, regardless of which bond they
+// belong to: a bond whose own only remaining coupon this year is earlier than another bond's is
+// treated as already reinvested, not specially preserved just because *something* is later than
+// nothing. (A ladder routinely holds bonds on different semiannual cycles — e.g. Aug/Feb and
+// Apr/Oct — so "this bond's own last remaining coupon" and "the pool's last remaining coupon" are
+// different questions; 'last' means the second one.) Callers compute this ONCE per sizing pass,
+// over every bond that pass's settlement-year LMI pool draws from, then pass the result into every
+// rmdCappedRemainingCoupons call in that pass so every bond is judged against the same date.
+export function latestRemainingCouponDate(maturities, settlementDate, bondHolidays = new Set(), tradeDate = settlementDate) {
+  const year = settlementDate.getFullYear();
+  let maxDate = null;
+  for (const maturity of maturities) {
+    if (!maturity) continue;
+    const walkFrom = new Date(tradeDate); walkFrom.setDate(walkFrom.getDate() - 10);
+    for (const d of couponSchedule(walkFrom, maturity)) {
+      const actual = actualPaymentDate(d, bondHolidays);
+      if (actual >= tradeDate && actual.getFullYear() === year && (!maxDate || actual > maxDate)) maxDate = actual;
+    }
+  }
+  return maxDate;
+}
+
 // ─── RMD Options: how many of the settlement year's remaining coupons count ────
 // Generalizes "all remaining coupons are available" to three user-chosen assumptions about
 // what happens to coupon cash between now and when it's spent (RMD or otherwise) — 2.0 §RMD
 // Options. 'all' reproduces remainingCouponPaymentsThisYear exactly (the original, still-default
-// behavior). 'last' counts only the final remaining coupon date this year, for someone who
-// expects to reinvest earlier remaining coupons but hold the last one as cash. 'none' treats
-// every remaining coupon as already spoken for (reinvested), same as a year that isn't the
-// settlement year at all. Single source of truth: every caller (ladder-core, rebalance-lib) goes
-// through this instead of capping remainingCouponPaymentsThisYear's result inline.
-export function rmdCappedRemainingCoupons(maturity, settlementDate, bondHolidays = new Set(), couponMode = 'all', tradeDate = settlementDate) {
+// behavior). 'last' counts a coupon only if it lands on `lastDate` — the pool-wide date from
+// latestRemainingCouponDate above, precomputed by the caller and passed in here; a caller that
+// doesn't supply one falls back to this single bond's own latest remaining date (matches
+// single-bond callers/tests, not the pool-aware production behavior). 'none' treats every
+// remaining coupon as already spoken for (reinvested), same as a year that isn't the settlement
+// year at all. Single source of truth: every caller (ladder-core, rebalance-lib) goes through this
+// instead of working out remaining-coupon dates inline.
+export function rmdCappedRemainingCoupons(maturity, settlementDate, bondHolidays = new Set(), couponMode = 'all', tradeDate = settlementDate, lastDate = undefined) {
   if (couponMode === 'none') return 0;
-  const n = remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays, tradeDate);
-  return couponMode === 'last' ? Math.min(n, 1) : n;
+  if (couponMode === 'last') {
+    const target = lastDate !== undefined ? lastDate : latestRemainingCouponDate([maturity], settlementDate, bondHolidays, tradeDate);
+    if (!target) return 0;
+    const year = settlementDate.getFullYear();
+    const walkFrom = new Date(tradeDate); walkFrom.setDate(walkFrom.getDate() - 10);
+    const hasIt = couponSchedule(walkFrom, maturity).some(d => {
+      const actual = actualPaymentDate(d, bondHolidays);
+      return actual >= tradeDate && actual.getFullYear() === year && +actual === +target;
+    });
+    return hasIt ? 1 : 0;
+  }
+  return remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays, tradeDate);
 }
 
 // ─── The shared sizing pipeline ─────────────────────────────────────────────────
@@ -574,6 +611,18 @@ export function sizeLadder({
     if (lowerYear != null) exByYear[lowerYear] = (exByYear[lowerYear] ?? 0) + lowerExQty;
     if (upperYear != null) exByYear[upperYear] = (exByYear[upperYear] ?? 0) + upperExQty;
 
+    // RMD Options 'last' mode: the pool-wide latest remaining coupon date, over every bond in a
+    // year above the settlement year (the funded-year sizing target for that year, whichever rung
+    // policy picked it — same set the sweep below draws its LMI from). Computed once, before the
+    // sweep runs, since 'last' needs the pool's shared answer at the moment the sweep first reaches
+    // it (the settlement year, near the end of the long→short walk).
+    const rmdLastDate = rmdCouponMode === 'last'
+      ? latestRemainingCouponDate(
+          rangeYears.filter(y => y > settlementYear).flatMap(y => tipsList(y).map(b => b.maturity)),
+          settlementDate, bondHolidays, tradeDate,
+        )
+      : null;
+
     let runningLMI = 0;             // full-annual convention — correct for every year but the settlement year
     let runningLMIRemaining = 0;    // same pool, but each holding's coupon capped to dates not yet paid this year
     for (const year of [...rangeYears].sort((a, b) => b - a)) {
@@ -594,7 +643,7 @@ export function sizeLadder({
       const exQty = exByYear[year] ?? 0;
       const excessLMIFull = exQty * 1000 * ir * (bond.coupon ?? 0);
       const excessLMI = isSettlementYear
-        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate)
+        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, rmdLastDate)
         : excessLMIFull;
       const future30yExtra = calcFuture30yExtraIncome(year);   // AMD (≤2052) + roll coupon (2053–56)
 
@@ -607,8 +656,8 @@ export function sizeLadder({
       corrRungs[year] = rungs;
       corrFYQty[year] = fyQty;
       runningLMI += fundedCoupon + excessLMIFull;
-      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * rmdCappedRemainingCoupons(r.bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate), 0)
-        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate);
+      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * rmdCappedRemainingCoupons(r.bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, rmdLastDate), 0)
+        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, rmdLastDate);
     }
   }
 

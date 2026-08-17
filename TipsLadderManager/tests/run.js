@@ -6,7 +6,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
 import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, inferDARAFromCash, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings } from '../src/rebalance-lib.js';
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
-import { remainingCouponPaymentsThisYear } from '../src/ladder-core.js';
+import { remainingCouponPaymentsThisYear, rmdCappedRemainingCoupons, latestRemainingCouponDate } from '../src/ladder-core.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
@@ -865,6 +865,34 @@ console.log('\nremainingCouponPaymentsThisYear — trade date vs settlementDate 
   // excludes a coupon paid today. Documents the bug this fixes; not the desired production behavior.
   assert('omitting tradeDate reproduces the old (buggy) settlementDate-cutoff behavior',
     remainingCouponPaymentsThisYear(maturity, settleAug18, new Set()), 0);
+}
+
+// ── Test: RMD Options 'last' mode is pool-wide, not per-bond ──────────────────────────────────
+// A ladder holds bonds on different semiannual cycles (Feb/Aug, Apr/Oct, ...). Regression for the
+// bug reported live: 'last' was capping each bond's OWN remaining-coupon count to 1 independently,
+// so on a portfolio where every contributing bond already has just one coupon left this year
+// (routine by August), 'last' and 'all' came out identical -- no way to distinguish "hold everything
+// remaining" from "hold only the latest one." 'last' must instead pick the single latest remaining
+// date across the WHOLE pool of contributing bonds and count only coupons landing on that one date.
+console.log("\nRMD Options 'last' mode: pool-wide latest date, not each bond's own latest");
+{
+  const settleAug18 = localDate('2026-08-18');
+  const tradeAug17  = localDate('2026-08-17');
+  const bondFebAug  = localDate('2036-02-15'); // Feb/Aug cycle -> Aug 15 (Sat) rolls to Aug 17
+  const bondAprOct  = localDate('2040-04-15'); // Apr/Oct cycle -> only Oct 15 remains by August
+
+  const maxDate = latestRemainingCouponDate([bondFebAug, bondAprOct], settleAug18, new Set(), tradeAug17);
+  assert("pool-wide latest remaining date is Oct 15 2026 (the later of the two bonds' own dates)",
+    maxDate?.getTime(), localDate('2026-10-15').getTime());
+
+  assert("'last': the Feb/Aug bond contributes 0 -- its own remaining coupon (Aug 17) is earlier than the pool's shared last date",
+    rmdCappedRemainingCoupons(bondFebAug, settleAug18, new Set(), 'last', tradeAug17, maxDate), 0);
+  assert("'last': the Apr/Oct bond contributes 1 -- its coupon lands exactly on the pool's last date",
+    rmdCappedRemainingCoupons(bondAprOct, settleAug18, new Set(), 'last', tradeAug17, maxDate), 1);
+  assert("'all': the Feb/Aug bond still contributes its own remaining coupon (1), unaffected by the pool",
+    rmdCappedRemainingCoupons(bondFebAug, settleAug18, new Set(), 'all', tradeAug17), 1);
+  assert("'all': the Apr/Oct bond also contributes 1",
+    rmdCappedRemainingCoupons(bondAprOct, settleAug18, new Set(), 'all', tradeAug17), 1);
 }
 
 // ── Test: Build — Future 30Y years (lastYear > maxRealYear) ───────────────────────

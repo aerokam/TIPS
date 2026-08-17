@@ -5,7 +5,7 @@ import { bondCalcs, calculateMDuration, yieldFromPrice, calcMktWtdAvg } from '..
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 export { yieldFromPrice };
 import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
-import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover, rmdCappedRemainingCoupons } from './ladder-core.js';
+import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover, rmdCappedRemainingCoupons, latestRemainingCouponDate } from './ladder-core.js';
 import { localDate, fmtDate, fmtDateLong, toDateStr } from './date-util.js';
 import { rankForYear, levelValues } from './allocation-policy.js';
 import { parseCSVLine } from './broker-import.js';
@@ -757,6 +757,16 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const allYearsSorted = Object.keys(yearInfo).map(Number).sort((a, b) => b - a);
   const _settlementYearForARA = settlementDate.getFullYear();
 
+  // RMD Options 'last' mode: the pool-wide latest remaining coupon date, over every CURRENTLY HELD
+  // bond above the settlement year — the "Before" state's own pool (ladder-core.js
+  // latestRemainingCouponDate; sizeLadder computes an analogous pool for "After").
+  const _rmdLastDateBefore = rmdCouponMode === 'last'
+    ? latestRemainingCouponDate(
+        allYearsSorted.filter(y => y > _settlementYearForARA).flatMap(y => yearInfo[y].holdings.map(h => h.maturity)),
+        settlementDate, bondHolidays, tradeDate,
+      )
+    : null;
+
   for (const year of allYearsSorted) {
     let laterMatInt = 0;
     const useRemaining = year === _settlementYearForARA;
@@ -777,7 +787,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       yearPrincipal += holding.qty * ap;
       yearLastYearInterest += holding.qty * lastYI;
       araLaterMaturityInterestByYear[year] += holding.qty * ap * cp;
-      araLaterMaturityInterestRemainingByYear[year] += holding.qty * ap * cp / 2 * rmdCappedRemainingCoupons(holding.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate);
+      araLaterMaturityInterestRemainingByYear[year] += holding.qty * ap * cp / 2 * rmdCappedRemainingCoupons(holding.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, _rmdLastDateBefore);
     }
     araByYear[year] = yearPrincipal + yearLastYearInterest + laterMatInt + (useRemaining ? rmdCashOverride : 0);
   }
@@ -1182,6 +1192,17 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const buySellTargets = {};
   const nonTargetSells = {};
   const postRebalQtyMap = {};
+  // RMD Options 'last' mode: the pool-wide latest remaining coupon date, over every bond the
+  // canonical TARGET ladder holds above the settlement year — the "After" state's own pool
+  // (mirrors sizeLadder's identical computation; ladder-core.js latestRemainingCouponDate). Reuses
+  // _canon (selectLadderBonds, computed above) rather than deriving a second bond set here.
+  const _rmdLastDateAfter = rmdCouponMode === 'last'
+    ? latestRemainingCouponDate(
+        _canon.rangeYears.filter(y => y > settlementYear)
+          .flatMap(y => (_canon.yearTipsListMap[y] ?? [_canon.yearBondMap[y]]).map(b => b?.maturity)),
+        settlementDate, bondHolidays, tradeDate,
+      )
+    : null;
   let rebuildLaterMatInt = 0;
   let rebuildLaterMatIntRemaining = 0;  // remaining-coupon counterpart, used only at year === settlementYear
   const yearLaterMatIntSnapshot = {};
@@ -1259,7 +1280,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       
       // 2. Calculate LMI from this year's own excess bonds
       const excessLMI = isSettlementYear && tBond?.maturity
-        ? excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(tBond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate)
+        ? excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(tBond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, _rmdLastDateAfter)
         : excessQtyTarget * 1000 * ir * (tBond?.coupon ?? 0);
 
       // 3. Calculate needed P+I, subtracting both incoming LMI and current year excess LMI
@@ -1395,7 +1416,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         const qty = postRebalQtyMap[h.cusip] ?? h.qty;
         const ir2 = calcIndexRatio(refCPI, b.baseCpi || refCPI);
         rebuildLaterMatInt += qty * ir2 * 1000 * b.coupon;
-        rebuildLaterMatIntRemaining += qty * ir2 * 1000 * b.coupon / 2 * rmdCappedRemainingCoupons(b.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate);
+        rebuildLaterMatIntRemaining += qty * ir2 * 1000 * b.coupon / 2 * rmdCappedRemainingCoupons(b.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, _rmdLastDateAfter);
       }
     }
     // Ensure target CUSIP contributes to LMI pool even when it has no prior holdings (new bracket buy)
@@ -1404,7 +1425,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       if (_blmi) {
         const ir3 = calcIndexRatio(refCPI, _blmi.baseCpi || refCPI);
         rebuildLaterMatInt += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon;
-        rebuildLaterMatIntRemaining += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon / 2 * rmdCappedRemainingCoupons(_blmi.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate);
+        rebuildLaterMatIntRemaining += postRebalQtyMap[targetCUSIP] * ir3 * 1000 * _blmi.coupon / 2 * rmdCappedRemainingCoupons(_blmi.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, _rmdLastDateAfter);
       }
     }
     if (!isFinite(rebuildLaterMatInt)) rebuildLaterMatInt = 0; // safety guard against NaN/Infinity cascade
