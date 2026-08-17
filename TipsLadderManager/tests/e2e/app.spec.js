@@ -1592,3 +1592,39 @@ test('RMD Options: cash override and coupon mode round-trip through the DARA-pla
   await expect(pop.locator('#rmd-cash-override')).toHaveValue('4200');
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('none');
 });
+
+// Cash Flow Calendar amounts are penny-precise (unlike the rest of the app's whole-dollar
+// formatting) — the calendar exists specifically to compare against real brokerage transactions.
+test('Cash Flow Calendar: amounts show to the penny, for exact comparison against broker values', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('#cash-flow-btn')).toBeVisible({ timeout: 4_000 });
+  await page.locator('#cash-flow-btn').click();
+  await expect(page.locator('#cash-flow-overlay')).toBeVisible();
+
+  const amountCells = page.locator('#cash-flow-content td:nth-child(n+2)');
+  const count = await amountCells.count();
+  expect(count).toBeGreaterThan(0);
+  for (const t of await amountCells.allTextContents()) expect(t).toMatch(/^\$[\d,]+\.\d{2}$/);
+
+  // Level-3 (date) drill popup matches the same penny precision.
+  await page.locator('#cash-flow-content td.cf-date-cell:visible').first().click();
+  const popupAmounts = page.locator('#shared-popup td:last-child');
+  const popupCount = await popupAmounts.count();
+  if (popupCount > 0) {
+    for (const t of await popupAmounts.allTextContents()) {
+      if (t.trim().startsWith('$')) expect(t).toMatch(/^\$[\d,]+\.\d{2}$/);
+    }
+  }
+
+  // CSV export also carries cents, not rounded whole dollars.
+  const downloadPromise = page.waitForEvent('download');
+  await page.locator('#cash-flow-export').click();
+  const download = await downloadPromise;
+  const csvPath = test.info().outputPath('cash-flow-export.csv');
+  await download.saveAs(csvPath);
+  const csvText = readFileSync(csvPath, 'utf8');
+  const dataLines = csvText.trim().split('\n').slice(1);
+  expect(dataLines.length).toBeGreaterThan(0);
+  for (const line of dataLines) expect(line.split(',')[3]).toMatch(/^-?\d+\.\d{2}$/);
+});

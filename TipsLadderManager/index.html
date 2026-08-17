@@ -1781,7 +1781,9 @@ document.getElementById('trade-ticket-copy').addEventListener('click', () => {
 // Every held TIPS's actual coupon dates (from today forward) plus its principal
 // repayment date, independent of ladder/funded-year construction — a fact about
 // the current portfolio, not a DARA-sizing quantity.
-function _cfFm(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+// Penny-precise (unlike the rest of the app's whole-dollar fmtCell/fm) — the Cash Flow Calendar
+// exists specifically to compare against real brokerage transactions, which post to the cent.
+function _cfFm(n) { return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
 const _fmtLongDate = fmtDateLong; // src/date-util.js — single source, shared with build/rebalance summaries' tradeDateDisp
 function _isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
@@ -1924,7 +1926,7 @@ document.getElementById('cash-flow-content').addEventListener('click', e => {
 });
 document.getElementById('cash-flow-export').addEventListener('click', () => {
   const rows = ['Date,CUSIP,Type,Amount'];
-  for (const e of _cfEvents) rows.push(`${_isoDate(e.date)},${e.cusip},${e.type},${Math.round(e.amount)}`);
+  for (const e of _cfEvents) rows.push(`${_isoDate(e.date)},${e.cusip},${e.type},${e.amount.toFixed(2)}`);
   const blob = new Blob([rows.join('\n')], { type: 'text/csv' });
   const url = window.URL.createObjectURL(blob);
   const a = document.createElement('a');

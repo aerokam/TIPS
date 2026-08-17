@@ -661,11 +661,11 @@ export function buildCashFlowDateDrill(bucket) {
     rows.push({
       label: '<span class="cf-event-drill" data-cf-event-idx="' + i + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">'
         + e.cusip + (e.type === 'principal' ? ' — Principal' : ' — Coupon') + '</span>',
-      value: fm(e.amount),
+      value: fm2(e.amount),
     });
   });
   rows.push({ sep: true });
-  rows.push({ label: 'Total', value: fm(bucket.coupon + bucket.principal), total: true });
+  rows.push({ label: 'Total', value: fm2(bucket.coupon + bucket.principal), total: true });
   return rows;
 }
 
@@ -689,7 +689,7 @@ export function buildCashFlowEventDrill(e) {
   }
   rows.push({ label: 'Quantity', value: e.qty });
   rows.push({ sep: true });
-  rows.push({ label: e.type === 'principal' ? 'Principal' : 'Coupon', note: 'Amount per TIPS \xd7 Quantity', value: fm(e.amount), total: true });
+  rows.push({ label: e.type === 'principal' ? 'Principal' : 'Coupon', note: 'Amount per TIPS \xd7 Quantity', value: fm2(e.amount), total: true });
   return rows;
 }
 
