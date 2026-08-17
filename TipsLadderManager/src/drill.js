@@ -145,6 +145,16 @@ export function buildDrillHTML(d, colKey, summary) {
     const _amd = d.future30yUpperAnnualAmd || 0;
     const _roll = d.future30yRollCoupon || 0;
     const _rmdOverride = d.rmdCashOverride || 0;
+    // The settlement year's LMI is capped to not-yet-paid coupons only (2.0 §Settlement-year LMI
+    // is remaining coupons only), unlike every other year's full-annual figure — the row must say
+    // so, the same way the Cash Flow Calendar's Ref CPI label flags its own date exception (label
+    // itself carries the disclosure, no separate explanatory sentence).
+    const _isSettleYr = d.fundedYear === summary?.settlementYear;
+    const _lmiLabel = _isSettleYr ? 'Remaining interest from longer-dated TIPS' : 'Interest from longer-dated TIPS';
+    const _lmiDesc = _isSettleYr
+      ? 'not-yet-paid coupons only, from TIPS maturing after ' + d.fundedYear
+        + (summary?.tradeDateDisp ? ' — as of ' + summary.tradeDateDisp : '')
+      : 'from TIPS maturing after ' + d.fundedYear;
     // Multi-TIPS funded year (semiannual / all): the year's principal is delivered by several TIPS
     // with different par values, so list each TIPS's P+I contribution (like the rebalance Amount drill)
     // rather than a single "Par Value × Qty". Single-TIPS years keep the detailed per-bond breakdown.
@@ -173,7 +183,7 @@ export function buildDrillHTML(d, colKey, summary) {
         rungRows +
         sep() +
         row('Funded-year TIPS subtotal', 'principal + last-year coupons across the year’s TIPS', fm(ownSum)) +
-        row('Interest from longer-dated TIPS', 'from TIPS maturing after ' + d.fundedYear, fm(longerDatedInt), false, undefined, 'lmi') +
+        row(_lmiLabel, _lmiDesc, fm(longerDatedInt), false, undefined, 'lmi') +
         (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
         (_plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit), false, 'plcpool') : '') +
         (_amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
@@ -194,7 +204,7 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Principal', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearPrincipalTotal)) +
       row(couponLabel, '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearOwnRungInt)) +
-      row('Interest from longer-dated TIPS', 'from TIPS maturing after ' + d.fundedYear, fm(longerDatedInt), false, undefined, 'lmi') +
+      row(_lmiLabel, _lmiDesc, fm(longerDatedInt), false, undefined, 'lmi') +
       (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
       (_plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit), false, 'plcpool') : '') +
       (_amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
@@ -301,6 +311,14 @@ export function buildDrillHTML(d, colKey, summary) {
     const _amd        = isBef ? (d.future30yUpperAnnualAmdBefore || 0) : (d.future30yUpperAnnualAmd || 0);
     const _roll       = isBef ? (d.future30yRollCouponBefore || 0)     : (d.future30yRollCoupon || 0);
     const _rmdOverride = isBef ? (d.rmdCashOverrideBefore || 0) : (d.rmdCashOverride || 0);
+    // Settlement-year LMI is capped to not-yet-paid coupons only (2.0 §Settlement-year LMI is
+    // remaining coupons only) — same disclosure as the Build "amount" popup above.
+    const _isSettleYr = d.fundedYear === summary?.settlementYear;
+    const _lmiLabel = _isSettleYr ? 'Remaining interest from longer-dated TIPS' : 'Interest from longer-dated TIPS';
+    const _lmiDesc = _isSettleYr
+      ? 'not-yet-paid coupons only, from TIPS maturing after ' + d.fundedYear
+        + (summary?.tradeDateDisp ? ' — as of ' + summary.tradeDateDisp : '')
+      : 'from TIPS maturing after ' + d.fundedYear;
     // Compute ownSum first so we can detect PLI-zeroed years (holdings present but all qty=0).
     let ownSum = 0;
     holdings.forEach(h => { ownSum += h.principalPerBond * (1 + h.coupon / 2 * h.nPeriods) * h.qty; });
@@ -323,7 +341,7 @@ export function buildDrillHTML(d, colKey, summary) {
     });
     rows += sep()
       + row('Funded year TIPS subtotal', '', fm(ownSum))
-      + row('Interest from longer-dated TIPS', 'from TIPS maturing after ' + d.fundedYear, fm(laterMatInt), false, undefined, 'lmi');
+      + row(_lmiLabel, _lmiDesc, fm(laterMatInt), false, undefined, 'lmi');
     const excessLMI = isBef ? d.excessLMI_Before : d.excessLMI_After;
     if (excessLMI > 0) {
       rows += row('Interest from same-year excess (bracket)', 'from additional ' + d.fundedYear + ' TIPS held to cover Future 30Y rungs', fm(excessLMI), false, undefined, 'exlmi');

@@ -3,7 +3,7 @@
 //
 // Entry point: runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate })
 
-import { fmtDate } from './date-util.js';
+import { fmtDate, fmtDateLong } from './date-util.js';
 import { bondCalcs, calculateMDuration, rungAmount, calcMktWtdAvg } from '../../shared/src/bond-math.js';
 import { sizeLadder, selectLadderBonds, fundedYearAmount } from './ladder-core.js';
 
@@ -24,7 +24,7 @@ export const MAX_LAST_YEAR = 2066;
 // Returns: { results, HDR, summary }
 // Spec: knowledge/3.0_TIPS_Ladders.md and knowledge/4.0_TIPS_Ladder_Rebalancing.md §Full Rebalance
 // Variable naming note: fundedYearQty, excessQty, costPerBond (harmonized) — see §Code Variable Mapping
-export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', couponPref = 'higher', preLadderInterest = false, daraByYear = null, yearOverrides = null, bondHolidays = new Set(), rmdCashOverride = 0, rmdCouponMode = 'all' }) {
+export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', couponPref = 'higher', preLadderInterest = false, daraByYear = null, yearOverrides = null, bondHolidays = new Set(), rmdCashOverride = 0, rmdCouponMode = 'all', tradeDate = settlementDate }) {
   const firstYear      = firstYearOpt ?? settlementDate.getFullYear();
   const settleDateDisp = fmtDate(settlementDate);
   const settlementYear = settlementDate.getFullYear();
@@ -55,7 +55,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     dara, daraByYear, firstYear, lastYear,
     rangeYears, gapYears, future30yYears,
     yearBondMap, yearTipsListMap, tipsMap, refCPI, settlementDate, settlementYear,
-    preLadderInterest, bondHolidays, rmdCashOverride, rmdCouponMode,
+    preLadderInterest, bondHolidays, rmdCashOverride, rmdCouponMode, tradeDate,
     future30yLowerCoverBond, future30yUpperCoverBond, future30yLowerYear, future30yUpperYear,
   });
 
@@ -212,7 +212,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
 
   const summary = {
     settleDateDisp, refCPI, dara, daraByYearResolved,
-    settlementYear, rmdCashOverride, rmdCouponMode,
+    settlementYear, rmdCashOverride, rmdCouponMode, tradeDateDisp: fmtDateLong(tradeDate),
     firstYear, lastYear, gapYears, future30yYears,
     gapParams, lowerYear, upperYear,
     lowerDuration, upperDuration, lowerWeight, upperWeight, lowerMonth, upperMonth,

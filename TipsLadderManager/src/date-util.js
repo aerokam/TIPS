@@ -24,3 +24,10 @@ export function fmtDate(d) {
   if (!d) return '';
   return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
 }
+
+// Day-precise variant of fmtDate, for contexts that need to name an exact date (e.g. "has this
+// coupon been paid as of Aug 17, 2026" — RMD Options, Cash Flow Calendar) rather than just a month.
+export function fmtDateLong(d) {
+  if (!d) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}

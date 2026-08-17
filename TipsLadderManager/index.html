@@ -579,7 +579,7 @@
 </div>
 
 <script type="module">
-import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate, calculatePIPerBond } from './src/rebalance-lib.js';
+import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate, fmtDateLong, calculatePIPerBond } from './src/rebalance-lib.js';
 // Standalone Before-state preview (3.0 §Before-State Preview and Bracket-Year Excess Detection) —
 // a holdings-valuation computation, architecturally decoupled from the runRebalance/
 // runFundedRebalance engine imported above. Never calls into it.
@@ -1782,7 +1782,7 @@ document.getElementById('trade-ticket-copy').addEventListener('click', () => {
 // repayment date, independent of ladder/funded-year construction — a fact about
 // the current portfolio, not a DARA-sizing quantity.
 function _cfFm(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
-function _fmtLongDate(d) { return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+const _fmtLongDate = fmtDateLong; // src/date-util.js — single source, shared with build/rebalance summaries' tradeDateDisp
 function _isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
 
 // A coupon dated on a weekend/holiday is actually paid the next bond trading day, so the event
@@ -2355,7 +2355,8 @@ function _renderBeforeStatePreview() {
   });
 
   const summary = { firstYear, lastYear, gapYears, future30yYears, brackets: {}, bracketMode: document.getElementById('bracket-mode')?.value ?? '2bracket',
-    settlementYear: settlementDate.getFullYear(), rmdCashOverride: _rmdCashOverride, rmdCouponMode: _rmdCouponMode };
+    settlementYear: settlementDate.getFullYear(), rmdCashOverride: _rmdCashOverride, rmdCouponMode: _rmdCouponMode,
+    tradeDateDisp: _fmtLongDate(localDate(_tradeDateStr)) };
   rebalDetails = rows;
   rebalSummary = summary;
 
@@ -2936,6 +2937,7 @@ function _inferYearsFlat(scopeYears) {
     bracketMode: ctx.bracketMode, lastYearOverride: ctx.lastYearOverride, firstYearOverride: ctx.firstYearOverride,
     preLadderInterest: ctx.preLadderInterest, scopeYears, fixedDaraByYear: _daraByYearStore, pinnedDaraByYear, flat: true,
     bondHolidays: _bondHolidays, rmdCashOverride: _rmdCashOverride, rmdCouponMode: _rmdCouponMode,
+    tradeDate: localDate(_tradeDateStr),
   });
   for (const y of scopeYears) if (scaledMap.has(y)) _daraByYearStore.set(y, scaledMap.get(y));
   return true;
@@ -3190,6 +3192,7 @@ function _runBuildFromForm() {
     yearOverrides: _yearMaturityOverrides,
     bondHolidays: _bondHolidays,
     rmdCashOverride: _rmdCashOverride, rmdCouponMode: _rmdCouponMode,
+    tradeDate: localDate(_tradeDateStr),
   });
   _lastKnownDara = dara;
   renderBuildOutput(result);
@@ -3248,6 +3251,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         yearRankOverrides: _yearRankOverrides,
         bondHolidays: _bondHolidays,
         rmdCashOverride: _rmdCashOverride, rmdCouponMode: _rmdCouponMode,
+        tradeDate: localDate(_tradeDateStr),
       });
       _lastKnownDara = finalDara;
       renderOutput(result);

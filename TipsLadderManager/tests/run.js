@@ -6,6 +6,7 @@ import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
 import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, inferDARAFromCash, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings } from '../src/rebalance-lib.js';
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
+import { remainingCouponPaymentsThisYear } from '../src/ladder-core.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
@@ -841,6 +842,29 @@ console.log('\nBuild — RMD Options (settlement-year remaining-coupon LMI)');
 
   // A cash override large enough to cover the whole year's DARA zeroes the settlement-year rung.
   assert('RMD Options: a large-enough cash override zeroes the settlement-year rung', fundedQtyAt(dara * 2, 'none'), 0);
+}
+
+// ── Test: remainingCouponPaymentsThisYear — trade date (today) vs settlementDate (T+1) cutoff ──
+// A coupon due Saturday Aug 15 rolls to Monday Aug 17 (actualPaymentDate). If "today" is Aug 17
+// (the coupon is being paid TODAY), it must still count as available cash — matching the Cash Flow
+// Calendar's own cutoff (today, 5.0 §Cash Flow Calendar), not settlementDate, which is T+1 (Aug 18)
+// and would wrongly exclude a coupon on the very day it pays. Regression for the bug reported after
+// the original settlement-year-LMI fix: comparing against settlementDate instead of the trade date.
+console.log('\nremainingCouponPaymentsThisYear — trade date vs settlementDate (T+1) cutoff');
+{
+  const maturity = localDate('2036-02-15');    // Feb/Aug coupon cycle
+  const settleAug18 = localDate('2026-08-18'); // settlementDate: T+1 from today
+  const tradeAug17 = localDate('2026-08-17');  // today — the coupon's actual (rolled) payment date
+  const tradeAug18 = localDate('2026-08-18');  // the day after payment
+
+  assert('coupon paid exactly on trade date (today) still counts as remaining',
+    remainingCouponPaymentsThisYear(maturity, settleAug18, new Set(), tradeAug17), 1);
+  assert('same coupon no longer counts the day after it paid',
+    remainingCouponPaymentsThisYear(maturity, settleAug18, new Set(), tradeAug18), 0);
+  // Omitting tradeDate falls back to settlementDate (T+1) — the pre-fix cutoff, which wrongly
+  // excludes a coupon paid today. Documents the bug this fixes; not the desired production behavior.
+  assert('omitting tradeDate reproduces the old (buggy) settlementDate-cutoff behavior',
+    remainingCouponPaymentsThisYear(maturity, settleAug18, new Set()), 0);
 }
 
 // ── Test: Build — Future 30Y years (lastYear > maxRealYear) ───────────────────────

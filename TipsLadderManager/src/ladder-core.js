@@ -301,21 +301,31 @@ function aggregateRungs(rungs) {
 }
 
 // ─── Current-year remaining-coupon count ────────────────────────────────────────
-// How many of a bond's semiannual coupon dates still fall in settlementDate's own calendar
-// year, on or after settlementDate. 0, 1, or 2. Reuses the same coupon-date walk the cash
-// flow calendar uses (shared/src/bond-math.js couponSchedule) — single source, no parallel
-// date logic. For every year other than the settlement year this is irrelevant (that year's
-// coupons haven't happened yet, so the normal full-annual assumption already holds).
-export function remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays = new Set()) {
+// How many of a bond's semiannual coupon dates, in settlementDate's own calendar year, are not
+// yet PAID as of `tradeDate` ("today" — the same reference the Cash Flow Calendar uses, 5.0
+// §Cash Flow Calendar "Cutoff: today, not the settlement/Ref CPI date"). 0, 1, or 2. Deliberately
+// NOT settlementDate itself: settlementDate is T+1 from today (a hypothetical new trade's
+// settlement, matching FedInvest/Fidelity data), so a coupon rolled to pay on Aug 17 is still
+// "not yet paid" as of settlementDate Aug 18 even though the cash was actually received today —
+// comparing against settlementDate instead of today excluded a coupon on the very day it paid.
+// `tradeDate` defaults to `settlementDate` for callers that don't distinguish the two (tests,
+// and any caller before this distinction existed); production Build/Rebalance runs always pass
+// the real trade date (index.html `_tradeDateStr`). `year` stays keyed off settlementDate — which
+// funded year this affects is a settlement-year question, independent of the "has it paid yet"
+// cutoff. Reuses the same coupon-date walk the cash flow calendar uses (shared/src/bond-math.js
+// couponSchedule) — single source, no parallel date logic. For every year other than the
+// settlement year this is irrelevant (that year's coupons haven't happened yet, so the normal
+// full-annual assumption already holds).
+export function remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays = new Set(), tradeDate = settlementDate) {
   const year = settlementDate.getFullYear();
-  // Walk from a few days before settlementDate, not from settlementDate itself: a coupon
-  // scheduled just before settlement but rolled past a weekend/holiday hasn't actually been paid
-  // yet, and couponSchedule(settlementDate, ...) would otherwise skip its (pre-settlement) raw
-  // date entirely. Mirrors index.html's buildCashFlowData() walk-back. 5.0 §Cash Flow Calendar.
-  const walkFrom = new Date(settlementDate); walkFrom.setDate(walkFrom.getDate() - 10);
+  // Walk from a few days before tradeDate, not from tradeDate itself: a coupon scheduled just
+  // before today but rolled past a weekend/holiday hasn't actually been paid yet, and
+  // couponSchedule(tradeDate, ...) would otherwise skip its (pre-tradeDate) raw date entirely.
+  // Mirrors index.html's buildCashFlowData() walk-back. 5.0 §Cash Flow Calendar.
+  const walkFrom = new Date(tradeDate); walkFrom.setDate(walkFrom.getDate() - 10);
   return couponSchedule(walkFrom, maturity)
     .map(d => actualPaymentDate(d, bondHolidays))
-    .filter(actual => actual >= settlementDate && actual.getFullYear() === year)
+    .filter(actual => actual >= tradeDate && actual.getFullYear() === year)
     .length;
 }
 
@@ -328,9 +338,9 @@ export function remainingCouponPaymentsThisYear(maturity, settlementDate, bondHo
 // every remaining coupon as already spoken for (reinvested), same as a year that isn't the
 // settlement year at all. Single source of truth: every caller (ladder-core, rebalance-lib) goes
 // through this instead of capping remainingCouponPaymentsThisYear's result inline.
-export function rmdCappedRemainingCoupons(maturity, settlementDate, bondHolidays = new Set(), couponMode = 'all') {
+export function rmdCappedRemainingCoupons(maturity, settlementDate, bondHolidays = new Set(), couponMode = 'all', tradeDate = settlementDate) {
   if (couponMode === 'none') return 0;
-  const n = remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays);
+  const n = remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays, tradeDate);
   return couponMode === 'last' ? Math.min(n, 1) : n;
 }
 
@@ -340,7 +350,7 @@ export function sizeLadder({
   rangeYears, gapYears, future30yYears,
   yearBondMap, yearTipsListMap = null, tipsMap, refCPI, settlementDate, settlementYear,
   preLadderInterest = false, bondHolidays = new Set(),
-  rmdCashOverride = 0, rmdCouponMode = 'all',
+  rmdCashOverride = 0, rmdCouponMode = 'all', tradeDate = settlementDate,
   future30yLowerCoverBond = null, future30yUpperCoverBond = null,
   future30yLowerYear = null, future30yUpperYear = null,
 }) {
@@ -584,7 +594,7 @@ export function sizeLadder({
       const exQty = exByYear[year] ?? 0;
       const excessLMIFull = exQty * 1000 * ir * (bond.coupon ?? 0);
       const excessLMI = isSettlementYear
-        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode)
+        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate)
         : excessLMIFull;
       const future30yExtra = calcFuture30yExtraIncome(year);   // AMD (≤2052) + roll coupon (2053–56)
 
@@ -597,14 +607,14 @@ export function sizeLadder({
       corrRungs[year] = rungs;
       corrFYQty[year] = fyQty;
       runningLMI += fundedCoupon + excessLMIFull;
-      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * rmdCappedRemainingCoupons(r.bond.maturity, settlementDate, bondHolidays, rmdCouponMode), 0)
-        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode);
+      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * rmdCappedRemainingCoupons(r.bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate), 0)
+        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate);
     }
   }
 
   return {
     prelim, corrFYQty, corrLMI, corrRungs,
-    rmdCashOverride, rmdCouponMode,
+    rmdCashOverride, rmdCouponMode, tradeDate,
     zeroedFundedYears, partialCreditYear, partialCredit, pliCreditByGapYear, pliCreditByFundedYear,
     lowerYear, upperYear, lowerExQty, upperExQty, lowerWeight, upperWeight,
     lowerDuration, upperDuration, lowerMonth, upperMonth, totalExcessCost,
