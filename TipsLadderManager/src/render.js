@@ -210,15 +210,37 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
     + flagHTML + '</span>';
 }
 
+// Hover explainer for the RMD options link, shown via the same [data-tip-html]/#bracket-tooltip
+// mechanism the funded-year bracket label already uses (5.0 §Funded Year Group Header Row) — no
+// new hover machinery, just another element carrying the attribute the existing mouseover/mouseout
+// delegation on simpleEl/tableEl already watches for.
+function rmdOptionsTipHTML() {
+  return '<b>RMD Options:</b>'
+    + '<ul>'
+    + '<li><b>Account cash targeted for RMD</b> — any cash already set aside for this year’s '
+    + 'target, from any source. Added on top of whatever remaining-coupon interest counts below.</li>'
+    + '<li><b>Count remaining coupons toward RMD</b> — the assumption about this year’s '
+    + 'not-yet-paid coupons: <b>None</b> assumes every remaining coupon gets reinvested into the '
+    + 'ladder; <b>All remaining</b> assumes every remaining coupon stays as cash; <b>Only last</b> '
+    + 'assumes earlier remaining coupons get reinvested but the final one this year stays as cash.</li>'
+    + '<li>Only the settlement year has both already-paid and not-yet-paid coupons in the same '
+    + 'calendar year, so these options only apply to that one row.</li>'
+    + '</ul>';
+}
+
 // RMD Options link — appears ONLY on the settlement year's group header row, since that is the
 // only funded year with both already-paid and not-yet-paid coupons in the same calendar year
 // (2.0 §RMD Options). Sits in the merged toggle cell's existing blank space, right after the DARA
 // input — no new column. A trailing "*" marks a non-default choice so it's visible without opening
-// the popover.
+// the popover. The "?" icon is a separate hover target from the link itself, so hovering for help
+// and clicking to open the popover never compete for the same gesture.
 function rmdOptionsLinkHTML(fy, settlementYear, rmdCashOverride, rmdCouponMode) {
   if (settlementYear == null || fy !== settlementYear) return '';
   const isDefault = (!rmdCashOverride) && (rmdCouponMode === 'all' || rmdCouponMode == null);
-  return ` <a href="#" class="fy-rmd-link" data-year="${fy}">RMD options${isDefault ? '' : '*'}</a>`;
+  return ` <a href="#" class="fy-rmd-link" data-year="${fy}">RMD options${isDefault ? '' : '*'}</a>`
+    + ` <span class="fy-rmd-tip" data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}" `
+    + 'style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;'
+    + 'border:1px solid #64748b;border-radius:50%;font-size:9px;color:#64748b;cursor:help">?</span>';
 }
 
 function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraByYear, flaggedYears) {

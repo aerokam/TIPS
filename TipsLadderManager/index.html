@@ -1198,7 +1198,7 @@ function _updateExpandCollapseLabels() {
 [simpleEl, tableEl].forEach(tbl => {
   tbl.addEventListener('mousedown', e => {
     const hdr = e.target.closest('tr.fy-group-header');
-    if (!hdr || e.target.closest('.fy-dara-input') || e.target.closest('td.drillable') || e.target.closest('.fy-rmd-link')) return;
+    if (!hdr || e.target.closest('.fy-dara-input') || e.target.closest('td.drillable') || e.target.closest('.fy-rmd-link') || e.target.closest('.fy-rmd-tip')) return;
     // A fresh press always clears leftover drag state from a prior gesture, BEFORE the Shift-click
     // early-return below — otherwise a completed cross-row drag (whose mouseup lands on a different
     // row than its mousedown, so the browser never fires 'click' at all — click only fires when
@@ -1232,7 +1232,7 @@ function _updateExpandCollapseLabels() {
   tbl.addEventListener('click', e => {
     const hdr = e.target.closest('tr.fy-group-header');
     if (!hdr) return;
-    if (e.target.closest('td.drillable') || e.target.closest('.fy-rmd-link')) return;
+    if (e.target.closest('td.drillable') || e.target.closest('.fy-rmd-link') || e.target.closest('.fy-rmd-tip')) return;
     const y = +hdr.dataset.fy;
     if (_dragSelecting) { _dragSelecting = false; _dragStartYear = null; _lastClickedYear = y; return; }
     _dragStartYear = null;
