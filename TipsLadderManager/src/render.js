@@ -210,6 +210,17 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
     + flagHTML + '</span>';
 }
 
+// RMD Options link — appears ONLY on the settlement year's group header row, since that is the
+// only funded year with both already-paid and not-yet-paid coupons in the same calendar year
+// (2.0 §RMD Options). Sits in the merged toggle cell's existing blank space, right after the DARA
+// input — no new column. A trailing "*" marks a non-default choice so it's visible without opening
+// the popover.
+function rmdOptionsLinkHTML(fy, settlementYear, rmdCashOverride, rmdCouponMode) {
+  if (settlementYear == null || fy !== settlementYear) return '';
+  const isDefault = (!rmdCashOverride) && (rmdCouponMode === 'all' || rmdCouponMode == null);
+  return ` <a href="#" class="fy-rmd-link" data-year="${fy}">RMD options${isDefault ? '' : '*'}</a>`;
+}
+
 function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraByYear, flaggedYears) {
   const groupRows  = rows.map(r => r.d);
   const labelCount = cols.filter(c => c.fmt === 'str' || c.fmt === 'yld').length;
@@ -221,9 +232,10 @@ function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraBy
     : future30ySet.has(fy) ? ' <span style="opacity:0.6;font-style:italic;font-size:10px">(30Y)</span>' : '';
   const label = String(fy) + (isBracketGroup ? '*' : '');
   const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears);
+  const rmdHTML = rmdOptionsLinkHTML(fy, summary?.settlementYear, summary?.rmdCashOverride, summary?.rmdCouponMode);
   const labelTd = isBracketGroup
-    ? `<td colspan="${labelCount}"><span class="formula-var bracket-tip-target" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}">${esc(label)}</span>${suffix}${daraHTML}</td>`
-    : `<td colspan="${labelCount}">${esc(label)}${suffix}${daraHTML}</td>`;
+    ? `<td colspan="${labelCount}"><span class="formula-var bracket-tip-target" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}">${esc(label)}</span>${suffix}${daraHTML}${rmdHTML}</td>`
+    : `<td colspan="${labelCount}">${esc(label)}${suffix}${daraHTML}${rmdHTML}</td>`;
 
   let html = `<tr class="${cls}" data-fy="${fy}" data-expanded="true">`;
   html += labelTd;

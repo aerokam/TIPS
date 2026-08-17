@@ -144,6 +144,7 @@ export function buildDrillHTML(d, colKey, summary) {
     const longerDatedInt = d.longerDatedLMI ?? d.fundedYearLaterMatInt; // use separated if available, else combined legacy
     const _amd = d.future30yUpperAnnualAmd || 0;
     const _roll = d.future30yRollCoupon || 0;
+    const _rmdOverride = d.rmdCashOverride || 0;
     // Multi-TIPS funded year (semiannual / all): the year's principal is delivered by several TIPS
     // with different par values, so list each TIPS's P+I contribution (like the rebalance Amount drill)
     // rather than a single "Par Value × Qty". Single-TIPS years keep the detailed per-bond breakdown.
@@ -156,6 +157,7 @@ export function buildDrillHTML(d, colKey, summary) {
     if (_plCredit > 0) totalFmla += ' + Pre-ladder credit';
     if (_amd > 0) totalFmla += ' + <span class="formula-var" data-source="amd">AMD</span>';
     if (_roll > 0) totalFmla += ' + <span class="formula-var" data-source="roll">Future-30Y coupon</span>';
+    if (_rmdOverride > 0) totalFmla += ' + RMD cash override';
 
     if (_rungs) {
       let ownSum = 0;
@@ -176,6 +178,7 @@ export function buildDrillHTML(d, colKey, summary) {
         (_plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit), false, 'plcpool') : '') +
         (_amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
         (_roll > 0 ? row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', fm(_roll), false, undefined, 'roll') : '') +
+        (_rmdOverride > 0 ? row('RMD cash override', 'account cash targeted for RMD (RMD Options)', fm(_rmdOverride)) : '') +
         sep() +
         row('Funded Year Amount', totalFmla, fm(d.fundedYearAmt), true) +
         sep() +
@@ -196,6 +199,7 @@ export function buildDrillHTML(d, colKey, summary) {
       (_plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit), false, 'plcpool') : '') +
       (_amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
       (_roll > 0 ? row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', fm(_roll), false, undefined, 'roll') : '') +
+      (_rmdOverride > 0 ? row('RMD cash override', 'account cash targeted for RMD (RMD Options)', fm(_rmdOverride)) : '') +
       sep() +
       row('Funded Year Amount', totalFmla, fm(d.fundedYearAmt), true) +
       sep() +
@@ -296,6 +300,7 @@ export function buildDrillHTML(d, colKey, summary) {
     const _plCredit   = isBef ? (d.preLadderCreditForYearBefore || 0) : (d.preLadderCreditForYear || 0);
     const _amd        = isBef ? (d.future30yUpperAnnualAmdBefore || 0) : (d.future30yUpperAnnualAmd || 0);
     const _roll       = isBef ? (d.future30yRollCouponBefore || 0)     : (d.future30yRollCoupon || 0);
+    const _rmdOverride = isBef ? (d.rmdCashOverrideBefore || 0) : (d.rmdCashOverride || 0);
     // Compute ownSum first so we can detect PLI-zeroed years (holdings present but all qty=0).
     let ownSum = 0;
     holdings.forEach(h => { ownSum += h.principalPerBond * (1 + h.coupon / 2 * h.nPeriods) * h.qty; });
@@ -332,6 +337,9 @@ export function buildDrillHTML(d, colKey, summary) {
     if (_roll > 0) {
       rows += row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', fm(_roll), false, undefined, 'roll');
     }
+    if (_rmdOverride > 0) {
+      rows += row('RMD cash override', 'account cash targeted for RMD (RMD Options)', fm(_rmdOverride));
+    }
     let totalFmla = _pliZeroed
       ? 'Inferred from CSV'
       : 'Funded year TIPS + <span class="formula-var" data-source="lmi">Longer-dated int</span>';
@@ -339,6 +347,7 @@ export function buildDrillHTML(d, colKey, summary) {
     if (!_pliZeroed && _plCredit > 0) totalFmla += ' + <span class="formula-var" data-source="plc">Pre-ladder credit</span>';
     if (!_pliZeroed && _amd > 0) totalFmla += ' + <span class="formula-var" data-source="amd">AMD</span>';
     if (!_pliZeroed && _roll > 0) totalFmla += ' + <span class="formula-var" data-source="roll">Future-30Y coupon</span>';
+    if (!_pliZeroed && _rmdOverride > 0) totalFmla += ' + RMD cash override';
     rows += sep()
       + row(isBef ? 'Amount Before' : 'Amount After', totalFmla, fm(_displayAmt), true)
       + sep()

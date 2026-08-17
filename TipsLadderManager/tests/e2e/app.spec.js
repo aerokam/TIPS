@@ -1439,7 +1439,9 @@ test('build: Set DARA over a selected range works; Infer DARA never renders in B
   const years = await page.locator('#build-table .fy-dara-input[data-year]').evaluateAll(
     els => els.slice(0, 3).map(e => e.dataset.year)
   );
-  await page.locator(`#build-table tr.fy-group-header[data-fy="${years[0]}"]`).click();
+  // Left-edge position: years[0] is the settlement year, whose row also carries the RMD options
+  // link (5.0 §RMD Options) — a default-centroid click can land on it instead of selecting the row.
+  await page.locator(`#build-table tr.fy-group-header[data-fy="${years[0]}"]`).click({ position: { x: 10, y: 8 } });
   await page.locator(`#build-table tr.fy-group-header[data-fy="${years[2]}"]`).click({ modifiers: ['Shift'] });
   await expect(page.locator('#selection-toolbar')).toBeVisible();
   await expect(page.locator('#selection-infer-btn'), 'Infer DARA never renders in Build').not.toBeVisible();
@@ -1458,7 +1460,11 @@ test('mode toggle: switching Build <-> Rebalance clears the active selection', a
   test.setTimeout(20_000);
   await _buildSetup(page);
   const year = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
-  await page.locator(`#build-table tr.fy-group-header[data-fy="${year}"]`).click();
+  // Click near the row's left edge (the expand triangle/year label), not its default centroid —
+  // the settlement year's row also carries the DARA input and (when it's the settlement year, as
+  // it is here since `year` is the FIRST funded year) the "RMD options" link (5.0 §RMD Options),
+  // either of which would swallow a click landing on them via their own stopPropagation.
+  await page.locator(`#build-table tr.fy-group-header[data-fy="${year}"]`).click({ position: { x: 10, y: 8 } });
   await expect(page.locator('#selection-toolbar')).toBeVisible();
 
   await page.locator('.tab-btn[data-mode="rebalance"]').click();
@@ -1490,4 +1496,75 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
   await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
   await expect(rung).toHaveValue('33000');
+});
+
+// RMD Options (2.0 §RMD Options; 5.0 §Funded Year Group Header Row §RMD Options): the settlement
+// year's group header row — and only that row — carries a "RMD options" link that opens a small
+// popover for the two settlement-year-only inputs (cash override, coupon-count mode).
+test('RMD Options: link appears only on the settlement year row, and the popover round-trips values', async ({ page }) => {
+  test.setTimeout(20_000);
+  await _buildSetup(page);
+
+  const firstYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const otherYear = await page.locator('#build-table .fy-dara-input[data-year]').nth(1).getAttribute('data-year');
+  await expect(page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`)).toBeVisible();
+  await expect(page.locator(`#build-table tr.fy-group-header[data-fy="${otherYear}"] .fy-rmd-link`)).toHaveCount(0);
+
+  const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  await expect(link).toHaveText('RMD options');
+  await link.click();
+  const pop = page.locator('#rmd-options-popover');
+  await expect(pop).toBeVisible();
+  await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('all');
+  await expect(pop.locator('#rmd-cash-override')).toHaveValue('');
+
+  await pop.locator('#rmd-cash-override').fill('2500');
+  await pop.locator('#rmd-cash-override').blur();
+  await pop.locator('input[name="rmd-coupon-mode"][value="last"]').check();
+  await page.locator('#rmd-options-close').click();
+  await expect(pop).toBeHidden();
+
+  // Non-default choice shows on the link itself, and the popover reopens with the values held.
+  await expect(link).toHaveText('RMD options*');
+  await link.click();
+  await expect(pop.locator('#rmd-cash-override')).toHaveValue('2500');
+  await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('last');
+  await page.locator('#rmd-options-close').click();
+});
+
+// RMD Options persist through the same standalone DARA-plan file the DARA-by-year shape already
+// uses (2.1 §Standalone DARA-plan file `#params` line) — no separate file/mechanism.
+test('RMD Options: cash override and coupon mode round-trip through the DARA-plan file', async ({ page }) => {
+  test.setTimeout(20_000);
+  await _buildSetup(page);
+
+  const firstYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  await link.click();
+  const pop = page.locator('#rmd-options-popover');
+  await pop.locator('#rmd-cash-override').fill('4200');
+  await pop.locator('#rmd-cash-override').blur();
+  await pop.locator('input[name="rmd-coupon-mode"][value="none"]').check();
+  await page.locator('#rmd-options-close').click();
+
+  const downloadPromise = page.waitForEvent('download');
+  await chooseMenu(page, 'export-menu', 'dara-plan');
+  const download = await downloadPromise;
+  const planPath = test.info().outputPath('rmd-options-dara-plan.csv');
+  await download.saveAs(planPath);
+  const planText = readFileSync(planPath, 'utf8');
+  expect(planText).toContain('rmdCashOverride=4200');
+  expect(planText).toContain('rmdCouponMode=none');
+
+  await page.reload();
+  await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
+  await _buildSetup(page);
+  await expect(link).toHaveText('RMD options'); // fresh reload is the plain default again
+
+  await chooseMenu(page, 'import-menu', 'dara-plan');
+  await page.locator('#dara-plan-import-file').setInputFiles(planPath);
+  await expect(link).toHaveText('RMD options*');
+  await link.click();
+  await expect(pop.locator('#rmd-cash-override')).toHaveValue('4200');
+  await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('none');
 });

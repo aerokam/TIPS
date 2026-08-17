@@ -813,6 +813,36 @@ console.log('\nBuild — DARA=50000, lastYear=2040');
   console.log(`        avgAmt/rung:   ${Math.round(avgAmt).toLocaleString()} (DARA=${dara.toLocaleString()}, rungs=${numRungs})`);
 }
 
+// ── Test: RMD Options — settlement-year remaining-coupon LMI choice (2.0 §RMD Options) ──
+// Settle on Jan 1 of the same year as the real settlementDate (not the real settlementDate
+// itself) so EVERY settlement-year bond still has both its semiannual coupons ahead of it —
+// otherwise, on any run after the year's first coupon, 'all' and 'last' would coincide
+// (only one coupon left either way) and the test couldn't tell them apart.
+console.log('\nBuild — RMD Options (settlement-year remaining-coupon LMI)');
+{
+  const dara = 50000, lastYear = 2040;
+  const earlySettle = localDate(`${settlementDate.getFullYear()}-01-01`);
+  const fy = earlySettle.getFullYear();
+  const fundedQtyAt = (rmdCashOverride, rmdCouponMode) => {
+    const { details } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate: earlySettle, rmdCashOverride, rmdCouponMode });
+    return details.filter(d => d.fundedYear === fy).reduce((s, d) => s + (d.fundedYearQty ?? 0), 0);
+  };
+  const qtyAll  = fundedQtyAt(0, 'all');
+  const qtyLast = fundedQtyAt(0, 'last');
+  const qtyNone = fundedQtyAt(0, 'none');
+  // More remaining-coupon cash counted as available income → less principal needed to hit DARA.
+  assert('RMD Options: qty(none) >= qty(last)', qtyNone >= qtyLast, true);
+  assert('RMD Options: qty(last) >= qty(all)', qtyLast >= qtyAll, true);
+  assert('RMD Options: qty(none) > qty(all) (the two extremes actually differ)', qtyNone > qtyAll, true);
+
+  const { details: defDetails } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate: earlySettle });
+  const qtyDefault = defDetails.filter(d => d.fundedYear === fy).reduce((s, d) => s + (d.fundedYearQty ?? 0), 0);
+  assert('RMD Options: omitting rmdCashOverride/rmdCouponMode reproduces "all" (no default-behavior change)', qtyDefault, qtyAll);
+
+  // A cash override large enough to cover the whole year's DARA zeroes the settlement-year rung.
+  assert('RMD Options: a large-enough cash override zeroes the settlement-year rung', fundedQtyAt(dara * 2, 'none'), 0);
+}
+
 // ── Test: Build — Future 30Y years (lastYear > maxRealYear) ───────────────────────
 console.log('\nBuild — DARA=50000, lastYear=2060 (Future 30Y years)');
 {
@@ -1215,6 +1245,14 @@ console.log('\nparseParamsBlock — #params line');
   const { summary: bSum } = runBuild({ dara: 40000, firstYear: 2034, lastYear: 2047, tipsMap, refCPI, settlementDate, preLadderInterest: true, maturityPref: 'first' });
   assert('build summary carries preLadderInterest', bSum.preLadderInterest, true);
   assert('build summary carries maturityPref', bSum.maturityPref, 'first');
+
+  // RMD Options (2.0 §RMD Options) round-trip through the same #params line.
+  const pRmd = parseParamsBlock(['#params,rmdCashOverride=1500,rmdCouponMode=last']);
+  assert('params rmdCashOverride=1500', pRmd?.rmdCashOverride, 1500);
+  assert('params rmdCouponMode=last', pRmd?.rmdCouponMode, 'last');
+  const pRmdBad = parseParamsBlock(['#params,rmdCashOverride=-5,rmdCouponMode=bogus']);
+  assert('params rmdCashOverride rejects negative', pRmdBad?.rmdCashOverride, undefined);
+  assert('params rmdCouponMode falls back to "all" on an unrecognized value', pRmdBad?.rmdCouponMode, 'all');
 }
 
 // ── Test: Build→Rebalance symmetry — Full method, default bracket mode ───────

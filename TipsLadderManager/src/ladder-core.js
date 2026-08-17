@@ -85,13 +85,15 @@ export function sizeFuture30yCover({
 // Returns { credit, amount }.
 export function fundedYearAmount({
   principal = 0, ownCoupon = 0, laterMatInt = 0, ownExcessCoupon = 0, amd = 0, rollCoupon = 0,
-  dara, isZeroed = false, partialCredit = 0,
+  rmdCashOverride = 0, dara, isZeroed = false, partialCredit = 0,
 }) {
   // Income fixed regardless of the pre-ladder credit. For a zeroed year principal & ownCoupon
   // are 0, so this is the LMI + own-excess-coupon + AMD + Future-30Y roll coupon that the credit
   // tops up to DARA. (rollCoupon: Future-30Y cover-roll coupon credited to post-upper-maturity
   // funded years 2053–2056; see sizeLadder. Behaves exactly like AMD — non-cascading per-year credit.)
-  const fixedIncome = principal + ownCoupon + laterMatInt + ownExcessCoupon + amd + rollCoupon;
+  // rmdCashOverride: RMD Options' "account cash targeted for RMD" (2.0 §RMD Options) — always 0
+  // except for the settlement year, where the caller passes the user-entered figure.
+  const fixedIncome = principal + ownCoupon + laterMatInt + ownExcessCoupon + amd + rollCoupon + rmdCashOverride;
   const credit = isZeroed ? Math.max(0, dara - fixedIncome) : partialCredit;
   return { credit, amount: fixedIncome + credit };
 }
@@ -317,12 +319,28 @@ export function remainingCouponPaymentsThisYear(maturity, settlementDate, bondHo
     .length;
 }
 
+// ─── RMD Options: how many of the settlement year's remaining coupons count ────
+// Generalizes "all remaining coupons are available" to three user-chosen assumptions about
+// what happens to coupon cash between now and when it's spent (RMD or otherwise) — 2.0 §RMD
+// Options. 'all' reproduces remainingCouponPaymentsThisYear exactly (the original, still-default
+// behavior). 'last' counts only the final remaining coupon date this year, for someone who
+// expects to reinvest earlier remaining coupons but hold the last one as cash. 'none' treats
+// every remaining coupon as already spoken for (reinvested), same as a year that isn't the
+// settlement year at all. Single source of truth: every caller (ladder-core, rebalance-lib) goes
+// through this instead of capping remainingCouponPaymentsThisYear's result inline.
+export function rmdCappedRemainingCoupons(maturity, settlementDate, bondHolidays = new Set(), couponMode = 'all') {
+  if (couponMode === 'none') return 0;
+  const n = remainingCouponPaymentsThisYear(maturity, settlementDate, bondHolidays);
+  return couponMode === 'last' ? Math.min(n, 1) : n;
+}
+
 // ─── The shared sizing pipeline ─────────────────────────────────────────────────
 export function sizeLadder({
   dara, daraByYear = null, firstYear, lastYear, optionalYears = null,
   rangeYears, gapYears, future30yYears,
   yearBondMap, yearTipsListMap = null, tipsMap, refCPI, settlementDate, settlementYear,
   preLadderInterest = false, bondHolidays = new Set(),
+  rmdCashOverride = 0, rmdCouponMode = 'all',
   future30yLowerCoverBond = null, future30yUpperCoverBond = null,
   future30yLowerYear = null, future30yUpperYear = null,
 }) {
@@ -559,32 +577,34 @@ export function sizeLadder({
       // cash for this year. Every other funded year is entirely in the future, so its incoming
       // coupons haven't happened yet and the full-annual assumption is exactly right there.
       const isSettlementYear = year === settlementYear;
+      const rmdOverrideForYear = isSettlementYear ? rmdCashOverride : 0;
       const incomingLMI = isSettlementYear ? runningLMIRemaining : runningLMI;
       corrLMI[year] = incomingLMI;
 
       const exQty = exByYear[year] ?? 0;
       const excessLMIFull = exQty * 1000 * ir * (bond.coupon ?? 0);
       const excessLMI = isSettlementYear
-        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate, bondHolidays)
+        ? exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode)
         : excessLMIFull;
       const future30yExtra = calcFuture30yExtraIncome(year);   // AMD (≤2052) + roll coupon (2053–56)
 
       // Funded-year real P+I need after the year-level income offsets, split across the year's TIPS.
       const need = (isZrd || year > lastYear || year < firstYear) ? 0
-        : Math.max(0, yearDara - incomingLMI - excessLMI - future30yExtra - (year === partialCreditYear ? partialCredit : 0));
+        : Math.max(0, yearDara - incomingLMI - excessLMI - future30yExtra - rmdOverrideForYear - (year === partialCreditYear ? partialCredit : 0));
       const rungs = sizeYearRungs(tipsList(year), need, refCPI);
       const { qty: fyQty, annualInterest: fundedCoupon } = aggregateRungs(rungs);
 
       corrRungs[year] = rungs;
       corrFYQty[year] = fyQty;
       runningLMI += fundedCoupon + excessLMIFull;
-      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * remainingCouponPaymentsThisYear(r.bond.maturity, settlementDate, bondHolidays), 0)
-        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * remainingCouponPaymentsThisYear(bond.maturity, settlementDate, bondHolidays);
+      runningLMIRemaining += rungs.reduce((s, r) => s + r.qty * r.ir * 1000 * r.coupon / 2 * rmdCappedRemainingCoupons(r.bond.maturity, settlementDate, bondHolidays, rmdCouponMode), 0)
+        + exQty * 1000 * ir * (bond.coupon ?? 0) / 2 * rmdCappedRemainingCoupons(bond.maturity, settlementDate, bondHolidays, rmdCouponMode);
     }
   }
 
   return {
     prelim, corrFYQty, corrLMI, corrRungs,
+    rmdCashOverride, rmdCouponMode,
     zeroedFundedYears, partialCreditYear, partialCredit, pliCreditByGapYear, pliCreditByFundedYear,
     lowerYear, upperYear, lowerExQty, upperExQty, lowerWeight, upperWeight,
     lowerDuration, upperDuration, lowerMonth, upperMonth, totalExcessCost,
