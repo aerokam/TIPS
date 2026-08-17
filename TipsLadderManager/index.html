@@ -3053,6 +3053,7 @@ function getDaraByYear() {
   const cashInput = document.getElementById('rmd-cash-override');
   const closePop = () => { pop.hidden = true; };
   const openPop = (linkEl) => {
+    _hideBracketTip(); // the link's own hover explainer must not linger once its click popover is open
     cashInput.value = _rmdCashOverride ? Math.round(_rmdCashOverride) : '';
     pop.querySelectorAll('input[name="rmd-coupon-mode"]').forEach(r => { r.checked = (r.value === _rmdCouponMode); });
     const r = linkEl.getBoundingClientRect();

@@ -1554,6 +1554,15 @@ test('RMD Options: hovering the link shows an explainer without opening the popo
   // Hovering off hides it again.
   await page.locator('#build-table').hover({ position: { x: 5, y: 5 } });
   await expect(tooltip).toBeHidden();
+
+  // Clicking the link (still hovered, since a click starts with the cursor already over it) opens
+  // the popover AND dismisses the hover explainer -- it must not linger behind the open popover.
+  await link.hover();
+  await expect(tooltip).toBeVisible();
+  await link.click();
+  await expect(page.locator('#rmd-options-popover')).toBeVisible();
+  await expect(tooltip).toBeHidden();
+  await page.locator('#rmd-options-close').click();
 });
 
 // RMD Options persist through the same standalone DARA-plan file the DARA-by-year shape already
