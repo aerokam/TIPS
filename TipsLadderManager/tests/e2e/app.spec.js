@@ -1439,7 +1439,7 @@ test('build: Set DARA over a selected range works; Infer DARA never renders in B
   const years = await page.locator('#build-table .fy-dara-input[data-year]').evaluateAll(
     els => els.slice(0, 3).map(e => e.dataset.year)
   );
-  // Left-edge position: years[0] is the settlement year, whose row also carries the RMD options
+  // Left-edge position: years[0] is the settlement year, whose row also carries the RMD Options
   // link (5.0 §RMD Options) — a default-centroid click can land on it instead of selecting the row.
   await page.locator(`#build-table tr.fy-group-header[data-fy="${years[0]}"]`).click({ position: { x: 10, y: 8 } });
   await page.locator(`#build-table tr.fy-group-header[data-fy="${years[2]}"]`).click({ modifiers: ['Shift'] });
@@ -1462,7 +1462,7 @@ test('mode toggle: switching Build <-> Rebalance clears the active selection', a
   const year = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
   // Click near the row's left edge (the expand triangle/year label), not its default centroid —
   // the settlement year's row also carries the DARA input and (when it's the settlement year, as
-  // it is here since `year` is the FIRST funded year) the "RMD options" link (5.0 §RMD Options),
+  // it is here since `year` is the FIRST funded year) the "RMD Options" link (5.0 §RMD Options),
   // either of which would swallow a click landing on them via their own stopPropagation.
   await page.locator(`#build-table tr.fy-group-header[data-fy="${year}"]`).click({ position: { x: 10, y: 8 } });
   await expect(page.locator('#selection-toolbar')).toBeVisible();
@@ -1499,7 +1499,7 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 });
 
 // RMD Options (2.0 §RMD Options; 5.0 §Funded Year Group Header Row §RMD Options): the settlement
-// year's group header row — and only that row — carries a "RMD options" link that opens a small
+// year's group header row — and only that row — carries a "RMD Options" link that opens a small
 // popover for the two settlement-year-only inputs (cash override, coupon-count mode).
 test('RMD Options: link appears only on the settlement year row, and the popover round-trips values', async ({ page }) => {
   test.setTimeout(20_000);
@@ -1511,7 +1511,7 @@ test('RMD Options: link appears only on the settlement year row, and the popover
   await expect(page.locator(`#build-table tr.fy-group-header[data-fy="${otherYear}"] .fy-rmd-link`)).toHaveCount(0);
 
   const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
-  await expect(link).toHaveText('RMD options');
+  await expect(link).toHaveText('RMD Options');
   await link.click();
   const pop = page.locator('#rmd-options-popover');
   await expect(pop).toBeVisible();
@@ -1525,7 +1525,7 @@ test('RMD Options: link appears only on the settlement year row, and the popover
   await expect(pop).toBeHidden();
 
   // Non-default choice shows on the link itself, and the popover reopens with the values held.
-  await expect(link).toHaveText('RMD options*');
+  await expect(link).toHaveText('RMD Options*');
   await link.click();
   await expect(pop.locator('#rmd-cash-override')).toHaveValue('2500');
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('last');
@@ -1592,11 +1592,11 @@ test('RMD Options: cash override and coupon mode round-trip through the DARA-pla
   await page.reload();
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
   await _buildSetup(page);
-  await expect(link).toHaveText('RMD options'); // fresh reload is the plain default again
+  await expect(link).toHaveText('RMD Options'); // fresh reload is the plain default again
 
   await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
-  await expect(link).toHaveText('RMD options*');
+  await expect(link).toHaveText('RMD Options*');
   await link.click();
   await expect(pop.locator('#rmd-cash-override')).toHaveValue('4200');
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('none');

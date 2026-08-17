@@ -2425,7 +2425,7 @@ function _exportDaraPlan() {
   const lines = ['#fundedYear,dara'];
   for (const [y, v] of [..._daraByYearStore.entries()].sort((a, b) => a[0] - b[0])) lines.push(`${y},${Math.round(v)}`);
   // RMD Options (2.0 §RMD Options) — only when non-default, so a plan saved without ever touching
-  // the RMD options link round-trips as a plain #fundedYear,dara file, unchanged from before this feature.
+  // the RMD Options link round-trips as a plain #fundedYear,dara file, unchanged from before this feature.
   if (_rmdCashOverride || _rmdCouponMode !== 'all') {
     lines.push(`#params,rmdCashOverride=${Math.round(_rmdCashOverride)},rmdCouponMode=${_rmdCouponMode}`);
   }
@@ -2720,7 +2720,7 @@ let _daraAutoInferred = false;      // true when DARA field was populated by inf
 
 // ─── RMD Options (2.0 §RMD Options) ────────────────────────────────────────────
 // Apply only to the settlement year (the one funded year with both already-paid and not-yet-paid
-// coupons in the same calendar year) — set via the "RMD options" link on that year's row. Persist
+// coupons in the same calendar year) — set via the "RMD Options" link on that year's row. Persist
 // across a re-render/re-run the same way _daraByYearStore does; reset only by a fresh holdings/DARA-
 // plan load (see the DARA-plan import handler and _clearOutput()).
 let _rmdCashOverride = 0;

@@ -210,7 +210,7 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
     + flagHTML + '</span>';
 }
 
-// Hover explainer for the RMD options link — same [data-tip-html]/#bracket-tooltip mechanism the
+// Hover explainer for the RMD Options link — same [data-tip-html]/#bracket-tooltip mechanism the
 // funded-year bracket label uses (5.0 §Funded Year Group Header Row), applied directly to the link
 // itself rather than a separate icon, matching how the bracket label is both the content and the
 // hover target with no dedicated "?" affordance of its own.
@@ -238,7 +238,7 @@ function rmdOptionsLinkHTML(fy, settlementYear, rmdCashOverride, rmdCouponMode) 
   if (settlementYear == null || fy !== settlementYear) return '';
   const isDefault = (!rmdCashOverride) && (rmdCouponMode === 'all' || rmdCouponMode == null);
   return ` <a href="#" class="fy-rmd-link" data-year="${fy}" `
-    + `data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}">RMD options${isDefault ? '' : '*'}</a>`;
+    + `data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}">RMD Options${isDefault ? '' : '*'}</a>`;
 }
 
 function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraByYear, flaggedYears) {
