@@ -210,10 +210,10 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
     + flagHTML + '</span>';
 }
 
-// Hover explainer for the RMD options link, shown via the same [data-tip-html]/#bracket-tooltip
-// mechanism the funded-year bracket label already uses (5.0 §Funded Year Group Header Row) — no
-// new hover machinery, just another element carrying the attribute the existing mouseover/mouseout
-// delegation on simpleEl/tableEl already watches for.
+// Hover explainer for the RMD options link — same [data-tip-html]/#bracket-tooltip mechanism the
+// funded-year bracket label uses (5.0 §Funded Year Group Header Row), applied directly to the link
+// itself rather than a separate icon, matching how the bracket label is both the content and the
+// hover target with no dedicated "?" affordance of its own.
 function rmdOptionsTipHTML() {
   return '<b>RMD Options:</b>'
     + '<ul>'
@@ -232,15 +232,13 @@ function rmdOptionsTipHTML() {
 // only funded year with both already-paid and not-yet-paid coupons in the same calendar year
 // (2.0 §RMD Options). Sits in the merged toggle cell's existing blank space, right after the DARA
 // input — no new column. A trailing "*" marks a non-default choice so it's visible without opening
-// the popover. The "?" icon is a separate hover target from the link itself, so hovering for help
-// and clicking to open the popover never compete for the same gesture.
+// the popover. Hovering the link shows the explainer (data-tip-html); clicking it opens the popover
+// — the two gestures don't conflict, same as any link that also carries a tooltip.
 function rmdOptionsLinkHTML(fy, settlementYear, rmdCashOverride, rmdCouponMode) {
   if (settlementYear == null || fy !== settlementYear) return '';
   const isDefault = (!rmdCashOverride) && (rmdCouponMode === 'all' || rmdCouponMode == null);
-  return ` <a href="#" class="fy-rmd-link" data-year="${fy}">RMD options${isDefault ? '' : '*'}</a>`
-    + ` <span class="fy-rmd-tip" data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}" `
-    + 'style="display:inline-flex;align-items:center;justify-content:center;width:13px;height:13px;'
-    + 'border:1px solid #64748b;border-radius:50%;font-size:9px;color:#64748b;cursor:help">?</span>';
+  return ` <a href="#" class="fy-rmd-link" data-year="${fy}" `
+    + `data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}">RMD options${isDefault ? '' : '*'}</a>`;
 }
 
 function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraByYear, flaggedYears) {

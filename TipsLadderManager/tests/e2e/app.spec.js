@@ -1533,26 +1533,27 @@ test('RMD Options: link appears only on the settlement year row, and the popover
 });
 
 // The hover explainer reuses the funded-year bracket label's existing [data-tip-html]/
-// #bracket-tooltip mechanism (5.0 §Funded Year Group Header Row §RMD Options link) — a separate
-// hover target from the link itself, so it doesn't compete with the click-to-open-popover gesture.
-test('RMD Options: "?" icon shows a hover explainer, separate from the link\'s click target', async ({ page }) => {
+// #bracket-tooltip mechanism (5.0 §Funded Year Group Header Row §RMD Options link), applied
+// directly to the link itself (no separate icon) — hovering shows the explainer, clicking still
+// opens the popover, the same way any link can carry a tooltip without it competing with its click.
+test('RMD Options: hovering the link shows an explainer without opening the popover', async ({ page }) => {
   test.setTimeout(20_000);
   await _buildSetup(page);
 
   const firstYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
-  const tip = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-tip`);
+  const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
   const tooltip = page.locator('#bracket-tooltip');
   await expect(tooltip).toBeHidden();
 
-  await tip.hover();
+  await link.hover();
   await expect(tooltip).toBeVisible();
   await expect(tooltip).toContainText('Account cash targeted for RMD');
   await expect(tooltip).toContainText('Count remaining coupons toward RMD');
+  await expect(page.locator('#rmd-options-popover')).toBeHidden();
 
-  // Hovering off hides it again, and the popover never opened (hover ≠ the link's click gesture).
+  // Hovering off hides it again.
   await page.locator('#build-table').hover({ position: { x: 5, y: 5 } });
   await expect(tooltip).toBeHidden();
-  await expect(page.locator('#rmd-options-popover')).toBeHidden();
 });
 
 // RMD Options persist through the same standalone DARA-plan file the DARA-by-year shape already
