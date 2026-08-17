@@ -252,6 +252,17 @@ function nextTreasuryBusinessDay(isoStr) {
   return d.toISOString().slice(0, 10);
 }
 
+function isTreasuryBusinessDay(isoStr) {
+  var d = new Date(isoStr + 'T12:00:00Z');
+  return d.getUTCDay() !== 0 && d.getUTCDay() !== 6 && !BOND_HOLIDAYS.has(isoStr);
+}
+
+// A maturity (or coupon) payment due on a weekend or bond holiday is actually paid on
+// the next Treasury business day. Returns the date itself when it's already a business day.
+function effectivePaymentDate(isoStr) {
+  return isTreasuryBusinessDay(isoStr) ? isoStr : nextTreasuryBusinessDay(isoStr);
+}
+
 // Today's date in ET (matches scripts/getYieldsFedInvest.js todayET()) — used to detect
 // a TIPS maturing today so it stays visible after FedInvest drops its price at maturity.
 function todayET() {
@@ -270,6 +281,19 @@ function parseCsv(text) {
   });
 }
 
+function isoLocalDate(d) {
+  var m = d.getMonth() + 1 < 10 ? '0' + (d.getMonth() + 1) : String(d.getMonth() + 1);
+  var day = d.getDate() < 10 ? '0' + d.getDate() : String(d.getDate());
+  return d.getFullYear() + '-' + m + '-' + day;
+}
+
+// Local midnight, matching _nextCouponOnOrAfter's own candidate-date convention (see refDate
+// below) — distinct from the noon-UTC `matDate` parse used for cross-day comparisons.
+function localDateFromIso(isoStr) {
+  var p = isoStr.split('-');
+  return new Date(+p[0], +p[1] - 1, +p[2]);
+}
+
 function fmtDate(isoStr) {
   if (!isoStr) return '';
   var parts = isoStr.split('-');
@@ -286,31 +310,41 @@ function recomputeWithRefCpi(dateStr) {
   var todayStr = todayET();
   var _tp = todayStr.split('-');
   var todayDate = new Date(+_tp[0], +_tp[1] - 1, +_tp[2]);
+  // A weekend + adjacent bond holiday can roll a coupon's payment forward by several
+  // calendar days, so a coupon dated a few days before today can still be paying out
+  // today — look back far enough to catch it (7 days safely covers any realistic
+  // weekend/holiday stack).
+  var couponLookbackDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate() - 7);
 
   allRows.forEach(function(r) {
-    // Index Ratio / Adj Price for a TIPS that matured today is pinned to its own maturity
-    // date — that's the realized principal redemption, not a function of the globally
+    var matDate = r.maturity ? new Date(r.maturity + 'T12:00:00Z') : null;
+    var isMatured = matDate && matDate <= todayDate;
+
+    // Index Ratio / Adj Price for a matured TIPS is pinned to its own maturity date's Ref
+    // CPI — that's the realized principal redemption, not a function of the globally
     // selected Ref CPI Date.
-    var rowCpi = r.maturedToday ? lookupRefCpi(refCpiRows, r.maturity) : cpi;
+    var rowCpi = isMatured ? lookupRefCpi(refCpiRows, r.maturity) : cpi;
     r.indexRatio = indexRatio(rowCpi, r.baseCpi);
     r.adjPrice = (r.indexRatio != null && r.price != null) ? r.price * r.indexRatio : null;
 
-    var matDate = r.maturity ? new Date(r.maturity + 'T12:00:00Z') : null;
-
-    // Cpn Date / Cpn Date IR / Cpn $: if today is itself a coupon date for this bond (a TIPS
-    // pays semiannually 6 months apart, so this includes its final coupon on maturity day),
-    // show that realized payment regardless of the globally selected Ref CPI Date — otherwise
-    // project the next coupon on/after the selected date.
-    var candidateToday = (matDate && matDate >= todayDate) ? _nextCouponOnOrAfter(todayDate, matDate) : null;
-    var todayIsCpnDate = candidateToday && candidateToday.getTime() === todayDate.getTime();
-    var cpnRefDate = todayIsCpnDate ? todayDate : refDate;
+    // Cpn Date / Cpn Date IR / Cpn $: if today is the effective (weekend/holiday-rolled)
+    // payment date of this bond's next-or-final coupon, show that realized payment
+    // regardless of the globally selected Ref CPI Date — otherwise project the next
+    // coupon on/after the selected date. A matured bond's final coupon coincides with
+    // its maturity date, so a maturity landing on a weekend/holiday keeps showing that
+    // final coupon through the day it actually pays. A still-outstanding bond's regular
+    // semiannual coupon gets the same treatment: search from couponLookbackDate (not
+    // todayDate) so a coupon dated a few days ago — already in the past calendar-wise,
+    // but only now actually paid because of a weekend/holiday roll — is still found.
+    var candidateCpn = isMatured ? localDateFromIso(r.maturity)
+      : (matDate ? _nextCouponOnOrAfter(couponLookbackDate, matDate) : null);
+    var candidateCpnStr = isMatured ? r.maturity : (candidateCpn ? isoLocalDate(candidateCpn) : null);
+    var todayIsCpnDate = candidateCpnStr && effectivePaymentDate(candidateCpnStr) === todayStr;
+    var cpnRefDate = todayIsCpnDate ? candidateCpn : refDate;
     var nextCpn = (matDate && matDate >= cpnRefDate) ? _nextCouponOnOrAfter(cpnRefDate, matDate) : null;
 
     if (nextCpn) {
-      var y = nextCpn.getFullYear();
-      var m = nextCpn.getMonth() + 1 < 10 ? '0' + (nextCpn.getMonth() + 1) : String(nextCpn.getMonth() + 1);
-      var d = nextCpn.getDate() < 10 ? '0' + nextCpn.getDate() : String(nextCpn.getDate());
-      r.nextCoupon = y + '-' + m + '-' + d;
+      r.nextCoupon = isoLocalDate(nextCpn);
       r.cpnRefCpi = lookupRefCpi(refCpiRows, r.nextCoupon);
       var cpnIR = indexRatio(r.cpnRefCpi, r.baseCpi);
       r.cpnDateIR = cpnIR;
@@ -335,7 +369,7 @@ function getFilteredSorted() {
 
   if (showOutstanding) {
     var todayStr = todayET();
-    rows = rows.filter(function(r) { return (r.maturity || '') >= todayStr; });
+    rows = rows.filter(function(r) { return r.maturity && effectivePaymentDate(r.maturity) >= todayStr; });
   }
 
   // Apply date range filters
