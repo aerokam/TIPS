@@ -2457,6 +2457,11 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   _rmdCouponMode = importedParams?.rmdCouponMode ?? 'all';
 
   _daraByYearStore = new Map(daraMap);
+  // A loaded plan supplies its own explicit value for every year it covers, superseding whatever
+  // auto-set-to-median guess (and its ⚠ flag) was showing before import (3.0 §Before-State Preview:
+  // "If the user edits a flagged year's DARA input, the ⚠ clears" — a loaded plan is the same kind
+  // of explicit override, just applied to every year at once instead of one rung at a time).
+  _bracketAutoCapYears = new Set();
   // Mark this an explicit #fundedYear,dara import, same as one carried by the holdings file itself
   // -- this is the SAME block format, just imported as its own file. Without this,
   // _storeIsPristineMirror() (which only checks currentImportedDaraByYear, not how the store got
