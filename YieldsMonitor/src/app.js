@@ -678,10 +678,15 @@ async function fetchOne(symbol, range, force = false) {
     }
     if (fetchTasks.length > 0) await Promise.all(fetchTasks);
     const data = liveCache[cacheKey] || [];
-    const cutoff = new Date(); if (is2D) cutoff.setDate(cutoff.getDate() - 2); else cutoff.setDate(cutoff.getDate() - 10);
+    // Normalized to local midnight — a cutoff still carrying today's current time-of-day
+    // would exclude that same calendar day N periods back whenever "now" is later in the
+    // day than that day's data timestamp (e.g. checking after 3pm ET drops the 15:00-ET-
+    // stamped close for the equivalent day, landing one day later than intended).
+    const cutoff = new Date(); cutoff.setHours(0, 0, 0, 0);
+    if (is2D) cutoff.setDate(cutoff.getDate() - 2); else cutoff.setDate(cutoff.getDate() - 10);
     return data.filter(p => p.x >= cutoff && !isWeekendEt(p.x));
   } else {
-    const cutoff = new Date();
+    const cutoff = new Date(); cutoff.setHours(0, 0, 0, 0);
     if (range === '1Y') cutoff.setFullYear(cutoff.getFullYear() - 1); else if (range === '2Y') cutoff.setFullYear(cutoff.getFullYear() - 2); else if (range === '3Y') cutoff.setFullYear(cutoff.getFullYear() - 3); else if (range === '10Y') cutoff.setFullYear(cutoff.getFullYear() - 10); else if (range === 'ALL') cutoff.setFullYear(cutoff.getFullYear() - 50);
     if (range === '1Y' || range === '2Y' || range === '3Y') {
       // Reread provider 6M (daily ~3Y) fresh each load — same feed cnbc.com uses; no history.json, no 5D tip.
@@ -696,9 +701,14 @@ async function fetchOne(symbol, range, force = false) {
       return (daily || []).filter(p => p.x >= cutoff && !isWeekendEt(p.x));
     } else {
       // 10Y, ALL: history.json (accumulated daily-resolution store; coarser CNBC feeds supplemented by past daily captures).
+      // No !isWeekendEt filter here: unlike the daily/intraday branches above (where a
+      // weekend timestamp would mean a genuine feed glitch), the weekly/quarterly-resolution
+      // deep history is deliberately stamped on Sunday per bar (see updateYieldsHistory.js) —
+      // applying the weekend filter here was silently discarding nearly all of it, leaving
+      // only the rare weekday-stamped points (e.g. New Year's Day) visible.
       console.log(`%c[R2] %cLoading history for ${symbol}...`, "color: #ea580c; font-weight: bold", "color: inherit");
       const history = await fetchHistory(symbol);
-      return (history || []).filter(p => p.x >= cutoff && !isWeekendEt(p.x));
+      return (history || []).filter(p => p.x >= cutoff);
     }
   }
 }
