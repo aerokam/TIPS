@@ -945,7 +945,7 @@ test('rebalance: Infer DARA over a selected range fills an empty interior year',
   await page.locator('#holdings-file').setInputFiles(path.join(FIXTURES, 'OfxInteriorHoles.csv'));
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 
-  await page.locator('#simple-table tr.fy-group-header[data-fy="2029"]').click();
+  await page.locator('#simple-table tr.fy-group-header[data-fy="2029"]').click({ delay: 650 });
   await page.locator('#simple-table tr.fy-group-header[data-fy="2031"]').click({ modifiers: ['Shift'] });
   await expect(page.locator('#selection-toolbar')).toBeVisible();
   await page.locator('#selection-infer-btn').click();
@@ -999,6 +999,48 @@ test('rebalance: click-drag selection highlights the row under the cursor immedi
   expect(bg, 'row under the cursor mid-drag must already show the yellow selected background').toBe('rgb(255, 233, 168)');
 
   await page.mouse.up();
+});
+
+// A quick click and a selecting click are different gestures now (3.0 §Selecting rungs) — a quick
+// click (press+release, no hold) only toggles expand/collapse and never highlights the row yellow;
+// a press-and-hold past the ~600ms threshold only selects and never toggles.
+test('rebalance: quick click toggles expand/collapse only, press-and-hold selects only', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  const row = page.locator('#simple-table tr.fy-group-header').first();
+  const expandedBefore = await row.getAttribute('data-expanded');
+
+  await row.click();
+  await expect(row, 'quick click toggles expand/collapse').not.toHaveAttribute('data-expanded', expandedBefore);
+  await expect(row, 'quick click must not select the row').not.toHaveClass(/selected/);
+
+  const expandedAfterClick = await row.getAttribute('data-expanded');
+  await row.click({ delay: 650 });
+  await expect(row, 'press-and-hold selects the row').toHaveClass(/selected/);
+  await expect(row, 'press-and-hold must not toggle expand/collapse').toHaveAttribute('data-expanded', expandedAfterClick);
+});
+
+// The selection toolbar's display:none/flex flip grows #top-row and shifts the table below it down
+// (6.0 §Selection Toolbar). Revealing it the instant a hold fires, while the button is still down,
+// pushes the just-selected row out from under a stationary cursor — the row above ends up under the
+// cursor instead, reading as if the wrong row got selected even though it didn't. The reveal must
+// stay deferred until mouseup.
+test('rebalance: press-and-hold does not reveal the selection toolbar (and shift the table) before mouseup', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  const row = page.locator('#simple-table tr.fy-group-header').first();
+  const box = await row.boundingBox();
+  await page.mouse.move(box.x + 10, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(700); // past the 600ms hold threshold, button still held down
+
+  await expect(row, 'row selects while still held').toHaveClass(/selected/);
+  await expect(page.locator('#selection-toolbar'), 'toolbar reveal stays deferred while the button is down').not.toBeVisible();
+
+  await page.mouse.up();
+  await expect(page.locator('#selection-toolbar'), 'toolbar appears once the gesture ends').toBeVisible();
 });
 
 // A completed cross-row drag never fires a native 'click' event at all (mousedown and mouseup land
@@ -1261,9 +1303,11 @@ async function _selRebalSetup(page, name) {
   await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
 }
 
-// Click the fromYear row, then Shift-click the toYear row — selects the whole range between them.
+// Press-and-hold the fromYear row (past the 600ms select threshold, 3.0 §Selecting rungs — a quick
+// click only toggles expand/collapse now, it no longer selects) to anchor it, then Shift-click the
+// toYear row to select the whole range between them.
 async function _selectRange(page, tableSel, fromYear, toYear) {
-  await page.locator(`${tableSel} tr.fy-group-header[data-fy="${fromYear}"]`).click();
+  await page.locator(`${tableSel} tr.fy-group-header[data-fy="${fromYear}"]`).click({ delay: 650 });
   await page.locator(`${tableSel} tr.fy-group-header[data-fy="${toYear}"]`).click({ modifiers: ['Shift'] });
 }
 
@@ -1441,7 +1485,9 @@ test('build: Set DARA over a selected range works; Infer DARA never renders in B
   );
   // Left-edge position: years[0] is the settlement year, whose row also carries the RMD Options
   // link (5.0 §RMD Options) — a default-centroid click can land on it instead of selecting the row.
-  await page.locator(`#build-table tr.fy-group-header[data-fy="${years[0]}"]`).click({ position: { x: 10, y: 8 } });
+  // delay: 650 holds past the 600ms select threshold (3.0 §Selecting rungs) — a quick click now
+  // only toggles expand/collapse, it no longer selects.
+  await page.locator(`#build-table tr.fy-group-header[data-fy="${years[0]}"]`).click({ position: { x: 10, y: 8 }, delay: 650 });
   await page.locator(`#build-table tr.fy-group-header[data-fy="${years[2]}"]`).click({ modifiers: ['Shift'] });
   await expect(page.locator('#selection-toolbar')).toBeVisible();
   await expect(page.locator('#selection-infer-btn'), 'Infer DARA never renders in Build').not.toBeVisible();
@@ -1464,7 +1510,9 @@ test('mode toggle: switching Build <-> Rebalance clears the active selection', a
   // the settlement year's row also carries the DARA input and (when it's the settlement year, as
   // it is here since `year` is the FIRST funded year) the "RMD Options" link (5.0 §RMD Options),
   // either of which would swallow a click landing on them via their own stopPropagation.
-  await page.locator(`#build-table tr.fy-group-header[data-fy="${year}"]`).click({ position: { x: 10, y: 8 } });
+  // delay: 650 holds past the 600ms select threshold (3.0 §Selecting rungs) — a quick click now
+  // only toggles expand/collapse, it no longer selects.
+  await page.locator(`#build-table tr.fy-group-header[data-fy="${year}"]`).click({ position: { x: 10, y: 8 }, delay: 650 });
   await expect(page.locator('#selection-toolbar')).toBeVisible();
 
   await page.locator('.tab-btn[data-mode="rebalance"]').click();

@@ -1194,34 +1194,56 @@ function _updateExpandCollapseLabels() {
 }
 
 // Selecting a range of rungs (3.0 §Per-Rung DARA Selection) shares these group-header rows with
-// the existing expand/collapse-on-click behavior, disambiguated by gesture: a plain click still
-// toggles expand/collapse (unchanged) AND selects that one row (the anchor for a following
-// Shift-click); Shift-click extends the selection from the last-clicked row; click-and-drag across
-// rows builds a selection live. A drag suppresses the trailing click's expand/collapse toggle (it
-// just finished selecting, not collapsing).
+// the existing expand/collapse-on-click behavior, disambiguated by gesture rather than layered on
+// top of it: a quick click (press+release, no movement) ONLY toggles expand/collapse — it never
+// selects. Press-and-hold ~600ms without moving ONLY selects that one row (the anchor for a
+// following Shift-click) — it never toggles. If real pointer movement to a different row happens
+// before the hold timer fires, the timer is preempted and range-selection starts immediately, same
+// as a plain drag always has; if the hold has already fired (single row selected) and the pointer
+// keeps moving without releasing, that same movement continues to extend the range — a hold and a
+// following drag chain into one gesture. Either way the trailing click is suppressed (it just
+// finished selecting, not toggling). Shift-click extends from the last anchor, or — with no anchor
+// yet — selects just the clicked row as a new anchor; it never toggles either.
+//
+// `_deferToolbarLayout` holds off the selection toolbar's display:none/flex flip — which grows
+// #top-row and shifts every row below it down (6.0 §Selection Toolbar) — until mouseup, for as long
+// as the button is held down. Without this, a hold firing mid-press pushes the just-selected row out
+// from under a stationary cursor the instant the toolbar appears, so the row that ends up under the
+// cursor is the one above the row that actually got selected — confusing even though the selection
+// itself is correct. The row's own yellow highlight (a background-only class, no layout effect)
+// still applies immediately; only the layout-affecting toolbar reveal is delayed.
+const HOLD_SELECT_MS = 600;
+let _holdSelectTimer = null;
+let _deferToolbarLayout = false;
 [simpleEl, tableEl].forEach(tbl => {
   tbl.addEventListener('mousedown', e => {
     const hdr = e.target.closest('tr.fy-group-header');
     if (!hdr || e.target.closest('.fy-dara-input') || e.target.closest('td.drillable') || e.target.closest('.fy-rmd-link')) return;
-    // A fresh press always clears leftover drag state from a prior gesture, BEFORE the Shift-click
-    // early-return below — otherwise a completed cross-row drag (whose mouseup lands on a different
-    // row than its mousedown, so the browser never fires 'click' at all — click only fires when
-    // mousedown/mouseup share a target) leaves `_dragSelecting` stuck `true`. A plain click's own
-    // mousedown clears it via this same line, but a Shift-click's mousedown used to return first,
-    // so the stale flag survived into the click handler and silently swallowed the Shift-click
-    // instead of extending the range.
+    // A fresh press always clears leftover drag/hold state from a prior gesture, BEFORE the
+    // Shift-click early-return below — otherwise a completed cross-row drag (whose mouseup lands on
+    // a different row than its mousedown, so the browser never fires 'click' at all — click only
+    // fires when mousedown/mouseup share a target) leaves `_dragSelecting` stuck `true`. A plain
+    // press's own mousedown clears it via this same line, but a Shift-click's mousedown used to
+    // return first, so the stale flag survived into the click handler and silently swallowed the
+    // Shift-click instead of extending the range.
+    clearTimeout(_holdSelectTimer);
     _dragSelecting = false;
     if (e.shiftKey) return;
     // Prevent the browser's own native text-selection drag from starting here — otherwise dragging
     // across rows to build a range selection also paints its own blue text highlight underneath our
     // yellow row highlight, which is confusing since the two selections don't agree on what's selected.
     e.preventDefault();
-    _dragStartYear = +hdr.dataset.fy;
-    // Anchor the future Shift-click extension at the drag's START row, set here (not in the click
-    // handler) because a real cross-row drag never reaches that handler at all (see above) — matches
-    // the standard drag-then-Shift-click convention (extend from where the drag began, not where it
-    // ended).
-    _lastClickedYear = _dragStartYear;
+    _deferToolbarLayout = true;
+    const y = +hdr.dataset.fy;
+    _dragStartYear = y;
+    _holdSelectTimer = setTimeout(() => {
+      // The hold fired while the button is still down: select the anchor row now, and mark
+      // _dragSelecting so (a) any further movement extends the range like a normal drag and (b) the
+      // eventual click (if the pointer never moves) is suppressed from also toggling.
+      _dragSelecting = true;
+      _lastClickedYear = y;
+      _setSelection([y]);
+    }, HOLD_SELECT_MS);
   });
   tbl.addEventListener('mousemove', e => {
     if (_dragStartYear == null) return;
@@ -1229,6 +1251,10 @@ function _updateExpandCollapseLabels() {
     if (!hdr) return;
     const y = +hdr.dataset.fy;
     if (y !== _dragStartYear || _dragSelecting) {
+      clearTimeout(_holdSelectTimer);
+      // Anchor the future Shift-click extension at the drag's START row, the first time real
+      // movement turns this into a drag (if the hold already fired first, this is already set).
+      if (!_dragSelecting) _lastClickedYear = _dragStartYear;
       _dragSelecting = true;
       _selectRange(_dragStartYear, y);
     }
@@ -1240,14 +1266,21 @@ function _updateExpandCollapseLabels() {
     const y = +hdr.dataset.fy;
     if (_dragSelecting) { _dragSelecting = false; _dragStartYear = null; _lastClickedYear = y; return; }
     _dragStartYear = null;
-    if (e.shiftKey && _lastClickedYear != null) { _selectRange(_lastClickedYear, y); return; }
-    _setSelection([y]);
-    _lastClickedYear = y;
+    if (e.shiftKey) {
+      if (_lastClickedYear != null) _selectRange(_lastClickedYear, y);
+      else { _setSelection([y]); _lastClickedYear = y; }
+      return;
+    }
     _setGroupExpanded(tbl, hdr.dataset.fy, hdr.dataset.expanded !== 'true');
     _updateExpandCollapseLabels();
   });
 });
-document.addEventListener('mouseup', () => { _dragStartYear = null; });
+document.addEventListener('mouseup', () => {
+  clearTimeout(_holdSelectTimer);
+  _dragStartYear = null;
+  // Flush the toolbar's layout flip now that the gesture is over (see the deferral comment above).
+  if (_deferToolbarLayout) { _deferToolbarLayout = false; _updateSelectionToolbar(); }
+});
 
 // ─── Maturity picker modal (prototype — reached via "Select maturities…" in the ─────────────────
 // Maturity preference dropdown, 2.0 §Picking Maturities for a Funded Year) ──────────────────────
@@ -2936,8 +2969,11 @@ function _selectRange(fromYear, toYear) {
 
 function _updateSelectionToolbar() {
   const bar = document.getElementById('selection-toolbar');
-  if (!_selectedYears.size) { bar.style.display = 'none'; return; }
-  bar.style.display = 'flex';
+  // While `_deferToolbarLayout` is set (a select gesture's button is still down, see the mousedown
+  // handler above), leave `display` alone — flipping it grows #top-row and shifts the table under a
+  // stationary cursor. The flip is flushed once, on mouseup, once the gesture is over.
+  if (!_selectedYears.size) { if (!_deferToolbarLayout) bar.style.display = 'none'; return; }
+  if (!_deferToolbarLayout) bar.style.display = 'flex';
   const sorted = [..._selectedYears].sort((a, b) => a - b);
   const label = sorted.length === 1 ? String(sorted[0]) : `${sorted[0]}–${sorted[sorted.length - 1]}`;
   document.getElementById('selection-label').textContent =
