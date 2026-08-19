@@ -633,6 +633,19 @@ function refreshSaOverlays(forceRescale = false) {
   });
 }
 
+// ET midnight, `adjust`ed from today's ET calendar date (e.g. N years/days back) — DST-aware
+// via makeEtMoment. A plain `new Date(); setHours(0,0,0,0)` anchors to the BROWSER's local
+// midnight instead, which is wrong here: feed timestamps are ET wall-clock (some stamped
+// 00:00 ET, some 15:00 ET), and a browser west of Eastern (Mountain, Pacific) has its own
+// local midnight fall AFTER ET midnight of the same calendar day — excluding that ET day's
+// 00:00-stamped point and landing the cutoff one day late.
+function etCutoff(adjust) {
+  const [m, d, y] = getEtDateStr(new Date()).split('/').map(Number);
+  const t = new Date(y, m - 1, d);
+  adjust(t);
+  return makeEtMoment(t.getFullYear(), t.getMonth(), t.getDate(), 0);
+}
+
 async function fetchOne(symbol, range, force = false) {
   if (range === 'Custom') {
     const history = await fetchHistory(symbol);
@@ -678,16 +691,12 @@ async function fetchOne(symbol, range, force = false) {
     }
     if (fetchTasks.length > 0) await Promise.all(fetchTasks);
     const data = liveCache[cacheKey] || [];
-    // Normalized to local midnight — a cutoff still carrying today's current time-of-day
-    // would exclude that same calendar day N periods back whenever "now" is later in the
-    // day than that day's data timestamp (e.g. checking after 3pm ET drops the 15:00-ET-
-    // stamped close for the equivalent day, landing one day later than intended).
-    const cutoff = new Date(); cutoff.setHours(0, 0, 0, 0);
-    if (is2D) cutoff.setDate(cutoff.getDate() - 2); else cutoff.setDate(cutoff.getDate() - 10);
+    const cutoff = etCutoff(t => t.setDate(t.getDate() - (is2D ? 2 : 10)));
     return data.filter(p => p.x >= cutoff && !isWeekendEt(p.x));
   } else {
-    const cutoff = new Date(); cutoff.setHours(0, 0, 0, 0);
-    if (range === '1Y') cutoff.setFullYear(cutoff.getFullYear() - 1); else if (range === '2Y') cutoff.setFullYear(cutoff.getFullYear() - 2); else if (range === '3Y') cutoff.setFullYear(cutoff.getFullYear() - 3); else if (range === '10Y') cutoff.setFullYear(cutoff.getFullYear() - 10); else if (range === 'ALL') cutoff.setFullYear(cutoff.getFullYear() - 50);
+    const cutoff = etCutoff(t => {
+      if (range === '1Y') t.setFullYear(t.getFullYear() - 1); else if (range === '2Y') t.setFullYear(t.getFullYear() - 2); else if (range === '3Y') t.setFullYear(t.getFullYear() - 3); else if (range === '10Y') t.setFullYear(t.getFullYear() - 10); else if (range === 'ALL') t.setFullYear(t.getFullYear() - 50);
+    });
     if (range === '1Y' || range === '2Y' || range === '3Y') {
       // Reread provider 6M (daily ~3Y) fresh each load — same feed cnbc.com uses; no history.json, no 5D tip.
       const cacheKey = `${symbol}_6Mdaily`;
