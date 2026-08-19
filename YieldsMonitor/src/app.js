@@ -77,21 +77,34 @@ const panStartY = {}; // sym -> {min, max} at pan gesture start; cleared on pan 
 // CNBC's restQuote endpoint (fetchTipsBondMeta) only exposes each symbol's CURRENT
 // underlying bond, not a historical CUSIP-per-date mapping — so it's used as the
 // authoritative source for TODAY's point only. For every other (historical) point,
-// the bond identity is reconstructed from TipsRef.csv (the full TIPS auction record)
-// via the observed rollover rule: CNBC only re-picks the underlying bond at fixed
-// 6-month checkpoints tied to that tenor's original auction cycle (10yr-origin notes,
-// which back 1Y/2Y, auction Jan/Jul; the 5yr-origin note behind 5Y auctions Apr/Oct) —
-// NOT continuously by "nearest date to N years out". At each checkpoint, the target
-// maturity is checkpoint + tenor years; when two CUSIPs share that maturity (a 10yr-
-// origin and an older 20yr-origin note can mature the same date), the more recently
-// dated one is used. Verified against CNBC's live data for all three tenors on
-// 2026-07-01 (checkpoint = most recent Jan/Apr 15): reproduces Jan-2027/0.375% (1Y),
-// Jan-2028/0.50% (2Y), and Apr-2031/1.25% (5Y) exactly.
+// the bond identity comes from SA_ROLLOVER_LOG below: an empirically OBSERVED record
+// of which maturity each symbol actually quoted, not a predicted one. A calendar rule
+// ("rolls every 6 months, on the 15th of the origin-auction month") was tried and
+// falsified: cross-checking CNBC's own historical yields against real FedInvest prices
+// for each candidate bond (TreasuryDirect's historical price tool) showed CNBC rolls on
+// that same Jan15/Jul15 (1Y/2Y) or Apr15/Oct15 (5Y) cadence, but only after a LAG of
+// several weeks that varies cycle to cycle (~3 weeks one cycle, 5+ weeks and still not
+// rolled as of 2026-08-18 for the next) — no fixed offset reproduces it. So rollover
+// dates are pinned individually by that same cross-check method (bisect candidate dates
+// until the FedInvest-implied yield of one candidate bond stops matching CNBC's reported
+// yield and the other starts) and recorded here as they're found, rather than assumed.
 const SA_SYMBOLS = new Set(['US1YTIPS', 'US2YTIPS', 'US5YTIPS']);
-const SA_AUCTION_CYCLE = {
-  US1YTIPS: { tenorYears: 1, months: [1, 7] },  // 10yr-origin: Jan/Jul auctions
-  US2YTIPS: { tenorYears: 2, months: [1, 7] },
-  US5YTIPS: { tenorYears: 5, months: [4, 10] }, // 5yr-origin: Apr/Oct auctions
+// Ascending by `from` (ET date, 'YYYY-MM-DD') — the maturity in effect FROM that date
+// until the next entry (or indefinitely, for the last one). A trade date before the
+// first entry has no observed bond identity and is left as a gap — not guessed.
+const SA_ROLLOVER_LOG = {
+  US1YTIPS: [
+    { from: '2025-08-04', maturity: '2026-07-15' },
+    { from: '2026-02-10', maturity: '2027-01-15' },
+  ],
+  US2YTIPS: [
+    { from: '2025-08-04', maturity: '2027-07-15' },
+    { from: '2026-02-10', maturity: '2028-01-15' },
+  ],
+  US5YTIPS: [
+    { from: '2026-03-20', maturity: '2030-10-15' }, // earliest date actually cross-checked; earlier points are a gap, not a guess
+    { from: '2026-06-01', maturity: '2031-04-15' },
+  ],
 };
 const REF_CPI_SA_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/RefCpiNsaSa.csv';
 const HOLIDAYS_CSV_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/misc/BondHolidaysSifma.csv';
@@ -532,31 +545,18 @@ async function fetchTipsRefRows() {
   return tipsRefPromise;
 }
 
-// The most recent auction-cycle checkpoint (day 15 of one of `months`) on or before tradeDate.
-function mostRecentCheckpoint(tradeDate, months) {
-  const year = tradeDate.getFullYear();
-  const candidates = [];
-  for (const y of [year - 1, year]) {
-    for (const m of months) candidates.push(new Date(y, m - 1, 15));
-  }
-  let best = null;
-  for (const c of candidates) {
-    if (c <= tradeDate && (!best || c > best)) best = c;
-  }
-  return best;
-}
-
-// Resolves the TIPS bond (maturity + coupon) that was actually behind `sym` on tradeDate,
-// per the rollover rule documented above SA_AUCTION_CYCLE. Returns null if TipsRef.csv
-// doesn't have a matching maturity (e.g. tradeDate predates the reference data).
+// Resolves the TIPS bond (maturity + coupon) actually behind `sym` on tradeDate, per the
+// observed rollover history in SA_ROLLOVER_LOG above. Returns null (a gap, not a guess)
+// when tradeDate predates the earliest entry we've cross-checked, or TipsRef.csv doesn't
+// have a matching maturity.
 function resolveTipsBond(tradeDate, sym, refRows) {
-  const cycle = SA_AUCTION_CYCLE[sym];
-  if (!cycle || !refRows) return null;
-  const checkpoint = mostRecentCheckpoint(tradeDate, cycle.months);
-  if (!checkpoint) return null;
-  const targetMaturity = new Date(checkpoint.getFullYear() + cycle.tenorYears, checkpoint.getMonth(), checkpoint.getDate());
-  const targetStr = toIsoDate(targetMaturity);
-  const candidates = refRows.filter(r => r.maturity === targetStr);
+  const log = SA_ROLLOVER_LOG[sym];
+  if (!log || !refRows) return null;
+  const tradeDateStr = toIsoDate(tradeDate);
+  let entry = null;
+  for (const e of log) { if (e.from <= tradeDateStr) entry = e; else break; }
+  if (!entry) return null;
+  const candidates = refRows.filter(r => r.maturity === entry.maturity);
   if (!candidates.length) return null;
   candidates.sort((a, b) => (a.datedDate < b.datedDate ? 1 : -1)); // most recently dated first
   const chosen = candidates[0];
@@ -587,7 +587,7 @@ function saYieldForQuote(yieldPct, tradeDateStr, bondMeta, holidaySet, saRows) {
 
 // Bond identity per point: today's point uses CNBC's live-fetched bond (empirically
 // confirmed); every other point resolves the bond that was actually in effect on that
-// trade date via TipsRef.csv + the rollover rule (see SA_AUCTION_CYCLE above). Cached
+// trade date via TipsRef.csv + the observed rollover log (see SA_ROLLOVER_LOG above). Cached
 // per unique trade date since many intraday points share the same date.
 function computeSaSeries(sym, data) {
   const liveMeta = tipsBondMeta && tipsBondMeta[sym];
@@ -938,7 +938,7 @@ function updateYieldCurves() {
   const saSeriesBySym = {};
   if (showSaYield) SA_SYMBOLS.forEach(sym => { saSeriesBySym[sym] = computeSaSeries(sym, rangeData[sym]); });
 
-  const curveOptions = { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } } }, plugins: { legend: { display: true, labels: { font: { size: 10, weight: 'bold' } } }, zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } } };
+  const curveOptions = { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } } }, plugins: { legend: { display: true, labels: { font: { size: 10, weight: 'bold' }, filter: (item, data) => showSaYield || !String(data.datasets[item.datasetIndex].label).includes('(SA)') } }, zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } } };
 
   // saEligible charts always reserve dataset slots 2/3 for the SA overlay (empty when SA is
   // off), so toggling SA doesn't need to recreate the chart — same pattern as the Time Series
