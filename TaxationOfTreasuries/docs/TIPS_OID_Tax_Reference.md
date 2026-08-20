@@ -274,7 +274,7 @@ Applies when a TIPS is purchased below its inflation-adjusted principal on the a
 
 Market discount depends on what the individual holder actually paid, so it has to be calculated from the trade confirmation or brokerage transaction history for that specific purchase. This example is based on the actual purchase and disposition at maturity of 20 of the Oct 15, 2025 TIPS. The brokerage transaction history is used as input to the calculations, and the accrued market discount reported on the 1099-B is used to check the calculations.
 
-**The transaction:** 0.125% TIPS due 10/15/2025, dated date 10/15/2020, base ref CPI 259.469968.
+**The transaction:** 0.125% TIPS due 10/15/2025, dated date 10/15/2020, base ref CPI 259.46997.
 
 | Trade date | Settlement date | Shares | Price | Interest | Amount |
 |---|---|---|---|---|---|
@@ -287,26 +287,26 @@ adj_cost = $23,315.66 − $4.94 = $23,310.72
 
 **Step 2 — Index ratio on the acquisition date.** Use the settlement date, not the trade date: settlement is when the cash actually changes hands and the inflation adjustment embedded in the price is fixed.
 ```
-RefCPI(dated date, 10/15/2020) = 259.469968
-RefCPI(settlement date, 6/14/2024) = 312.858933
-IR(6/14/2024) = 312.858933 / 259.469968 = 1.205762
+RefCPI(dated date, 10/15/2020) = 259.46997
+RefCPI(settlement date, 6/14/2024) = 312.85893
+IR(6/14/2024) = 312.85893 / 259.46997 = 1.2057616...
 ```
-Ref CPI and Index Ratio are always truncated to 7 decimals, then rounded to 6 (31 CFR Part 356 Appendix B).
+31 CFR Part 356 Appendix B §I.B.3 requires Treasury to truncate the Index Ratio to 6 decimals then round to 5 (1.20576 here) for its own auction and settlement mechanics — computing the purchase price and principal Treasury itself pays. That rounding does not carry over to a broker's downstream tax-lot accrual math: see the note on precision below, which shows the officially-rounded ratio understates this AMD by three cents against the real 1099-B. This example uses the unrounded, full-precision ratio throughout, since that is what the broker evidently used.
 
 **Step 3 — Adjusted issue price on the acquisition date.** Per Treas. Reg. §1.1275-7(f)(3), market discount is measured against "the adjusted issue price of the instrument on the date the holder acquires the instrument." For a TIPS, that is the inflation-adjusted principal on that date:
 ```
-inflation_adjusted_principal(6/14/2024) = $20,000 × 1.205762 = $24,115.24
+inflation_adjusted_principal(6/14/2024) = $20,000 × 1.2057616 = $24,115.23
 ```
 
 **Step 4 — Market discount.**
 ```
-market_discount = $24,115.24 − $23,310.72 = $804.52
+market_discount = $24,115.23 − $23,310.72 = $804.51
 ```
 Because the adjusted cost is less than the adjusted issue price, this is a market discount, not a premium.
 
-**Step 5 — De minimis check.** About 1.34 years from settlement to maturity: `$20,000 × 0.0025 × 1.34 = $66.80`. The $804.52 discount is well above that, so this is not de minimis: full AMD treatment applies.
+**Step 5 — De minimis check.** About 1.34 years from settlement to maturity: `$20,000 × 0.0025 × 1.34 = $66.80`. The $804.51 discount is well above that, so this is not de minimis: full AMD treatment applies.
 
-**Step 6 — What this means.** Held to maturity, the full $804.52 is recognized at redemption regardless of accrual method, since by that point the entire discount has accrued either way: it is what will be reported as ordinary interest income (1099-B Box 1f, Form 8949 Code D). If the TIPS are instead sold before maturity, only the portion accrued by the sale date counts as AMD, computed by the ratable accrual method by default (this document does not include a worked constant yield example; see IRC §1276(b) for the election).
+**Step 6 — What this means.** Held to maturity, the full $804.51 is recognized at redemption regardless of accrual method, since by that point the entire discount has accrued either way: it is what will be reported as ordinary interest income (1099-B Box 1f, Form 8949 Code D). If the TIPS are instead sold before maturity, only the portion accrued by the sale date counts as AMD, computed by the ratable accrual method by default (this document does not include a worked constant yield example; see IRC §1276(b) for the election).
 
 **Verification.** This position was held to maturity and redeemed 10/15/2025. The actual 1099-B issued for it reports:
 
@@ -314,7 +314,9 @@ Because the adjusted cost is less than the adjusted issue price, this is a marke
 |---|---|---|---|---|---|---|---|
 | Redemption | 20,000.000 | 06/13/24 | 10/15/25 | $24,933.00 | $24,128.40 | $804.51 | $804.60 |
 
-The 1099-B's "Date Acquired" is the trade date (6/13/24); the calculation above uses the settlement date (6/14/24), one day later, per Step 2. Box 1f is within a penny of the $804.52 projected above. Note that Box 1f is not the same as the Gain/Loss column: Proceeds minus Cost Basis is $804.60, of which $804.51 is reclassified from capital gain to ordinary interest income via Form 8949 Code D, leaving $0.09 as capital gain.
+The 1099-B's "Date Acquired" is the trade date (6/13/24); the calculation above uses the settlement date (6/14/24), one day later, per Step 2. Box 1f matches the $804.51 projected above exactly. Note that Box 1f is not the same as the Gain/Loss column: Proceeds minus Cost Basis is $804.60, of which $804.51 is reclassified from capital gain to ordinary interest income via Form 8949 Code D, leaving $0.09 as capital gain.
+
+**A note on precision.** Recomputing this same example with the officially-rounded (5-decimal) Index Ratio that 31 CFR Part 356 requires for Treasury's own auction and settlement math (1.20576 instead of 1.2057616...) gives an inflation-adjusted principal of $24,115.20 and a market discount of $804.48 — three cents short of the real 1099-B. Only the full-precision ratio reproduces Box 1f exactly. Treasury's rounding rule is scoped to computing the price and principal Treasury itself pays at auction and redemption; nothing in Treas. Reg. §1.1275-7 (which governs market discount accrual) imports that rounding into a broker's tax-lot bookkeeping, and this example indicates the broker didn't apply it. If reconciling your own 1099-B, use full-precision Ref CPI rather than the Treasury-rounded ratio.
 
 ---
 
