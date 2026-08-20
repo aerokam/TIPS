@@ -48,7 +48,7 @@ async function fetchExpenseRatioAndSecYield(ticker) {
   if (!res.ok) throw new Error(`Product page fetch failed for ${ticker}: HTTP ${res.status}`);
   const html = await res.text();
 
-  const ldMatch = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  const ldMatch = html.match(/<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/);
   if (!ldMatch) throw new Error(`Could not find JSON-LD block on product page for ${ticker}`);
   const data = JSON.parse(ldMatch[1]);
   const keyDataPoints = (data["@graph"] || []).find(n => String(n["@id"] || "").endsWith("#key-datapoints"));

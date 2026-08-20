@@ -26,17 +26,34 @@ const BONDBLOXX_TICKERS = ["XHLF"];
 const ISHARES_TICKERS = ["ICPI"];
 const ALL_TICKERS = [...VANGUARD_TICKERS, ...FMINVEST_TICKERS, ...PIMCO_TICKERS, ...SCHWAB_TICKERS, ...BONDBLOXX_TICKERS, ...ISHARES_TICKERS];
 
+// Each provider's fetch is isolated: one provider breaking (e.g. a site
+// markup change) must not block enrichment/upload for the others, since
+// their raw holdings CSVs may have fetched successfully.
+const FETCHERS = [
+  ["Vanguard", () => updateVanguardHoldings(VANGUARD_TICKERS)],
+  ["fminvest", () => updateFminvestHoldings(FMINVEST_TICKERS)],
+  ["PIMCO", () => updatePimcoHoldings(PIMCO_TICKERS)],
+  ["Schwab", () => updateSchwabHoldings(SCHWAB_TICKERS)],
+  ["BondBloxx", () => updateBondbloxxHoldings(BONDBLOXX_TICKERS)],
+  ["iShares", () => updateIsharesHoldings(ISHARES_TICKERS)]
+];
+
 async function main() {
-  await updateVanguardHoldings(VANGUARD_TICKERS);
-  await updateFminvestHoldings(FMINVEST_TICKERS);
-  await updatePimcoHoldings(PIMCO_TICKERS);
-  await updateSchwabHoldings(SCHWAB_TICKERS);
-  await updateBondbloxxHoldings(BONDBLOXX_TICKERS);
-  await updateIsharesHoldings(ISHARES_TICKERS);
+  const failures = [];
+  for (const [name, fetchFn] of FETCHERS) {
+    try {
+      await fetchFn();
+    } catch (err) {
+      console.error(`${name} fetch failed:`, err);
+      failures.push(name);
+    }
+  }
 
   for (const ticker of ALL_TICKERS) {
     await enrichHoldingsFile(ticker);
   }
+
+  if (failures.length) throw new Error(`Fetch failed for: ${failures.join(", ")} (holdings for other funds still enriched/uploaded)`);
 }
 
 main().catch(err => {
