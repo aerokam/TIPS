@@ -7,7 +7,7 @@ A tool for monitoring and charting Treasury and TIPS yields fetched from public 
 - Supports both Nominal Treasury and TIPS yields.
 - Interactive charts with zoom and pan capabilities.
 - 2x2 grid view for key maturities (10Y/30Y).
-- Optional Seasonally Adjusted (SA) yield overlay for 1Y/2Y/5Y TIPS.
+- Optional Seasonally Adjusted (SA) yield overlay for TIPS.
 
 ## Disclosure
 For personal and educational use only. Data retrieved from public chart services. Yields represent market mid-prices and may vary by provider.

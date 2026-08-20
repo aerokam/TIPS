@@ -69,9 +69,11 @@ const panStartY = {}; // sym -> {min, max} at pan gesture start; cleared on pan 
 // clean price from the quoted yield via standard bond math using the bond's REAL
 // coupon and maturity date, apply the Price -> SA Price -> SA Yield ratio, and derive
 // the SA yield back from the adjusted price.
-// SA has minimal effect beyond 5Y (the seasonal effect amortizes with maturity — see
-// YieldCurves/knowledge/2.2_SAO_Residual_Analysis.md), so the option is only exposed
-// for the short end.
+// The seasonal effect amortizes with maturity (see YieldCurves/knowledge/
+// 2.2_SAO_Residual_Analysis.md) — by 10Y/30Y it's at or below noise level, so the SA
+// line there will sit almost on top of the raw line. It's still offered at all five
+// TIPS maturities for curve completeness (the Yield Curves/BEI tabs otherwise show a
+// visibly incomplete curve past 5Y).
 //
 // Bond identity — today vs. history:
 // CNBC's restQuote endpoint (fetchTipsBondMeta) only exposes each symbol's CURRENT
@@ -79,31 +81,101 @@ const panStartY = {}; // sym -> {min, max} at pan gesture start; cleared on pan 
 // authoritative source for TODAY's point only. For every other (historical) point,
 // the bond identity comes from SA_ROLLOVER_LOG below: an empirically OBSERVED record
 // of which maturity each symbol actually quoted, not a predicted one. A calendar rule
-// ("rolls every 6 months, on the 15th of the origin-auction month") was tried and
-// falsified: cross-checking CNBC's own historical yields against real FedInvest prices
-// for each candidate bond (TreasuryDirect's historical price tool) showed CNBC rolls on
-// that same Jan15/Jul15 (1Y/2Y) or Apr15/Oct15 (5Y) cadence, but only after a LAG of
-// several weeks that varies cycle to cycle (~3 weeks one cycle, 5+ weeks and still not
-// rolled as of 2026-08-18 for the next) — no fixed offset reproduces it. So rollover
-// dates are pinned individually by that same cross-check method (bisect candidate dates
-// until the FedInvest-implied yield of one candidate bond stops matching CNBC's reported
-// yield and the other starts) and recorded here as they're found, rather than assumed.
-const SA_SYMBOLS = new Set(['US1YTIPS', 'US2YTIPS', 'US5YTIPS']);
+// ("rolls every 6 months, on the 15th of the origin-auction month, always the same
+// family") was tried and falsified twice: not just a variable lag after the checkpoint,
+// but sometimes a different origin-auction family altogether (US1YTIPS/US2YTIPS have
+// matched 5-year-origin Apr15/Oct15 bonds at some points, not just the 10-year-origin
+// Jan15/Jul15 family) — no fixed rule reproduces this. Rollover dates are instead pinned
+// individually by cross-checking CNBC's own historical yield against real FedInvest
+// settlement prices (TreasuryDirect's historical price tool) for every plausible
+// candidate bond (any TIPS maturity in the plausible tenor range, any family), computing
+// each candidate's implied yield via bond-math.js and taking whichever bond's implied
+// yield is closest to CNBC's reported yield that day. FedInvest's `sell` price (what a
+// holder receives — the bid) is used, falling back to `buy` (the ask) when a candidate
+// has no active bid that day (`sell=0`) — CNBC's own quotes are bid-side, so `sell` is
+// the correct proxy, not `buy`. (An earlier version of this had the two backwards —
+// `buy`-primary — which silently corrupted several pinned dates below: it manufactured
+// a brief intermediate cohort in Feb 2025 that doesn't survive the corrected price, and
+// shifted two other boundary dates by a few days.) The raw `eod` evaluated price is not
+// used at all: it was found to produce a stale, misleading price on at least one no-bid
+// day. Some transitions resolve to more than one intermediate cohort in quick succession
+// rather than a single clean flip; each is recorded as its own entry rather than picked
+// as one "the" transition date. Not every period resolves: when candidate bonds' implied
+// yields are too close together to disambiguate reliably (a flat 1-2yr TIPS curve), that
+// stretch is left as an explicit gap rather than guessed — including gaps *between* two
+// resolved cohorts, recorded as a `{ from, maturity: null }` entry (no TipsRef.csv row
+// has a null maturity, so resolveTipsBond() naturally returns "no match" for that span).
+const SA_SYMBOLS = new Set(['US1YTIPS', 'US2YTIPS', 'US5YTIPS', 'US10YTIPS', 'US30YTIPS']);
 // Ascending by `from` (ET date, 'YYYY-MM-DD') — the maturity in effect FROM that date
 // until the next entry (or indefinitely, for the last one). A trade date before the
 // first entry has no observed bond identity and is left as a gap — not guessed.
 const SA_ROLLOVER_LOG = {
   US1YTIPS: [
-    { from: '2025-08-04', maturity: '2026-07-15' },
+    { from: '2024-03-01', maturity: '2025-01-15' }, // earliest date cross-checked; 2023-08-19..2024-02 candidates are too close together to disambiguate — left as a gap
+    { from: '2024-06-10', maturity: '2025-04-15' },
+    { from: '2024-07-22', maturity: '2025-07-15' },
+    { from: '2025-01-17', maturity: '2025-10-15' },
+    { from: '2025-02-15', maturity: null }, // gap: candidates within a few bp of each other and flip non-monotonically day to day — the old buy-primary rule's "brief 2026-10-15 cohort" here doesn't survive the corrected price
+    { from: '2025-02-26', maturity: '2026-01-15' },
+    { from: '2025-07-10', maturity: '2026-04-15' }, // corrected from 2025-07-14 — re-bisected under sell-primary price
+    { from: '2025-08-01', maturity: '2026-07-15' }, // corrected from 2025-08-04 — re-bisected under sell-primary price
     { from: '2026-02-10', maturity: '2027-01-15' },
   ],
   US2YTIPS: [
-    { from: '2025-08-04', maturity: '2027-07-15' },
+    { from: '2024-03-01', maturity: '2026-01-15' }, // same rollover events as US1YTIPS above — 1Y/2Y roll together
+    { from: '2024-06-10', maturity: '2026-04-15' },
+    { from: '2024-07-22', maturity: '2026-07-15' },
+    { from: '2025-01-17', maturity: '2026-10-15' },
+    { from: '2025-02-15', maturity: null },
+    { from: '2025-02-26', maturity: '2027-01-15' },
+    { from: '2025-07-10', maturity: '2027-04-15' },
+    { from: '2025-08-01', maturity: '2027-07-15' },
     { from: '2026-02-10', maturity: '2028-01-15' },
   ],
   US5YTIPS: [
-    { from: '2026-03-20', maturity: '2030-10-15' }, // earliest date actually cross-checked; earlier points are a gap, not a guess
+    { from: '2026-03-20', maturity: '2030-10-15' }, // earliest date that resolves cleanly; earlier candidates (checked back to 2023-08-19) are consistently too close together to disambiguate — a gap, not a "no data" limitation (CNBC's deep history does have US5YTIPS data back to 2004)
     { from: '2026-06-01', maturity: '2031-04-15' },
+  ],
+  // US10YTIPS: genuinely unresolvable by the empirical cross-check above, not merely
+  // unattempted. Consecutive 10-Year TIPS cohorts (issued every Jan/Jul) mature only
+  // ~6 months apart, and at that curve region (~9-10yr) real-yield differences between
+  // adjacent cohorts are consistently sub-1.5bp — smaller than the noise floor of the
+  // CNBC/FedInvest comparison itself (confirmed against 8 dates spanning the most
+  // recent, otherwise-cleanest rollover window, Aug 2026; a sanity check against a
+  // deliberately-wrong ~1.5yr-off candidate the same day showed an 8.5bp gap, so the
+  // method itself works — the two adjacent 10Y candidates are just too close on the
+  // curve to tell apart). Matches the front-end-only seasonal-residual finding in
+  // YieldCurves/knowledge/2.2_SAO_Residual_Analysis.md.
+  //
+  // ISSUE-DATE FALLBACK (a second, lower-confidence pinning method, used only where the
+  // empirical cross-check above is provably unresolvable — this is NOT a reversion to the
+  // falsified "assume a calendar rule" approach; it's the opposite conclusion from the same
+  // evidence. The cross-check fails here *because* adjacent cohorts' yields are too close to
+  // tell apart, which is exactly the situation where the flip date barely matters: the SA
+  // error from picking the "wrong" day is bounded by that same sub-1.5bp gap, not by tens of
+  // bp like the falsified calendar rules were. Rule (empirically validated against the one
+  // cross-checked US30YTIPS transition below: last business day of Feb 2026 was Fri 2026-02-27,
+  // still the prior cohort; the new cohort was first seen 2026-03-02, the next trading day —
+  // exact match): flip = the first trading day strictly after the last business day of the
+  // month containing the new cohort's TipsRef.csv `datedDate` (10-Year: Jan/Jul; 30-Year: Feb).
+  // Applied here to every US10YTIPS cohort back through TipsRef.csv, and to every US30YTIPS
+  // cohort before the one cross-checked entry below (which is left untouched — more precise
+  // than the derived rule for that one case, even though the rule reproduces it exactly).
+  US10YTIPS: [
+    { from: '2023-02-01', maturity: '2033-01-15' },
+    { from: '2023-08-01', maturity: '2033-07-15' },
+    { from: '2024-02-01', maturity: '2034-01-15' },
+    { from: '2024-08-01', maturity: '2034-07-15' },
+    { from: '2025-02-03', maturity: '2035-01-15' },
+    { from: '2025-08-01', maturity: '2035-07-15' }, // same computed flip date as US1YTIPS/US2YTIPS's cross-checked 2025-08-01 entries above — independent confirmation the issue-date rule is right, since that entry was pinned by yield cross-check, not this rule
+    { from: '2026-02-02', maturity: '2036-01-15' },
+    { from: '2026-08-03', maturity: '2036-07-15' }, // current cohort
+  ],
+  US30YTIPS: [
+    { from: '2023-03-01', maturity: '2053-02-15' }, // issue-date fallback (see note above)
+    { from: '2024-03-01', maturity: '2054-02-15' }, // issue-date fallback
+    { from: '2025-03-03', maturity: '2055-02-15' }, // issue-date fallback — this transition was ambiguous under the empirical cross-check (same pattern as the Feb 2025 US1YTIPS gap) and wasn't cross-checkable
+    { from: '2026-03-02', maturity: '2056-02-15' }, // cross-checked (see method above): bisected between 2026-02-27 (still prior cohort, 2055-02-15) and 2026-03-02 (next trading day)
   ],
 };
 const REF_CPI_SA_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/RefCpiNsaSa.csv';
@@ -268,7 +340,7 @@ function setupUI() {
     return `<label class="sym-item-check" id="label-${sym}"><input type="checkbox" value="${sym}" ${activeSymbols.has(sym) ? 'checked' : ''}><span class="color-dot" style="background:${color}"></span><span class="sym-code">${SYMBOL_LABELS[sym] || sym}</span><span class="sym-yield" id="yield-${sym}">---</span><span class="sym-change" id="change-${sym}"></span><span class="sym-sa-yield" id="sa-yield-${sym}"></span></label>`;
   }).join('');
 
-  root.innerHTML = `<style>.range-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; } .range-btn { flex: 1; min-width: 45px; padding: 6px 0; border: none; background: var(--tab-inactive-bg); border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--tab-inactive-text); text-transform: uppercase; letter-spacing: 0.04em; transition: background 0.1s; } .range-btn:hover:not(.active) { background: var(--btn-hover-bg); } .range-btn.active { background: var(--tab-active-bg); color: var(--tab-inactive-text); border-top: 3px solid var(--tab-active-accent); } .sym-group h4 { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px; font-size: 13px; text-transform: uppercase; color: #000; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; } .clear-btn { font-size: 11px; color: #64748b; cursor: pointer; text-transform: none; font-weight: 600; } .sym-item-check { display: flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 15px; cursor: pointer; color: #000; } .color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; } .sym-code { font-weight: 600; color: #000; width: 62px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sym-yield { font-family: monospace; font-weight: 700; font-size: 15px; color: #000; width: 54px; flex-shrink: 0; text-align: right; } .sym-change { font-family: monospace; font-weight: 700; font-size: 13px; width: 50px; flex-shrink: 0; text-align: right; } .sym-change.up { color: #16a34a; } .sym-change.down { color: #dc2626; } .sym-sa-yield { font-family: monospace; font-weight: 700; font-size: 12px; color: #f59e0b; width: 48px; flex-shrink: 0; text-align: right; } .sa-legend { display: none; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #64748b; margin-top: -8px; padding-left: 8px; } .sa-legend .sa-swatch { display: inline-block; width: 16px; height: 3px; background: #f59e0b; border-radius: 2px; flex-shrink: 0; } #fetchStatus { font-size: 13px; color: #000; margin-top: 20px; font-weight: 700; display: grid; grid-template-columns: auto auto; column-gap: 4px; row-gap: 2px; } #fetchStatus .fs-label { text-align: right; } #fetchStatus .fs-val { text-align: left; } .no-data-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #000; background: rgba(255,255,255,0.9); pointer-events: none; z-index: 10; } .sync-zoom-label { display: flex; align-items: center; gap: 6px; margin-top: 15px; font-size: 14px; font-weight: 700; color: #334155; cursor: pointer; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; } .custom-date-range { display: none; flex-direction: column; gap: 6px; padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 4px; } .custom-date-label { font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.04em; } .custom-date-inputs { display: flex; flex-direction: column; gap: 6px; } .custom-date-inputs label { font-size: 12px; font-weight: 700; color: #334155; display: flex; flex-direction: column; gap: 2px; } .custom-date-inputs .date-picker { width: 100%; font-size: 13px; } .custom-date-apply { margin-top: 4px; padding: 6px; background: var(--tab-active-bg); color: var(--tab-inactive-text); border: none; border-top: 3px solid var(--tab-active-accent); border-radius: 4px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; } .custom-date-apply:hover { opacity: 0.85; }</style><div class="range-picker">${rangeHtml}</div><div class="custom-date-range" id="custom-date-range"><div class="custom-date-label">Custom Date Range</div><div class="custom-date-inputs"><label>Start Date<input type="date" id="customStart" class="date-picker"></label><label>End Date<input type="date" id="customEnd" class="date-picker"></label></div><button class="custom-date-apply" id="applyCustomRange">Apply</button></div><div class="sym-group"><h4>TIPS <span class="clear-btn" data-type="TIPS">Clear All</span></h4>${createGrid(tips)}<h4>Treasuries <span class="clear-btn" data-type="Nominal">Clear All</span></h4>${createGrid(nominals)}</div><label class="sync-zoom-label"><input type="checkbox" id="syncXAxis" ${syncXAxis ? 'checked' : ''}> Sync Zoom & Pan</label><label class="sync-zoom-label"><input type="checkbox" id="lockRight"> Lock Right</label><label class="sync-zoom-label"><input type="checkbox" id="showSaYield" ${showSaYield ? 'checked' : ''}> Show SA Yield (1Y/2Y/5Y TIPS)</label><div class="sa-legend" id="saLegend" style="display:${showSaYield ? 'flex' : 'none'};"><span class="sa-swatch"></span> Amber = Seasonally Adjusted (SA) Yield</div><div id="fetchStatus">Ready</div>`;
+  root.innerHTML = `<style>.range-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; } .range-btn { flex: 1; min-width: 45px; padding: 6px 0; border: none; background: var(--tab-inactive-bg); border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--tab-inactive-text); text-transform: uppercase; letter-spacing: 0.04em; transition: background 0.1s; } .range-btn:hover:not(.active) { background: var(--btn-hover-bg); } .range-btn.active { background: var(--tab-active-bg); color: var(--tab-inactive-text); border-top: 3px solid var(--tab-active-accent); } .sym-group h4 { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px; font-size: 13px; text-transform: uppercase; color: #000; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; } .clear-btn { font-size: 11px; color: #64748b; cursor: pointer; text-transform: none; font-weight: 600; } .sym-item-check { display: flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 15px; cursor: pointer; color: #000; } .color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; } .sym-code { font-weight: 600; color: #000; width: 62px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sym-yield { font-family: monospace; font-weight: 700; font-size: 15px; color: #000; width: 54px; flex-shrink: 0; text-align: right; } .sym-change { font-family: monospace; font-weight: 700; font-size: 13px; width: 50px; flex-shrink: 0; text-align: right; } .sym-change.up { color: #16a34a; } .sym-change.down { color: #dc2626; } .sym-sa-yield { font-family: monospace; font-weight: 700; font-size: 12px; color: #f59e0b; width: 48px; flex-shrink: 0; text-align: right; } .sa-legend { display: none; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #64748b; margin-top: -8px; padding-left: 8px; } .sa-legend .sa-swatch { display: inline-block; width: 16px; height: 3px; background: #f59e0b; border-radius: 2px; flex-shrink: 0; } #fetchStatus { font-size: 13px; color: #000; margin-top: 20px; font-weight: 700; display: grid; grid-template-columns: auto auto; column-gap: 4px; row-gap: 2px; } #fetchStatus .fs-label { text-align: right; } #fetchStatus .fs-val { text-align: left; } .no-data-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #000; background: rgba(255,255,255,0.9); pointer-events: none; z-index: 10; } .sync-zoom-label { display: flex; align-items: center; gap: 6px; margin-top: 15px; font-size: 14px; font-weight: 700; color: #334155; cursor: pointer; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; } .custom-date-range { display: none; flex-direction: column; gap: 6px; padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 4px; } .custom-date-label { font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.04em; } .custom-date-inputs { display: flex; flex-direction: column; gap: 6px; } .custom-date-inputs label { font-size: 12px; font-weight: 700; color: #334155; display: flex; flex-direction: column; gap: 2px; } .custom-date-inputs .date-picker { width: 100%; font-size: 13px; } .custom-date-apply { margin-top: 4px; padding: 6px; background: var(--tab-active-bg); color: var(--tab-inactive-text); border: none; border-top: 3px solid var(--tab-active-accent); border-radius: 4px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; } .custom-date-apply:hover { opacity: 0.85; }</style><div class="range-picker">${rangeHtml}</div><div class="custom-date-range" id="custom-date-range"><div class="custom-date-label">Custom Date Range</div><div class="custom-date-inputs"><label>Start Date<input type="date" id="customStart" class="date-picker"></label><label>End Date<input type="date" id="customEnd" class="date-picker"></label></div><button class="custom-date-apply" id="applyCustomRange">Apply</button></div><div class="sym-group"><h4>TIPS <span class="clear-btn" data-type="TIPS">Clear All</span></h4>${createGrid(tips)}<h4>Treasuries <span class="clear-btn" data-type="Nominal">Clear All</span></h4>${createGrid(nominals)}</div><label class="sync-zoom-label"><input type="checkbox" id="syncXAxis" ${syncXAxis ? 'checked' : ''}> Sync Zoom & Pan</label><label class="sync-zoom-label"><input type="checkbox" id="lockRight"> Lock Right</label><label class="sync-zoom-label"><input type="checkbox" id="showSaYield" ${showSaYield ? 'checked' : ''}> Show SA Yield (TIPS)</label><div class="sa-legend" id="saLegend" style="display:${showSaYield ? 'flex' : 'none'};"><span class="sa-swatch"></span> Amber = Seasonally Adjusted (SA) Yield</div><div id="fetchStatus">Ready</div>`;
 
   document.getElementById('syncXAxis').addEventListener('change', (e) => {
     syncXAxis = e.target.checked;
@@ -699,11 +771,19 @@ async function fetchOne(symbol, range, force = false) {
     });
     if (range === '1Y' || range === '2Y' || range === '3Y') {
       // Reread provider 6M (daily ~3Y) fresh each load — same feed cnbc.com uses; no history.json, no 5D tip.
+      // CNBC's 6M timeRange is unreliable per-symbol: it returns a fully-null payload (not an
+      // empty array) for some symbols regardless of retry (observed 2026-08-20: US2YTIPS and
+      // US10YTIPS, consistently, while every other symbol's 6M feed works). Since the shorter
+      // tiers return the same daily-resolution data just shallower (3M ~2yr, 1M ~1yr — not
+      // literally "3 months"/"1 month" despite the name), fall back through them rather than
+      // showing no data at all for an affected symbol.
       const cacheKey = `${symbol}_6Mdaily`;
       let daily = liveCache[cacheKey];
       if (!daily || force) {
         console.log(`%c[CNBC] %cFetching 6M daily for ${symbol}...`, "color: #2563eb; font-weight: bold", "color: inherit");
         daily = await fetchLive(symbol, '6M');
+        if (!daily || daily.length === 0) daily = await fetchLive(symbol, '3M');
+        if (!daily || daily.length === 0) daily = await fetchLive(symbol, '1M');
         // Same reasoning as the 2D/10D branch above: don't cache an empty result.
         if (daily && daily.length > 0) liveCache[cacheKey] = daily;
       }
@@ -943,7 +1023,13 @@ function updateYieldCurves() {
   // active window, so its first/last points ARE those dates (and snap past non-trading days).
   // Every maturity on every curve is then read on those exact dates; a maturity with no print
   // that day is left as a gap.
-  const refData = rangeData['US10YTIPS'];
+  // Falls back through this priority list if the primary anchor has no data for the active
+  // range (CNBC's per-symbol feed reliability can vary by range — see fetchOne's 1Y/2Y/3Y
+  // fallback comment — and a single missing anchor symbol previously blanked every curve,
+  // TIPS and Nominal alike, rather than just the anchor's own line).
+  const ANCHOR_PRIORITY = ['US10YTIPS', 'US1YTIPS', 'US30YTIPS', 'US2YTIPS'];
+  const anchorSym = ANCHOR_PRIORITY.find(s => rangeData[s] && rangeData[s].length) || 'US10YTIPS';
+  const refData = rangeData[anchorSym];
   const refStart = refData && refData.length ? refData[0] : null;
   const refEnd = refData && refData.length ? refData[refData.length - 1] : null;
   const startDateStr = refStart ? getEtDateStr(refStart.x) : null;
