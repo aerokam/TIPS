@@ -200,7 +200,7 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
     const amd = amdByYear?.get(year) ?? 0;
     const qty = Math.max(0, Math.round((yearDara - laterMatInt - (pliCreditByGapYear[year] ?? 0) - amd) / piPerBond));
     totalCost += qty * 1000;
-    breakdown.push({ year, qty, piPerBond, laterMatInt, pliCredit: pliCreditByGapYear[year] ?? 0, amd, dur: synDur, synYld, synCpn, durDetail });
+    breakdown.push({ year, qty, piPerBond, laterMatInt, pliCredit: pliCreditByGapYear[year] ?? 0, amd, dara: yearDara, dur: synDur, synYld, synCpn, durDetail });
     runningSynLMI += qty * 1000 * synCpn;
     count++;
   }
@@ -286,7 +286,7 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
     totalDuration += dur;
     const yearDara = daraByYear?.get(year) ?? dara;
     const qty = Math.max(0, Math.round((yearDara - runningLMI) / piPerBond));
-    breakdown.push({ year, qty, piPerBond, laterMatInt: runningLMI, dur, synYld: yield2056, synCpn: synCoupon, durDetail });
+    breakdown.push({ year, qty, piPerBond, laterMatInt: runningLMI, dara: yearDara, dur, synYld: yield2056, synCpn: synCoupon, durDetail });
     runningLMI += qty * 1000 * synCoupon;
     future30yTotalCost += qty * 1000;
   }

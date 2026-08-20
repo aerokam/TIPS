@@ -63,7 +63,7 @@ function future30yBreakdownRows(future30yParams) {
   let rows = '';
   future30yParams.breakdown.forEach((g, i) => {
     const id = 'fut' + i;
-    const fmla = 'round((DARA \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>) \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
+    const fmla = 'round((' + fm(g.dara) + ' \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>) \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
     rows += row(g.year + ' quantity', fmla, g.qty, false, undefined, id + 'qty')
           + row('\u21b3 P+I per hypothetical TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi')
           + row('\u21b3 Later mat int (LMI)', 'Coupon interest from longer hypothetical TIPS rungs', fm(g.laterMatInt), false, undefined, id + 'lmi')
@@ -84,13 +84,14 @@ function gapBreakdownRows(gapParams, dara, opts) {
   gapParams.breakdown.forEach((g, i) => {
     const id = 'gap' + i;
     const pliCredit = g.pliCredit ?? 0;
+    const yearDara = g.dara ?? dara;
     let fmla;
     if (compact) {
-      fmla = 'round((DARA \u2212 ' + fm(g.laterMatInt);
+      fmla = 'round((' + fm(yearDara) + ' \u2212 ' + fm(g.laterMatInt);
       if (pliCredit > 0) fmla += ' \u2212 ' + fm(pliCredit);
       fmla += ') \u00f7 ' + fm2(g.piPerBond) + ')';
     } else {
-      fmla = 'round((DARA \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>';
+      fmla = 'round((' + fm(yearDara) + ' \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>';
       if (pliCredit > 0) fmla += ' \u2212 <span class="formula-var" data-source="' + id + 'pli">PLI</span>';
       fmla += ') \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
     }
@@ -958,7 +959,7 @@ export function buildFuture30yDurationPopupRows(summary) {
   if (future30yParams.breakdown?.length) {
     rows.push({ sep: true }, { heading: 'Future 30Y Year Breakdown (hypothetical qty)' });
     future30yParams.breakdown.forEach(b => {
-      rows.push({ label: b.year + ' qty', note: 'round((DARA \u2212 ' + Math.round(b.laterMatInt) + ') \u00f7 ' + b.piPerBond.toFixed(2) + ')', value: String(b.qty) });
+      rows.push({ label: b.year + ' qty', note: 'round((' + fm(b.dara) + ' \u2212 ' + Math.round(b.laterMatInt) + ') \u00f7 ' + b.piPerBond.toFixed(2) + ')', value: String(b.qty) });
     });
     rows.push({ label: 'Total Future 30Y cost', value: '$' + Math.round(future30yParams.future30yTotalCost).toLocaleString(), total: true });
   }
