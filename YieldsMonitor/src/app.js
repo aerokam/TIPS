@@ -851,7 +851,19 @@ async function fetchOne(symbol, range, force = false) {
           liveCache[cacheKey] = fresh;
         }
       }
-      return (daily || []).filter(p => p.x >= cutoff && !isWeekendEt(p.x));
+      const livePortion = (daily || []).filter(p => p.x >= cutoff && !isWeekendEt(p.x));
+      // Even after all three CNBC tiers, a symbol-specific outage can leave `daily` capped
+      // well short of the requested range (e.g. 6M down, 3M's ~2yr reach doesn't cover 3Y).
+      // Fill the gap older than CNBC's earliest bar from the same R2 history store the
+      // 10Y/ALL branch below uses — reliable, but weekly/quarterly resolution, so the line
+      // goes coarser before that point rather than showing a truncated range.
+      if (!daily || daily.length === 0 || daily[0].x > cutoff) {
+        const dailyFloor = daily && daily.length ? daily[0].x.getTime() : Infinity;
+        const history = await fetchHistory(symbol);
+        const historyPortion = (history || []).filter(p => p.x >= cutoff && p.x.getTime() < dailyFloor);
+        return historyPortion.concat(livePortion);
+      }
+      return livePortion;
     } else {
       // 10Y, ALL: history.json (accumulated daily-resolution store; coarser CNBC feeds supplemented by past daily captures).
       // No !isWeekendEt filter here: unlike the daily/intraday branches above (where a
