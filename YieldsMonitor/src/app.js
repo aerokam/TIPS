@@ -158,10 +158,62 @@ const SA_ROLLOVER_LOG = {
   // still the prior cohort; the new cohort was first seen 2026-03-02, the next trading day —
   // exact match): flip = the first trading day strictly after the last business day of the
   // month containing the new cohort's TipsRef.csv `datedDate` (10-Year: Jan/Jul; 30-Year: Feb).
-  // Applied here to every US10YTIPS cohort back through TipsRef.csv, and to every US30YTIPS
-  // cohort before the one cross-checked entry below (which is left untouched — more precise
-  // than the derived rule for that one case, even though the rule reproduces it exactly).
+  // Applied here to every US10YTIPS cohort back through TipsRef.csv (all 54 10-Year rows,
+  // 1997 through today — including through the 2002-2003 issuance hiatus, which the rule
+  // handles automatically: the 2012-07-15 cohort's `from` just spans the ~13 months until
+  // the next actual cohort, no special-casing needed), and to every US30YTIPS cohort before
+  // the one cross-checked entry below (which is left untouched — more precise than the
+  // derived rule for that one case, even though the rule reproduces it exactly). US30YTIPS
+  // is NOT extended earlier than 2023-03-01: 30-Year TIPS issuance itself had a ~9-year dead
+  // stretch (2001-2010) where no 30-Year TIPS existed at all, so a mechanically-derived
+  // "current cohort" for that gap wouldn't correspond to a real, actively-issued bond.
   US10YTIPS: [
+    { from: '1997-02-03', maturity: '2007-01-15' },
+    { from: '1998-02-02', maturity: '2008-01-15' },
+    { from: '1999-02-01', maturity: '2009-01-15' },
+    { from: '2000-02-01', maturity: '2010-01-15' },
+    { from: '2001-02-01', maturity: '2011-01-15' },
+    { from: '2002-02-01', maturity: '2012-01-15' },
+    { from: '2002-08-01', maturity: '2012-07-15' }, // issuance hiatus follows — no 2013-01-15 cohort; this entry spans until the next real cohort below
+    { from: '2003-08-01', maturity: '2013-07-15' },
+    { from: '2004-02-02', maturity: '2014-01-15' },
+    { from: '2004-08-02', maturity: '2014-07-15' },
+    { from: '2005-02-01', maturity: '2015-01-15' },
+    { from: '2005-08-01', maturity: '2015-07-15' },
+    { from: '2006-02-01', maturity: '2016-01-15' },
+    { from: '2006-08-01', maturity: '2016-07-15' },
+    { from: '2007-02-01', maturity: '2017-01-15' },
+    { from: '2007-08-01', maturity: '2017-07-15' },
+    { from: '2008-02-01', maturity: '2018-01-15' },
+    { from: '2008-08-01', maturity: '2018-07-15' },
+    { from: '2009-02-02', maturity: '2019-01-15' },
+    { from: '2009-08-03', maturity: '2019-07-15' },
+    { from: '2010-02-01', maturity: '2020-01-15' },
+    { from: '2010-08-02', maturity: '2020-07-15' },
+    { from: '2011-02-01', maturity: '2021-01-15' },
+    { from: '2011-08-01', maturity: '2021-07-15' },
+    { from: '2012-02-01', maturity: '2022-01-15' },
+    { from: '2012-08-01', maturity: '2022-07-15' },
+    { from: '2013-02-01', maturity: '2023-01-15' },
+    { from: '2013-08-01', maturity: '2023-07-15' },
+    { from: '2014-02-03', maturity: '2024-01-15' },
+    { from: '2014-08-01', maturity: '2024-07-15' },
+    { from: '2015-02-02', maturity: '2025-01-15' },
+    { from: '2015-08-03', maturity: '2025-07-15' },
+    { from: '2016-02-01', maturity: '2026-01-15' },
+    { from: '2016-08-01', maturity: '2026-07-15' },
+    { from: '2017-02-01', maturity: '2027-01-15' },
+    { from: '2017-08-01', maturity: '2027-07-15' },
+    { from: '2018-02-01', maturity: '2028-01-15' },
+    { from: '2018-08-01', maturity: '2028-07-15' },
+    { from: '2019-02-01', maturity: '2029-01-15' },
+    { from: '2019-08-01', maturity: '2029-07-15' },
+    { from: '2020-02-03', maturity: '2030-01-15' },
+    { from: '2020-08-03', maturity: '2030-07-15' },
+    { from: '2021-02-01', maturity: '2031-01-15' },
+    { from: '2021-08-02', maturity: '2031-07-15' },
+    { from: '2022-02-01', maturity: '2032-01-15' },
+    { from: '2022-08-01', maturity: '2032-07-15' },
     { from: '2023-02-01', maturity: '2033-01-15' },
     { from: '2023-08-01', maturity: '2033-07-15' },
     { from: '2024-02-01', maturity: '2034-01-15' },
