@@ -132,9 +132,46 @@ const SA_ROLLOVER_LOG = {
     { from: '2025-08-01', maturity: '2027-07-15' },
     { from: '2026-02-10', maturity: '2028-01-15' },
   ],
+  // US5YTIPS: the empirical cross-check is unresolvable here too (candidate 5-Year cohorts'
+  // yields sit too close together to disambiguate, same as US10YTIPS below), so the issue-date
+  // fallback (see the ISSUE-DATE FALLBACK note above US10YTIPS further down) applies here as
+  // well: flip = first trading day strictly after the last business day of the month containing
+  // the new cohort's TipsRef.csv datedDate (5-Year: Apr/Oct — annual Apr-only through 2019,
+  // semiannual Apr+Oct from Oct 2019).
+  // Not extended earlier than the 2006-04-15-dated cohort: 5-Year TIPS had their own issuance
+  // hiatus (last pre-2004 cohort dated 1997-07-15, maturing 2002-07-15; no cohort again until
+  // 2006-04-15), so CNBC's US5YTIPS quotes during that dead stretch (history exists back to
+  // 2004) aren't a real on-the-run 5-Year TIPS and are left an explicit gap, same reasoning as
+  // US30YTIPS's 2001-2010 hiatus below.
   US5YTIPS: [
-    { from: '2026-03-20', maturity: '2030-10-15' }, // earliest date that resolves cleanly; earlier candidates (checked back to 2023-08-19) are consistently too close together to disambiguate — a gap, not a "no data" limitation (CNBC's deep history does have US5YTIPS data back to 2004)
-    { from: '2026-06-01', maturity: '2031-04-15' },
+    { from: '2006-05-01', maturity: '2011-04-15' },
+    { from: '2007-05-01', maturity: '2012-04-15' },
+    { from: '2008-05-01', maturity: '2013-04-15' },
+    { from: '2009-05-01', maturity: '2014-04-15' },
+    { from: '2010-05-03', maturity: '2015-04-15' },
+    { from: '2011-05-02', maturity: '2016-04-15' },
+    { from: '2012-05-01', maturity: '2017-04-15' },
+    { from: '2013-05-01', maturity: '2018-04-15' },
+    { from: '2014-05-01', maturity: '2019-04-15' },
+    { from: '2015-05-01', maturity: '2020-04-15' },
+    { from: '2016-05-02', maturity: '2021-04-15' },
+    { from: '2017-05-01', maturity: '2022-04-15' },
+    { from: '2018-05-01', maturity: '2023-04-15' },
+    { from: '2019-05-01', maturity: '2024-04-15' },
+    { from: '2019-11-01', maturity: '2024-10-15' },
+    { from: '2020-05-01', maturity: '2025-04-15' },
+    { from: '2020-11-02', maturity: '2025-10-15' },
+    { from: '2021-05-03', maturity: '2026-04-15' },
+    { from: '2021-11-01', maturity: '2026-10-15' },
+    { from: '2022-05-02', maturity: '2027-04-15' },
+    { from: '2022-11-01', maturity: '2027-10-15' },
+    { from: '2023-05-01', maturity: '2028-04-15' },
+    { from: '2023-11-01', maturity: '2028-10-15' },
+    { from: '2024-05-01', maturity: '2029-04-15' },
+    { from: '2024-11-01', maturity: '2029-10-15' },
+    { from: '2025-05-01', maturity: '2030-04-15' },
+    { from: '2025-11-03', maturity: '2030-10-15' }, // issue-date fallback extends earlier than the previously cross-checked 2026-03-20 for this same maturity — superseded, dropped
+    { from: '2026-06-01', maturity: '2031-04-15' }, // cross-checked (kept as-is over the derived 2026-05-01 — moot either way, CNBC has no raw data in that gap; see rollover log narrative)
   ],
   // US10YTIPS: genuinely unresolvable by the empirical cross-check above, not merely
   // unattempted. Consecutive 10-Year TIPS cohorts (issued every Jan/Jul) mature only
