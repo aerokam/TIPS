@@ -1,5 +1,5 @@
 // Load .env from repo root if present (local dev); does not override GH Actions env vars
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { yieldFromPrice as _yieldFromPrice } from '../shared/src/bond-math.js';
@@ -16,9 +16,9 @@ if (existsSync(_envPath)) {
 // Writes YieldsFromFedInvestPrices.csv to R2: row 1 = settlement date, row 2 = header, rows 3+ = data.
 //
 // Usage: node getYieldsFedInvest.js
-// Prices published once daily at ~1pm ET on FedInvest; scheduled job runs at 18:05 UTC
-// (1:05 PM EST / 2:05 PM EDT). Skips cleanly on bond market holidays and when prices
-// are not yet available.
+// Prices published once daily at ~1pm ET on FedInvest; scheduled job runs at 1:05pm ET,
+// retrying every 10 min for 2h (setup-windows-tasks.ps1) if today's prices aren't posted
+// yet. Skips cleanly (exit 0, no retry) on bond market holidays.
 
 const FEDINVEST_URL = 'https://www.treasurydirect.gov/GA-FI/FedInvest/todaySecurityPriceDetail';
 
@@ -177,9 +177,12 @@ async function main() {
   if (priceRows.length === 0) throw new Error('No price data found from FedInvest');
   console.error(`Settlement date: ${settleDateStr}`);
 
-  // Guard: if FedInvest hasn't updated yet (still showing yesterday), skip upload.
+  // Guard: if FedInvest hasn't updated yet (still showing yesterday), exit non-zero so
+  // the scheduled task's retry-on-failure setting (see setup-windows-tasks.ps1) tries
+  // again later instead of silently leaving yesterday's data live.
   if (settleDateStr !== today) {
-    console.error(`FedInvest still showing ${settleDateStr} (today is ${today} ET) — skipping upload.`);
+    console.error(`FedInvest still showing ${settleDateStr} (today is ${today} ET) — not ready yet.`);
+    process.exitCode = 1;
     return;
   }
 
@@ -222,11 +225,6 @@ async function main() {
   const content = [settleDateStr, header, ...lines].join('\n') + '\n';
   
   await uploadToR2('Treasuries/YieldsFromFedInvestPrices.csv', content);
-
-  // Write sentinel so the retry wrapper knows today's fetch succeeded
-  const logsDir = resolve(dirname(fileURLToPath(import.meta.url)), '../logs');
-  if (!existsSync(logsDir)) mkdirSync(logsDir, { recursive: true });
-  writeFileSync(resolve(logsDir, 'fedinvest-success-date.txt'), today);
 
   const typeCounts = rows.reduce((acc, r) => { acc[r.type] = (acc[r.type] || 0) + 1; return acc; }, {});
   for (const [type, count] of Object.entries(typeCounts)) console.error(`  ${type}: ${count}`);

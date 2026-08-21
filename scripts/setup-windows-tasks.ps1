@@ -130,11 +130,14 @@ Write-Host ""
 Write-Host "Registering recurring tasks..."
 
 # YieldsFromFedInvestPrices  -  1:05pm ET [PT: 10:05am]
-# FedInvest posts reference prices by 1pm ET; script downloads prices and calculates YTM yields.
-Register-NodeTask "YieldsFromFedInvestPrices" `
-    "Download FedInvest reference prices, calculate YTM yields, upload YieldsFromFedInvestPrices.csv" `
+# FedInvest posts reference prices by 1pm ET; script downloads prices and calculates YTM
+# yields. Retry every 10 min, up to 12x (2h), if FedInvest is still showing yesterday's
+# prices (non-zero exit from getYieldsFedInvest.js's freshness check).
+Register-CmdTask "YieldsFromFedInvestPrices" `
+    "Download FedInvest reference prices, calculate YTM yields, upload YieldsFromFedInvestPrices.csv; retries if today's prices aren't posted yet" `
     @(New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "10:05am") `
-    "scripts/getYieldsFedInvest.js"
+    "$ProjectDir\YieldCurves\scripts\run-fedinvest.cmd" `
+    -RestartInterval (New-TimeSpan -Minutes 10) -RestartCount 12
 
 # TreasuryAuctions  -  11:35am ET [PT: 8:35am] and 1:05pm ET [PT: 10:05am]
 # Treasury auction close times are 11:30am ET and 1:00pm ET; run 5 min after each.
