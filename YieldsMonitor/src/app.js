@@ -776,16 +776,28 @@ async function fetchOne(symbol, range, force = false) {
       // US10YTIPS, consistently, while every other symbol's 6M feed works). Since the shorter
       // tiers return the same daily-resolution data just shallower (3M ~2yr, 1M ~1yr — not
       // literally "3 months"/"1 month" despite the name), fall back through them rather than
-      // showing no data at all for an affected symbol.
+      // showing no data at all for an affected symbol. The cache is keyed per-symbol (not per-
+      // range), so it must be depth-checked against the current cutoff on every use — otherwise
+      // a shallow fallback cached while on 1Y/2Y silently starves 3Y of its extra year forever.
       const cacheKey = `${symbol}_6Mdaily`;
       let daily = liveCache[cacheKey];
-      if (!daily || force) {
+      // A prior call may have cached a shallow fallback (3M/1M) because 6M failed at the time.
+      // That cache is valid for a shorter range but not for a longer one needing more look-back
+      // (e.g. cached via 3M's ~2yr reach, then the user switches to 3Y) — reusing it as-is would
+      // silently truncate history instead of showing the requested range. Retry the deeper tiers
+      // whenever the cached data doesn't already reach back past the current cutoff.
+      const needsDeeper = !daily || daily.length === 0 || daily[0].x > cutoff;
+      if (needsDeeper || force) {
         console.log(`%c[CNBC] %cFetching 6M daily for ${symbol}...`, "color: #2563eb; font-weight: bold", "color: inherit");
-        daily = await fetchLive(symbol, '6M');
-        if (!daily || daily.length === 0) daily = await fetchLive(symbol, '3M');
-        if (!daily || daily.length === 0) daily = await fetchLive(symbol, '1M');
-        // Same reasoning as the 2D/10D branch above: don't cache an empty result.
-        if (daily && daily.length > 0) liveCache[cacheKey] = daily;
+        let fresh = await fetchLive(symbol, '6M');
+        if (!fresh || fresh.length === 0) fresh = await fetchLive(symbol, '3M');
+        if (!fresh || fresh.length === 0) fresh = await fetchLive(symbol, '1M');
+        // Only replace the cache with a result that's at least as deep as what's already there —
+        // never let a shallower retry regress an already-cached deeper series.
+        if (fresh && fresh.length > 0 && (!daily || daily.length === 0 || fresh[0].x <= daily[0].x)) {
+          daily = fresh;
+          liveCache[cacheKey] = fresh;
+        }
       }
       return (daily || []).filter(p => p.x >= cutoff && !isWeekendEt(p.x));
     } else {
