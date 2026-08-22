@@ -700,6 +700,41 @@ async function fetchWithTimeout(url, options = {}, timeout = 8000) {
 // Single consolidated, symbol-nested history file: { "US10Y": [{x,y}, ...], ... }
 const R2_HISTORY_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/yields-history/history.json';
 
+// Daily raw-feed snapshots (see knowledge/1.0_Operation.md's R2-stores table), written
+// weekdays at 17:05 ET by archiveIntraday.js — the last-resort fallback for 2D/10D when
+// CNBC's live feed itself returns nothing.
+const INTRADAY_ARCHIVE_BASE = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/yields-history/intraday-raw';
+
+async function fetchIntradayArchiveDay(symbol, dateStr) {
+  try {
+    const response = await fetchWithTimeout(`${INTRADAY_ARCHIVE_BASE}/${symbol}/${dateStr}.json`);
+    if (!response.ok) return null;
+    return await response.json();
+  } catch { return null; }
+}
+
+// 2D/10D are the only ranges with no other fallback (1Y/2Y/3Y/10Y/ALL/Custom all already fall
+// back to the R2 daily baseline) — when CNBC's live 1D/5D feed returns genuinely nothing (a
+// real outage, not just an off-hours quiet period — there's no way to tell those apart from
+// an empty response alone), walk backward through the archive looking for the most recent day
+// that has the requested feed, rather than showing nothing. Returns only the single most
+// recent archived day found, not multiple days stitched together — the point is "here is the
+// last real snapshot we have," not a reconstructed multi-day window.
+async function fetchArchiveFallback(symbol, providerRange) {
+  for (let back = 0; back <= 10; back++) {
+    const d = etCutoff(t => t.setDate(t.getDate() - back));
+    const [m, day, y] = getEtDateStr(d).split('/');
+    const archive = await fetchIntradayArchiveDay(symbol, `${y}${m}${day}`);
+    const bars = archive?.feeds?.[providerRange]?.bars;
+    if (!bars || bars.length === 0) continue;
+    const points = bars
+      .map(b => ({ x: parseSourceTime(b.raw), y: parseFloat(String(b.close).replace('%', '')) }))
+      .filter(p => p.x && !isNaN(p.x) && !isNaN(p.y));
+    if (points.length > 0) return points;
+  }
+  return null;
+}
+
 let allHistoryPromise = null;
 async function fetchAllHistory() {
   if (!allHistoryPromise) {
@@ -980,7 +1015,19 @@ async function fetchOne(symbol, range, force = false) {
     if (fetchTasks.length > 0) await Promise.all(fetchTasks);
     const data = liveCache[cacheKey] || [];
     const cutoff = etCutoff(t => t.setDate(t.getDate() - (is2D ? 2 : 10)));
-    return data.filter(p => p.x >= cutoff && !isWeekendEt(p.x));
+    const filtered = data.filter(p => p.x >= cutoff && !isWeekendEt(p.x));
+    if (filtered.length > 0) return filtered;
+    // CNBC returned nothing at all for this symbol/tier (see fetchArchiveFallback above) —
+    // fall back to the last archived day rather than showing nothing. Tagging the result
+    // with when it's actually from lets fetchAllData reflect that in the "Latest data"
+    // status label instead of claiming live freshness it doesn't have.
+    const fallback = await fetchArchiveFallback(symbol, providerRange);
+    if (fallback && fallback.length > 0) {
+      const result = fallback.slice();
+      result.usedFallbackAt = fallback[fallback.length - 1].x;
+      return result;
+    }
+    return filtered;
   } else {
     const cutoff = etCutoff(t => {
       if (range === '1Y') t.setFullYear(t.getFullYear() - 1); else if (range === '2Y') t.setFullYear(t.getFullYear() - 2); else if (range === '3Y') t.setFullYear(t.getFullYear() - 3); else if (range === '10Y') t.setFullYear(t.getFullYear() - 10); else if (range === 'ALL') t.setFullYear(t.getFullYear() - 50);
@@ -1173,6 +1220,7 @@ async function fetchAllData(force = false) {
   statusEl.textContent = `Updating...`;
   const allSyms = Object.keys(AVAILABLE_SYMBOLS);
   const tsList = [];
+  const fallbackTimes = [];
 
   const [, quoteTime] = await Promise.all([
     Promise.all(allSyms.map(async sym => {
@@ -1181,15 +1229,24 @@ async function fetchAllData(force = false) {
       if (data && data.length > 0) {
         tsList.push(data[data.length - 1].x);
       }
+      if (data && data.usedFallbackAt) fallbackTimes.push(data.usedFallbackAt);
     })),
     fetchLatestQuoteTime('US10YTIPS')
   ]);
 
-  // The chart-bar feed's own per-bar tradeTime can lag real time by hours (a CNBC feed
-  // quirk, not ours — see knowledge/1.0_Operation.md). The quote-service last_time field
-  // doesn't have that problem, so it's authoritative for this label when available;
-  // fall back to the chart feed's own last-bar time only if the quote fetch fails.
-  latestDataTime = quoteTime || (tsList.length > 0 ? new Date(Math.max(...tsList.map(d => d.getTime()))) : null);
+  if (fallbackTimes.length > 0) {
+    // At least one symbol on the current view fell back to an archived snapshot (see
+    // fetchArchiveFallback) because CNBC's live feed returned nothing for it — the live
+    // quote-time would overclaim freshness the display doesn't actually have here, so show
+    // the oldest fallback's own timestamp instead, the honest bound on how current this view is.
+    latestDataTime = new Date(Math.min(...fallbackTimes.map(d => d.getTime())));
+  } else {
+    // The chart-bar feed's own per-bar tradeTime can lag real time by hours (a CNBC feed
+    // quirk, not ours — see knowledge/1.0_Operation.md). The quote-service last_time field
+    // doesn't have that problem, so it's authoritative for this label when available;
+    // fall back to the chart feed's own last-bar time only if the quote fetch fails.
+    latestDataTime = quoteTime || (tsList.length > 0 ? new Date(Math.max(...tsList.map(d => d.getTime()))) : null);
+  }
   updateStatusMessage();
 }
 
