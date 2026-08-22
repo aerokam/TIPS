@@ -31,6 +31,21 @@ const COLORS = [
 
 const SA_COLOR = '#f59e0b'; // fixed accent for the SA overlay line, distinct from every raw-line color
 
+// Yield Curves / BEI charts plot by maturity (a categorical axis, not time), so a missing
+// maturity (e.g. 5Y unresolved on a historical date) reads better as a lighter connector
+// between its neighbors than as a hard break — that's a real reader aid for the past-date
+// case this is meant for, not a claim that the missing maturity's own value is known. Segment
+// styling only lightens the segment(s) touching a skipped (null) point; spanGaps: true is
+// required alongside it or Chart.js won't draw a segment across a null point at all.
+function hexToRgba(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+function gapSegmentStyle(hex) {
+  const lightened = hexToRgba(hex, 0.35);
+  return { borderColor: ctx => (ctx.p0.skip || ctx.p1.skip) ? lightened : undefined };
+}
+
 const TIME_RANGE_MAP = {
   '2D': '1D',
   '10D': '5D',
@@ -1014,15 +1029,30 @@ async function fetchOne(symbol, range, force = false) {
       }
       return livePortion;
     } else {
-      // 10Y, ALL: history.json (accumulated daily-resolution store; coarser CNBC feeds supplemented by past daily captures).
-      // No !isWeekendEt filter here: unlike the daily/intraday branches above (where a
-      // weekend timestamp would mean a genuine feed glitch), the weekly/quarterly-resolution
-      // deep history is deliberately stamped on Sunday per bar (see updateYieldsHistory.js) —
-      // applying the weekend filter here was silently discarding nearly all of it, leaving
-      // only the rare weekday-stamped points (e.g. New Year's Day) visible.
+      // 10Y, ALL: history.json (accumulated daily-resolution store; coarser CNBC feeds supplemented by past daily captures)
+      // plus the latest live points appended from CNBC's 5D feed — same "baseline + live tip"
+      // pattern as Custom range. The once-daily R2 baseline (refreshed by updateYieldsHistory.js
+      // at 17:00 ET weekdays) can lag behind what other ranges already show live — if that
+      // scheduled job hasn't run yet today, or failed for a symbol, the baseline's last point
+      // can be a day or more stale even though 1Y/2Y/3Y/2D/10D already have it. Appending here
+      // means the latest available point is consistent across every range rather than only
+      // some of them; a genuinely long-stale symbol still shows a real gap between its last
+      // baseline point and the live tip's own ~5-day reach, rather than a fabricated bridge.
       console.log(`%c[R2] %cLoading history for ${symbol}...`, "color: #ea580c; font-weight: bold", "color: inherit");
       const history = await fetchHistory(symbol);
-      return (history || []).filter(p => p.x >= cutoff);
+      const base = (history || []).filter(p => p.x >= cutoff);
+      const tipKey = `${symbol}_5D`;
+      let liveTip = liveCache[tipKey];
+      if (!liveTip || force) {
+        liveTip = await fetchLive(symbol, '5D');
+        if (liveTip) liveCache[tipKey] = liveTip;
+      }
+      if (liveTip) {
+        const lastBaseTime = base.length > 0 ? base[base.length - 1].x.getTime() : 0;
+        const newPoints = liveTip.filter(p => p.x.getTime() > lastBaseTime && p.x >= cutoff && !isWeekendEt(p.x));
+        return base.concat(newPoints);
+      }
+      return base;
     }
   }
 }
@@ -1322,12 +1352,12 @@ function updateYieldCurves() {
       return;
     }
     const datasets = [
-      { label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false },
-      { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: false }
+      { label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle('#1a56db') },
+      { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle('#dc2626') }
     ];
     if (saEligible) {
-      datasets.push({ label: `${sL} (SA)`, data: saSD, borderColor: SA_COLOR, borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false });
-      datasets.push({ label: `${eL} (SA)`, data: saED, borderColor: SA_COLOR, fill: false, tension: 0.3, spanGaps: false });
+      datasets.push({ label: `${sL} (SA)`, data: saSD, borderColor: SA_COLOR, borderDash: [6,3], fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle(SA_COLOR) });
+      datasets.push({ label: `${eL} (SA)`, data: saED, borderColor: SA_COLOR, fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle(SA_COLOR) });
     }
     const ctx = document.getElementById(id).getContext('2d');
     yieldCurveCharts[key] = new Chart(ctx, { type: 'line', data: { labels: syms.map(s => SYMBOL_LABELS[s]), datasets }, options: curveOptions });
@@ -1358,10 +1388,10 @@ function updateYieldCurves() {
       data: {
         labels: pairs.map(p => p.label),
         datasets: [
-          { label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false },
-          { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: false },
-          { label: `${sL} (SA)`, data: saSD, borderColor: SA_COLOR, borderDash: [6,3], fill: false, tension: 0.3, spanGaps: false },
-          { label: `${eL} (SA)`, data: saED, borderColor: SA_COLOR, fill: false, tension: 0.3, spanGaps: false }
+          { label: sL, data: sD, borderColor: '#1a56db', borderDash: [6,3], fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle('#1a56db') },
+          { label: eL, data: eD, borderColor: '#dc2626', fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle('#dc2626') },
+          { label: `${sL} (SA)`, data: saSD, borderColor: SA_COLOR, borderDash: [6,3], fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle(SA_COLOR) },
+          { label: `${eL} (SA)`, data: saED, borderColor: SA_COLOR, fill: false, tension: 0.3, spanGaps: true, segment: gapSegmentStyle(SA_COLOR) }
         ]
       },
       options: curveOptions
