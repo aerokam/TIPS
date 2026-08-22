@@ -1078,7 +1078,23 @@ async function fetchOne(symbol, range, force = false) {
 }
 
 async function fetchLive(symbol, range) {
-  try { const response = await fetchWithTimeout(buildUrl(symbol, range)); if (!response.ok) throw new Error(`HTTP ${response.status}`); const json = await response.json(); const priceBars = json?.data?.chartData?.priceBars || []; return priceBars.map(bar => { let v = bar.close; if (typeof v === "string" && v.endsWith("%")) v = v.slice(0, -1); return { x: parseSourceTime(bar.tradeTime), y: parseFloat(v) }; }).filter(p => p.x && !isNaN(p.y)); } catch (err) { console.warn(`Live fetch failed for ${symbol}:`, err); return null; }
+  try {
+    const response = await fetchWithTimeout(buildUrl(symbol, range));
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const json = await response.json();
+    const priceBars = json?.data?.chartData?.priceBars || [];
+    const parsed = priceBars.map(bar => { let v = bar.close; if (typeof v === "string" && v.endsWith("%")) v = v.slice(0, -1); return { x: parseSourceTime(bar.tradeTime), y: parseFloat(v) }; });
+    // isNaN(p.x) coerces the Date via valueOf — catches an Invalid Date (e.g. a broken
+    // Intl/timezone environment feeding parseSourceTime a value it can't converge on),
+    // which a bare `p.x` truthiness check misses since a Date object is always truthy
+    // even when its internal time value is NaN.
+    const valid = parsed.filter(p => p.x && !isNaN(p.x) && !isNaN(p.y));
+    if (valid.length < parsed.length) console.warn(`${symbol} ${range}: dropped ${parsed.length - valid.length} bar(s) with an invalid date — check Intl/timezone support in this browser environment`);
+    return valid;
+  } catch (err) {
+    console.warn(`Live fetch failed for ${symbol}:`, err);
+    return null;
+  }
 }
 
 function snapXMax(date) {
