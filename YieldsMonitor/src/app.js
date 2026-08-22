@@ -62,7 +62,13 @@ const charts = {};
 const liveCache = {};
 const historyCache = {};
 const rangeData = {};
-let latestDataTime = null; 
+// Tracked separately, not as one combined value: TIPS and Nominal Treasuries can genuinely
+// diverge in freshness (e.g. a CNBC outage affecting only TIPS symbols, observed 2026-08-22),
+// and a single combined "Latest data" reading would either overclaim freshness for the group
+// that's actually current or (if pinned to the stalest group) needlessly undersell the one
+// that isn't. See knowledge/1.0_Operation.md.
+let latestDataTimeTips = null;
+let latestDataTimeNominal = null;
 const yieldCurveCharts = {}; 
 let activeSymbols = new Set(['US10YTIPS', 'US30YTIPS', 'US10Y', 'US30Y']);
 let activeRange = '2D';
@@ -717,11 +723,16 @@ async function fetchIntradayArchiveDay(symbol, dateStr) {
 // back to the R2 daily baseline) — when CNBC's live 1D/5D feed returns genuinely nothing (a
 // real outage, not just an off-hours quiet period — there's no way to tell those apart from
 // an empty response alone), walk backward through the archive looking for the most recent day
-// that has the requested feed, rather than showing nothing. Returns only the single most
-// recent archived day found, not multiple days stitched together — the point is "here is the
-// last real snapshot we have," not a reconstructed multi-day window.
+// that has a normal end-of-day capture, rather than showing nothing. A day the archive job
+// itself only caught a partial print for (observed 2026-08-21 for TIPS: archived at 17:05 ET
+// but capped at 10:54 — the same feed-side outage this fallback exists for, just already
+// baked into that day's snapshot) is skipped in favor of the next day back that actually
+// reached a normal close, rather than surfacing an equally-incomplete "latest" day. Returns
+// only the single most recent qualifying day found, not multiple days stitched together — the
+// point is "here is the last real snapshot we have," not a reconstructed multi-day window.
+const ARCHIVE_CLOSE_FLOOR_MINUTES = 16 * 60 + 30; // 16:30 ET — below the ~17:00 close observed on a normal day, above a genuinely-partial one
 async function fetchArchiveFallback(symbol, providerRange) {
-  for (let back = 0; back <= 10; back++) {
+  for (let back = 0; back <= 15; back++) {
     const d = etCutoff(t => t.setDate(t.getDate() - back));
     const [m, day, y] = getEtDateStr(d).split('/');
     const archive = await fetchIntradayArchiveDay(symbol, `${y}${m}${day}`);
@@ -730,7 +741,10 @@ async function fetchArchiveFallback(symbol, providerRange) {
     const points = bars
       .map(b => ({ x: parseSourceTime(b.raw), y: parseFloat(String(b.close).replace('%', '')) }))
       .filter(p => p.x && !isNaN(p.x) && !isNaN(p.y));
-    if (points.length > 0) return points;
+    if (points.length === 0) continue;
+    const lastParts = ET_FULL_FMT.formatToParts(points[points.length - 1].x).reduce((a, p) => ({ ...a, [p.type]: +p.value }), {});
+    if (lastParts.hour * 60 + lastParts.minute < ARCHIVE_CLOSE_FLOOR_MINUTES) continue;
+    return points;
   }
   return null;
 }
@@ -1215,38 +1229,37 @@ function updateDynamicTicks(chart, data) {
   } else { chart.options.plugins.annotation.annotations = {}; }
 }
 
+// Per group (TIPS / Nominal): the oldest fallback timestamp wins if any symbol in the group
+// fell back to the archive (honest bound on that group's freshness); otherwise the live
+// quote-time, falling back to the chart feed's own last-bar time only if the quote fetch fails.
+function resolveGroupLatest(quoteTime, tsList, fallbackTimes) {
+  if (fallbackTimes.length > 0) return new Date(Math.min(...fallbackTimes.map(d => d.getTime())));
+  return quoteTime || (tsList.length > 0 ? new Date(Math.max(...tsList.map(d => d.getTime()))) : null);
+}
+
 async function fetchAllData(force = false) {
   const statusEl = document.getElementById('fetchStatus');
   statusEl.textContent = `Updating...`;
   const allSyms = Object.keys(AVAILABLE_SYMBOLS);
-  const tsList = [];
-  const fallbackTimes = [];
+  const tsListTips = [], tsListNominal = [];
+  const fallbackTimesTips = [], fallbackTimesNominal = [];
 
-  const [, quoteTime] = await Promise.all([
+  const [, quoteTimeTips, quoteTimeNominal] = await Promise.all([
     Promise.all(allSyms.map(async sym => {
       const data = await fetchOne(sym, activeRange, force);
       rangeData[sym] = data;
-      if (data && data.length > 0) {
-        tsList.push(data[data.length - 1].x);
-      }
+      const isTips = sym.endsWith('TIPS');
+      const tsList = isTips ? tsListTips : tsListNominal;
+      const fallbackTimes = isTips ? fallbackTimesTips : fallbackTimesNominal;
+      if (data && data.length > 0) tsList.push(data[data.length - 1].x);
       if (data && data.usedFallbackAt) fallbackTimes.push(data.usedFallbackAt);
     })),
-    fetchLatestQuoteTime('US10YTIPS')
+    fetchLatestQuoteTime('US10YTIPS'),
+    fetchLatestQuoteTime('US10Y')
   ]);
 
-  if (fallbackTimes.length > 0) {
-    // At least one symbol on the current view fell back to an archived snapshot (see
-    // fetchArchiveFallback) because CNBC's live feed returned nothing for it — the live
-    // quote-time would overclaim freshness the display doesn't actually have here, so show
-    // the oldest fallback's own timestamp instead, the honest bound on how current this view is.
-    latestDataTime = new Date(Math.min(...fallbackTimes.map(d => d.getTime())));
-  } else {
-    // The chart-bar feed's own per-bar tradeTime can lag real time by hours (a CNBC feed
-    // quirk, not ours — see knowledge/1.0_Operation.md). The quote-service last_time field
-    // doesn't have that problem, so it's authoritative for this label when available;
-    // fall back to the chart feed's own last-bar time only if the quote fetch fails.
-    latestDataTime = quoteTime || (tsList.length > 0 ? new Date(Math.max(...tsList.map(d => d.getTime()))) : null);
-  }
+  latestDataTimeTips = resolveGroupLatest(quoteTimeTips, tsListTips, fallbackTimesTips);
+  latestDataTimeNominal = resolveGroupLatest(quoteTimeNominal, tsListNominal, fallbackTimesNominal);
   updateStatusMessage();
 }
 
@@ -1268,7 +1281,8 @@ async function fetchLatestQuoteTime(symbol) {
 function updateStatusMessage() {
   const statusEl = document.getElementById('fetchStatus');
   const fmt = d => d.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET';
-  let statusHtml = `<span class="fs-label">Latest data:</span><span class="fs-val">${latestDataTime ? fmt(latestDataTime) : 'No data'}</span>`;
+  const statusHtml = `<span class="fs-label">TIPS latest:</span><span class="fs-val">${latestDataTimeTips ? fmt(latestDataTimeTips) : 'No data'}</span>`
+    + `<span class="fs-label">Treasuries latest:</span><span class="fs-val">${latestDataTimeNominal ? fmt(latestDataTimeNominal) : 'No data'}</span>`;
   statusEl.innerHTML = statusHtml;
 }
 
