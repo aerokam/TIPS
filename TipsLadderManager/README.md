@@ -38,7 +38,7 @@ This tool is designed for **transparency first**. Every number in the UI is trac
 
 **Bracket Years** — Maturity years used to cover gaps or Future 30Y rungs. *Upper bracket*: always the Feb 2040 TIPS. *Lower bracket*: the most recently issued 10-year TIPS before the gap. With **Retain lower bracket excess** on, excess you already hold in older lower-bracket maturities is kept and never added to; it is sold, oldest first, only if the lower side is over-covered.
 
-**Role Playing (LMI)** — When bracket or cover TIPS of a given maturity substitute for TIPS that haven't yet been issued (gap years or Future 30Y rungs), they "role play" by contributing their annual interest to the funded year amount for that maturity. Example: If excess Feb 2056s are held to cover Future 30Y rungs (e.g., 2057–2066), the interest from those excess 2056 TIPS contributes to the 2056 funded year amount, which could reduce the quantity of 2056 TIPS required for the 2056 funded year.
+**Same-Year Excess Interest** — Bracket and cover excess TIPS are ordinary held bonds: interest paid in their own maturity year counts toward that year's amount, and it also flows down as LMI to every shorter year, the same as any other TIPS's coupon. Bracket excess (lower/upper gap brackets) covers gap years; cover excess (the Future 30Y cover pair) covers Future 30Y rungs. Example: excess Feb 2056 TIPS held to cover Future 30Y rungs (2057–2066) — their interest contributes to the 2056 funded year's amount, reducing the quantity of 2056 TIPS needed, and the same coupon also flows down to 2055 and every year below.
 
 ---
 
@@ -46,11 +46,11 @@ This tool is designed for **transparency first**. Every number in the UI is trac
 
 | Data | Source | Schedule |
 |---|---|---|
-| TIPS prices & yields | FedInvest (TreasuryDirect) | Daily ~1 PM ET, Mon–Fri |
+| TIPS prices & yields | Market prices from a broker | Several times per weekday |
 | Reference CPI | BLS (via TreasuryDirect) | Monthly |
 | TIPS metadata (coupon, base CPI) | TreasuryDirect securities list | As needed |
 
-Prices are fetched from FedInvest once daily by GitHub Actions and uploaded to Cloudflare R2. The app fetches the CSV data directly from R2.
+Prices are fetched from the broker feed several times a day and uploaded to Cloudflare R2; the app fetches the CSV data directly from R2. FedInvest (TreasuryDirect) prices are also ingested daily as a dormant cross-check path, not currently surfaced in the app.
 
 ---
 

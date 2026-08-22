@@ -343,7 +343,10 @@ export function buildDrillHTML(d, colKey, summary) {
       + row(_lmiLabel, _lmiDesc, fm(laterMatInt), false, undefined, 'lmi');
     const excessLMI = isBef ? d.excessLMI_Before : d.excessLMI_After;
     if (excessLMI > 0) {
-      rows += row('Interest from same-year excess (bracket)', 'from additional ' + d.fundedYear + ' TIPS held to cover Future 30Y rungs', fm(excessLMI), false, undefined, 'exlmi');
+      const _exDesc = d.isFuture30yCover
+        ? 'from additional ' + d.fundedYear + ' TIPS held to cover Future 30Y rungs'
+        : 'from additional ' + d.fundedYear + ' TIPS held to cover gap years, where 10-year TIPS have not yet been issued';
+      rows += row('Interest from same-year excess (bracket)', _exDesc, fm(excessLMI), false, undefined, 'exlmi');
     }
     if (_plCredit > 0) {
       rows += row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit), false, 'plcpool', 'plc');
@@ -413,15 +416,15 @@ export function buildDrillHTML(d, colKey, summary) {
     const cashDelta = -(qtyDelta * d.costPerBond);
     const qdSign    = qtyDelta >= 0 ? '+' : '';
     const cdSign    = cashDelta >= 0 ? '+' : '';
-    // A bracket-target CUSIP's funded and excess portions are the same held maturity, so held units
-    // are relabeled between the two buckets at no cost before either is traded \u2014 this maturity is
-    // never bought in one bucket while sold in the other. Show that reallocation explicitly so the
-    // funded-year quantity delta doesn't look like it's missing units.
+    // A bracket-target CUSIP's funded and excess portions are the SAME held maturity, split into two
+    // buckets for accounting purposes only \u2014 no TIPS are bought, sold, or moved to produce this
+    // split. Show the split explicitly so the funded-year quantity delta doesn't look like it's
+    // missing units.
     rows = (d.isBracketTarget
       ? row('Total held (this CUSIP)', '', d.qtyBefore) +
-        row('Reallocated to funded year', 'held units relabeled to this year\u2019s own rung at no cost, before any trade is sized', d.reallocFundedBefore, false, undefined, 'rfb') +
+        row('Funded year portion (before)', 'this CUSIP\u2019s held units split into funded-year and excess buckets \u2014 not a trade', d.reallocFundedBefore, false, undefined, 'rfb') +
         row('Funded year target', '', d.fundedYearQtyAfter) +
-        row('Quantity delta', 'Funded year target \u2212 <span class="formula-var" data-source="rfb">reallocated funded</span>', qdSign + qtyDelta, false, undefined, 'qty')
+        row('Quantity delta', 'Funded year target \u2212 <span class="formula-var" data-source="rfb">funded year portion (before)</span>', qdSign + qtyDelta, false, undefined, 'qty')
       : row('Quantity delta', 'Quantity After \u2212 Quantity Before', qdSign + qtyDelta, false, undefined, 'qty')
     ) +
       sep() +
@@ -544,20 +547,21 @@ export function buildDrillHTML(d, colKey, summary) {
       }
     }
 
-  // ── Rebalance: Gap Cash Delta ─────────────────────────────────────────────────
+  // ── Rebalance: Excess Cash Delta (bracket/cover excess row) ──────────────────
   } else if (colKey === 'gapCashDelta') {
     const exQtyAft  = d.excessQtyAfter;
     const exQtyDel  = d.excessQtyDelta;
     const gapCash   = -(exQtyDel * d.costPerBond);
     const delSign   = exQtyDel >= 0 ? '+' : '';
     const cashSign  = gapCash  >= 0 ? '+' : '';
-    // Same reallocation as the funded-year Cash Delta popup: this excess is the SAME held maturity
-    // as the funded-year rung, so held units are relabeled between the two buckets at no cost before
-    // either is traded, rather than reading "Excess Quantity before" as its own current-holdings fact.
+    // Same split as the funded-year Cash Delta popup: this excess is the SAME held maturity as the
+    // funded-year rung, split into two buckets for accounting purposes only — no TIPS are bought,
+    // sold, or moved to produce the split, so "Excess Quantity before" isn't its own independent
+    // current-holdings fact, it's this CUSIP's total held minus its funded-year portion.
     rows =
       row('Total held (this CUSIP)', '', d.qtyBefore) +
-      row('Reallocated to funded year', 'held units relabeled to the funded rung at no cost, before any trade is sized', d.reallocFundedBefore, false, undefined, 'rfb') +
-      row('Excess Quantity before (after reallocation)', '<span class="formula-var" data-source="rfb">Total held</span> minus reallocated funded', d.reallocExcessBefore) +
+      row('Funded year portion (before)', 'this CUSIP’s held units split into funded-year and excess buckets — not a trade', d.reallocFundedBefore, false, undefined, 'rfb') +
+      row('Excess Quantity before', '<span class="formula-var" data-source="rfb">Total held</span> minus funded year portion', d.reallocExcessBefore) +
       row('Excess Quantity after',  'Rebalanced excess', exQtyAft) +
       row('Excess Quantity delta',  'After \u2212 before', delSign + exQtyDel, false, undefined, 'qty') +
       sep() +
@@ -568,7 +572,7 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
-      row('Gap Cash \u0394', '\u2212(<span class="formula-var" data-source="qty">Excess Quantity delta</span> \xd7 <span class="formula-var" data-source="cpb">Cost per TIPS</span>)', cashSign + fm(Math.abs(gapCash)), true);
+      row('Excess Cash \u0394', '\u2212(<span class="formula-var" data-source="qty">Excess Quantity delta</span> \xd7 <span class="formula-var" data-source="cpb">Cost per TIPS</span>)', cashSign + fm(Math.abs(gapCash)), true);
 
   }
 
@@ -899,6 +903,10 @@ export function buildDurationPopupRows(summary, mode) {
       rows.push({ label: 'Coverage status',   note: 'Gap is fully funded by the new bracket excess', value: 'Fully Funded', total: true });
     }
   }
+
+  rows.push({ sep: true }, { html:
+    '<a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#two-pass-walkthrough" target="_blank" style="font-size:11px;color:#2563eb;text-decoration:none;font-weight:600;">Plain-language walkthrough of this calculation →</a>'
+  });
 
   return rows;
 }

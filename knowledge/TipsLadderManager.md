@@ -60,7 +60,7 @@ The algorithm for building a new ladder from scratch.
 ### [2.0 Ladder Rebalancing (Rebalance Mode)](../TipsLadderManager/knowledge/3.0_TIPS_Ladder_Rebalancing.md)
 The logic for aligning existing holdings to a target.
 - **Inputs**: Current Holdings (Manual/Import), [DARA](../../knowledge/DATA_DICTIONARY.md#dara) (Inferred/User), [RefCPI](../../knowledge/DATA_DICTIONARY.md#ref-cpi).
-- **Sub-Modes**: Gap-Only (minimal trades) vs. Full (build-from-cash).
+- **There is a single rebalance mode**: it rebuilds the ladder from the current portfolio toward the per-year DARA targets, buying and selling as required. An earlier "Gap-only" (minimal-trades) mode was scrapped.
 - **Technically Precise Algorithm**: [View 3.0 Specs](../TipsLadderManager/knowledge/3.0_TIPS_Ladder_Rebalancing.md).
 
 ### [3.0 Broker Data Ingestion](../TipsLadderManager/knowledge/2.1_Broker_Import.md)
@@ -83,6 +83,7 @@ These documents contain the "bottom-level" technical specifications required to 
 
 TipsLadderManager fetches its market context from Cloudflare R2 on every page load.
 - **[TIPS Data Pipeline (3.1)](../TipsLadderManager/knowledge/3.1_Data_Pipeline.md)**: Detailed specs for the ingestion of prices and metadata.
-- **Source**: `YieldsFromFedInvestPrices.csv` (updated daily ~1 PM ET).
+- **Source (default)**: `FidelityTreasuriesTips.csv`, broker market prices, updated several times per weekday.
+- **Source (dormant cross-check)**: `YieldsFromFedInvestPrices.csv` (updated daily ~1 PM ET), not exposed in the app UI.
 - **Source**: `RefCPI.csv` (updated monthly on BLS release).
 - **Persistence**: User holdings are stored in browser `localStorage`.

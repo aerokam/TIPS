@@ -239,56 +239,57 @@
 <div id="help-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:100;overflow-y:auto;">
   <div style="background:#fff;max-width:680px;margin:40px auto;border-radius:8px;padding:28px 32px;position:relative;font-size:13px;line-height:1.6;">
     <button id="help-close" style="position:absolute;top:12px;right:14px;background:none;border:none;font-size:20px;color:#888;cursor:pointer;padding:0;line-height:1;">×</button>
-    <h2 style="margin:0 0 8px;font-size:16px;">TIPS Ladder Manager — Help</h2>
-    <p style="margin:0 0 6px;color:#444;font-size:12px;">A free, open-source contribution to the Bogleheads community. All calculations run locally in your browser. Prices updated daily ~1 PM ET from FedInvest (mid-market reference).</p>
-    <p style="margin:0 0 16px;font-size:12px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:8px;">
-      <b>Rebalance</b> — for existing ladder holders rebalancing into newly issued TIPS. Assumes you want to keep using the same lower bracket TIPS you originally purchased.<br>
-      <b>Build</b> — designs a new ladder from scratch with zero existing holdings.
-    </p>
+    <h2 id="help-title" style="margin:0 0 16px;font-size:16px;">TIPS Ladder Manager: Rebalance</h2>
 
-    <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Key Concepts</h3>
-    <p><b>DARA</b> — Desired Annual Real Amount. Your target annual amount in today's (inflation-adjusted) dollars. Each rung is sized to produce this amount.</p>
-    <p><b>Gap Years</b> — Years with no issued TIPS (currently 2037–2039). The ladder holds additional TIPS in <b>bracket</b> years flanking the gap to match the average duration of the missing maturities.</p>
-    <p><b>Future 30Y Rungs</b> — Years beyond the currently issued TIPS (e.g. 2057–2066). Like gaps, these are covered by <b>duration-matched excess</b> in existing long-dated bonds (currently the 2052/2056 pair).</p>
-    <p><b>Bracket Years</b> — Maturity years used to cover gaps or Future 30Y rungs. <i>Upper bracket</i>: always Feb 2040. <i>Lower bracket</i>: usually the latest 10-year TIPS before the gap. In <i>3-bracket mode</i>, your original lower bracket is preserved, and a second "new lower" is bought to supplement.</p>
-    <p><b>Role Playing (LMI)</b> — When bracket or cover TIPS of a given maturity substitute for TIPS that haven't yet been issued (gap years or Future 30Y rungs), they "role play" by contributing their annual interest to the funded year amount for that maturity. Example: If excess Feb 2056s are held to cover Future 30Y rungs (e.g., 2057–2066), the interest from those excess 2056 TIPS contributes to the 2056 funded year amount, which could reduce the quantity of 2056 TIPS required for the 2056 funded year.</p>
-    <p><b>Ref CPI</b> — Reference CPI value used for all inflation adjustments. Defaults to the settlement date. Click the Ref CPI value in the info strip to override the reference date (useful for projecting with a future or past CPI). Changing it clears any auto-inferred DARA.</p>
+    <div id="help-mode-rebalance">
+    <p>Rebalance calculates which TIPS to buy or sell so that each funded year produces its <b><a href="../knowledge/viewer.html#/md/knowledge/DATA_DICTIONARY.md#ara" target="_blank" style="color:#2563eb;text-decoration:none;">ARA</a></b> (Annual Real Amount — the actual cash flow the ladder produces for that year, which may differ from DARA due to rounding), targeting its <b><a href="../knowledge/viewer.html#/md/knowledge/DATA_DICTIONARY.md#dara" target="_blank" style="color:#2563eb;text-decoration:none;">DARA</a></b> (Desired Annual Real Amount) — inferred from your current holdings when they load, or specified directly. It also calculates which excess TIPS to buy or sell to duration-match the gap years (2037–2039, where no TIPS have been issued yet) or, for a ladder extending past the last issued 30-year TIPS, the Future 30Y rungs. See <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets" target="_blank" style="color:#2563eb;text-decoration:none;">Duration Matching</a> for more details.</p>
 
-    <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Traceability & Deep Drill</h3>
-    <p>Every number in the UI is explainable. Click any underlined value (like Amount or Cost) to open a <b>Level 2</b> drill-down showing the calculation chain. Inside those popups, you can click variables like <b>Interest from longer-dated bonds</b> or <b>Ref CPI</b> for a <b>Level 3</b> breakdown of the underlying math and <b>Level 4</b> deep-links to the official Code of Federal Regulations.</p>
+    <p><b>1. Import your holdings.</b> The app supports position CSV export files from Fidelity, Schwab, and Vanguard, as well as a simple <code>cusip,qty</code> file, the tipsladder.com <code>cusip,qty,year</code> format, or this app's own CUSIP/Qty export. For a broker file, the app scans for accounts that hold TIPS and shows only those; if more than one account holds TIPS, a selection dialog lets you choose which to include, with every account selected by default. A sample holdings file loads automatically when the app opens, so you can try a rebalance before uploading anything of your own. If you previously used the Export button to export a <b>DARA Plan</b> — a file containing DARA for each funded year — import it separately via <b>Import → DARA Plan</b>; its values drive the rebalance instead of the values mirrored from your holdings.</p>
 
-    <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Mode: Rebalance</h3>
-    <p>For existing TIPS ladder holders. Sells excess bracket TIPS and buys into newly available maturities (former gap years). Support for extending the ladder beyond 2040 is included.</p>
-    <p><b>Last Year</b> — Automatically detected from holdings. If your last maturity is 2040, it defaults to 2040 (or the last gap year, 2039). If your holdings end before 2040, that year is used. You can override this to extend the ladder to 2041+; the tool will identify the appropriate TIPS for those years automatically.</p>
-    <p><b>Brackets</b> — <i>2-bracket</i>: always uses the latest Jan 10-year TIPS before the gap (Jan 2036) as the lower bracket; any older lower bracket holdings (e.g. Jan 2034) become regular funded years and their full excess is sold. <i>3-bracket</i> (default): lower bracket excess is managed with a priority rule — when over-allocated, Jan 2034 excess is sold only as far as restoring the duration match requires (not depleted outright unless the match still needs more), and Jan 2036 excess only if Jan 2034 is fully sold and still over target; when under-allocated, Jan 2034 is frozen at current and Jan 2036 is bought to fill the gap. Jan 2034 excess is never increased or bought back. (A very small residual trade, at most about one bond, can appear on a reload after a partial sell — an ordinary whole-bond-rounding artifact, not an error.) Click the <b>?</b> next to the Brackets selector for a quick comparison.</p>
-    <p><b>Import → CUSIP/Qty</b> — Two columns: <code>cusip</code> and <code>qty</code>. A sample is pre-filled on load.</p>
-    <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:8px;font-size:12px;margin:6px 0;">cusip,qty
-912828S50,50
-91282CEJ6,30
-912810QF8,100</pre>
-    <p><b>DARA</b> — Target annual real amount. Auto-computed from holdings on file load (equilibrium value that makes the rebalance self-financing). After loading, a per-year table lets you override individual year targets — changes may result in non-zero net cash. The DARA field shows <b style="color:#7c3aed">by year</b> when any year's target differs from the default.</p>
-    <p><b>Selecting rungs</b> — Click a funded-year row in the table to select it; Shift-click another row to select the whole range between them, or click and drag across rows to select a range live. A toolbar appears above the table with <b>Set DARA</b> (type one value and apply it to every selected rung) and, in Rebalance, <b>Infer DARA</b> (solves a self-financing value for the selected rungs against current holdings). Either action also re-solves every year below the selection, since coupon income only flows from longer maturities to shorter ones — so a single action keeps the whole ladder self-financing without having to repeat it for the years below by hand. A year typed directly is never overwritten by this.</p>
-    <p><b>Net Cash</b> — Net proceeds (sells minus buys). Negative = net purchase.</p>
+    <p><b>2. Check the range.</b> Once holdings load, the table immediately shows your current ladder (the Before columns). <b>First Year</b> is the earliest year with holdings. <b>Last Year</b> is the latest contiguous year with holdings before any missing rung above 2040: if your last held maturity is 2040, Last Year defaults to 2040, or to the last gap year (2039) if the gap ends immediately before it; if your last held maturity is before 2040, that year is used. Override Last Year in the dropdown to extend or shorten the ladder; the tool identifies the appropriate TIPS for any new years automatically.</p>
 
-    <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Mode: Build</h3>
-    <p>Designs a new TIPS ladder from scratch with zero existing holdings.</p>
-    <p><b>DARA</b> (required) — Enter your target annual real amount. After entering a value, a per-year table appears where you can override the target for individual funded years. The DARA field shows <b style="color:#7c3aed">by year</b> when any year's target differs from the default.</p>
-    <p><b>First Year / Last Year</b> — Range of funded years. First year defaults to the current calendar year. The per-year DARA table updates automatically when you change the range, preserving any custom values already entered.</p>
-    <p><b>Maturity pick</b> — which TIPS fill each funded year. The DARA target stays annual; when more than one TIPS is chosen for a year, the year's amount is split evenly across them (latest maturity absorbs the rounding). <i>Last</i>: the latest-maturing TIPS (default, one per year). <i>First</i>: the earliest-maturing. <i>Semiannual</i>: the January and July TIPS (out to ~2035; single TIPS beyond). <i>All maturity months</i>: one TIPS per distinct maturity month (quarterly out to ~2030). When a month has two issues, the higher-coupon TIPS is used.</p>
-    <p><b>Pre-ladder interest</b> — If checked, coupon payments received before the ladder starts (during the years between today and the first funded year) is applied to reduce the quantity needed for the earliest rungs.</p>
-    <p><b>Total Cost</b> — full ladder purchase cost.</p>
+    <p><b>3. Set DARA (Desired Annual Real Amount).</b> You can set the same DARA for every rung by entering a value in <b>DARA – all yrs</b> in the top card, for each rung separately by editing the per-year table directly (pre-filled with each year's current ARA), or for a range of rungs at once by selecting them — see <b>Using the ladder table</b> below for how. If you leave the table untouched and a gap or Future 30Y block still needs funding, clicking Rebalance Ladder scales the whole shape to the largest self-financing level automatically. The DARA field shows <b style="color:#7c3aed">by year</b> once any year's DARA differs from the default.</p>
 
-    <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Duration Matching</h3>
-    <p>Synthetic TIPS are created for gap years using yield interpolation between the bracket anchors. Additional TIPS are split between brackets so their weighted duration matches the average duration of the gap years:</p>
-    <pre style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:4px;padding:8px;font-size:12px;margin:6px 0;">2-bracket:  lowerWeight × lowerDur + upperWeight × upperDur = gapAvgDur
-3-bracket:  w1 (orig lower, fixed) + w2 (new lower) + w3 (upper) = 1
-            w1×d1 + w2×d2 + w3×d3 = gapAvgDur  →  unique solution given w1</pre>
+    <p><b>4. Verify or modify ladder parameters.</b></p>
+    <ul style="margin:0 0 10px 20px;padding:0">
+      <li><b>Brackets</b>: <i>2-bracket</i> sells an older lower-bracket holding's excess and rebuilds it to funded-year quantity only; <i>3-bracket</i> (default) retains that excess instead, selling it only if the lower side becomes over-covered — oldest first, only as much as needed, never bought back.</li>
+      <li><b>Pre-ladder int.</b>: check Include to credit coupon income received before the ladder starts against the earliest funded years.</li>
+      <li><b>Maturity preference</b>: which TIPS fill each funded year — <i>Last to mature</i> (default), <i>First to mature</i>, <i>Semiannual (Jan + Jul)</i>, <i>All maturity months</i>, or <i>Select maturities…</i>.</li>
+      <li><b>Allocation policy</b>: which candidate a rebalance actually trades, whenever more than one qualifies — <i>Equal split</i>, <i>Maturity order</i>, <i>SA-Yield order</i>, or <i>Set priority order…</i>.</li>
+    </ul>
+    <p style="margin-top:0">Brackets and Allocation policy each have their own <b>?</b> button with the exact rules. See <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#maturity-selection" target="_blank" style="color:#2563eb;text-decoration:none;">Maturity Selection</a>, <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#within-year-allocation-policy" target="_blank" style="color:#2563eb;text-decoration:none;">Allocation Policy</a>, and <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/4.0_Computation_Modules.md#pre-ladder-interest-option" target="_blank" style="color:#2563eb;text-decoration:none;">Pre-Ladder Interest</a> for more detail.</p>
 
-    <h3 style="font-size:13px;margin:16px 0 6px;border-bottom:1px solid #eee;padding-bottom:4px;">Methodology & Authority</h3>
-    <p>All calculations follow official U.S. Treasury formulas. <b>Reference CPI</b> values are calculated using daily interpolation per <b>31 CFR § 356 Appendix B</b>. The Ref CPI for the 1st of any month is the CPI-U (NSA) from three months prior. All principal and interest amounts are shown in <i>real</i> terms (today's dollars).</p>
+    <p><b>5. Click Rebalance Ladder.</b> The app runs the rebalancing calculations and populates the <b>After</b> and <b>Delta</b> columns with the results; <b>Net Cash</b> (sells minus buys — negative means a net purchase) and average yield/duration stats also appear in the form card's bottom rows. <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/5.0_UI_Schema.md#trade-ticket" target="_blank" style="color:#2563eb;text-decoration:none;"><b>Trade Ticket</b></a> lists the buys and sells the rebalance recommends, with cost and accrued interest per CUSIP. <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/5.0_UI_Schema.md#cash-flow-calendar" target="_blank" style="color:#2563eb;text-decoration:none;"><b>Cash Flow</b></a> shows when your held TIPS actually pay you, and how much, by date. <b>Gap Dur</b> (and <b>Future 30Y Dur</b>, once the ladder extends past 2056) shows the duration match with your ladder's own numbers. <b>Export → Ladder CSV / CUSIP/Qty</b> become available (the latter is re-importable for your next rebalance).</p>
 
-    <div style="margin-top:24px;padding-top:16px;border-top:1px solid #f1f5f9;text-align:center;">
-      <a href="../knowledge/DATA_DICTIONARY.md" target="_blank" style="color:#2563eb;text-decoration:none;font-weight:600;font-size:13px;">View Full Data Dictionary →</a>
+    <p style="margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9"><b>Using the ladder table.</b> A quick click on a funded-year row expands or collapses it, showing or hiding the individual TIPS rows (and any bracket/cover excess sub-row) beneath it; <b>Expand All</b> and <b>Expand Bracket/Cover Years</b> (above the table) do this for every row at once. To select one or more rows for a shared DARA action: press-and-hold (~600ms) a row to select just that one, click-and-drag across rows to select a range, or Shift-click a second row to select the range between it and the last-clicked row. A selection opens a toolbar: type a value and click <b>Apply</b> to stamp it across the selected rungs, or click <b>Infer DARA</b> to solve a self-financing value for the selection against your current holdings; <b>✕ Clear</b> closes the toolbar without changes. Click any underlined figure in the table for the calculation behind it.</p>
+
+    <p><b>Other buttons and links.</b> <b>Ref CPI</b> (info strip): the reference date used for every P+I, cost, and ARA calculation, defaulting to the settlement date — click it to set a different date. <b>Ref</b> / <b>Mkt</b> (info strip, next to the TIPS count): opens a table of every TIPS the app knows about — <b>Ref</b> shows CUSIP, maturity, coupon, dated date, and Base CPI; <b>Mkt</b> shows CUSIP, maturity, coupon, price, index ratio, adjusted price, yield, and SA yield. <b>Term</b> / <b>Range</b> (info strip): the funded-year count and first–last year span of the ladder just run.</p>
+    </div>
+
+    <div id="help-mode-build">
+    <p>Build a TIPS ladder from scratch, with no existing holdings: it calculates which TIPS to buy so that each funded year produces its <b><a href="../knowledge/viewer.html#/md/knowledge/DATA_DICTIONARY.md#ara" target="_blank" style="color:#2563eb;text-decoration:none;">ARA</a></b> (Annual Real Amount — the actual cash flow the ladder produces for that year, which may differ from DARA due to rounding), targeting the <b><a href="../knowledge/viewer.html#/md/knowledge/DATA_DICTIONARY.md#dara" target="_blank" style="color:#2563eb;text-decoration:none;">DARA</a></b> (Desired Annual Real Amount) you specify for it. It also calculates which excess TIPS the ladder needs to hold to duration-match the gap years (2037–2039, where no TIPS have been issued yet) or, for a ladder extending past the last issued 30-year TIPS, the Future 30Y rungs. See <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets" target="_blank" style="color:#2563eb;text-decoration:none;">Duration Matching</a> for more details.</p>
+
+    <p><b>1. Choose First Year and Last Year.</b> First Year defaults to the current calendar year.</p>
+
+    <p><b>2. Set DARA (Desired Annual Real Amount).</b> Enter a value in <b>DARA – all yrs</b> to use the same DARA for every funded year; a per-year table then appears where you can override individual years directly, or select a range of rungs and set them together — see <b>Using the ladder table</b> below for how. If you previously used the Export button to export a <b>DARA Plan</b>, import it via <b>Import → DARA Plan</b> to reuse that per-year shape instead of retyping it. The DARA field shows <b style="color:#7c3aed">by year</b> once any year's DARA differs from the default.</p>
+
+    <p><b>3. Verify or modify ladder parameters.</b></p>
+    <ul style="margin:0 0 10px 20px;padding:0">
+      <li><b>Pre-ladder int.</b>: check Include to credit coupon income received before the ladder starts against the earliest funded years.</li>
+      <li><b>Maturity preference</b>: which TIPS fill each funded year — <i>Last to mature</i> (default), <i>First to mature</i>, <i>Semiannual (Jan + Jul)</i>, <i>All maturity months</i>, or <i>Select maturities…</i>.</li>
+      <li><b>Coupon pick</b> (shown outside <i>Last to mature</i> and <i>Select maturities…</i>): which of two same-month issues is used — <i>Higher coupon</i> or <i>Lower coupon</i>.</li>
+    </ul>
+    <p style="margin-top:0">Coupon pick has its own <b>?</b> button with the exact rules. See <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#maturity-selection" target="_blank" style="color:#2563eb;text-decoration:none;">Maturity Selection</a> and <a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/4.0_Computation_Modules.md#pre-ladder-interest-option" target="_blank" style="color:#2563eb;text-decoration:none;">Pre-Ladder Interest</a> for more detail.</p>
+
+    <p><b>4. Click Build Ladder.</b> The app runs the build calculations and populates the table with each year's Quantity, Cost, and Amount, plus <b>Total Cost</b> for the full ladder. <b>Gap Dur</b> (and <b>Future 30Y Dur</b>, once the ladder extends past 2056) shows the duration match with your ladder's own numbers. <b>Export → Ladder CSV / CUSIP/Qty</b> become available (the latter is re-importable into Rebalance).</p>
+
+    <p style="margin-top:16px;padding-top:12px;border-top:1px solid #f1f5f9"><b>Using the ladder table.</b> A quick click on a funded-year row expands or collapses it, showing or hiding the individual TIPS rows (and any bracket/cover excess sub-row) beneath it; <b>Expand All</b> and <b>Expand Bracket/Cover Years</b> (above the table) do this for every row at once. To select one or more rows for a shared DARA action: press-and-hold (~600ms) a row to select just that one, click-and-drag across rows to select a range, or Shift-click a second row to select the range between it and the last-clicked row. A selection opens a toolbar: type a value and click <b>Apply</b> to stamp it across the selected rungs; <b>✕ Clear</b> closes the toolbar without changes. Click any underlined figure in the table for the calculation behind it.</p>
+
+    <p><b>Other buttons and links.</b> <b>Ref CPI</b> (info strip): the reference date used for every P+I, cost, and ARA calculation, defaulting to the settlement date — click it to set a different date. <b>Ref</b> / <b>Mkt</b> (info strip, next to the TIPS count): opens a table of every TIPS the app knows about — <b>Ref</b> shows CUSIP, maturity, coupon, dated date, and Base CPI; <b>Mkt</b> shows CUSIP, maturity, coupon, price, index ratio, adjusted price, yield, and SA yield. <b>Term</b> / <b>Range</b> (info strip): the funded-year count and first–last year span of the ladder just run.</p>
+    </div>
+
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9;text-align:center;">
+      <a href="../knowledge/KNOWLEDGE_MAP.html" target="_blank" style="color:#2563eb;text-decoration:none;font-weight:600;font-size:13px;">View Knowledge Map →</a>
     </div>
   </div>
 </div>
@@ -411,7 +412,7 @@
       <button class="tab-btn" data-mode="build">Build</button>
     </div>
     <div class="tab-bar-right">
-      <button id="help-btn" title="Help" class="help-btn">?</button>
+      <button id="help-btn" title="Help" class="help-btn">Help</button>
     </div>
   </div>
   <div class="form-card">
@@ -622,7 +623,17 @@ let _allocationPolicy = 'equal';
 let _yearRankOverrides = new Map(); // Map<fundedYear, cusip[]>, highest-priority-first
 
 // ─── Help modal ───────────────────────────────────────────────────────────────
+// Shows only the section matching the tab that's currently active, so the modal stays short and
+// each mode's content can be kept accurate without duplicating shared concepts (Key Concepts,
+// Maturity Preference/Allocation Policy, Duration Matching, Methodology all stay common).
+function _syncHelpModalMode() {
+  document.getElementById('help-mode-rebalance').style.display = currentMode === 'rebalance' ? '' : 'none';
+  document.getElementById('help-mode-build').style.display = currentMode === 'build' ? '' : 'none';
+  document.getElementById('help-title').textContent =
+    'TIPS Ladder Manager: ' + (currentMode === 'build' ? 'Build' : 'Rebalance');
+}
 document.getElementById('help-btn').addEventListener('click', () => {
+  _syncHelpModalMode();
   document.getElementById('help-overlay').style.display = 'block';
 });
 
@@ -853,6 +864,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     const mode = btn.dataset.mode;
     if (mode === currentMode) return;
     currentMode = mode;
+    if (document.getElementById('help-overlay').style.display !== 'none') _syncHelpModalMode();
 
     document.querySelectorAll('.tab-bar .tab-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
@@ -3465,10 +3477,25 @@ document.addEventListener('click', e => {
   }
 });
 
+// Esc closes whichever modal is currently open, by clicking that modal's own close/cancel
+// button — reuses each modal's existing close logic (some do extra cleanup, e.g. account-cancel)
+// rather than re-implementing it here. Checked in overlay-stacking order (topmost z-index first).
+const _escCloseMap = [
+  ['rank-picker-overlay', 'rank-picker-cancel'],
+  ['maturity-picker-overlay', 'maturity-picker-cancel'],
+  ['trade-ticket-overlay', 'trade-ticket-close'],
+  ['cash-flow-overlay', 'cash-flow-close'],
+  ['drill-overlay', 'drill-close'],
+  ['account-overlay', 'account-cancel'],
+  ['tipsref-overlay', 'tipsref-close'],
+  ['help-overlay', 'help-close'],
+];
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
-    document.getElementById('drill-overlay').style.display = 'none';
-    document.getElementById('tipsref-overlay').style.display = 'none';
+    for (const [overlayId, closeBtnId] of _escCloseMap) {
+      const el = document.getElementById(overlayId);
+      if (el && el.style.display !== 'none') { document.getElementById(closeBtnId).click(); break; }
+    }
     hidePopup();
   }
   if (e.key === 'Enter') {

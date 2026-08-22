@@ -244,16 +244,16 @@
 
 <a id="ara"></a>
 ### ARA
-`ARA` = `Funded_PI + LMI + Role_Playing_LMI` *(Actual Real Amount: total real cash flow produced for a Funded Year)*
+`ARA` = `Funded_PI + LMI + Same_Year_Excess_Interest` *(Annual Real Amount: total real cash flow produced for a Funded Year)*
 
 <a id="lmi"></a>
 ### LMI
 `LMI` = `Σ Annual_Interest_Real for TIPS maturing in years > Current_Year` *(Later Maturity Interest: interest contributions to the current funded year from bonds maturing in future years)*
 
-<a id="role-playing-lmi"></a>
-### Role Playing LMI
-`Role_Playing_LMI` = `Σ Annual_Interest_Real for bracket or cover excess bonds maturing in Current_Year`
-L225: *When bracket or cover TIPS of a given maturity substitute for TIPS that haven't yet been issued (gap years or Future 30Y Rungs), they "role play" by contributing their annual interest to the funded year amount for that maturity. Example: If excess Feb 2056s are held to cover Future 30Y Rungs (e.g., 2057–2066), the interest from those excess 2056 TIPS contributes to the 2056 funded year amount, which could reduce the quantity of 2056 TIPS required for the 2056 funded year.*
+<a id="same-year-excess-interest"></a>
+### Same-Year Excess Interest
+`Same_Year_Excess_Interest` = `Σ Annual_Interest_Real for bracket or cover excess TIPS maturing in Current_Year`
+*Bracket or cover excess TIPS ([Duration Matching](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets)) are ordinary held bonds — their coupon interest behaves exactly like any other TIPS's: interest paid in their own maturity year counts toward that year's Amount (this term, credited only to the year the excess bonds themselves mature), and it also continues flowing down into [LMI](#lmi) for every shorter-maturity year, same as any other coupon. Bracket excess (the lower/upper gap brackets) covers [Gap Years](#gap-years), where 10-year TIPS have not yet been issued; cover excess (the Future 30Y cover pair) covers [Future 30Y Rungs](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#future-30y-rungs-section), where 30-year TIPS have not yet been issued — the two block types are covered by different excess holdings and should not be conflated. Example: excess Feb 2056 TIPS held to cover Future 30Y Rungs (2057–2066) — their interest contributes to the 2056 funded year's Amount as Same-Year Excess Interest, reducing the 2056 rung's own quantity, and the same coupon also flows down as ordinary LMI to 2055, 2054, and every year below.*
 
 
 <a id="gap-years"></a>
