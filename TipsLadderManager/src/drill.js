@@ -378,8 +378,59 @@ export function buildDrillHTML(d, colKey, summary) {
   // ── Rebalance: Qty Before / After (funded-year row only) ──────────────────
   } else if (colKey === 'qtyAfter' || colKey === 'qtyBefore' || colKey === 'qty') {
     const isBef = colKey === 'qtyBefore';
-    const fyQty = isBef ? d.fundedYearQtyBefore : (d.fundedYearQtyAfter ?? d.fundedYearQty);
-    rows = row(isBef ? 'Quantity Before' : 'Quantity After', '', fyQty, true);
+    if (isBef) {
+      rows = row('Quantity Before', '', d.fundedYearQtyBefore, true);
+    } else {
+      const fyQty = d.fundedYearQtyAfter ?? d.fundedYearQty;
+      const isSettleYr = d.fundedYear === summary?.settlementYear;
+      const lmiLabel = isSettleYr ? 'Remaining interest from longer-dated TIPS' : 'Interest from longer-dated TIPS';
+      const lmiDesc = isSettleYr
+        ? 'coupons from TIPS maturing after this year, paid on or after today, based on RMD Options selection'
+        : 'from TIPS maturing after ' + d.fundedYear;
+      const laterMatInt = d.araAfterLaterMatInt ?? 0;
+      const sameYearExInt = d.excessLMI_After || 0;
+      const plCredit = d.preLadderCreditForYear || 0;
+      const amd = d.future30yUpperAnnualAmd || 0;
+      const roll = d.future30yRollCoupon || 0;
+      const rmdOverride = d.rmdCashOverride || 0;
+      const piPerBond = principalPerBond * (1 + d.coupon / 2 * nPeriods);
+      const dara = d.DARA ?? 0;
+      const needed = dara - laterMatInt - sameYearExInt - plCredit - amd - roll - rmdOverride;
+
+      let neededFmla = 'DARA − <span class="formula-var" data-source="lmi">Longer-dated int</span>';
+      if (sameYearExInt > 0) neededFmla += ' − <span class="formula-var" data-source="exlmi">Same-year excess int</span>';
+      if (plCredit > 0) neededFmla += ' − <span class="formula-var" data-source="plc">Pre-ladder credit</span>';
+      if (amd > 0) neededFmla += ' − <span class="formula-var" data-source="amd">AMD</span>';
+      if (roll > 0) neededFmla += ' − <span class="formula-var" data-source="roll">Future-30Y coupon</span>';
+      if (rmdOverride > 0) neededFmla += ' − RMD cash override';
+
+      // P+I needed is the funded YEAR's total requirement; it equals this row's own quantity only
+      // when this CUSIP is the only TIPS held for the year. When multiple TIPS share a funded year
+      // (Maturity preference: All maturity months / Semiannual), the need is split across them per
+      // Allocation policy, which this popup doesn't re-derive — say so rather than show a formula
+      // that wouldn't reconcile to this row's own quantity.
+      const computedQty = piPerBond > 0 ? Math.max(0, Math.round(needed / piPerBond)) : 0;
+      const qtyFmla = computedQty === fyQty
+        ? 'round(<span class="formula-var" data-source="needed">P+I needed</span> ÷ <span class="formula-var" data-source="pipb">P+I per TIPS</span>)'
+        : 'this CUSIP’s share of the year’s P+I need, split across multiple TIPS per Allocation policy';
+
+      rows =
+        row('DARA', '', fm(dara), false, undefined, 'dara') +
+        row(lmiLabel, lmiDesc, '−' + fm(laterMatInt), false, undefined, 'lmi') +
+        (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, '−' + fm(sameYearExInt), false, undefined, 'exlmi') : '') +
+        (plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', '−' + fm(plCredit), false, undefined, 'plc') : '') +
+        (amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', '−' + fm(amd), false, undefined, 'amd') : '') +
+        (roll > 0 ? row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', '−' + fm(roll), false, undefined, 'roll') : '') +
+        (rmdOverride > 0 ? row('RMD cash override', 'account cash targeted for RMD (RMD Options)', '−' + fm(rmdOverride)) : '') +
+        sep() +
+        row('P+I needed', neededFmla, fm(needed), true, undefined, 'needed') +
+        sep() +
+        bondVarRows(d, nPeriods, principalPerBond, couponPct) +
+        sep() +
+        row('P+I per TIPS', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> × (1 + <span class="formula-var" data-source="cpp">coupon/period</span> × <span class="formula-var" data-source="cp">periods</span>)', fm2(piPerBond), false, undefined, 'pipb') +
+        sep() +
+        row('Quantity After', qtyFmla, fyQty, true);
+    }
 
   // ── Rebalance: Excess Quantity After (bracket/cover excess sub-row only) ──────
   } else if (colKey === 'excessQtyAfter') {
