@@ -102,7 +102,8 @@ export const COLS = [
   { label: 'Cash Delta',    key: 'cashDelta',  fmt: 'sgn', rebalOnly: true,
     value:    d => d.fundedYearQtyDelta != null && d.costPerBond != null ? -(d.fundedYearQtyDelta * d.costPerBond) : null,
     subValue: d => d.excessQtyDelta != null && d.costPerBond != null ? -(d.excessQtyDelta * d.costPerBond) : null,
-    subDrillKey: 'gapCashDelta',
+    subDrillKey: 'excessCashDelta',
+    subDrillCond: sv => typeof sv === 'number' && sv !== 0,
     total: true, totalFn: d => (d.qtyAfter != null && d.qtyBefore != null && d.costPerBond != null) ? -((d.qtyAfter - d.qtyBefore) * d.costPerBond) : 0,
     drill: true, drillCond: v => typeof v === 'number' && v !== 0,
     headerHTML: 'Cash Delta<br><span style="font-weight:normal;opacity:0.7">Cash Delta</span>' },
@@ -372,7 +373,8 @@ export function renderTable({ details, mode, summary, daraByYear = null, flagged
           // whether the sub-row actually has a value, so an empty After-side sub-cell (e.g.
           // qtyAfter/cashDelta on a pre-Run before-state row, where After data doesn't exist yet)
           // rendered as an invisible-but-clickable drillable cell that opened a NaN-filled popup.
-          const sdk = sv != null ? (col.subDrillKeyFn ? col.subDrillKeyFn(d) : (col.subDrillKey ?? null)) : null;
+          const subOk = col.subDrillCond ? col.subDrillCond(sv, d) : (sv != null);
+          const sdk = subOk ? (col.subDrillKeyFn ? col.subDrillKeyFn(d) : (col.subDrillKey ?? null)) : null;
           return cellHtml(col, sv, ri, sdk);
         }).join('');
         const subRow = `<tr data-ri="${ri}" data-sub="1" data-fy="${fy}" class="fy-child excess-subrow bracket">${subCells}</tr>`;

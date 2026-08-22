@@ -548,31 +548,24 @@ export function buildDrillHTML(d, colKey, summary) {
     }
 
   // ── Rebalance: Excess Cash Delta (bracket/cover excess row) ──────────────────
-  } else if (colKey === 'gapCashDelta') {
-    const exQtyAft  = d.excessQtyAfter;
+  } else if (colKey === 'excessCashDelta') {
     const exQtyDel  = d.excessQtyDelta;
-    const gapCash   = -(exQtyDel * d.costPerBond);
+    const excessCash = -(exQtyDel * d.costPerBond);
     const delSign   = exQtyDel >= 0 ? '+' : '';
-    const cashSign  = gapCash  >= 0 ? '+' : '';
-    // Same split as the funded-year Cash Delta popup: this excess is the SAME held maturity as the
-    // funded-year rung, split into two buckets for accounting purposes only — no TIPS are bought,
-    // sold, or moved to produce the split, so "Excess Quantity before" isn't its own independent
-    // current-holdings fact, it's this CUSIP's total held minus its funded-year portion.
+    const cashSign  = excessCash >= 0 ? '+' : '';
+    // Mirrors the funded-year Cash Delta popup: a rebalance does not split a CUSIP's holdings
+    // into funded-year and excess buckets, so no such split is shown here. Excess quantity is
+    // set by Gap Dur duration matching (see that popup); this only explains the cash delta.
     rows =
-      row('Total held (this CUSIP)', '', d.qtyBefore) +
-      row('Funded year portion (before)', 'this CUSIP’s held units split into funded-year and excess buckets — not a trade', d.reallocFundedBefore, false, undefined, 'rfb') +
-      row('Excess Quantity before', '<span class="formula-var" data-source="rfb">Total held</span> minus funded year portion', d.reallocExcessBefore) +
-      row('Excess Quantity after',  'Rebalanced excess', exQtyAft) +
-      row('Excess Quantity delta',  'After \u2212 before', delSign + exQtyDel, false, undefined, 'qty') +
+      row('Excess quantity delta', 'Excess Quantity After − Excess Quantity Before', delSign + exQtyDel, false, undefined, 'qty') +
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
       row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
-      row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
+      row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> ÷ <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
+      row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> × <span class="formula-var" data-source="ir">index ratio</span> × 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
-      row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
-      sep() +
-      row('Excess Cash \u0394', '\u2212(<span class="formula-var" data-source="qty">Excess Quantity delta</span> \xd7 <span class="formula-var" data-source="cpb">Cost per TIPS</span>)', cashSign + fm(Math.abs(gapCash)), true);
+      row('Excess Cash Δ', '−(<span class="formula-var" data-source="qty">Excess quantity delta</span> × <span class="formula-var" data-source="cpb">Cost per TIPS</span>)', cashSign + fm(Math.abs(excessCash)), true);
 
   }
 
