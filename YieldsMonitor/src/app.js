@@ -987,7 +987,7 @@ async function fetchOne(symbol, range, force = false) {
     const endMs = customEndDate ? customEndDate.getTime() : Date.now();
     let combined = (history || []).filter(p => p.x.getTime() >= startMs && p.x.getTime() < endMs && !isWeekendEt(p.x));
     if (endMs > Date.now() - 5 * 86400000) {
-      const tipKey = `${symbol}_5D`;
+      const tipKey = `${symbol}_5Dtip`;
       let liveTip = liveCache[tipKey];
       if (!liveTip || force) {
         console.log(`%c[CNBC] %cFetching 5D tip for ${symbol}...`, "color: #2563eb; font-weight: bold", "color: inherit");
@@ -1008,7 +1008,7 @@ async function fetchOne(symbol, range, force = false) {
   const is2D = range === '2D', is10D = range === '10D';
   if (is2D || is10D) {
     const providerRange = is2D ? '1D' : '5D', cacheKey = `${symbol}_${providerRange}`;
-    const tipKey = `${symbol}_5D`;
+    const tipKey = `${symbol}_5Dtip`;
     const fetchTasks = [];
     if (!force && liveCache[cacheKey]) {
       // Use cache
@@ -1082,7 +1082,7 @@ async function fetchOne(symbol, range, force = false) {
       // have caught this. Appending the latest live 5D point directly — same "baseline +
       // live tip" pattern used for Custom range and 10Y/ALL — sidesteps needing to detect
       // that tier-by-tier and keeps the latest available point consistent across every range.
-      const tipKey = `${symbol}_5D`;
+      const tipKey = `${symbol}_5Dtip`;
       let liveTip = liveCache[tipKey];
       if (!liveTip || force) {
         liveTip = await fetchLive(symbol, '5D');
@@ -1119,7 +1119,7 @@ async function fetchOne(symbol, range, force = false) {
       console.log(`%c[R2] %cLoading history for ${symbol}...`, "color: #ea580c; font-weight: bold", "color: inherit");
       const history = await fetchHistory(symbol);
       const base = (history || []).filter(p => p.x >= cutoff);
-      const tipKey = `${symbol}_5D`;
+      const tipKey = `${symbol}_5Dtip`;
       let liveTip = liveCache[tipKey];
       if (!liveTip || force) {
         liveTip = await fetchLive(symbol, '5D');
