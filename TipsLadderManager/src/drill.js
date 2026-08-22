@@ -375,40 +375,34 @@ export function buildDrillHTML(d, colKey, summary) {
       + row('Surplus / Deficit', (isBef ? 'Amount Before' : 'Amount After') + ' \u2212 <span class="formula-var" data-source="dara">DARA</span>',
             (_displayAmt - DARA >= 0 ? '+' : '') + Math.round(_displayAmt - DARA).toLocaleString('en-US'));
 
-  // ── Rebalance: Qty Before / After ─────────────────────────────────────────────
+  // ── Rebalance: Qty Before / After (funded-year row only) ──────────────────
   } else if (colKey === 'qtyAfter' || colKey === 'qtyBefore' || colKey === 'qty') {
     const isBef = colKey === 'qtyBefore';
-    const totalQty = isBef ? d.qtyBefore : (d.qtyAfter ?? d.qty);
-    const fyQty    = isBef ? d.fundedYearQtyBefore : (d.fundedYearQtyAfter ?? d.fundedYearQty);
-    const exQty    = isBef ? d.excessQtyBefore : (d.excessQtyAfter ?? d.excessQty);
+    const fyQty = isBef ? d.fundedYearQtyBefore : (d.fundedYearQtyAfter ?? d.fundedYearQty);
+    rows = row(isBef ? 'Quantity Before' : 'Quantity After', '', fyQty, true);
 
-    rows = row('Funded year portion', 'Units needed for this year\'s DARA target', fyQty)
-         + row('Excess portion', d.isBracketTarget ? 'Units held for gap duration matching' : 'No excess held', exQty);
+  // ── Rebalance: Excess Quantity After (bracket/cover excess sub-row only) ──────
+  } else if (colKey === 'excessQtyAfter') {
+    const exQty = d.excessQtyAfter ?? d.excessQty;
+    const is3B = summary.bracketMode === '3bracket';
+    const weight = is3B
+      ? (d.fundedYear === summary.lowerYear ? summary.origLowerWeight : (d.fundedYear === summary.newLowerYear ? summary.newLowerWeight3 : summary.upperWeight3))
+      : (d.fundedYear === summary.lowerYear ? summary.lowerWeight : summary.upperWeight);
+    const targetExCost = (summary.gapParams?.totalCost ?? 0) * (weight ?? 0);
+    const piPerBond = principalPerBond * (1 + d.coupon / 2 * nPeriods);
 
-    if (d.isBracketTarget && !isBef) {
-      const is3B = summary.bracketMode === '3bracket';
-      const weight = is3B
-        ? (d.fundedYear === summary.lowerYear ? summary.origLowerWeight : (d.fundedYear === summary.newLowerYear ? summary.newLowerWeight3 : summary.upperWeight3))
-        : (d.fundedYear === summary.lowerYear ? summary.lowerWeight : summary.upperWeight);
-      const targetExCost = (summary.gapParams?.totalCost ?? 0) * (weight ?? 0);
-      const piPerBond = principalPerBond * (1 + d.coupon / 2 * nPeriods);
-
-      rows += sep()
-        + gapBreakdownRows(summary.gapParams, summary.DARA)
-        + row('Gap total cost', 'Sum of gap year theoretical costs', fm(summary.gapParams?.totalCost ?? 0), true, undefined, 'gtc')
-        + row('Bracket weight', 'from <a class="info-link" data-popup="duration" style="border-bottom:1px dotted #94a3b8;color:inherit;text-decoration:none;">Duration Calcs</a>', (weight ?? 0).toFixed(4), false, undefined, 'bw')
-        + row('Target excess cost', '<span class="formula-var" data-source="gtc">Gap total cost</span> \xd7 <span class="formula-var" data-source="bw">Bracket weight</span>', fm(targetExCost), false, undefined, 'tec')
-        + row('Cost per TIPS', 'price/100 \xd7 index ratio \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpbn')
-        + row('Excess portion', 'round(<span class="formula-var" data-source="tec">Target cost</span> \u00f7 <span class="formula-var" data-source="cpbn">Cost per TIPS</span>)', exQty, true)
-        + sep()
-        + bondVarRows(d, nPeriods, principalPerBond, couponPct)
-        + sep()
-        + row('P+I per TIPS', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 (1 + <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span>)', fm2(piPerBond), false, undefined, 'pipb')
-        + row('Excess Amount After', '<span class="formula-var" data-source="qty">Excess Quantity</span> \xd7 <span class="formula-var" data-source="pipb">P+I per TIPS</span>', fm(exQty * piPerBond), true);
-    }
-
-    rows += sep()
-      + row(isBef ? 'Quantity Before' : 'Quantity After', 'Funded year portion + Excess portion', totalQty, true);
+    rows =
+      gapBreakdownRows(summary.gapParams, summary.DARA)
+      + row('Gap total cost', 'Sum of gap year theoretical costs', fm(summary.gapParams?.totalCost ?? 0), true, undefined, 'gtc')
+      + row('Bracket weight', 'from <a class="info-link" data-popup="duration" style="border-bottom:1px dotted #94a3b8;color:inherit;text-decoration:none;">Duration Calcs</a>', (weight ?? 0).toFixed(4), false, undefined, 'bw')
+      + row('Target excess cost', '<span class="formula-var" data-source="gtc">Gap total cost</span> × <span class="formula-var" data-source="bw">Bracket weight</span>', fm(targetExCost), false, undefined, 'tec')
+      + row('Cost per TIPS', 'price/100 × index ratio × 1,000', fm2(d.costPerBond), false, undefined, 'cpbn')
+      + row('Excess Quantity', 'round(<span class="formula-var" data-source="tec">Target cost</span> ÷ <span class="formula-var" data-source="cpbn">Cost per TIPS</span>)', exQty, true)
+      + sep()
+      + bondVarRows(d, nPeriods, principalPerBond, couponPct)
+      + sep()
+      + row('P+I per TIPS', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> × (1 + <span class="formula-var" data-source="cpp">coupon/period</span> × <span class="formula-var" data-source="cp">periods</span>)', fm2(piPerBond), false, undefined, 'pipb')
+      + row('Excess Amount After', '<span class="formula-var" data-source="qty">Excess Quantity</span> × <span class="formula-var" data-source="pipb">P+I per TIPS</span>', fm(exQty * piPerBond), true);
 
   // ── Rebalance: Cash Delta ─────────────────────────────────────────────────────
   } else if (colKey === 'cashDelta') {
@@ -416,17 +410,12 @@ export function buildDrillHTML(d, colKey, summary) {
     const cashDelta = -(qtyDelta * d.costPerBond);
     const qdSign    = qtyDelta >= 0 ? '+' : '';
     const cdSign    = cashDelta >= 0 ? '+' : '';
-    // A bracket-target CUSIP's funded and excess portions are the SAME held maturity, split into two
-    // buckets for accounting purposes only \u2014 no TIPS are bought, sold, or moved to produce this
-    // split. Show the split explicitly so the funded-year quantity delta doesn't look like it's
-    // missing units.
-    rows = (d.isBracketTarget
-      ? row('Total held (this CUSIP)', '', d.qtyBefore) +
-        row('Funded year portion (before)', 'this CUSIP\u2019s held units split into funded-year and excess buckets \u2014 not a trade', d.reallocFundedBefore, false, undefined, 'rfb') +
-        row('Funded year target', '', d.fundedYearQtyAfter) +
-        row('Quantity delta', 'Funded year target \u2212 <span class="formula-var" data-source="rfb">funded year portion (before)</span>', qdSign + qtyDelta, false, undefined, 'qty')
-      : row('Quantity delta', 'Quantity After \u2212 Quantity Before', qdSign + qtyDelta, false, undefined, 'qty')
-    ) +
+    // Funded-year quantity only \u2014 mirrors the Excess Cash Delta popup, which is likewise
+    // funded-year-free. A bracket-target CUSIP's funded and excess portions are the SAME held
+    // maturity, but a rebalance never splits one CUSIP's holdings into buckets, so no such split
+    // (or the CUSIP's total held quantity) is shown here.
+    rows =
+      row('Quantity delta', 'Quantity After \u2212 Quantity Before', qdSign + qtyDelta, false, undefined, 'qty') +
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
@@ -439,12 +428,10 @@ export function buildDrillHTML(d, colKey, summary) {
   // ── Rebalance: Cost Before / After ────────────────────────────────────────────
   } else if (colKey === 'costBefore' || colKey === 'costAfter') {
     const isBef    = colKey === 'costBefore';
-    const isBT     = d.isBracketTarget;
-    const qty      = isBef ? (isBT ? d.fundedYearQtyBefore : d.qtyBefore) : d.fundedYearQtyAfter;
-    const qtyLabel = isBef ? (isBT ? 'FY quantity (before)' : 'Quantity Before') : 'Quantity After';
+    const qty      = isBef ? d.fundedYearQtyBefore : d.fundedYearQtyAfter;
     const cost     = qty * d.costPerBond;
     rows =
-      row(qtyLabel, isBT ? 'FY-only (excluding gap excess)' : '', qty, false, undefined, 'qty') +
+      row(isBef ? 'Quantity Before' : 'Quantity After', '', qty, false, undefined, 'qty') +
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
@@ -462,7 +449,7 @@ export function buildDrillHTML(d, colKey, summary) {
     const piPerBond = principalPerBond * (1 + d.coupon / 2 * nPeriods);
     if (!isAfter) {
       const exQty = d.excessQtyBefore;
-      rows = row('Excess Quantity', 'Current total \u2212 FY target', exQty, false, undefined, 'qty')
+      rows = row('Excess Quantity', '', exQty, false, undefined, 'qty')
         + sep()
         + bondVarRows(d, nPeriods, principalPerBond, couponPct) + sep();
       if (isAmt) {
@@ -509,7 +496,7 @@ export function buildDrillHTML(d, colKey, summary) {
     const piPerBond = principalPerBond * (1 + d.coupon / 2 * nPeriods);
     if (!isAfter) {
       const exQty = d.excessQtyBefore;
-      rows = row('Excess Quantity', 'Current total \u2212 FY target', exQty, false, undefined, 'qty')
+      rows = row('Excess Quantity', '', exQty, false, undefined, 'qty')
         + sep()
         + bondVarRows(d, nPeriods, principalPerBond, couponPct) + sep();
       if (isAmt) {

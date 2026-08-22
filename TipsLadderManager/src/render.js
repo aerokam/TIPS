@@ -84,9 +84,10 @@ export const COLS = [
   { label: 'Quantity After',     key: 'qtyAfter',   fmt: 'qty', rebalOnly: true,
     value:    d => d.fundedYearQtyAfter,
     subValue: d => d.excessQtyAfter,
-    subDrillKey: 'qtyAfter',
+    subDrillKey: 'excessQtyAfter',
+    subDrillCond: sv => typeof sv === 'number' && sv > 0,
     total: true, totalFn: d => d.qtyAfter || 0,
-    drill: true, drillCond: (_v, d) => (d.qtyAfter || 0) > 0,
+    drill: true, drillCond: (_v, d) => (d.fundedYearQtyAfter || 0) > 0,
     headerHTML: 'Qty After<br><span style="font-weight:normal;opacity:0.7">Qty After</span>' },
 
   // fundedYearQtyDelta/excessQtyDelta (not a plain After-minus-Before per bucket) are the actual
