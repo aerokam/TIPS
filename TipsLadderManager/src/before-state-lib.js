@@ -232,7 +232,7 @@ export function computeBeforeState({ holdings, tipsMap, refCPI, firstYear, lastY
     // (it only returns indexRatio/principalPerBond/costPerBond/nPeriods/couponPerPeriod/ownRungInt/
     // piPerBond/annualInt) — destructuring `coupon` off its return value silently yields `undefined`,
     // which drill.js's popups (bondVarRows' "Coupon per period", buildPIPerBondDrill's coupon
-    // interest, the gapAmtBefore/costBefore P+I-per-TIPS lines) then do arithmetic on, producing
+    // interest, the bracketAmtBefore/costBefore P+I-per-TIPS lines) then do arithmetic on, producing
     // NaN throughout those popups even though the OTHER bondCalcs-derived fields (price, indexRatio,
     // costPerBond, principalPerBond) were correct. `coupon` (and `yield`, which bondCalcs never
     // touches at all — drill.js's bondVarRows reads it too) must come from the bond record itself.

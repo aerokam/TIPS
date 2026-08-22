@@ -1809,11 +1809,11 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   // `coupon` field (only indexRatio/principalPerBond/costPerBond/nPeriods/couponPerPeriod/
   // ownRungInt/piPerBond/annualInt) — destructuring `coupon` off its return value silently produces
   // `undefined`, which drill.js's popups then do arithmetic on (coupon/2, coupon/2*nPeriods, ...),
-  // yielding NaN throughout the Amount Before / gapAmtBefore popups and the nested pipb-<i> drill
+  // yielding NaN throughout the Amount Before / bracketAmtBefore popups and the nested pipb-<i> drill
   // even though every other bondCalcs-derived field (price, indexRatio, costPerBond) was already
   // correct. Every row (and every araBeforeHoldings entry) must carry `coupon` pulled from the bond
   // record itself (`bond.coupon`), and `yield` (which bondCalcs never touches at all, but
-  // drill.js's bondVarRows reads for the gapAmtBefore/gapCostBefore popups).
+  // drill.js's bondVarRows reads for the bracketAmtBefore/bracketCostBefore popups).
   const row2031 = rows2031.find(r => r.cusip);
   const bond2031 = tipsMap.get(row2031.cusip);
   assert('before-state: row.coupon is the real bond coupon, not undefined', row2031.coupon, bond2031.coupon);

@@ -229,10 +229,10 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Funded Year Cost', '<span class="formula-var" data-source="cpb">Cost per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearCost), true);
 
-  // ── Build: Gap Amount / Gap Cost ──────────────────────────────────────────────
-  } else if (colKey === 'gapAmount' || colKey === 'gapCost') {
+  // ── Build: Bracket Amount / Bracket Cost ───────────────────────────────────────
+  } else if (colKey === 'bracketAmount' || colKey === 'bracketCost') {
     const s = summary;
-    const isAmt = colKey === 'gapAmount';
+    const isAmt = colKey === 'bracketAmount';
     if (s) {
       const isLower = d.fundedYear === s.lowerYear;
       const weight  = isLower ? s.lowerWeight  : s.upperWeight;
@@ -247,18 +247,18 @@ export function buildDrillHTML(d, colKey, summary) {
         + row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb')
         + row('Excess Quantity', 'round(<span class="formula-var" data-source="tec">target cost</span> \xf7 <span class="formula-var" data-source="cpb">Cost per TIPS</span>)', d.excessQty);
       if (isAmt) {
-        const gapLMIAlloc = d.gapLMIAlloc ?? 0;
+        const bracketLMIAlloc = d.gapLMIAlloc ?? 0;
         rows += sep()
           + bondVarRows(d, nPeriods, principalPerBond, couponPct)
           + sep()
           + row('P+I per TIPS', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 (1 + <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span>)', fm2(d.fundedYearPi), false, undefined, 'pipb')
           + sep()
           + row('P+I from excess TIPS', '<span class="formula-var" data-source="pipb">P+I/TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Qty</span>', fm(d.excessQty * d.fundedYearPi), false, undefined, 'pix')
-          + (gapLMIAlloc > 0 ? row('Gap LMI credit', 'Bracket weight \xd7 LMI into gap years (actual funded year interest + inter-gap synthetic interest)', fm(gapLMIAlloc), false, undefined, 'glmi') : '')
+          + (bracketLMIAlloc > 0 ? row('Bracket LMI credit', 'Bracket weight \xd7 LMI into gap years (actual funded year interest + inter-gap synthetic interest)', fm(bracketLMIAlloc), false, undefined, 'glmi') : '')
           + sep()
-          + row('Gap Amount', '<span class="formula-var" data-source="pix">P+I from excess</span>' + (gapLMIAlloc > 0 ? ' + <span class="formula-var" data-source="glmi">Gap LMI credit</span>' : ''), fm(d.excessAmt), true);
+          + row('Bracket Amount', '<span class="formula-var" data-source="pix">P+I from excess</span>' + (bracketLMIAlloc > 0 ? ' + <span class="formula-var" data-source="glmi">Bracket LMI credit</span>' : ''), fm(d.excessAmt), true);
       } else {
-        rows += row('Gap Cost', '<span class="formula-var" data-source="cpb">Cost per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(d.excessCost), true);
+        rows += row('Bracket Cost', '<span class="formula-var" data-source="cpb">Cost per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(d.excessCost), true);
       }
     }
 
@@ -292,7 +292,7 @@ export function buildDrillHTML(d, colKey, summary) {
           + row('P+I per TIPS', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 (1 + <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span>)', fm2(d.fundedYearPi), false, undefined, 'pipb')
           + row('Excess P+I', '<span class="formula-var" data-source="pipb">P+I/TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(grossPI), false, undefined, 'expi')
           + (amdNet > 0 ? row('AMD credited to earlier years', 'this cover’s market discount is delivered to the funded years it accrues in (AMD line items), not as coverage here — netted out to avoid double-counting', '−' + fm(amdNet), false, undefined, 'amdn') : '')
-          + (lmiAdd > 0 ? row('+ Future-30Y coupon add-back', 'this cover’s share of the block coupon that sized the synthetic Future-30Y rungs down (analog of the gap-LMI add-back)', fm(lmiAdd), false, undefined, 'lmiadd') : '')
+          + (lmiAdd > 0 ? row('+ Future-30Y coupon add-back', 'this cover’s share of the block coupon that sized the synthetic Future-30Y rungs down (analog of the bracket-LMI add-back)', fm(lmiAdd), false, undefined, 'lmiadd') : '')
           + sep()
           + row('Future 30Y Cover Amount', amtFmla, fm(d.excessAmt), true);
       } else {
@@ -492,11 +492,11 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row(isBef ? 'Cost Before' : 'Cost After', '<span class="formula-var" data-source="qty">Quantity</span> \xd7 <span class="formula-var" data-source="cpb">Cost per TIPS</span>', fm(cost), true);
 
-  // ── Rebalance: Gap Amt/Cost Before/After ──────────────────────────────────────
-  } else if (colKey === 'gapAmtBefore' || colKey === 'gapAmtAfter' || colKey === 'gapCostBefore' || colKey === 'gapCostAfter') {
+  // ── Rebalance: Bracket Amt/Cost Before/After ───────────────────────────────────
+  } else if (colKey === 'bracketAmtBefore' || colKey === 'bracketAmtAfter' || colKey === 'bracketCostBefore' || colKey === 'bracketCostAfter') {
     const s       = summary;
-    const isAfter = colKey === 'gapAmtAfter' || colKey === 'gapCostAfter';
-    const isAmt   = colKey === 'gapAmtBefore' || colKey === 'gapAmtAfter';
+    const isAfter = colKey === 'bracketAmtAfter' || colKey === 'bracketCostAfter';
+    const isAmt   = colKey === 'bracketAmtBefore' || colKey === 'bracketAmtAfter';
     const piPerBond = principalPerBond * (1 + d.coupon / 2 * nPeriods);
     if (!isAfter) {
       const exQty = d.excessQtyBefore;

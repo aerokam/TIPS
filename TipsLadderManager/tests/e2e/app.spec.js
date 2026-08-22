@@ -441,7 +441,7 @@ test('drill popup: clicking Pre-ladder credit opens Level 3 pool composition wit
 });
 
 test('drill popup: gap-year PLI credit drills into pool composition', async ({ page }) => {
-  // The Gap Amount popup lists each gap year's "↳ PLI credit"; each must drill into the shared
+  // The Bracket Amount popup lists each gap year's "↳ PLI credit"; each must drill into the shared
   // pool composition (slice encoded in the data-l3 key as plcpool:<slice>).
   await page.locator('.tab-btn[data-mode="build"]').click();
   await page.locator('#first-year').selectOption({ label: '2036' });    // gaps 2037–2039 get PLI credit
@@ -454,11 +454,11 @@ test('drill popup: gap-year PLI credit drills into pool composition', async ({ p
   await page.locator('#run-btn').click();
   await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
 
-  // Expand all groups so bracket sub-rows (gapAmount cells) become visible.
+  // Expand all groups so bracket sub-rows (bracketAmount cells) become visible.
   const expandAllBtn = page.locator('#expand-collapse-all-btn');
   if ((await expandAllBtn.textContent())?.trim() === 'Expand All') await expandAllBtn.click();
 
-  const gapCell = page.locator('#build-table td.drillable[data-col="gapAmount"]').first();
+  const gapCell = page.locator('#build-table td.drillable[data-col="bracketAmount"]').first();
   await expect(gapCell).toBeVisible();
   await gapCell.click();
   await expect(page.locator('#drill-overlay')).toBeVisible({ timeout: 4_000 });
