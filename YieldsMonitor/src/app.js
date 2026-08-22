@@ -1016,6 +1016,26 @@ async function fetchOne(symbol, range, force = false) {
         }
       }
       const livePortion = (daily || []).filter(p => p.x >= cutoff && !isWeekendEt(p.x));
+      // CNBC's daily tiers can be non-empty overall yet still miss the most recent day
+      // specifically (observed 2026-08-22: US5YTIPS's 6M tier had bars through 2025-08-13,
+      // then jumped straight to today, skipping 8/21 entirely — while its own 3M tier did
+      // have 8/21). The waterfall above only retries a shallower tier when the deeper one
+      // comes back completely empty, not when it's merely missing its tail, so it wouldn't
+      // have caught this. Appending the latest live 5D point directly — same "baseline +
+      // live tip" pattern used for Custom range and 10Y/ALL — sidesteps needing to detect
+      // that tier-by-tier and keeps the latest available point consistent across every range.
+      const tipKey = `${symbol}_5D`;
+      let liveTip = liveCache[tipKey];
+      if (!liveTip || force) {
+        liveTip = await fetchLive(symbol, '5D');
+        if (liveTip) liveCache[tipKey] = liveTip;
+      }
+      let withTip = livePortion;
+      if (liveTip) {
+        const lastTime = livePortion.length > 0 ? livePortion[livePortion.length - 1].x.getTime() : 0;
+        const newPoints = liveTip.filter(p => p.x.getTime() > lastTime && p.x >= cutoff && !isWeekendEt(p.x));
+        withTip = livePortion.concat(newPoints);
+      }
       // Even after all three CNBC tiers, a symbol-specific outage can leave `daily` capped
       // well short of the requested range (e.g. 6M down, 3M's ~2yr reach doesn't cover 3Y).
       // Fill the gap older than CNBC's earliest bar from the same R2 history store the
@@ -1025,9 +1045,9 @@ async function fetchOne(symbol, range, force = false) {
         const dailyFloor = daily && daily.length ? daily[0].x.getTime() : Infinity;
         const history = await fetchHistory(symbol);
         const historyPortion = (history || []).filter(p => p.x >= cutoff && p.x.getTime() < dailyFloor);
-        return historyPortion.concat(livePortion);
+        return historyPortion.concat(withTip);
       }
-      return livePortion;
+      return withTip;
     } else {
       // 10Y, ALL: history.json (accumulated daily-resolution store; coarser CNBC feeds supplemented by past daily captures)
       // plus the latest live points appended from CNBC's 5D feed — same "baseline + live tip"
