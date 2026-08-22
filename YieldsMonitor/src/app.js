@@ -111,22 +111,106 @@ const SA_SYMBOLS = new Set(['US1YTIPS', 'US2YTIPS', 'US5YTIPS', 'US10YTIPS', 'US
 // first entry has no observed bond identity and is left as a gap — not guessed.
 const SA_ROLLOVER_LOG = {
   US1YTIPS: [
-    { from: '2024-03-01', maturity: '2025-01-15' }, // earliest date cross-checked; 2023-08-19..2024-02 candidates are too close together to disambiguate — left as a gap
+    // FALLBACK-DERIVED (2014-04-01 .. 2024-02-29): the empirical CNBC-vs-FedInvest cross-check
+    // can't disambiguate candidates this far back (same "too close together" problem as the
+    // 2023-08-19..2024-02 stretch previously left as a gap) — but per explicit direction, a
+    // quoted yield with no SA counterpart at all is worse than a lower-confidence SA value, so
+    // this range is filled instead of left empty. Method: for each date, pick whichever real
+    // TIPS in TipsRef.csv (already issued, not yet matured) has a maturity closest to date+1yr;
+    // walk forward and emit an entry each time that pick changes (script: see git history of
+    // this file's PR, not checked in). This is NOT a claim that CNBC's US1YTIPS quote actually
+    // tracked this exact CUSIP on these dates — see Known limitations. Sanity check: the last
+    // entry here (maturity 2025-01-15) lands exactly on the first cross-checked entry below, so
+    // the two methods agree at the boundary.
+    { from: '2014-04-01', maturity: '2015-04-15' },
+    { from: '2014-06-02', maturity: '2015-07-15' },
+    { from: '2014-10-16', maturity: '2016-01-15' },
+    { from: '2015-03-02', maturity: '2016-04-15' },
+    { from: '2015-06-01', maturity: '2016-07-15' },
+    { from: '2015-10-16', maturity: '2017-01-15' },
+    { from: '2016-03-02', maturity: '2017-04-15' },
+    { from: '2016-05-31', maturity: '2017-07-15' },
+    { from: '2016-10-17', maturity: '2018-01-15' },
+    { from: '2017-03-02', maturity: '2018-04-15' },
+    { from: '2017-05-31', maturity: '2018-07-15' },
+    { from: '2017-10-16', maturity: '2019-01-15' },
+    { from: '2018-03-02', maturity: '2019-04-15' },
+    { from: '2018-05-31', maturity: '2019-07-15' },
+    { from: '2018-10-16', maturity: '2020-01-15' },
+    { from: '2019-03-01', maturity: '2020-04-15' },
+    { from: '2019-05-31', maturity: '2020-07-15' },
+    { from: '2019-10-16', maturity: '2021-01-15' },
+    { from: '2020-03-02', maturity: '2021-04-15' },
+    { from: '2020-06-01', maturity: '2021-07-15' },
+    { from: '2020-10-16', maturity: '2022-01-15' },
+    { from: '2021-03-02', maturity: '2022-04-15' },
+    { from: '2021-05-31', maturity: '2022-07-15' },
+    { from: '2021-10-18', maturity: '2023-01-15' },
+    { from: '2022-03-02', maturity: '2023-04-15' },
+    { from: '2022-05-31', maturity: '2023-07-15' },
+    { from: '2022-10-17', maturity: '2024-01-15' },
+    { from: '2023-03-01', maturity: '2024-04-15' },
+    { from: '2023-05-31', maturity: '2024-07-15' },
+    { from: '2023-08-31', maturity: '2024-10-15' },
+    { from: '2023-12-01', maturity: '2025-01-15' },
+    // CROSS-CHECKED (empirical CNBC-vs-FedInvest match) from here on.
+    { from: '2024-03-01', maturity: '2025-01-15' },
     { from: '2024-06-10', maturity: '2025-04-15' },
     { from: '2024-07-22', maturity: '2025-07-15' },
     { from: '2025-01-17', maturity: '2025-10-15' },
-    { from: '2025-02-15', maturity: null }, // gap: candidates within a few bp of each other and flip non-monotonically day to day — the old buy-primary rule's "brief 2026-10-15 cohort" here doesn't survive the corrected price
+    // 2025-02-15..2025-02-25: previously a `maturity: null` gap (candidates within a few bp,
+    // flipping non-monotonically day to day) — per the same fill-don't-gap direction, the prior
+    // cohort (2025-10-15) is just left in effect through this narrow window instead; the SA
+    // error from picking either side is bounded by that same sub-few-bp closeness.
     { from: '2025-02-26', maturity: '2026-01-15' },
     { from: '2025-07-10', maturity: '2026-04-15' }, // corrected from 2025-07-14 — re-bisected under sell-primary price
     { from: '2025-08-01', maturity: '2026-07-15' }, // corrected from 2025-08-04 — re-bisected under sell-primary price
     { from: '2026-02-10', maturity: '2027-01-15' },
   ],
   US2YTIPS: [
-    { from: '2024-03-01', maturity: '2026-01-15' }, // same rollover events as US1YTIPS above — 1Y/2Y roll together
+    // FALLBACK-DERIVED (2014-04-01 .. 2024-02-29) — same method as US1YTIPS above, target
+    // maturity closest to date+2yr instead of date+1yr. Sanity check: the last entry here
+    // (2026-01-15) lands exactly on the first cross-checked entry below.
+    { from: '2014-04-01', maturity: '2016-04-15' },
+    { from: '2014-06-02', maturity: '2016-07-15' },
+    { from: '2014-10-16', maturity: '2017-01-15' },
+    { from: '2015-03-02', maturity: '2017-04-15' },
+    { from: '2015-06-01', maturity: '2017-07-15' },
+    { from: '2015-10-16', maturity: '2018-01-15' },
+    { from: '2016-03-02', maturity: '2018-04-15' },
+    { from: '2016-05-31', maturity: '2018-07-15' },
+    { from: '2016-10-17', maturity: '2019-01-15' },
+    { from: '2017-03-02', maturity: '2019-04-15' },
+    { from: '2017-05-31', maturity: '2019-07-15' },
+    { from: '2017-10-16', maturity: '2020-01-15' },
+    { from: '2018-03-01', maturity: '2020-04-15' },
+    { from: '2018-05-31', maturity: '2020-07-15' },
+    { from: '2018-10-16', maturity: '2021-01-15' },
+    { from: '2019-03-04', maturity: '2021-04-15' },
+    { from: '2019-05-31', maturity: '2021-07-15' },
+    { from: '2019-10-16', maturity: '2022-01-15' },
+    { from: '2020-03-02', maturity: '2022-04-15' },
+    { from: '2020-06-01', maturity: '2022-07-15' },
+    { from: '2020-10-16', maturity: '2023-01-15' },
+    { from: '2021-03-02', maturity: '2023-04-15' },
+    { from: '2021-05-31', maturity: '2023-07-15' },
+    { from: '2021-10-18', maturity: '2024-01-15' },
+    { from: '2022-03-01', maturity: '2024-04-15' },
+    { from: '2022-05-31', maturity: '2024-07-15' },
+    { from: '2022-08-31', maturity: '2024-10-15' },
+    { from: '2022-12-01', maturity: '2025-01-15' },
+    { from: '2023-03-02', maturity: '2025-04-15' },
+    { from: '2023-05-31', maturity: '2025-07-15' },
+    { from: '2023-08-31', maturity: '2025-10-15' },
+    { from: '2023-12-01', maturity: '2026-01-15' },
+    // CROSS-CHECKED (empirical CNBC-vs-FedInvest match) from here on — same rollover events as
+    // US1YTIPS above; 1Y/2Y roll together.
+    { from: '2024-03-01', maturity: '2026-01-15' },
     { from: '2024-06-10', maturity: '2026-04-15' },
     { from: '2024-07-22', maturity: '2026-07-15' },
     { from: '2025-01-17', maturity: '2026-10-15' },
-    { from: '2025-02-15', maturity: null },
+    // 2025-02-15..2025-02-25: see US1YTIPS above — filled by carrying the prior cohort forward
+    // rather than left as a gap.
     { from: '2025-02-26', maturity: '2027-01-15' },
     { from: '2025-07-10', maturity: '2027-04-15' },
     { from: '2025-08-01', maturity: '2027-07-15' },
@@ -271,7 +355,8 @@ const REF_CPI_SA_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS
 const HOLIDAYS_CSV_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/misc/BondHolidaysSifma.csv';
 const TIPS_REF_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/TipsRef.csv';
 const CNBC_QUOTE_URL = 'https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol';
-let showSaYield = false;
+let showSaYield = true;
+let showQuotedYield = true;
 let refCpiSaRows = null;
 let refCpiSaPromise = null;
 let tipsBondMeta = null; // { [symbol]: { maturity: Date, coupon: number(decimal) } } — TODAY's bond, from CNBC live
@@ -300,7 +385,11 @@ async function init() {
   setupTabs();
   setupSidebarResize();
   syncChartContainers();
-  updateAllData();
+  const saReady = showSaYield ? ensureSaDataLoaded() : Promise.resolve();
+  await updateAllData();
+  await saReady;
+  refreshSaOverlays(true);
+  if (activeTab === 'yieldcurves' || activeTab === 'breakeven') updateYieldCurves();
   window.addEventListener('resize', () => Object.values(charts).forEach(c => c.resize()));
   window.addEventListener('keydown', (e) => {
     Object.entries(charts).forEach(([sym, chart]) => handleChartKeydown(e, chart, {
@@ -429,7 +518,7 @@ function setupUI() {
     return `<label class="sym-item-check" id="label-${sym}"><input type="checkbox" value="${sym}" ${activeSymbols.has(sym) ? 'checked' : ''}><span class="color-dot" style="background:${color}"></span><span class="sym-code">${SYMBOL_LABELS[sym] || sym}</span><span class="sym-yield" id="yield-${sym}">---</span><span class="sym-change" id="change-${sym}"></span><span class="sym-sa-yield" id="sa-yield-${sym}"></span></label>`;
   }).join('');
 
-  root.innerHTML = `<style>.range-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; } .range-btn { flex: 1; min-width: 45px; padding: 6px 0; border: none; background: var(--tab-inactive-bg); border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--tab-inactive-text); text-transform: uppercase; letter-spacing: 0.04em; transition: background 0.1s; } .range-btn:hover:not(.active) { background: var(--btn-hover-bg); } .range-btn.active { background: var(--tab-active-bg); color: var(--tab-inactive-text); border-top: 3px solid var(--tab-active-accent); } .sym-group h4 { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px; font-size: 13px; text-transform: uppercase; color: #000; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; } .clear-btn { font-size: 11px; color: #64748b; cursor: pointer; text-transform: none; font-weight: 600; } .sym-item-check { display: flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 15px; cursor: pointer; color: #000; } .color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; } .sym-code { font-weight: 600; color: #000; width: 62px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sym-yield { font-family: monospace; font-weight: 700; font-size: 15px; color: #000; width: 54px; flex-shrink: 0; text-align: right; } .sym-change { font-family: monospace; font-weight: 700; font-size: 13px; width: 50px; flex-shrink: 0; text-align: right; } .sym-change.up { color: #16a34a; } .sym-change.down { color: #dc2626; } .sym-sa-yield { font-family: monospace; font-weight: 700; font-size: 12px; color: #f59e0b; width: 48px; flex-shrink: 0; text-align: right; } .sa-legend { display: none; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #64748b; margin-top: -8px; padding-left: 8px; } .sa-legend .sa-swatch { display: inline-block; width: 16px; height: 3px; background: #f59e0b; border-radius: 2px; flex-shrink: 0; } #fetchStatus { font-size: 13px; color: #000; margin-top: 20px; font-weight: 700; display: grid; grid-template-columns: auto auto; column-gap: 4px; row-gap: 2px; } #fetchStatus .fs-label { text-align: right; } #fetchStatus .fs-val { text-align: left; } .no-data-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #000; background: rgba(255,255,255,0.9); pointer-events: none; z-index: 10; } .sync-zoom-label { display: flex; align-items: center; gap: 6px; margin-top: 15px; font-size: 14px; font-weight: 700; color: #334155; cursor: pointer; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; } .custom-date-range { display: none; flex-direction: column; gap: 6px; padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 4px; } .custom-date-label { font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.04em; } .custom-date-inputs { display: flex; flex-direction: column; gap: 6px; } .custom-date-inputs label { font-size: 12px; font-weight: 700; color: #334155; display: flex; flex-direction: column; gap: 2px; } .custom-date-inputs .date-picker { width: 100%; font-size: 13px; } .custom-date-apply { margin-top: 4px; padding: 6px; background: var(--tab-active-bg); color: var(--tab-inactive-text); border: none; border-top: 3px solid var(--tab-active-accent); border-radius: 4px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; } .custom-date-apply:hover { opacity: 0.85; }</style><div class="range-picker">${rangeHtml}</div><div class="custom-date-range" id="custom-date-range"><div class="custom-date-label">Custom Date Range</div><div class="custom-date-inputs"><label>Start Date<input type="date" id="customStart" class="date-picker"></label><label>End Date<input type="date" id="customEnd" class="date-picker"></label></div><button class="custom-date-apply" id="applyCustomRange">Apply</button></div><div class="sym-group"><h4>TIPS <span class="clear-btn" data-type="TIPS">Clear All</span></h4>${createGrid(tips)}<h4>Treasuries <span class="clear-btn" data-type="Nominal">Clear All</span></h4>${createGrid(nominals)}</div><label class="sync-zoom-label"><input type="checkbox" id="syncXAxis" ${syncXAxis ? 'checked' : ''}> Sync Zoom & Pan</label><label class="sync-zoom-label"><input type="checkbox" id="lockRight"> Lock Right</label><label class="sync-zoom-label"><input type="checkbox" id="showSaYield" ${showSaYield ? 'checked' : ''}> Show SA Yield (TIPS)</label><div class="sa-legend" id="saLegend" style="display:${showSaYield ? 'flex' : 'none'};"><span class="sa-swatch"></span> Amber = Seasonally Adjusted (SA) Yield</div><div id="fetchStatus">Ready</div>`;
+  root.innerHTML = `<style>.range-picker { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; } .range-btn { flex: 1; min-width: 45px; padding: 6px 0; border: none; background: var(--tab-inactive-bg); border-radius: 4px; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--tab-inactive-text); text-transform: uppercase; letter-spacing: 0.04em; transition: background 0.1s; } .range-btn:hover:not(.active) { background: var(--btn-hover-bg); } .range-btn.active { background: var(--tab-active-bg); color: var(--tab-inactive-text); border-top: 3px solid var(--tab-active-accent); } .sym-group h4 { display: flex; justify-content: space-between; align-items: center; margin: 12px 0 6px; font-size: 13px; text-transform: uppercase; color: #000; font-weight: 800; letter-spacing: 0.05em; border-bottom: 1px solid #cbd5e1; padding-bottom: 2px; } .clear-btn { font-size: 11px; color: #64748b; cursor: pointer; text-transform: none; font-weight: 600; } .sym-item-check { display: flex; align-items: center; gap: 4px; padding: 4px 0; font-size: 15px; cursor: pointer; color: #000; } .color-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; } .sym-code { font-weight: 600; color: #000; width: 62px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sym-yield { font-family: monospace; font-weight: 700; font-size: 15px; color: #000; width: 54px; flex-shrink: 0; text-align: right; } .sym-change { font-family: monospace; font-weight: 700; font-size: 13px; width: 50px; flex-shrink: 0; text-align: right; } .sym-change.up { color: #16a34a; } .sym-change.down { color: #dc2626; } .sym-sa-yield { font-family: monospace; font-weight: 700; font-size: 12px; color: #f59e0b; width: 48px; flex-shrink: 0; text-align: right; } .yield-toggle-group { margin-top: 15px; font-size: 14px; font-weight: 700; color: #334155; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; } .yield-toggle-title { margin-bottom: 4px; } .yield-toggle-option { display: flex; align-items: center; gap: 6px; padding: 2px 0; cursor: pointer; font-weight: 600; } #fetchStatus { font-size: 13px; color: #000; margin-top: 20px; font-weight: 700; display: grid; grid-template-columns: auto auto; column-gap: 4px; row-gap: 2px; } #fetchStatus .fs-label { text-align: right; } #fetchStatus .fs-val { text-align: left; } .no-data-overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #000; background: rgba(255,255,255,0.9); pointer-events: none; z-index: 10; } .sync-zoom-label { display: flex; align-items: center; gap: 6px; margin-top: 15px; font-size: 14px; font-weight: 700; color: #334155; cursor: pointer; background: #f8fafc; padding: 8px; border: 1px solid #cbd5e1; border-radius: 6px; } .custom-date-range { display: none; flex-direction: column; gap: 6px; padding: 10px; background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 4px; } .custom-date-label { font-size: 12px; font-weight: 800; color: #334155; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.04em; } .custom-date-inputs { display: flex; flex-direction: column; gap: 6px; } .custom-date-inputs label { font-size: 12px; font-weight: 700; color: #334155; display: flex; flex-direction: column; gap: 2px; } .custom-date-inputs .date-picker { width: 100%; font-size: 13px; } .custom-date-apply { margin-top: 4px; padding: 6px; background: var(--tab-active-bg); color: var(--tab-inactive-text); border: none; border-top: 3px solid var(--tab-active-accent); border-radius: 4px; font-size: 13px; font-weight: 700; cursor: pointer; width: 100%; } .custom-date-apply:hover { opacity: 0.85; }</style><div class="range-picker">${rangeHtml}</div><div class="custom-date-range" id="custom-date-range"><div class="custom-date-label">Custom Date Range</div><div class="custom-date-inputs"><label>Start Date<input type="date" id="customStart" class="date-picker"></label><label>End Date<input type="date" id="customEnd" class="date-picker"></label></div><button class="custom-date-apply" id="applyCustomRange">Apply</button></div><div class="sym-group"><h4>TIPS <span class="clear-btn" data-type="TIPS">Clear All</span></h4>${createGrid(tips)}<h4>Treasuries <span class="clear-btn" data-type="Nominal">Clear All</span></h4>${createGrid(nominals)}</div><label class="sync-zoom-label"><input type="checkbox" id="syncXAxis" ${syncXAxis ? 'checked' : ''}> Sync Zoom & Pan</label><label class="sync-zoom-label"><input type="checkbox" id="lockRight"> Lock Right</label><div class="yield-toggle-group"><div class="yield-toggle-title">Show TIPS yields:</div><label class="yield-toggle-option"><input type="checkbox" id="showQuotedYield" ${showQuotedYield ? 'checked' : ''}> Quoted</label><label class="yield-toggle-option"><input type="checkbox" id="showSaYield" ${showSaYield ? 'checked' : ''}> Seasonally Adjusted (SA)</label></div><div id="fetchStatus">Ready</div>`;
 
   document.getElementById('syncXAxis').addEventListener('change', (e) => {
     syncXAxis = e.target.checked;
@@ -439,15 +528,16 @@ function setupUI() {
     }
   });
   document.getElementById('lockRight').addEventListener('change', (e) => { lockRight = e.target.checked; });
+  document.getElementById('showQuotedYield').addEventListener('change', (e) => {
+    if (!e.target.checked && !showSaYield) { e.target.checked = true; return; } // never let both go off
+    showQuotedYield = e.target.checked;
+    refreshQuotedOverlays(true);
+    updateYieldCurves();
+  });
   document.getElementById('showSaYield').addEventListener('change', async (e) => {
+    if (!e.target.checked && !showQuotedYield) { e.target.checked = true; return; } // never let both go off
     showSaYield = e.target.checked;
-    if (showSaYield) {
-      if (!refCpiSaRows) refCpiSaRows = await fetchRefCpiSaRows();
-      if (!tipsBondMeta) tipsBondMeta = await fetchTipsBondMeta();
-      if (!tipsRefRows) tipsRefRows = await fetchTipsRefRows();
-      if (saHolidaySet.size === 0) saHolidaySet = await fetchSaHolidaySet();
-    }
-    document.getElementById('saLegend').style.display = showSaYield ? 'flex' : 'none';
+    if (showSaYield) await ensureSaDataLoaded();
     refreshSaOverlays(true);
     updateYieldCurves();
   });
@@ -706,6 +796,15 @@ async function fetchTipsRefRows() {
   return tipsRefPromise;
 }
 
+// Lazily fetches every prerequisite the SA overlay needs, skipping anything already cached.
+// Shared by the "Show SA" checkbox handler and initial page load (SA is on by default).
+async function ensureSaDataLoaded() {
+  if (!refCpiSaRows) refCpiSaRows = await fetchRefCpiSaRows();
+  if (!tipsBondMeta) tipsBondMeta = await fetchTipsBondMeta();
+  if (!tipsRefRows) tipsRefRows = await fetchTipsRefRows();
+  if (saHolidaySet.size === 0) saHolidaySet = await fetchSaHolidaySet();
+}
+
 // Resolves the TIPS bond (maturity + coupon) actually behind `sym` on tradeDate, per the
 // observed rollover history in SA_ROLLOVER_LOG above. Returns null (a gap, not a guess)
 // when tradeDate predates the earliest entry we've cross-checked, or TipsRef.csv doesn't
@@ -791,6 +890,19 @@ function refreshSaOverlays(forceRescale = false) {
     const bondMeta = tipsBondMeta && tipsBondMeta[sym];
     const saY = (showSaYield && latest) ? saYieldForQuote(latest.y, getEtDateStr(latest.x), bondMeta, saHolidaySet, refCpiSaRows) : null;
     el.textContent = saY == null ? '' : `${saY.toFixed(3)}%`;
+  });
+}
+
+// Refreshes the raw (quoted) line on every SA-eligible (TIPS) chart per the "Show TIPS
+// yields: Quoted" toggle. Nominal Treasury charts have no SA counterpart and are never
+// gated by this — their raw line is always shown, set directly in updateCharts.
+function refreshQuotedOverlays(forceRescale = false) {
+  SA_SYMBOLS.forEach(sym => {
+    const chart = charts[sym];
+    if (!chart || !chart.data.datasets[0]) return;
+    chart.data.datasets[0].data = showQuotedYield ? (rangeData[sym] || []) : [];
+    if (forceRescale || !yOverrideSyms.has(sym)) rescaleYToVisible(chart, sym);
+    else chart.update('none');
   });
 }
 
@@ -960,12 +1072,14 @@ function applyDefaultBounds(sym, chart, data) {
 }
 
 function rescaleYToVisible(chart, sym) {
-  const data = rangeData[sym]; if (!data || data.length === 0) return;
+  const raw = rangeData[sym]; if (!raw || raw.length === 0) return;
   const xMin = chart.options.scales.x.min ?? chart.scales.x.min, xMax = chart.options.scales.x.max ?? chart.scales.x.max;
-  // Include the SA overlay's values too, when shown — otherwise the Y bounds are fit to
-  // the raw series alone and the SA line (which can differ by tens of bps) renders off-canvas.
+  // Bounds are fit only to whichever line(s) are actually shown — the "Show TIPS yields"
+  // toggles (Quoted/SA) hide a line's chart.data but rangeData[sym] always has the raw
+  // series, so gate it here too or the Y-axis would still fit hidden quoted data.
+  const data = (SA_SYMBOLS.has(sym) && !showQuotedYield) ? [] : raw;
   const saData = (showSaYield && chart.data.datasets[1]) ? chart.data.datasets[1].data : [];
-  const allPoints = saData.length ? data.concat(saData) : data;
+  const allPoints = data.concat(saData);
   const visible = allPoints.filter(p => { const t = +p.x; return t >= xMin && t <= xMax; }); if (visible.length === 0) return;
   const bounds = snapYBounds(Math.min(...visible.map(p=>p.y)), Math.max(...visible.map(p=>p.y)));
   chart.options.scales.y.min = bounds.min; chart.options.scales.y.max = bounds.max; chart.options.scales.y.ticks.stepSize = bounds.step; chart.update('none');
@@ -994,22 +1108,43 @@ async function fetchAllData(force = false) {
   const allSyms = Object.keys(AVAILABLE_SYMBOLS);
   const tsList = [];
 
-  await Promise.all(allSyms.map(async sym => {
-    const data = await fetchOne(sym, activeRange, force);
-    rangeData[sym] = data;
-    if (data && data.length > 0) {
-      tsList.push(data[data.length - 1].x);
-    }
-  }));
+  const [, quoteTime] = await Promise.all([
+    Promise.all(allSyms.map(async sym => {
+      const data = await fetchOne(sym, activeRange, force);
+      rangeData[sym] = data;
+      if (data && data.length > 0) {
+        tsList.push(data[data.length - 1].x);
+      }
+    })),
+    fetchLatestQuoteTime('US10YTIPS')
+  ]);
 
-  latestDataTime = tsList.length > 0 ? new Date(Math.max(...tsList.map(d => d.getTime()))) : null;
+  // The chart-bar feed's own per-bar tradeTime can lag real time by hours (a CNBC feed
+  // quirk, not ours — see knowledge/1.0_Operation.md). The quote-service last_time field
+  // doesn't have that problem, so it's authoritative for this label when available;
+  // fall back to the chart feed's own last-bar time only if the quote fetch fails.
+  latestDataTime = quoteTime || (tsList.length > 0 ? new Date(Math.max(...tsList.map(d => d.getTime()))) : null);
   updateStatusMessage();
+}
+
+async function fetchLatestQuoteTime(symbol) {
+  try {
+    const url = `https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=${symbol}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&events=1`;
+    const response = await fetchWithTimeout(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const json = await response.json();
+    const lastTime = json?.FormattedQuoteResult?.FormattedQuote?.[0]?.last_time;
+    const t = lastTime ? new Date(lastTime) : null;
+    return t && !isNaN(t) ? t : null;
+  } catch (err) {
+    console.warn(`Quote time fetch failed for ${symbol}:`, err);
+    return null;
+  }
 }
 
 function updateStatusMessage() {
   const statusEl = document.getElementById('fetchStatus');
   const fmt = d => d.toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) + ' ET';
-  const now = new Date();
   let statusHtml = `<span class="fs-label">Latest data:</span><span class="fs-val">${latestDataTime ? fmt(latestDataTime) : 'No data'}</span>`;
   statusEl.innerHTML = statusHtml;
 }
@@ -1034,7 +1169,7 @@ function updateCharts() {
     if (card) { const ov = card.querySelector('.no-data-overlay'); if (ov) ov.remove(); }
 
     if (chart) {
-      chart.data.datasets[0].data = data;
+      chart.data.datasets[0].data = (SA_SYMBOLS.has(sym) && !showQuotedYield) ? [] : data;
       if (activeRange === '2D') {
         chart.options.scales.x.time.unit = 'hour';
         chart.options.scales.x.time.tooltipFormat = 'MM/dd/yy HH:mm:ss';
@@ -1156,14 +1291,26 @@ function updateYieldCurves() {
   const saSeriesBySym = {};
   if (showSaYield) SA_SYMBOLS.forEach(sym => { saSeriesBySym[sym] = computeSaSeries(sym, rangeData[sym]); });
 
-  const curveOptions = { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } } }, plugins: { legend: { display: true, labels: { font: { size: 10, weight: 'bold' }, filter: (item, data) => showSaYield || !String(data.datasets[item.datasetIndex].label).includes('(SA)') } }, zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } } };
+  // Legend entries labeled "(SA)" are gated on showSaYield, same as before. Non-"(SA)" (raw/
+  // quoted) entries are gated on showQuotedYield too, but only on charts that actually carry
+  // an SA counterpart (TIPS curve, BEI) — the Nominal curve has no SA datasets at all and its
+  // Start/End legend entries must always show regardless of the TIPS-scoped Quoted toggle.
+  const curveOptions = { animation: false, responsive: true, maintainAspectRatio: false, interaction: { mode: 'index', intersect: false }, scales: { x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 10, weight: 'bold' }, color: '#000' } }, y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 9, family: 'monospace', weight: 'bold' }, color: '#000', callback: v => v.toFixed(3) + '%' } } }, plugins: { legend: { display: true, labels: { font: { size: 10, weight: 'bold' }, filter: (item, data) => {
+    const label = String(data.datasets[item.datasetIndex].label);
+    if (label.includes('(SA)')) return showSaYield;
+    const chartHasSa = data.datasets.some(d => String(d.label).includes('(SA)'));
+    return !chartHasSa || showQuotedYield;
+  } } }, zoom: { zoom: { wheel: { enabled: true }, mode: 'xy' }, pan: { enabled: true, mode: 'xy' } } } };
 
   // saEligible charts always reserve dataset slots 2/3 for the SA overlay (empty when SA is
   // off), so toggling SA doesn't need to recreate the chart — same pattern as the Time Series
-  // charts reserving their SA dataset slot.
+  // charts reserving their SA dataset slot. Raw Start/End (dataset 0/1) are gated on
+  // showQuotedYield only when saEligible — the Nominal curve has no SA counterpart, so the
+  // TIPS-scoped Quoted toggle never hides it.
   const buildYield = (id, key, syms, saEligible) => {
-    const sD = syms.map(s => valueOnDate(s, startDateStr, false));
-    const eD = syms.map(s => valueOnDate(s, endDateStr, true));
+    const rawGap = saEligible && !showQuotedYield;
+    const sD = rawGap ? syms.map(() => null) : syms.map(s => valueOnDate(s, startDateStr, false));
+    const eD = rawGap ? syms.map(() => null) : syms.map(s => valueOnDate(s, endDateStr, true));
     const saSD = saEligible ? syms.map(s => showSaYield ? valueFromSeriesOnDate(saSeriesBySym[s], startDateStr, false) : null) : null;
     const saED = saEligible ? syms.map(s => showSaYield ? valueFromSeriesOnDate(saSeriesBySym[s], endDateStr, true) : null) : null;
     if (yieldCurveCharts[key]) {
@@ -1187,8 +1334,8 @@ function updateYieldCurves() {
   };
 
   const buildBei = (id, key, pairs) => {
-    const sD = pairs.map(p => { const n = valueOnDate(p.n, startDateStr, false), t = valueOnDate(p.t, startDateStr, false); return (n == null || t == null) ? null : n - t; });
-    const eD = pairs.map(p => { const n = valueOnDate(p.n, endDateStr, true), t = valueOnDate(p.t, endDateStr, true); return (n == null || t == null) ? null : n - t; });
+    const sD = !showQuotedYield ? pairs.map(() => null) : pairs.map(p => { const n = valueOnDate(p.n, startDateStr, false), t = valueOnDate(p.t, startDateStr, false); return (n == null || t == null) ? null : n - t; });
+    const eD = !showQuotedYield ? pairs.map(() => null) : pairs.map(p => { const n = valueOnDate(p.n, endDateStr, true), t = valueOnDate(p.t, endDateStr, true); return (n == null || t == null) ? null : n - t; });
     const saBei = (p, dateStr, pickLast) => {
       if (!showSaYield || !SA_SYMBOLS.has(p.t)) return null;
       const n = valueOnDate(p.n, dateStr, pickLast), t = valueFromSeriesOnDate(saSeriesBySym[p.t], dateStr, pickLast);
