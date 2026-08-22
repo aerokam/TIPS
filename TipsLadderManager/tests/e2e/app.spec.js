@@ -1731,3 +1731,34 @@ test('Cash Flow Calendar: Before/After toggle appears after rebalance, switches 
   const backToBefore = await page.locator('#cash-flow-content tr.cf-year-header td:last-child').first().textContent();
   expect(backToBefore).toBe(beforeTotal);
 });
+
+// Regression: Build's Cash Flow Calendar was reading currentHoldingsArray (Rebalance's imported/
+// auto-loaded sample holdings) instead of the ladder Build just produced — reported live as
+// "cash flows do not come anywhere close to $40,000" (Build's default DARA) with the app in its
+// default startup state (sample holdings auto-loaded, then switching to Build and running).
+test('build: Cash Flow Calendar shows the built ladder, not leftover Rebalance holdings', async ({ page }) => {
+  test.setTimeout(20_000);
+  // Default startup state: SampleHoldings.csv auto-loads into currentHoldingsArray for Rebalance
+  // (see beforeEach comment) — do not clear it, that leftover state is exactly what leaked before.
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await expect(page.locator('#cash-flow-btn')).toBeHidden(); // no build run yet
+  await page.locator('#run-btn').click(); // default DARA (40000), default First/Last Year
+  await expect(page.locator('#build-output')).toHaveCSS('display', 'block', { timeout: 4_000 });
+
+  await expect(page.locator('#cash-flow-btn')).toBeVisible();
+  await page.locator('#cash-flow-btn').click();
+  await expect(page.locator('#cash-flow-overlay')).toBeVisible();
+  await expect(page.locator('#cash-flow-toggle')).toBeHidden(); // Build has no Before/After
+
+  // A full funded year's total cash flow should land near the $40,000 DARA the ladder was built
+  // for — not near whatever SampleHoldings.csv happens to throw off.
+  const yearRows = page.locator('#cash-flow-content tr.cf-year-header');
+  const rowCount = await yearRows.count();
+  expect(rowCount).toBeGreaterThan(0);
+  const totals = [];
+  for (let i = 0; i < rowCount; i++) {
+    const text = await yearRows.nth(i).locator('td:last-child').textContent();
+    totals.push(Number(text.replace(/[^0-9.-]/g, '')));
+  }
+  expect(Math.max(...totals)).toBeGreaterThan(30_000);
+});

@@ -942,6 +942,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     document.getElementById('build-output').style.display = !isRebalance && buildRendered     ? 'block' : 'none';
     _syncExportMenu();
     document.getElementById('trade-ticket-btn').style.display = (isRebalance ? rebalanceRendered : buildRendered) ? 'inline-block' : 'none';
+    _updateCashFlowBtnVisibility();
     // #table-controls (Expand/Collapse All) tracks the table's own visibility, not just a real Run
     // result — in Rebalance it's available as soon as the before-state preview renders (6.0
     // §Before-State on Load (Rebalance)).
@@ -1918,6 +1919,20 @@ function _afterRebalHoldings() {
   return [...byCusip].map(([cusip, qty]) => ({ cusip, qty }));
 }
 
+// Build has no "before" holdings (2.1 §help: "Build a TIPS ladder from scratch, with no existing
+// holdings") — the Cash Flow Calendar in Build mode always shows the just-built ladder itself, the
+// same per-CUSIP quantity (fundedYearQty + excessQty) already shown in the build table, summed in
+// case a CUSIP spans more than one row (multi-TIPS-per-year, or a bracket row's excess).
+function _afterBuildHoldings() {
+  const byCusip = new Map();
+  for (const d of buildDetails ?? []) {
+    const qty = (d.fundedYearQty || 0) + (d.excessQty || 0);
+    if (!d.cusip || !(qty > 0)) continue;
+    byCusip.set(d.cusip, (byCusip.get(d.cusip) ?? 0) + qty);
+  }
+  return [...byCusip].map(([cusip, qty]) => ({ cusip, qty }));
+}
+
 let _cfEvents = [];
 let _cfDrillBuckets = [];
 let _cfMode = 'before';
@@ -1948,8 +1963,10 @@ function _cashFlowRowsHTML(byYear) {
 }
 
 function _updateCashFlowBtnVisibility() {
-  document.getElementById('cash-flow-btn').style.display =
-    (currentHoldingsArray && tipsMap && refCpiRows) ? 'inline-block' : 'none';
+  const show = currentMode === 'build'
+    ? !!(buildRendered && buildDetails?.length && tipsMap && refCpiRows)
+    : !!(currentHoldingsArray && tipsMap && refCpiRows);
+  document.getElementById('cash-flow-btn').style.display = show ? 'inline-block' : 'none';
 }
 
 // Renders the calendar for the given state and updates the toggle buttons to match.
@@ -1957,7 +1974,10 @@ function _renderCashFlowMode(mode) {
   _cfMode = mode;
   document.getElementById('cash-flow-before-btn').classList.toggle('active', mode === 'before');
   document.getElementById('cash-flow-after-btn').classList.toggle('active', mode === 'after');
-  _cfEvents = buildCashFlowData(mode === 'after' ? _afterRebalHoldings() : currentHoldingsArray);
+  const holdings = currentMode === 'build'
+    ? _afterBuildHoldings()
+    : (mode === 'after' ? _afterRebalHoldings() : currentHoldingsArray);
+  _cfEvents = buildCashFlowData(holdings);
   const byYear = _groupCashFlowByYear(_cfEvents);
   document.getElementById('cash-flow-subtitle').textContent = _cfEvents.length
     ? `${_cfEvents[0].date.getFullYear()}–${_cfEvents[_cfEvents.length - 1].date.getFullYear()}`
@@ -3286,6 +3306,7 @@ function _runBuildFromForm() {
   });
   _lastKnownDara = dara;
   renderBuildOutput(result);
+  _updateCashFlowBtnVisibility();
 
   document.getElementById('val-range').textContent = result.summary.firstYear + '–' + result.summary.lastYear;
   document.getElementById('val-term').textContent = (result.summary.lastYear - result.summary.firstYear + 1) + ' years';
