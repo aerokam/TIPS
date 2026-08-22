@@ -723,14 +723,14 @@ async function fetchIntradayArchiveDay(symbol, dateStr) {
 // back to the R2 daily baseline) — when CNBC's live 1D/5D feed returns genuinely nothing (a
 // real outage, not just an off-hours quiet period — there's no way to tell those apart from
 // an empty response alone), walk backward through the archive looking for the most recent day
-// that has a normal end-of-day capture, rather than showing nothing. A day the archive job
-// itself only caught a partial print for (observed 2026-08-21 for TIPS: archived at 17:05 ET
-// but capped at 10:54 — the same feed-side outage this fallback exists for, just already
-// baked into that day's snapshot) is skipped in favor of the next day back that actually
-// reached a normal close, rather than surfacing an equally-incomplete "latest" day. Returns
-// only the single most recent qualifying day found, not multiple days stitched together — the
-// point is "here is the last real snapshot we have," not a reconstructed multi-day window.
-const ARCHIVE_CLOSE_FLOOR_MINUTES = 16 * 60 + 30; // 16:30 ET — below the ~17:00 close observed on a normal day, above a genuinely-partial one
+// that has the requested feed, rather than showing nothing. Uses whatever that day's actual
+// last bar is, even if it's mid-day rather than a full close — a day the archive job only
+// caught a partial print for (e.g. 2026-08-21's TIPS archive, captured at 17:05 ET but capped
+// at 10:54) is still the most recent real data we have and is shown as-is; skipping it in
+// favor of an older-but-more-complete-looking day would make the display MORE stale, not more
+// trustworthy, in exchange for a cosmetically nicer timestamp. Returns only the single most
+// recent day with any data, not multiple days stitched together — the point is "here is the
+// last real snapshot we have," not a reconstructed multi-day window.
 async function fetchArchiveFallback(symbol, providerRange) {
   for (let back = 0; back <= 15; back++) {
     const d = etCutoff(t => t.setDate(t.getDate() - back));
@@ -741,10 +741,7 @@ async function fetchArchiveFallback(symbol, providerRange) {
     const points = bars
       .map(b => ({ x: parseSourceTime(b.raw), y: parseFloat(String(b.close).replace('%', '')) }))
       .filter(p => p.x && !isNaN(p.x) && !isNaN(p.y));
-    if (points.length === 0) continue;
-    const lastParts = ET_FULL_FMT.formatToParts(points[points.length - 1].x).reduce((a, p) => ({ ...a, [p.type]: +p.value }), {});
-    if (lastParts.hour * 60 + lastParts.minute < ARCHIVE_CLOSE_FLOOR_MINUTES) continue;
-    return points;
+    if (points.length > 0) return points;
   }
   return null;
 }
