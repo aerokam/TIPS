@@ -158,8 +158,17 @@ function calculateGapParameters(gapYears, settlementDate, refCPI, tipsMap, DARA,
   });
 }
 
+// The natural (un-overridden) first/last year of a ladder: the earliest and latest maturity year
+// held. Single source for runRebalance and the Rebalance UI's First/Last Year dropdowns
+// (3.0 §Ladder Range) — no contiguity requirement, an unheld year in between is just an empty rung.
+export function deriveHoldingsYearRange(holdings, tipsMap) {
+  const years = [...new Set(holdings.map(h => tipsMap.get(h.cusip)?.maturity?.getFullYear()).filter(y => y != null))];
+  if (!years.length) return null;
+  return { firstYear: Math.min(...years), lastYear: Math.max(...years) };
+}
+
 // Infer the true firstYear when a Format 4/5 CSV is loaded whose derivedFirstYear is a pure bracket
-// year below the structural gap (e.g. 2036 when the ladder actually started at 2038).
+// year below the gap years (e.g. 2036 when the ladder actually started at 2038).
 // Returns the inferred gap-year firstYear, or null if the inference does not apply.
 export function inferFirstYearFromHoldings({ holdings, tipsMap, refCPI, settlementDate }) {
   const enriched = holdings.map(h => {
@@ -682,25 +691,14 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const holdingsYears = Object.keys(yearInfo).map(Number).sort((a, b) => a - b);
   const derivedFirstYear = holdingsYears[0];
   let firstYear = holdingsYears[0];
-  const has2040 = holdingsYears.includes(2040);
-  let lastYear = firstYear;
-  for (let i = 0; i < holdingsYears.length; i++) {
-    const year = holdingsYears[i];
-    if (year <= 2040) { lastYear = year; continue; }
-    // year > 2040: only extend if 2040 is held (structural gap doesn't break contiguity)
-    if (!has2040) break;
-    const nextExpected   = year + 1;
-    const nextInHoldings = holdingsYears[i + 1];
-    if (nextInHoldings && nextInHoldings === nextExpected) { lastYear = nextInHoldings; }
-    else { lastYear = year; break; }
-  }
-  const derivedLastYear = lastYear;  // save before override for sell-above-lastYear logic
+  const derivedLastYear = holdingsYears[holdingsYears.length - 1];  // save before override for sell-above-lastYear logic
+  let lastYear = derivedLastYear;
   if (lastYearOverride != null && !isNaN(lastYearOverride)) lastYear = lastYearOverride;
   else {
-    // No explicit last year: the contiguous-holdings walk caps at the longest actual TIPS (2056) and
-    // can't see Future-30Y rungs, which live as EXCESS at the 2052/2056 covers. Infer lastYear from
-    // that excess (symmetric to firstYear inference from gap-bracket excess) so the round-trip
-    // preserves the future cover excess instead of selling it to DARA.
+    // No explicit last year: the latest maturity year held can't see Future-30Y rungs, which live
+    // as EXCESS at the 2052/2056 covers. Infer lastYear from that excess (symmetric to firstYear
+    // inference from gap-bracket excess) so the round-trip preserves the future cover excess
+    // instead of selling it to DARA.
     const inferredLast = inferLastYearFromHoldings({ holdings: holdingsRaw, tipsMap, refCPI, settlementDate });
     if (inferredLast != null && inferredLast > lastYear) lastYear = inferredLast;
   }
@@ -1369,7 +1367,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       postQ = tFundedYearQty + excessQtyTarget;
       buySellTargets[year] = { targetCUSIP, targetFundedYearQty: tFundedYearQty, targetQty: postQ, postRebalQty: postQ, qtyDelta: postQ - targetCurrentQty, targetCost: tFundedYearQty * costPerBond, costDelta: -((postQ - targetCurrentQty) * costPerBond), costPerBond, isBracket };
     } else if (year > lastYear && year <= derivedLastYear && yi.holdings.length > 0) {
-      // Year was contiguous with original ladder but is now above lastYearOverride — sell all
+      // Year is held but now above lastYearOverride — sell all
       tFundedYearQty = 0; postQ = 0;
       if (targetCUSIP) {
         const tc = costPerBond;

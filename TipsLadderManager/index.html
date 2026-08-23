@@ -584,7 +584,7 @@
 </div>
 
 <script type="module">
-import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, yieldFromPrice, fmtDate, fmtDateLong, calculatePIPerBond } from './src/rebalance-lib.js';
+import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAFromPortfolio, computePortfolioARAByYear, getGapYearBracketCandidates, getGapYears, derivePerYearDara, parseFundedYearDaraBlock, parseParamsBlock, inferFirstYearFromHoldings, inferLastYearFromHoldings, deriveHoldingsYearRange, yieldFromPrice, fmtDate, fmtDateLong, calculatePIPerBond } from './src/rebalance-lib.js';
 // Standalone Before-state preview (3.0 §Before-State Preview and Bracket-Year Excess Detection) —
 // a holdings-valuation computation, architecturally decoupled from the runRebalance/
 // runFundedRebalance engine imported above. Never calls into it.
@@ -2196,20 +2196,9 @@ function updateRebalFirstYearDropdown() {
     fieldDiv.style.display = 'none'; return;
   }
 
-  const _hYears = [...new Set(currentHoldingsArray
-    .map(h => { const b = tipsMap.get(h.cusip); return b?.maturity?.getFullYear(); })
-    .filter(y => y != null)
-  )].sort((a, b) => a - b);
-  if (!_hYears.length) { fieldDiv.style.display = 'none'; return; }
-
-  const _firstY = _hYears[0];
-  let _derivedLY = _firstY;
-  for (let i = 0; i < _hYears.length; i++) {
-    const y = _hYears[i];
-    if (y <= 2040) { _derivedLY = y; continue; }
-    if (_hYears[i + 1] === y + 1) { _derivedLY = _hYears[i + 1]; }
-    else { _derivedLY = y; break; }
-  }
+  const _range = deriveHoldingsYearRange(currentHoldingsArray, tipsMap);
+  if (!_range) { fieldDiv.style.display = 'none'; return; }
+  const { firstYear: _firstY, lastYear: _derivedLY } = _range;
 
   const _tipsYears = [...new Set([...tipsMap.values()].filter(b => b.maturity).map(b => b.maturity.getFullYear()))].sort((a, b) => a - b);
   const _minTipsY  = _tipsYears[0] ?? _firstY;
@@ -2251,39 +2240,23 @@ function updateRebalLastYearDropdown() {
     fieldDiv.style.display = 'none'; return;
   }
 
-  // Mirror runRebalance's lastYear derivation
-  const _hYears = [...new Set(currentHoldingsArray
-    .map(h => { const b = tipsMap.get(h.cusip); return b?.maturity?.getFullYear(); })
-    .filter(y => y != null)
-  )].sort((a, b) => a - b);
-  if (!_hYears.length) { fieldDiv.style.display = 'none'; return; }
-
-  const _firstY = _hYears[0];
-  const _has2040 = _hYears.includes(2040);
-  let _derivedLY = _firstY;
-  for (let i = 0; i < _hYears.length; i++) {
-    const y = _hYears[i];
-    if (y <= 2040) { _derivedLY = y; continue; }
-    if (!_has2040) break;
-    if (_hYears[i + 1] === y + 1) { _derivedLY = _hYears[i + 1]; }
-    else { _derivedLY = y; break; }
-  }
+  const _range = deriveHoldingsYearRange(currentHoldingsArray, tipsMap);
+  if (!_range) { fieldDiv.style.display = 'none'; return; }
+  const { firstYear: _firstY, lastYear: _derivedLY } = _range;
 
   const _tipsYears = new Set([...tipsMap.values()].filter(b => b.maturity).map(b => b.maturity.getFullYear()));
   const _maxTipsY  = Math.max(..._tipsYears);
-  const _hYearSet  = new Set(_hYears);
+  const _hYearSet  = new Set(currentHoldingsArray.map(h => tipsMap.get(h.cusip)?.maturity?.getFullYear()));
   const _gapYears  = [];
   for (let y = _firstY; y <= _derivedLY; y++) {
     if (!_tipsYears.has(y) && !_hYearSet.has(y)) _gapYears.push(y);
   }
   const _gapSet = new Set(_gapYears);
 
-  // Infer default: if gap ends right before derivedLastYear, suggest last gap year
-  let _defaultLY = _gapYears.length > 0 && _gapYears[_gapYears.length - 1] + 1 === _derivedLY
-    ? _gapYears[_gapYears.length - 1] : _derivedLY;
-  // Future-30Y: the contiguous walk caps at the longest actual TIPS (2056). If the file carries
-  // EXCESS at the 2052/2056 covers, the ladder extends past 2056 — infer that lastYear from the
-  // excess (symmetric to first-year inference from gap excess) so import preserves the cover excess.
+  // Default last year is the latest maturity year held, extended if the file carries EXCESS at the
+  // 2052/2056 Future-30Y covers (symmetric to first-year inference from gap-bracket excess) so
+  // import preserves the future cover excess instead of selling it to DARA.
+  let _defaultLY = _derivedLY;
   {
     const _refCPI = refCpiRows && (activeRefCpiDateStr ?? _defaultRefCpiDateStr)
       ? lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr) : 0;
@@ -3100,11 +3073,13 @@ function _storeIsPristineMirror() {
 }
 
 function getDaraByYear() {
-  // Reads from _daraByYearStore directly — panel visibility does not affect computation.
+  // Reads from _daraByYearStore directly — panel visibility does not affect computation. A field
+  // the user cleared reads NaN; that's an explicit "nothing in this rung," so it goes in as 0 —
+  // not dropped, which would silently fall back to the scalar default instead of the blank shown.
   if (!_daraByYearPanelDefault || _daraByYearStore.size === 0) return null;
   const map = new Map();
   for (const [yr, v] of _daraByYearStore) {
-    if (!isNaN(v) && v >= 0) map.set(yr, v);
+    map.set(yr, isNaN(v) ? 0 : Math.max(0, v));
   }
   return map.size > 0 ? map : null;
 }

@@ -1546,6 +1546,29 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
   await expect(rung).toHaveValue('33000');
 });
 
+// Regression: clearing a rung's DARA field to blank must build that rung at 0, not silently fall
+// back to the scalar default. Fixed 2026-08-23 — getDaraByYear() was dropping a blank (NaN) entry
+// from the map it hands to runBuild instead of passing it through as 0, so a cleared field looked
+// blank in the UI but the engine still funded that year at the scalar DARA underneath it.
+test('build: a blanked per-year DARA field builds that rung at 0, not the scalar default', async ({ page }) => {
+  test.setTimeout(20_000);
+  await _buildSetup(page);
+
+  const rungYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const rung = page.locator(`#build-table .fy-dara-input[data-year="${rungYear}"]`);
+  await rung.fill('');
+  await rung.blur();
+  await expect(rung, 'field stays blank after the auto-rebuild it triggers').toHaveValue('');
+
+  await expect.poll(() => page.evaluate((year) => {
+    const table = document.querySelector('#build-table');
+    const headers = [...table.querySelectorAll('thead th')];
+    const colIdx = headers.findIndex(th => th.dataset.col === 'qty');
+    const row = table.querySelector(`tbody tr[data-fy="${year}"]:not([data-sub]):not(.fy-group-header)`);
+    return row?.children[colIdx]?.textContent.trim();
+  }, rungYear), { timeout: 4_000 }).toBe('0');
+});
+
 // RMD Options (2.0 §RMD Options; 5.0 §Funded Year Group Header Row §RMD Options): the settlement
 // year's group header row — and only that row — carries a "RMD Options" link that opens a small
 // popover for the two settlement-year-only inputs (cash override, coupon-count mode).

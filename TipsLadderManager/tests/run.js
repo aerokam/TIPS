@@ -962,6 +962,39 @@ console.log('\nRebalance — same DARA=20000, lastYear=2057 corner case, via bui
   console.log(`        exQty  2056/2052:    ${summary.future30yLowerExQty} / ${summary.future30yUpperExQty}`);
 }
 
+// ── Test: Rebalance — lastYear defaults to the latest maturity year held, not the last
+// gap year. Locks in the simplified derivation (3.0 §Ladder Range, 2026-08-23): a held 2040
+// TIPS must default lastYear to 2040. (The Rebalance UI's last-year dropdown separately had
+// its own default-selection heuristic that snapped back to 2039 in this exact case — fixed
+// in the same pass, index.html `updateRebalLastYearDropdown` — but that was a UI-only default,
+// not this engine value, which was already correct here before the fix.)
+{
+  const dara = 40000, lastYear = 2040;
+  const { details: bD } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate });
+  const holdings = bD
+    .map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }))
+    .filter(h => h.qty > 0);
+  const { summary } = runRebalance({ dara, bracketMode: '2bracket', holdings, tipsMap, refCPI, settlementDate });
+  assert('rebalance infers lastYear === 2040 (held), not 2039 (last gap year)', summary.lastYear, 2040);
+}
+
+// ── Test: Rebalance — an unheld ordinary year above 2040 no longer truncates lastYear ──
+// Regression for the same fix: a hole above 2040 (e.g. holding 2047 and 2049 but not 2048)
+// used to break the contiguous walk and truncate lastYear to 2047. lastYear must be the true
+// latest maturity year held (2049); 2048 is just an empty rung in between (3.0 §Ladder Range).
+console.log('\nRebalance — an unheld year above 2040 (e.g. 2048) no longer truncates lastYear');
+{
+  const dara = 40000, lastYear = 2049;
+  const { details: bD } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate });
+  const has2048 = bD.some(d => tipsMap.get(d.cusip)?.maturity?.getFullYear() === 2048 && (d.fundedYearQty + d.excessQty) > 0);
+  assert('fixture sanity: build actually funded a 2048 rung to remove', has2048, true);
+  const holdings = bD
+    .map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }))
+    .filter(h => h.qty > 0 && tipsMap.get(h.cusip)?.maturity?.getFullYear() !== 2048);
+  const { summary } = runRebalance({ dara, bracketMode: '2bracket', holdings, tipsMap, refCPI, settlementDate });
+  assert('rebalance infers lastYear === 2049, not truncated to 2047 by the 2048 hole', summary.lastYear, 2049);
+}
+
 // ── Test: Rev 6 — cover Amount = N×DARA, AMD net-out, roll coupon hand-off ─────────
 console.log('\nBuild — Rev 6 cover Amount + roll coupon, DARA=40000, lastYear=2066');
 {
