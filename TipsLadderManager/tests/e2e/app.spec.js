@@ -312,6 +312,29 @@ test('help modal: closes on backdrop click', async ({ page }) => {
   await expect(page.locator('#help-overlay')).not.toBeVisible();
 });
 
+// Regression: the help modal is supposed to be draggable/resizable like every other modal
+// (src/modal.js makeDraggableResizable), but the wiring (id, resize handles, position:fixed,
+// the makeDraggableResizable() call itself) went missing at some point. Drag the title bar and
+// confirm the modal actually moves.
+test('help modal: draggable via its title bar', async ({ page }) => {
+  await page.locator('#help-btn').click();
+  const modal = page.locator('#help-modal');
+  await expect(modal).toBeVisible();
+
+  const before = await modal.boundingBox();
+  const title = page.locator('#help-title');
+  const titleBox = await title.boundingBox();
+
+  await page.mouse.move(titleBox.x + titleBox.width / 2, titleBox.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(titleBox.x + titleBox.width / 2 + 80, titleBox.y + 60, { steps: 5 });
+  await page.mouse.up();
+
+  const after = await modal.boundingBox();
+  expect(after.x, 'modal moved horizontally after dragging its title bar').not.toBe(before.x);
+  expect(after.y, 'modal moved vertically after dragging its title bar').not.toBe(before.y);
+});
+
 // ── 6. Drill popup ────────────────────────────────────────────────────────────
 test('drill popup: clicking a drillable cell opens popup, × closes it', async ({ page }) => {
   // Run rebalance to get a table first
