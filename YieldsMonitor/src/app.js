@@ -719,18 +719,35 @@ async function fetchIntradayArchiveDay(symbol, dateStr) {
   } catch { return null; }
 }
 
+// "MM/DD/YYYY, HH:MM:SS" (the archive's own et-labeled fields) -> parseSourceTime's
+// "YYYYMMDDHHMMSS" input shape, so it goes through the same ET-timezone-aware conversion
+// as every other timestamp in this file rather than a separate ad hoc Date parse.
+function etLabelToRaw(etLabel) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4}), (\d{2}):(\d{2}):(\d{2})$/.exec(etLabel || '');
+  return m ? `${m[3]}${m[1]}${m[2]}${m[4]}${m[5]}${m[6]}` : null;
+}
+
 // 2D/10D are the only ranges with no other fallback (1Y/2Y/3Y/10Y/ALL/Custom all already fall
 // back to the R2 daily baseline) — when CNBC's live 1D/5D feed returns genuinely nothing (a
 // real outage, not just an off-hours quiet period — there's no way to tell those apart from
 // an empty response alone), walk backward through the archive looking for the most recent day
 // that has the requested feed, rather than showing nothing. Uses whatever that day's actual
 // last bar is, even if it's mid-day rather than a full close — a day the archive job only
-// caught a partial print for (e.g. 2026-08-21's TIPS archive, captured at 17:05 ET but capped
-// at 10:54) is still the most recent real data we have and is shown as-is; skipping it in
-// favor of an older-but-more-complete-looking day would make the display MORE stale, not more
-// trustworthy, in exchange for a cosmetically nicer timestamp. Returns only the single most
-// recent day with any data, not multiple days stitched together — the point is "here is the
-// last real snapshot we have," not a reconstructed multi-day window.
+// caught a partial print for is still the most recent real data we have and is shown as-is;
+// skipping it in favor of an older-but-more-complete-looking day would make the display MORE
+// stale, not more trustworthy, in exchange for a cosmetically nicer timestamp. Returns only
+// the single most recent day with any data, not multiple days stitched together — the point
+// is "here is the last real snapshot we have," not a reconstructed multi-day window.
+//
+// The returned "as of" time comes from the archive's own `fetchedAtET` field — when
+// archiveIntraday.js's own clock made the request — NOT from the last bar's own timestamp.
+// CNBC's chart-bar feed can append one trailing element whose VALUE is the genuine live quote
+// but whose timestamp field is mislabeled as the last real per-minute bar's time rather than
+// when it was actually fetched (confirmed 2026-08-21: archived at 17:05 ET, real per-minute
+// bars stopped at 10:54, but the trailing element — recognizable by its %-suffixed OHLC values
+// and volume:null, unlike every normal bar — still carried the correct 17:05 value under a
+// "10:54" label). Trusting that label would make a genuinely-current fallback look far more
+// stale than it is; `fetchedAtET` is an independent clock, immune to that mislabeling.
 async function fetchArchiveFallback(symbol, providerRange) {
   for (let back = 0; back <= 15; back++) {
     const d = etCutoff(t => t.setDate(t.getDate() - back));
@@ -741,7 +758,10 @@ async function fetchArchiveFallback(symbol, providerRange) {
     const points = bars
       .map(b => ({ x: parseSourceTime(b.raw), y: parseFloat(String(b.close).replace('%', '')) }))
       .filter(p => p.x && !isNaN(p.x) && !isNaN(p.y));
-    if (points.length > 0) return points;
+    if (points.length === 0) continue;
+    const fetchedAtRaw = etLabelToRaw(archive.fetchedAtET);
+    const fetchedAt = fetchedAtRaw ? parseSourceTime(fetchedAtRaw) : null;
+    return { points, asOf: (fetchedAt && !isNaN(fetchedAt)) ? fetchedAt : points[points.length - 1].x };
   }
   return null;
 }
@@ -1030,12 +1050,12 @@ async function fetchOne(symbol, range, force = false) {
     if (filtered.length > 0) return filtered;
     // CNBC returned nothing at all for this symbol/tier (see fetchArchiveFallback above) —
     // fall back to the last archived day rather than showing nothing. Tagging the result
-    // with when it's actually from lets fetchAllData reflect that in the "Latest data"
-    // status label instead of claiming live freshness it doesn't have.
+    // with when it's actually from (the archive's own asOf, not a bar's own timestamp — see
+    // fetchArchiveFallback) lets fetchAllData reflect that in the status label honestly.
     const fallback = await fetchArchiveFallback(symbol, providerRange);
-    if (fallback && fallback.length > 0) {
-      const result = fallback.slice();
-      result.usedFallbackAt = fallback[fallback.length - 1].x;
+    if (fallback && fallback.points.length > 0) {
+      const result = fallback.points.slice();
+      result.usedFallbackAt = fallback.asOf;
       return result;
     }
     return filtered;
