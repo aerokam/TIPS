@@ -549,14 +549,25 @@ function setupUI() {
     }
   });
   document.getElementById('lockRight').addEventListener('change', (e) => { lockRight = e.target.checked; });
-  document.getElementById('showQuotedYield').addEventListener('change', (e) => {
-    if (!e.target.checked && !showSaYield) { e.target.checked = true; return; } // never let both go off
+  document.getElementById('showQuotedYield').addEventListener('change', async (e) => {
+    if (!e.target.checked && !showSaYield) {
+      // Deselecting the only remaining option: switch to the other one instead of no-op.
+      showSaYield = true;
+      document.getElementById('showSaYield').checked = true;
+      await ensureSaDataLoaded();
+      refreshSaOverlays(true);
+    }
     showQuotedYield = e.target.checked;
     refreshQuotedOverlays(true);
     updateYieldCurves();
   });
   document.getElementById('showSaYield').addEventListener('change', async (e) => {
-    if (!e.target.checked && !showQuotedYield) { e.target.checked = true; return; } // never let both go off
+    if (!e.target.checked && !showQuotedYield) {
+      // Deselecting the only remaining option: switch to the other one instead of no-op.
+      showQuotedYield = true;
+      document.getElementById('showQuotedYield').checked = true;
+      refreshQuotedOverlays(true);
+    }
     showSaYield = e.target.checked;
     if (showSaYield) await ensureSaDataLoaded();
     refreshSaOverlays(true);
