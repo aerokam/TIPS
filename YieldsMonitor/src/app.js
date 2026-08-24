@@ -69,6 +69,12 @@ const rangeData = {};
 // that isn't. See knowledge/1.0_Operation.md.
 let latestDataTimeTips = null;
 let latestDataTimeNominal = null;
+// sym -> { yield, time, prevClose } from the live CNBC quote service (quote.cnbc.com),
+// refreshed on every fetchAllData() run. Sidebar "latest yield" always reads from here
+// rather than from the chart-bar feed, since that feed can be frozen/stale (a real CNBC
+// outage, e.g. 2026-08-22 and 2026-08-24) while the quote service stays live — same
+// reasoning as the "TIPS latest"/"Treasuries latest" status labels already use.
+let latestQuotes = {};
 const yieldCurveCharts = {}; 
 let activeSymbols = new Set(['US10YTIPS', 'US30YTIPS', 'US10Y', 'US30Y']);
 let activeRange = '2D';
@@ -1272,7 +1278,7 @@ async function fetchAllData(force = false) {
   const tsListTips = [], tsListNominal = [];
   const fallbackTimesTips = [], fallbackTimesNominal = [];
 
-  const [, quoteTimeTips, quoteTimeNominal] = await Promise.all([
+  const [, quotes] = await Promise.all([
     Promise.all(allSyms.map(async sym => {
       const data = await fetchOne(sym, activeRange, force);
       rangeData[sym] = data;
@@ -1282,28 +1288,39 @@ async function fetchAllData(force = false) {
       if (data && data.length > 0) tsList.push(data[data.length - 1].x);
       if (data && data.usedFallbackAt) fallbackTimes.push(data.usedFallbackAt);
     })),
-    fetchLatestQuoteTime('US10YTIPS'),
-    fetchLatestQuoteTime('US10Y')
+    fetchLatestQuotes(allSyms)
   ]);
+  latestQuotes = quotes;
 
-  latestDataTimeTips = resolveGroupLatest(quoteTimeTips, tsListTips, fallbackTimesTips);
-  latestDataTimeNominal = resolveGroupLatest(quoteTimeNominal, tsListNominal, fallbackTimesNominal);
+  latestDataTimeTips = resolveGroupLatest(quotes['US10YTIPS']?.time, tsListTips, fallbackTimesTips);
+  latestDataTimeNominal = resolveGroupLatest(quotes['US10Y']?.time, tsListNominal, fallbackTimesNominal);
   updateStatusMessage();
 }
 
-async function fetchLatestQuoteTime(symbol) {
+// Batched across all symbols in one request (the REST quote service accepts a
+// pipe-separated symbol list) rather than one fetch per symbol.
+async function fetchLatestQuotes(symbols) {
+  const result = {};
   try {
-    const url = `https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=${symbol}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&events=1`;
+    const url = `https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol?symbols=${symbols.join('|')}&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&events=1`;
     const response = await fetchWithTimeout(url);
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const json = await response.json();
-    const lastTime = json?.FormattedQuoteResult?.FormattedQuote?.[0]?.last_time;
-    const t = lastTime ? new Date(lastTime) : null;
-    return t && !isNaN(t) ? t : null;
+    const quotes = json?.FormattedQuoteResult?.FormattedQuote || [];
+    for (const q of quotes) {
+      const t = q.last_time ? new Date(q.last_time) : null;
+      const y = q.last ? parseFloat(String(q.last).replace('%', '')) : null;
+      const prevClose = q.previous_day_closing ? parseFloat(String(q.previous_day_closing).replace('%', '')) : null;
+      result[q.symbol] = {
+        time: t && !isNaN(t) ? t : null,
+        yield: y != null && !isNaN(y) ? y : null,
+        prevClose: prevClose != null && !isNaN(prevClose) ? prevClose : null
+      };
+    }
   } catch (err) {
-    console.warn(`Quote time fetch failed for ${symbol}:`, err);
-    return null;
+    console.warn(`Quote fetch failed for ${symbols.join(',')}:`, err);
   }
+  return result;
 }
 
 function updateStatusMessage() {
@@ -1357,26 +1374,46 @@ function updateCharts() {
   });
 
   Object.keys(AVAILABLE_SYMBOLS).forEach(sym => {
+    // "Latest yield" always reads from the live quote service, not the chart-bar feed —
+    // the chart feed can be frozen/stale during a CNBC outage (see fetchLatestQuotes)
+    // while the quote service stays live. Fall back to the chart feed's own last point
+    // only if the quote fetch failed for this symbol.
     const data = rangeData[sym];
-    if (!data || data.length === 0) return;
-    const calculationData = (liveCache[`${sym}_5D`] || liveCache[`${sym}_1D`] || data), latest = calculationData[calculationData.length - 1];
+    const quote = latestQuotes[sym];
+    const calculationData = (liveCache[`${sym}_5D`] || liveCache[`${sym}_1D`] || data);
+    const chartLatest = (calculationData && calculationData.length > 0) ? calculationData[calculationData.length - 1] : null;
+    const currentY = quote?.yield != null ? quote.yield : (chartLatest ? chartLatest.y : null);
+    if (currentY == null) return;
+
+    // Day change prefers the app's own documented 17:00 ET close reference (walked back
+    // through the chart-bar feed — see knowledge/1.0_Operation.md "Yield Change Calculation"),
+    // deliberately distinct from CNBC's own previous_day_closing. Only when that reference
+    // is unreachable (chart feed frozen/stale) does it fall back to the quote service's own
+    // previous_day_closing, so day change doesn't go blank during an outage.
     let closeP = null;
-    const latestDayET = getEtDateStr(latest.x);
-    for (let i = calculationData.length - 1; i >= 0; i--) {
-      const p = calculationData[i], etStr = getEtDateStr(p.x);
-      if (etStr !== latestDayET) {
-        const pts = ET_FULL_FMT.formatToParts(p.x).reduce((a, pt) => ({ ...a, [pt.type]: pt.value }), {}), ph = +pts.hour;
-        if (ph < 17 || (ph === 17 && +pts.minute === 0)) { closeP = p; break; }
+    if (chartLatest) {
+      const latestDayET = getEtDateStr(chartLatest.x);
+      for (let i = calculationData.length - 1; i >= 0; i--) {
+        const p = calculationData[i], etStr = getEtDateStr(p.x);
+        if (etStr !== latestDayET) {
+          const pts = ET_FULL_FMT.formatToParts(p.x).reduce((a, pt) => ({ ...a, [pt.type]: pt.value }), {}), ph = +pts.hour;
+          if (ph < 17 || (ph === 17 && +pts.minute === 0)) { closeP = p; break; }
+        }
       }
     }
     const changeEl = document.getElementById(`change-${sym}`), yieldEl = document.getElementById(`yield-${sym}`);
-    if (yieldEl) yieldEl.textContent = `${latest.y.toFixed(3)}%`;
+    if (yieldEl) yieldEl.textContent = `${currentY.toFixed(3)}%`;
     if (changeEl) {
       if (closeP) {
-        const diff = latest.y - closeP.y;
+        const diff = currentY - closeP.y;
         changeEl.textContent = `${diff >= 0 ? '+' : ''}${diff.toFixed(3)}%`;
         changeEl.className = `sym-change ${diff >= 0 ? 'up' : 'down'}`;
         changeEl.title = `Since ${ET_HM_FMT.format(closeP.x)} ET close (${closeP.y.toFixed(3)}%)`;
+      } else if (quote?.prevClose != null) {
+        const diff = currentY - quote.prevClose;
+        changeEl.textContent = `${diff >= 0 ? '+' : ''}${diff.toFixed(3)}%`;
+        changeEl.className = `sym-change ${diff >= 0 ? 'up' : 'down'}`;
+        changeEl.title = `Since prior close (${quote.prevClose.toFixed(3)}%, CNBC settlement)`;
       } else {
         changeEl.textContent = '---';
       }
