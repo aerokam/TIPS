@@ -68,20 +68,34 @@ function parseFedInvestDate(str) {
 async function fetchPrices() {
   const months = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
 
-  // GET HTML for settlement date + POST for CSV — run in parallel
-  const [htmlRes, csvRes] = await Promise.all([
-    fetch(FEDINVEST_URL),
-    fetch(FEDINVEST_URL, { method: 'POST', body: new URLSearchParams({ fileType: 'csv', csv: 'CSV FORMAT' }) }),
-  ]);
+  // GET HTML first (also carries the session cookie the CSV POST now requires — see below)
+  const htmlRes = await fetch(FEDINVEST_URL);
   if (!htmlRes.ok) throw new Error(`FedInvest HTML HTTP ${htmlRes.status}`);
-  if (!csvRes.ok)  throw new Error(`FedInvest CSV HTTP ${csvRes.status}`);
-  const [html, text] = await Promise.all([htmlRes.text(), csvRes.text()]);
+  const html = await htmlRes.text();
 
   // No "Prices For:" in the page means prices aren't published yet (weekend, holiday, before 1 PM ET)
   if (!html.includes('Prices For:')) {
     console.error('FedInvest: prices not available.');
     return null;
   }
+
+  // As of ~Aug 2026, TreasuryDirect rejects the CSV POST (403) unless the request URL carries
+  // the session's jsessionid as a matrix parameter (`;jsessionid=...`), matching how the site's
+  // own <form action> is rendered (HttpServletResponse.encodeURL — a J2EE session-continuity
+  // pattern, apparently now enforced as a bot-traffic signature). A bare POST to FEDINVEST_URL
+  // with no jsessionid segment gets 403 regardless of cookies/headers sent.
+  const setCookies = htmlRes.headers.getSetCookie();
+  const jsessionid = setCookies.find(c => c.startsWith('JSESSIONID='))?.split(';')[0].split('=')[1];
+  if (!jsessionid) throw new Error('FedInvest: no JSESSIONID cookie in HTML response');
+  const cookieHeader = setCookies.map(c => c.split(';')[0]).join('; ');
+
+  const csvRes = await fetch(`${FEDINVEST_URL};jsessionid=${jsessionid}`, {
+    method: 'POST',
+    headers: { Cookie: cookieHeader },
+    body: new URLSearchParams({ fileType: 'csv', csv: 'CSV FORMAT' }),
+  });
+  if (!csvRes.ok) throw new Error(`FedInvest CSV HTTP ${csvRes.status}`);
+  const text = await csvRes.text();
 
   // Handle both "2026 Mar 23" and "Mar 23, 2026" formats
   const m1 = html.match(/Prices For:\s+(\d{4})\s+(\w{3})\s+(\d+)/);
