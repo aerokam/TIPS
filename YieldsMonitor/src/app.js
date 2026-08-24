@@ -1066,15 +1066,11 @@ async function fetchOne(symbol, range, force = false) {
     const filtered = data.filter(p => p.x >= cutoff && !isWeekendEt(p.x));
     if (filtered.length > 0) return filtered;
     // CNBC returned nothing at all for this symbol/tier (see fetchArchiveFallback above) —
-    // fall back to the last archived day rather than showing nothing. Tagging the result
-    // with when it's actually from (the archive's own asOf, not a bar's own timestamp — see
-    // fetchArchiveFallback) lets fetchAllData reflect that in the status label honestly.
+    // fall back to the last archived day rather than showing nothing on the chart. The
+    // "TIPS latest"/"Treasuries latest" status labels no longer key off this fallback — they
+    // track the live quote-time (see resolveGroupLatest), same as the sidebar yield table.
     const fallback = await fetchArchiveFallback(symbol, providerRange);
-    if (fallback && fallback.points.length > 0) {
-      const result = fallback.points.slice();
-      result.usedFallbackAt = fallback.asOf;
-      return result;
-    }
+    if (fallback && fallback.points.length > 0) return fallback.points.slice();
     return filtered;
   } else {
     const cutoff = etCutoff(t => {
@@ -1263,11 +1259,12 @@ function updateDynamicTicks(chart, data) {
   } else { chart.options.plugins.annotation.annotations = {}; }
 }
 
-// Per group (TIPS / Nominal): the oldest fallback timestamp wins if any symbol in the group
-// fell back to the archive (honest bound on that group's freshness); otherwise the live
-// quote-time, falling back to the chart feed's own last-bar time only if the quote fetch fails.
-function resolveGroupLatest(quoteTime, tsList, fallbackTimes) {
-  if (fallbackTimes.length > 0) return new Date(Math.min(...fallbackTimes.map(d => d.getTime())));
+// Per group (TIPS / Nominal): the live quote-time — matching the sidebar's own always-live
+// yield readings (see updateCharts()) — falling back to the chart feed's own last-bar time
+// only if the quote fetch itself failed for the group's reference symbol. This label sits
+// directly under the sidebar yield table, so it tracks the same freshness the table shows,
+// not the (possibly archived/stale) data drawn on the charts.
+function resolveGroupLatest(quoteTime, tsList) {
   return quoteTime || (tsList.length > 0 ? new Date(Math.max(...tsList.map(d => d.getTime()))) : null);
 }
 
@@ -1276,7 +1273,6 @@ async function fetchAllData(force = false) {
   statusEl.textContent = `Updating...`;
   const allSyms = Object.keys(AVAILABLE_SYMBOLS);
   const tsListTips = [], tsListNominal = [];
-  const fallbackTimesTips = [], fallbackTimesNominal = [];
 
   const [, quotes] = await Promise.all([
     Promise.all(allSyms.map(async sym => {
@@ -1284,16 +1280,14 @@ async function fetchAllData(force = false) {
       rangeData[sym] = data;
       const isTips = sym.endsWith('TIPS');
       const tsList = isTips ? tsListTips : tsListNominal;
-      const fallbackTimes = isTips ? fallbackTimesTips : fallbackTimesNominal;
       if (data && data.length > 0) tsList.push(data[data.length - 1].x);
-      if (data && data.usedFallbackAt) fallbackTimes.push(data.usedFallbackAt);
     })),
     fetchLatestQuotes(allSyms)
   ]);
   latestQuotes = quotes;
 
-  latestDataTimeTips = resolveGroupLatest(quotes['US10YTIPS']?.time, tsListTips, fallbackTimesTips);
-  latestDataTimeNominal = resolveGroupLatest(quotes['US10Y']?.time, tsListNominal, fallbackTimesNominal);
+  latestDataTimeTips = resolveGroupLatest(quotes['US10YTIPS']?.time, tsListTips);
+  latestDataTimeNominal = resolveGroupLatest(quotes['US10Y']?.time, tsListNominal);
   updateStatusMessage();
 }
 
