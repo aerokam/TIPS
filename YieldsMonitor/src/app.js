@@ -1242,7 +1242,19 @@ function rescaleYToVisible(chart, sym) {
   chart.options.scales.y.min = bounds.min; chart.options.scales.y.max = bounds.max; chart.options.scales.y.ticks.stepSize = bounds.step; chart.update('none');
 }
 
-function updateDynamicTicks(chart, data) {
+// A symbol's chart-bar feed can freeze or fall back to an archived day during a CNBC outage
+// while its live quote keeps updating (see knowledge/1.0_Operation.md) — this detects that
+// divergence so 2D/10D charts can visually bridge the gap instead of looking complete when
+// they aren't. 30 min tolerates the feed's normal per-bar cadence/lag without false-flagging.
+const STALE_GAP_MS = 30 * 60 * 1000;
+function staleQuoteTime(sym, data) {
+  if (!data || data.length === 0) return null;
+  const quoteTime = latestQuotes[sym]?.time;
+  if (!quoteTime) return null;
+  return (quoteTime.getTime() - data[data.length - 1].x.getTime() > STALE_GAP_MS) ? quoteTime : null;
+}
+
+function updateDynamicTicks(chart, data, sym) {
   if (!data || data.length === 0) return;
   const bounds = snapYBounds(Math.min(...data.map(p=>p.y)), Math.max(...data.map(p=>p.y)));
   chart.options.scales.y.min = bounds.min; chart.options.scales.y.max = bounds.max; chart.options.scales.y.ticks.stepSize = bounds.step;
@@ -1254,6 +1266,11 @@ function updateDynamicTicks(chart, data) {
       if (isWeekendEt(current)) { annotations[`weekend-${dayIdx}`] = { type: 'box', xMin: mid, xMax: next, backgroundColor: AH_BG, borderWidth: 0, drawTime: 'beforeDatasetsDraw' }; }
       else { annotations[`pre-${dayIdx}`] = { type: 'box', xMin: mid, xMax: am8, backgroundColor: AH_BG, borderWidth: 0, drawTime: 'beforeDatasetsDraw' }; annotations[`aft-${dayIdx}`] = { type: 'box', xMin: pm5, xMax: next, backgroundColor: AH_BG, borderWidth: 0, drawTime: 'beforeDatasetsDraw' }; const dayD = data.filter(p => getEtDateStr(p.x) === etStr); if (dayD.length > 0) { const dMin = dayD[0].x, dMax = dayD[dayD.length-1].x; if (am8 >= dMin && am8 <= dMax) annotations[`am8-${dayIdx}`] = { type: 'line', xMin: am8, xMax: am8, borderColor: 'rgba(15,23,42,0.4)', borderWidth: 1.5, borderDash: [4,4] }; if (pm5 >= dMin && pm5 <= dMax) annotations[`pm5-${dayIdx}`] = { type: 'line', xMin: pm5, xMax: pm5, borderColor: 'rgba(15,23,42,0.4)', borderWidth: 1.5, borderDash: [4,4] }; } }
       current = next; dayIdx++;
+    }
+    const quoteTime = sym ? staleQuoteTime(sym, data) : null;
+    if (quoteTime) {
+      const lastPoint = data[data.length - 1];
+      annotations['stale-bridge'] = { type: 'line', xMin: lastPoint.x, xMax: nowTs, yMin: lastPoint.y, yMax: lastPoint.y, borderColor: chart.data.datasets[0].borderColor, borderWidth: 1.5, borderDash: [3, 3], drawTime: 'afterDatasetsDraw' };
     }
     chart.options.plugins.annotation.annotations = annotations;
   } else { chart.options.plugins.annotation.annotations = {}; }
@@ -1359,9 +1376,14 @@ function updateCharts() {
         chart.options.scales.x.time.tooltipFormat = 'MM/dd/yy';
         chart.options.scales.x.time.displayFormats = { month: 'MMM yyyy', year: 'yyyy' };
       }
-      updateDynamicTicks(chart, data);
+      updateDynamicTicks(chart, data, sym);
       chart.resetZoom();
-      xMaxAnchors[sym] = (activeRange === 'Custom' && customEndDate) ? customEndDate.getTime() : snapXMax(data[data.length - 1].x).getTime();
+      // If this chart's feed is stale relative to its live quote (see staleQuoteTime), the
+      // default view extends out to "now" rather than stopping at the last plotted point —
+      // otherwise the dashed stale-bridge line drawn above wouldn't be visible without the
+      // user manually panning/zooming to find it.
+      const staleTo = (activeRange === '2D' || activeRange === '10D') && staleQuoteTime(sym, data);
+      xMaxAnchors[sym] = (activeRange === 'Custom' && customEndDate) ? customEndDate.getTime() : snapXMax(staleTo ? new Date() : data[data.length - 1].x).getTime();
       applyDefaultBounds(sym, chart, data);
     }
 
