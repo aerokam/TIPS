@@ -334,13 +334,13 @@ Some values are true only until Treasury issues more TIPS. Left inline as approx
 2. **The volatile values live here**, each with the event that changes it — not scattered as inline approximations across 2.0, 3.0 and app help text.
 3. **A test derives each value from live data and asserts it matches this table.** Issuance drift then fails a test instead of rotting unnoticed. This is verifying redundancy (two independent derivations, gated by an assertion), not a duplicated definition.
 
-| Value | Rule | As of 2026-07-27 | Changes when |
+| Value | Rule | As of 2026-08-25 | Changes when |
 |---|---|---|---|
 | Gap years | Years in the ladder period with no issued TIPS | 2037, 2038, 2039 | A 10-year TIPS maturing in a gap year is issued |
 | Multi-maturity boundary | Years below it may hold more than one maturity month; at/above, 30-year February issues only | 2040 | 10-year issuance extends past the current boundary |
 | Maturity-month pattern | Quarterly at the short end, January/July for 10-year, February for 30-year | quarterly ≤~2030, Jan/Jul ≤~2036, Feb 2040+ | Issuance calendar changes |
 | Longest issued maturity year | Maturity year of the longest-dated issued TIPS | 2056 | A new 30-year TIPS is issued |
-| Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest ladder-eligible maturity before the first gap year | Jan 2036 (Jul 2036 auctioned, not yet issued) | The next pre-gap maturity is issued |
+| Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest ladder-eligible maturity before the first gap year | Jul 2036 | The next pre-gap maturity is issued |
 
 `LOWEST_LOWER_BRACKET_YEAR` = 2032 *(floor of the holdings search range for [retained bracket excess](#retained-bracket-excess): only maturity years in `[LOWEST_LOWER_BRACKET_YEAR, minGapYear)` are considered. Matches `rebalance-lib.js`.)*
 `REFCPI_CUSIP` = "912810FD5" *(3.625% TIPS, issued 1998, matures 2028-04-15)* — CUSIP used to pull the authoritative daily Ref CPI from TreasuryDirect ([E2](#e2)).

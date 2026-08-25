@@ -219,21 +219,21 @@ export function selectLadderBonds({ tipsMap, firstYear, lastYear, settlementDate
     rangeYears = [...rangeYears, 2040].sort((a, b) => a - b);
   }
 
-  // Ensure the lower bracket (nearest pre-gap Jan TIPS) is in yearBondMap/rangeYears.
+  // Ensure the lower bracket (latest-maturing pre-gap TIPS) is in yearBondMap/rangeYears.
   if (gapYears.length > 0) {
     const minGapYearTmp = Math.min(...gapYears);
     let lbBond = null;
     for (const bond of tipsMap.values()) {
       if (!bond.maturity || !bond.yield) continue;
-      const yr = bond.maturity.getFullYear(), mo = bond.maturity.getMonth() + 1;
-      if (mo === 1 && yr < minGapYearTmp && (!lbBond || yr > lbBond.maturity.getFullYear()))
+      const yr = bond.maturity.getFullYear();
+      if (yr < minGapYearTmp && (!lbBond || bond.maturity > lbBond.maturity))
         lbBond = bond;
     }
     if (lbBond) {
       const lbYear = lbBond.maturity.getFullYear();
       if (!yearBondMap[lbYear]) {
         yearBondMap[lbYear] = lbBond;
-        yearTipsListMap[lbYear] = [lbBond];   // pre-gap lower bracket (Jan 2036) — single TIPS
+        yearTipsListMap[lbYear] = [lbBond];   // pre-gap lower bracket — single TIPS
         rangeYears = [...rangeYears, lbYear].sort((a, b) => a - b);
       }
     }

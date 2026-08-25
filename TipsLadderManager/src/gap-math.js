@@ -163,12 +163,12 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
   const minGapYear = Math.min(...gapYears);
   const maxGapYear = Math.max(...gapYears);
 
-  // Anchors: highest Jan TIPS strictly below the gap; nearest Feb TIPS above the gap.
+  // Anchors: latest-maturing TIPS below the gap (the most recently issued 10-year); nearest Feb TIPS above.
   let anchorBefore = null, anchorAfter = null;
   for (const bond of tipsMap.values()) {
     if (!bond.maturity || !bond.yield) continue;
     const yr = bond.maturity.getFullYear(), mo = bond.maturity.getMonth() + 1;
-    if (mo === 1 && yr < minGapYear && (!anchorBefore || yr > anchorBefore.maturity.getFullYear()))
+    if (yr < minGapYear && (!anchorBefore || bond.maturity > anchorBefore.maturity))
       anchorBefore = { maturity: bond.maturity, yield: bond.yield };
     if (mo === 2 && yr > maxGapYear && (!anchorAfter || bond.maturity < anchorAfter.maturity))
       anchorAfter = { maturity: bond.maturity, yield: bond.yield };
@@ -231,14 +231,14 @@ export function gapParamsWithUpperFeedback(args) {
   if (!creditUpperExcess || !gapYears?.length || !refCPI) return gapParamsCore(args);
 
   const minGapYear = Math.min(...gapYears), maxGapYear = Math.max(...gapYears);
-  // Bracket bonds (same anchors gapParamsCore uses): lower = highest Jan TIPS strictly below
+  // Bracket bonds (same anchors gapParamsCore uses): lower = latest-maturing TIPS strictly below
   // the gap; upper = nearest Feb TIPS above. Only the UPPER coupon flows up into the gap years
   // (the lower bracket matures before them), so only it feeds back here.
   let lowerBond = null, upperBond = null;
   for (const b of tipsMap.values()) {
     if (!b.maturity || !b.yield) continue;
     const yr = b.maturity.getFullYear(), mo = b.maturity.getMonth() + 1;
-    if (mo === 1 && yr < minGapYear && (!lowerBond || yr > lowerBond.maturity.getFullYear())) lowerBond = b;
+    if (yr < minGapYear && (!lowerBond || b.maturity > lowerBond.maturity)) lowerBond = b;
     if (mo === 2 && yr > maxGapYear && (!upperBond || b.maturity < upperBond.maturity)) upperBond = b;
   }
   if (!lowerBond || !upperBond) return gapParamsCore(args);

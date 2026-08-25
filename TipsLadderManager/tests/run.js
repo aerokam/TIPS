@@ -2261,6 +2261,36 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   }
 }
 
+// ── Test: active lower bracket is the latest-maturing pre-gap TIPS, not the January one ──────
+// DATA_DICTIONARY.md §Active Lower Bracket / 2.0 §Synthetic TIPS for Gap Years: the lower-side
+// maturity a ladder buys and interpolates against is the most recently issued 10-year — the
+// latest-maturing ladder-eligible TIPS below the first gap year. Every pre-gap year carries both a
+// January and a July 10-year, so a rule that filtered to January silently picked the earlier of the
+// two: it chose Jan 2036 while Build put the rung and its bracket excess in Jul 2036, churning the
+// whole excess position on the next rebalance. The shared market-data fixture predates Jul 2036,
+// so it cannot expose this; this test builds the competing pair explicitly.
+{
+  console.log('\nActive lower bracket — latest-maturing pre-gap TIPS wins over the January one');
+  const rows = [
+    { cusip: 'TEST35JUL', maturity: '2035-07-15', coupon: 0.01875, baseCpi: 321.09758, price: 97.06,  yield: 0.0224 },
+    { cusip: 'TEST36JAN', maturity: '2036-01-15', coupon: 0.01875, baseCpi: 324.93471, price: 96.28,  yield: 0.0232 },
+    { cusip: 'TEST36JUL', maturity: '2036-07-15', coupon: 0.02375, baseCpi: 333.96974, price: 100.44, yield: 0.0233 },
+    { cusip: 'TEST40FEB', maturity: '2040-02-15', coupon: 0.02125, baseCpi: 216.1395,  price: 94.98,  yield: 0.0257 },
+  ];
+  const map = buildTipsMapFromYields(rows);
+  assert('fixture sanity: gap years are 2037-2039', getGapYears(map).sort().join(','), '2037,2038,2039');
+  const { summary, details } = runBuild({
+    dara: 40000, firstYear: 2035, lastYear: 2040, tipsMap: map,
+    refCPI, settlementDate, maturityPref: 'last', couponPref: 'higher',
+  });
+  const anchorBefore = summary.gapParams?.anchors?.before?.maturity;
+  assert('gap yield interpolation anchors on July, not January', anchorBefore?.getMonth() + 1, 7);
+  assert('lower bracket year is 2036', summary.lowerYear, 2036);
+  const julExcess = details.find(d => d.cusip === 'TEST36JUL')?.excessQty ?? 0;
+  const janExcess = details.find(d => d.cusip === 'TEST36JAN')?.excessQty ?? 0;
+  assert('bracket excess sits in the July maturity', julExcess > 0, true);
+  assert('bracket excess does not sit in the January maturity', janExcess, 0);
+}
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

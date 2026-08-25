@@ -74,14 +74,14 @@ function identifyBrackets(gapYears, holdings, yearInfo, tipsMap, araByYear, DARA
   }
 
   // When firstYear is inside the gap (e.g. 2037–2039), no holdings exist below minGapYear.
-  // Fall back to tipsMap to find the nearest pre-gap Jan TIPS (currently Jan 2036).
+  // Fall back to tipsMap to find the latest-maturing pre-gap TIPS.
   // In full rebalance this generates a BUY for 2036 excess bonds (qtyBefore = 0).
   if (lowerCUSIP == null && gapYears.length > 0) {
     for (const bond of tipsMap.values()) {
       if (!bond.maturity || !bond.yield) continue;
-      const yr = bond.maturity.getFullYear(), mo = bond.maturity.getMonth() + 1;
-      if (mo === 1 && yr < minGapYear) {
-        if (!lowerMaturity || yr > lowerMaturity.getFullYear()) {
+      const yr = bond.maturity.getFullYear();
+      if (yr < minGapYear) {
+        if (!lowerMaturity || bond.maturity > lowerMaturity) {
           lowerCUSIP = bond.cusip; lowerYear = yr; lowerMaturity = bond.maturity;
         }
       }
@@ -407,7 +407,7 @@ export function getGapYears(tipsMap) {
 }
 
 // Years adjacent to the structural gap (2037-2039) that may carry bracket excess: the
-// 2040 upper bracket and any Jan TIPS in [2032, minGap) that could have been an old lower
+// 2040 upper bracket and any TIPS maturity year in [2032, minGap) that could have been an old lower
 // bracket. Holdings in these years with ARA > 1.5× median are auto-capped to median.
 // `lastYear` is the ladder's selected last funded year — bracket bridging (and so the whole
 // candidate concept) only applies once the ladder actually reaches the structural gap. A
@@ -424,8 +424,8 @@ export function getGapYearBracketCandidates(tipsMap, lastYear = Infinity) {
   const candidates = new Set([maxGap + 1]);
   for (const b of tipsMap.values()) {
     if (!b.maturity) continue;
-    const yr = b.maturity.getFullYear(), mo = b.maturity.getMonth() + 1;
-    if (mo === 1 && yr >= LOWEST_LOWER && yr < minGap) candidates.add(yr);
+    const yr = b.maturity.getFullYear();
+    if (yr >= LOWEST_LOWER && yr < minGap) candidates.add(yr);
   }
   return candidates;
 }
@@ -973,16 +973,16 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const minGapYear = gapYears.length > 0 ? Math.min(...gapYears) : Infinity;
   const brackets  = identifyBrackets(gapYears, holdings, yearInfo, tipsMap, araByYear, DARA, firstYear);
 
-  // 2-bracket: lower bracket is always the canonical tipsMap lower (latest Jan TIPS below minGapYear,
-  // currently Jan 2036). identifyBrackets may return an older year (e.g. 2034) found via excess-ARA.
-  // Override it so bracketYearSet uses Jan 2036; the old year falls into rebalYearSet (Full mode
+  // 2-bracket: lower bracket is always the canonical tipsMap lower (latest-maturing TIPS below
+  // minGapYear). identifyBrackets may return an older year found via excess-ARA.
+  // Override it so bracketYearSet uses the active lower bracket; the old year falls into rebalYearSet (Full mode
   // rebuilds it to funded-year qty only, selling any excess).
   if (bracketMode === '2bracket' && gapYears.length > 0) {
     let canonCUSIP = null, canonYear = null, canonMaturity = null;
     for (const bond of tipsMap.values()) {
       if (!bond.maturity || !bond.yield) continue;
-      const yr = bond.maturity.getFullYear(), mo = bond.maturity.getMonth() + 1;
-      if (mo === 1 && yr < minGapYear && (!canonMaturity || yr > canonMaturity.getFullYear())) {
+      const yr = bond.maturity.getFullYear();
+      if (yr < minGapYear && (!canonMaturity || bond.maturity > canonMaturity)) {
         canonCUSIP = bond.cusip; canonYear = yr; canonMaturity = bond.maturity;
       }
     }
@@ -996,24 +996,24 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const lowerDuration = brackets.lowerMaturity ? calculateMDuration(settlementDate, brackets.lowerMaturity, lowerBond?.coupon ?? 0, lowerBond?.yield ?? 0) : 0;
   const upperDuration = brackets.upperMaturity ? calculateMDuration(settlementDate, brackets.upperMaturity, upperBond?.coupon ?? 0, upperBond?.yield ?? 0) : 0;
   // 3-bracket requires a distinct orig-lower vs new-lower; when firstYear is inside the gap
-  // (e.g. 2038/2039), minGapYear = firstYear, so the nearest pre-gap Jan TIPS is Jan 2036 for
+  // (e.g. 2038/2039), minGapYear = firstYear, so the latest-maturing pre-gap TIPS is the same for
   // both orig-lower (from identifyBrackets fallback) and new-lower → same year → auto-degrades below.
   let is3Bracket = (bracketMode === '3bracket') && brackets.lowerCUSIP != null;
   let newLowerYear = null, newLowerCUSIP = null, newLowerMaturity = null, newLowerDuration = 0;
   if (is3Bracket && gapYears.length > 0) {
-    // New lower = nearest Jan TIPS strictly below minGapYear. minGapYear−1 may itself be a gap
+    // New lower = latest-maturing TIPS strictly below minGapYear. minGapYear−1 may itself be a gap
     // year (e.g. firstYear=2038 → minGapYear=2038 → 2037 has no TIPS), so walk tipsMap for the
-    // highest Jan year < minGapYear, same as anchorBefore in calculateGapParameters.
+    // longest-dated maturity < minGapYear, same as anchorBefore in calculateGapParameters.
     for (const [_cusip, _bond] of tipsMap.entries()) {
       if (!_bond.maturity || !_bond.yield) continue;
-      const _yr = _bond.maturity.getFullYear(), _mo = _bond.maturity.getMonth() + 1;
-      if (_mo === 1 && _yr < minGapYear) {
-        if (!newLowerMaturity || _yr > newLowerMaturity.getFullYear()) {
+      const _yr = _bond.maturity.getFullYear();
+      if (_yr < minGapYear) {
+        if (!newLowerMaturity || _bond.maturity > newLowerMaturity) {
           newLowerCUSIP = _cusip; newLowerMaturity = _bond.maturity; newLowerYear = _yr;
         }
       }
     }
-    if (!newLowerCUSIP) throw new Error('3-bracket: no Jan TIPS found before gap year ' + minGapYear);
+    if (!newLowerCUSIP) throw new Error('3-bracket: no ladder-eligible TIPS found before gap year ' + minGapYear);
     const _nlBond = tipsMap.get(newLowerCUSIP);
     newLowerDuration = calculateMDuration(settlementDate, newLowerMaturity, _nlBond?.coupon ?? 0, _nlBond?.yield ?? 0);
     // When orig lower and new lower resolve to the same year, 3-bracket is a no-op:

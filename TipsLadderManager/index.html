@@ -779,10 +779,10 @@ document.getElementById('bracket-mode-help').addEventListener('click', e => {
   e.stopPropagation();
   showPopup(e.currentTarget, 'Bracket Mode', [
     { heading: '2-bracket' },
-    { html: '<b>Lower bracket:</b> always the latest Jan 10-year TIPS before the gap (currently Jan 2036).<br>Any older lower bracket holdings (e.g. Jan 2034) become regular funded years — their excess is sold and the bracket role moves to Jan 2036.' },
+    { html: '<b>Lower bracket:</b> always the most recently issued 10-year TIPS before the gap — the latest maturity available in the market quotes, whether it falls in January or July.<br>Any older lower bracket holdings become regular funded years: their excess is sold and the bracket role moves to that latest maturity.' },
     { sep: true },
     { heading: '3-bracket (default)' },
-    { html: 'Lower bracket excess from Jan 2034 and Jan 2036 is managed with a priority rule:<br><b>Over-allocated:</b> sell only as much Jan 2034 excess as restoring the duration match requires (a partial sale, not a full one, unless the match still needs more); sell Jan 2036 only if Jan 2034 is fully depleted and still over target.<br><b>Under-allocated:</b> buy Jan 2036; Jan 2034 is frozen at current excess and never increased or bought back.<br>Use when you hold Jan 2034 holdings you want to keep until duration math forces a sell.<br><i>Note:</i> a very small follow-up trade (at most about one bond) can appear after reloading an exported ladder — a whole-bond-rounding artifact of the partial-sell target, not an error.' },
+    { html: 'Lower bracket excess is kept in both the older maturity and the current one, managed with a priority rule:<br><b>Over-allocated:</b> sell only as much of the older excess as restoring the duration match requires (a partial sale, not a full one, unless the match still needs more); sell from the current lower bracket only if the older maturity is fully depleted and still over target.<br><b>Under-allocated:</b> buy the current lower bracket; the older maturity is frozen at its current excess and never increased or bought back.<br>Use when you hold an older lower bracket you want to keep until duration math forces a sell.<br><i>Note:</i> a very small follow-up trade (at most about one bond) can appear after reloading an exported ladder — a whole-bond-rounding artifact of the partial-sell target, not an error.' },
   ]);
 });
 document.getElementById('help-close').addEventListener('click', () => {

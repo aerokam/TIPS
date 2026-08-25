@@ -44,9 +44,9 @@ export function heldYearMedianExcluding(heldARAByYear, excludeYear) {
 }
 
 // The Active Lower Bracket (DATA_DICTIONARY.md §Active Lower Bracket; 3.0 §Bracket Identification
-// Rules): the most recently issued ladder-eligible Jan TIPS maturing below minGapYear (Jan 2036
-// as of 2026-07-27). Computed from tipsMap only, same "longest-dated 10-year maturity below the
-// gap" search rebalance-lib.js's `identifyBrackets`/`anchorBefore` use — holdings never consulted.
+// Rules): the latest-maturing ladder-eligible TIPS below minGapYear — the most recently issued
+// 10-year. Computed from tipsMap only, the same search rebalance-lib.js's
+// `identifyBrackets`/`anchorBefore` use — holdings never consulted.
 export function getActiveLowerBracketYear(tipsMap) {
   const gapYears = getGapYears(tipsMap);
   if (gapYears.length === 0) return null;
@@ -54,15 +54,15 @@ export function getActiveLowerBracketYear(tipsMap) {
   let activeYear = null;
   for (const b of tipsMap.values()) {
     if (!b.maturity) continue;
-    const yr = b.maturity.getFullYear(), mo = b.maturity.getMonth() + 1;
-    if (mo === 1 && yr >= LOWEST_LOWER_BRACKET_YEAR && yr < minGap) {
+    const yr = b.maturity.getFullYear();
+    if (yr >= LOWEST_LOWER_BRACKET_YEAR && yr < minGap) {
       if (activeYear == null || yr > activeYear) activeYear = yr;
     }
   }
   return activeYear;
 }
 
-// Lower-bracket CANDIDATE years for excess-flagging: every Jan TIPS in
+// Lower-bracket CANDIDATE years for excess-flagging: every TIPS maturity year in
 // [LOWEST_LOWER_BRACKET_YEAR, activeLowerBracketYear) — 2032-2035 today. EXCLUDES the Active Lower
 // Bracket year itself (2036) from this specific pool only — 2036 is still detected, just
 // independently below (see detectBracketFlags), so it can flag alongside a genuine retained-leg
@@ -75,8 +75,8 @@ export function getLowerBracketCandidateYears(tipsMap) {
   const years = new Set();
   for (const b of tipsMap.values()) {
     if (!b.maturity) continue;
-    const yr = b.maturity.getFullYear(), mo = b.maturity.getMonth() + 1;
-    if (mo === 1 && yr >= LOWEST_LOWER_BRACKET_YEAR && yr < activeYear) years.add(yr);
+    const yr = b.maturity.getFullYear();
+    if (yr >= LOWEST_LOWER_BRACKET_YEAR && yr < activeYear) years.add(yr);
   }
   return [...years].sort((a, b) => a - b);
 }
