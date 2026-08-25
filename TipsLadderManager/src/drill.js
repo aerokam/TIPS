@@ -87,9 +87,14 @@ function gapBreakdownRows(gapParams, dara, opts) {
     const yearDara = g.dara ?? dara;
     let fmla;
     if (compact) {
-      fmla = 'round((' + fm(yearDara) + ' \u2212 ' + fm(g.laterMatInt);
-      if (pliCredit > 0) fmla += ' \u2212 ' + fm(pliCredit);
-      fmla += ') \u00f7 ' + fm2(g.piPerBond) + ')';
+      const lmiSpan = '<span class="drill-l3" data-l3="gaplmi-' + g.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + fm(g.laterMatInt) + '</span>';
+      const piSpan = '<span class="drill-l3" data-l3="gappi-' + g.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + fm2(g.piPerBond) + '</span>';
+      fmla = 'round((' + fm(yearDara) + ' \u2212 ' + lmiSpan;
+      if (pliCredit > 0) {
+        const pliSpan = '<span class="drill-l3" data-l3="plcpool:' + Math.round(pliCredit) + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + fm(pliCredit) + '</span>';
+        fmla += ' \u2212 ' + pliSpan;
+      }
+      fmla += ') \u00f7 ' + piSpan + ')';
     } else {
       fmla = 'round((' + fm(yearDara) + ' \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>';
       if (pliCredit > 0) fmla += ' \u2212 <span class="formula-var" data-source="' + id + 'pli">PLI</span>';
@@ -921,7 +926,8 @@ export function buildDurationPopupRows(summary, mode) {
       + 'qty = round((DARA \u2212 LMI \u2212 PLI) \u00f7 P+I)<br>'
       + '<b>LMI</b> = Later Maturity Interest \u2014 coupon income from TIPS maturing after this year, including hypothetical interest from synthetic gap year TIPS<br>'
       + '<b>PLI</b> = Pre-Ladder Interest credit applied to this gap year (0 unless a pre-ladder credit applies)<br>'
-      + '<b>P+I</b> = Principal + Interest per synthetic TIPS for this year'
+      + '<b>P+I</b> = Principal + Interest per synthetic TIPS for this year \u2014 these synthetic TIPS always mature in February, which receives one coupon payment in the maturity year, so P+I reflects half the annual coupon rate shown above<br>'
+      + '<i>Click any LMI, PLI, or P+I value below for its breakdown.</i>'
       + '</div>'
       + '<table style="border-collapse:collapse;width:100%">'
       + gapBreakdownRows(gapParams, summary.DARA, { compact: true })
@@ -1033,6 +1039,51 @@ function macaulayWalkRows(durDetail, dur) {
     { heading: 'Modified Duration' },
     { label: 'Modified duration', note: 'Macaulay ÷ (1 + yield ÷ 2)', value: fd(dur, 4) + ' yr', total: true }
   );
+  return rows;
+}
+
+// Level-3 drill for the P+I of one synthetic Gap-year TIPS (5.0 §Nested (Level-3) drills,
+// key `gappi-<year>`). Gap-year synthetic TIPS always carry a Feb maturity, which falls in the
+// Jan–Jun bucket and so receives exactly one coupon payment in the maturity year (TIPS_Basics.md
+// §Last-Year Interest) — half the annual synthetic coupon rate shown in the Gap Year Duration drill.
+export function buildSyntheticPIDrill(summary, year) {
+  const g = summary?.gapParams?.breakdown?.find(b => b.year === year);
+  if (!g) return [{ label: 'No data', total: true }];
+  const couponInterest = 1000 * g.synCpn / 2;
+  return [
+    { label: 'Principal', note: 'synthetic TIPS auctioned at par — par value used as the approximation for principal at auction', value: '$1,000.00' },
+    { label: 'Synthetic coupon (annual rate)', note: 'see Gap Year Duration ↗', value: fd(g.synCpn * 100, 3) + '%' },
+    { label: 'Interest: from Feb coupon', note: '$1,000 × ' + fd(g.synCpn * 100, 3) + '% ÷ 2 — Feb maturity falls in the Jan–Jun bucket, which gets one coupon payment in the maturity year', value: '$' + fd(couponInterest, 2) },
+    { sep: true },
+    { label: 'P+I per synthetic TIPS', value: '$' + fd(g.piPerBond, 2), total: true }
+  ];
+}
+
+// Level-3 drill for the LMI of one synthetic Gap-year TIPS (5.0 §Nested (Level-3) drills,
+// key `gaplmi-<year>`). Splits the year's LMI into synthetic coupon from longer gap years already
+// sized in this sweep (each reconstructable from `gapParams.breakdown`, itself drillable via
+// `gapdur-<year>`) and coupon from actual TIPS maturing above the gap block (funded years, bracket
+// excess) — the latter only available as a lump sum since gap-math.js doesn't retain a per-source
+// breakdown of `lmiAboveByYear`.
+export function buildSyntheticLMIDrill(summary, year) {
+  const gapParams = summary?.gapParams;
+  const g = gapParams?.breakdown?.find(b => b.year === year);
+  if (!g) return [{ label: 'No data', total: true }];
+  const longerYears = gapParams.breakdown.filter(gy => gy.year > year).sort((a, b) => b.year - a.year);
+  const fromSynthetic = longerYears.reduce((s, gy) => s + gy.qty * 1000 * gy.synCpn, 0);
+  const fromActual = Math.max(0, g.laterMatInt - fromSynthetic);
+  const rows = [];
+  if (longerYears.length) {
+    rows.push({ heading: 'Synthetic interest from longer gap years' });
+    longerYears.forEach(gy => {
+      rows.push({ label: gy.year + ' synthetic coupon', note: gy.qty + ' × $1,000 × ' + fd(gy.synCpn * 100, 3) + '%', value: '$' + Math.round(gy.qty * 1000 * gy.synCpn).toLocaleString() });
+    });
+    rows.push({ label: 'Subtotal', value: '$' + Math.round(fromSynthetic).toLocaleString(), total: true });
+    rows.push({ sep: true });
+  }
+  rows.push({ label: 'Coupon interest from actual TIPS maturing above the gap', note: 'funded years and bracket excess above the gap block', value: '$' + Math.round(fromActual).toLocaleString() });
+  rows.push({ sep: true });
+  rows.push({ label: 'Later Maturity Interest (LMI)', value: '$' + Math.round(g.laterMatInt).toLocaleString(), total: true });
   return rows;
 }
 

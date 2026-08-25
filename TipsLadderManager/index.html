@@ -655,7 +655,7 @@ import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAF
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, UPPER_BRACKET_YEAR, FUTURE30Y_COVER_YEARS } from './src/before-state-lib.js';
 import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
 import { renderTable, COLS } from './src/render.js';
-import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill, buildGapYearDurationDrill, buildFuture30yYearDurationDrill } from './src/drill.js';
+import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill, buildGapYearDurationDrill, buildFuture30yYearDurationDrill, buildSyntheticPIDrill, buildSyntheticLMIDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
 import { rankForYear } from './src/allocation-policy.js';
@@ -3516,6 +3516,14 @@ document.addEventListener('click', e => {
       const year = parseInt(key.slice(7), 10);
       const summary = currentMode === 'build' ? buildSummary : rebalSummary;
       showPopup(drillL3, 'Gap Year Duration · ' + year, buildGapYearDurationDrill(summary, year), 'Gap Dur');
+    } else if (key.startsWith('gappi-')) {
+      const year = parseInt(key.slice(6), 10);
+      const summary = currentMode === 'build' ? buildSummary : rebalSummary;
+      showPopup(drillL3, 'P+I per Synthetic TIPS · ' + year, buildSyntheticPIDrill(summary, year), 'P+I');
+    } else if (key.startsWith('gaplmi-')) {
+      const year = parseInt(key.slice(7), 10);
+      const summary = currentMode === 'build' ? buildSummary : rebalSummary;
+      showPopup(drillL3, 'Later Maturity Interest (LMI) · ' + year, buildSyntheticLMIDrill(summary, year), 'LMI');
     } else if (key.startsWith('f30dur-')) {
       const year = parseInt(key.slice(7), 10);
       const summary = currentMode === 'build' ? buildSummary : rebalSummary;
