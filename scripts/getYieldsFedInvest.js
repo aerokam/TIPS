@@ -79,20 +79,31 @@ async function fetchPrices() {
     return null;
   }
 
-  // As of ~Aug 2026, TreasuryDirect rejects the CSV POST (403) unless the request URL carries
-  // the session's jsessionid as a matrix parameter (`;jsessionid=...`), matching how the site's
-  // own <form action> is rendered (HttpServletResponse.encodeURL — a J2EE session-continuity
-  // pattern, apparently now enforced as a bot-traffic signature). A bare POST to FEDINVEST_URL
-  // with no jsessionid segment gets 403 regardless of cookies/headers sent.
+  // As of ~Aug 2026, TreasuryDirect added Spring Security CSRF protection to the CSV-export
+  // POST: it now requires the page's `_csrf` token in the body, and (contrary to an earlier,
+  // now-obsolete requirement) actively rejects the request if the URL carries a `;jsessionid=`
+  // matrix parameter. Rather than hardcode field names (TD has already renamed at least one —
+  // priceDateDay → priceDate, per a report from another user hitting this same endpoint), parse
+  // the live `CSVFormat` <form> out of the HTML and submit exactly the fields/action it declares.
   const setCookies = htmlRes.headers.getSetCookie();
-  const jsessionid = setCookies.find(c => c.startsWith('JSESSIONID='))?.split(';')[0].split('=')[1];
-  if (!jsessionid) throw new Error('FedInvest: no JSESSIONID cookie in HTML response');
   const cookieHeader = setCookies.map(c => c.split(';')[0]).join('; ');
 
-  const csvRes = await fetch(`${FEDINVEST_URL};jsessionid=${jsessionid}`, {
+  const formMatch = html.match(/<form[^>]*id="CSVFormat"[^>]*>([\s\S]*?)<\/form>/i);
+  if (!formMatch) throw new Error('FedInvest: could not find CSVFormat form in HTML response');
+  const actionMatch = html.match(/<form[^>]*id="CSVFormat"[^>]*action="([^"]+)"/i);
+  if (!actionMatch) throw new Error('FedInvest: CSVFormat form has no action attribute');
+
+  const fields = {};
+  for (const inputTag of formMatch[1].matchAll(/<input[^>]*name="([^"]+)"[^>]*>/gi)) {
+    const valueMatch = inputTag[0].match(/value="([^"]*)"/);
+    fields[inputTag[1]] = valueMatch ? valueMatch[1] : '';
+  }
+
+  const csvUrl = new URL(actionMatch[1], FEDINVEST_URL).toString();
+  const csvRes = await fetch(csvUrl, {
     method: 'POST',
-    headers: { Cookie: cookieHeader },
-    body: new URLSearchParams({ fileType: 'csv', csv: 'CSV FORMAT' }),
+    headers: { Cookie: cookieHeader, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields),
   });
   if (!csvRes.ok) throw new Error(`FedInvest CSV HTTP ${csvRes.status}`);
   const text = await csvRes.text();
