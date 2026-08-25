@@ -16,15 +16,16 @@
 ### Upcoming Auctions
 - **Source:** FiscalData upcoming auctions endpoint — `api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/upcoming_auctions`
 - **Fetched live** by the browser on page load (no R2, no caching)
-- **TIPS Identification:** Cross-referenced with `tentative_tips.json` (see below) and checked for "TIPS" in `security_type`.
+- **TIPS Identification:** Cross-referenced against the Tentative Auction Schedule XML mirror (see below), matching `auction_date` + `security_term`; also checked for "TIPS" in `security_type`.
 - Filtered to `auction_date >= today`
 
-### Tentative TIPS Schedule (`tentative_tips.json`)
+### Tentative Auction Schedule (`Tentative-Auction-Schedule.xml`)
 - **Source:** Treasury.gov Tentative Auction Schedule XML — `home.treasury.gov/system/files/221/Tentative-Auction-Schedule.xml`
 - **Script:** `scripts/updateTentativeSchedule.js`
-- **R2 key:** `TIPS/tentative_tips.json`
-- **Public URL:** `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json`
-- **Logic:** Extracts all auctions where `<TIPS>Y</TIPS>` is present. Used by the UI to accurately label TIPS in the upcoming auctions table (since the FiscalData upcoming endpoint lacks the `inflation_index_security` field).
+- **Local task:** `TreasuryAuctions-TentativeSchedule` — Treasury revises this schedule at its Quarterly Refunding press conference (first Wednesday of Feb/May/Aug/Nov), with the document itself updated ~1–3 weeks later. Task cadence decays: monthly Sep–Dec 2026, weekly through Jan 2027, daily from Feb 2027 onward (reset manually — ideally realigned around each quarterly refunding date — once the next real revision is observed)
+- **R2 key:** `TIPS/Tentative-Auction-Schedule.xml`
+- **Public URL:** `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/Tentative-Auction-Schedule.xml`
+- **Logic:** Raw XML mirrored to R2 (the browser can't fetch `home.treasury.gov` directly — no CORS). Fetched directly by the TreasuryAuctions UI, which parses `<AuctionCalendarDate>` nodes and matches each upcoming-auction row by `AuctionDate` + `SecurityTermWeekYear` to flag `TIPS`, `reopening`, and `floating_rate`.
 
 ---
 

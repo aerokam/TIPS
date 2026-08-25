@@ -239,10 +239,10 @@ const NODES = [
   {id:'S2',type:'store',label:'TipsRef.csv',     sub:'S2',cx:468,cy:280,
    r2Key:'Treasuries/TipsRef.csv',
    schema:'{CUSIP + Maturity + DatedDate + Coupon + BaseCPI + Term}'},
-  {id:'S9',type:'store',label:'tentative_tips.json',sub:'S9',cx:468,cy:315,
-   r2Key:'TIPS/tentative_tips.json',
-   schema:'{Date + Term + Reopen}',
-   r2Note:'Processed tentative TIPS calendar used by TreasuryAuctions UI.'},
+  {id:'S9',type:'store',label:'Tentative-Auction-Schedule.xml',sub:'S9',cx:468,cy:315,
+   r2Key:'TIPS/Tentative-Auction-Schedule.xml',
+   schema:'{AuctionCalendarDate: [AuctionDate + SecurityTermWeekYear + SecurityType + ReOpeningIndicator + TIPS + FloatingRate]}',
+   r2Note:'Raw XML mirror; fetched directly by TreasuryAuctions to flag TIPS in the upcoming-auctions feed.'},
   {id:'S4',type:'store',label:'RefCpiNsaSa.csv', sub:'S4',cx:468,cy:385,
    r2Key:'Treasuries/RefCpiNsaSa.csv',
    schema:'{Date + CPI_NSA + CPI_SA + SA_Factor}',
@@ -301,7 +301,7 @@ const EDGES = [
   {id:'eP6S6',from:'P6',to:'S6',style:'solid',  desc:'Refreshes yields-history/'},
   {id:'eP7S7',from:'P7',to:'S7',style:'solid', desc:'Writes FidelityTreasuriesTips.csv'},
   {id:'eP8S8', from:'P8',to:'S8', style:'solid', desc:'Writes BondHolidaysSifma.csv'},
-  {id:'eP9S9',from:'P9',to:'S9',style:'solid',  desc:'Writes tentative_tips.json'},
+  {id:'eP9S9',from:'P9',to:'S9',style:'solid',  desc:'Writes Tentative-Auction-Schedule.xml mirror'},
   // S \u2192 A consumption (solid)
   {id:'eS1A1',from:'S1',to:'A1',style:'solid',  desc:'YieldsFromFedInvestPrices.csv \u2192 all yield curves'},
   {id:'eS1A2',from:'S1',to:'A2',style:'solid',  desc:'YieldsFromFedInvestPrices.csv \u2192 ladder pricing'},
@@ -311,7 +311,7 @@ const EDGES = [
   {id:'eS7A1',from:'S7',to:'A1',style:'solid', desc:'FidelityTreasuriesTips.csv \u2192 Market tab (nominals + TIPS)'},
   {id:'eS8A1', from:'S8', to:'A1',style:'dashed',desc:'BondHolidaysSifma.csv \u2192 business-day calculations in YieldCurves'},
   {id:'eS5A4',from:'S5',to:'A4',style:'solid',  desc:'Auctions.csv \u2192 all auction tabs'},
-  {id:'eS9A4',from:'S9',to:'A4',style:'solid',  desc:'tentative_tips.json \u2192 TIPS identification in Upcoming'},
+  {id:'eS9A4',from:'S9',to:'A4',style:'solid',  desc:'Tentative-Auction-Schedule.xml \u2192 TIPS identification in Upcoming'},
   {id:'eS6A3',from:'S6',to:'A3',style:'solid',  desc:'yields-history/ \u2192 history charts (14 symbols)'},
   // live browser fetches (dashed, long-range)
   {id:'eE5A3',from:'E5',to:'A3',style:'dashed', desc:'Live CNBC GraphQL fetch \u2014 YieldsMonitor calls CNBC directly in the browser on page load (no R2 intermediary)'},
@@ -319,7 +319,7 @@ const EDGES = [
 ];
 
 // \u2500\u2500 Mappings for status overlay \u2500\u2500
-const R2_TO_NODE  = {'Treasuries/YieldsFromFedInvestPrices.csv':'S1','TIPS/RefCPI.csv':'S3','Treasuries/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yields-history/history.json':'S6','Treasuries/FidelityTreasuriesTips.csv':'S7','misc/BondHolidaysSifma.csv':'S8','TIPS/tentative_tips.json':'S9'};
+const R2_TO_NODE  = {'Treasuries/YieldsFromFedInvestPrices.csv':'S1','TIPS/RefCPI.csv':'S3','Treasuries/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yields-history/history.json':'S6','Treasuries/FidelityTreasuriesTips.csv':'S7','misc/BondHolidaysSifma.csv':'S8','TIPS/Tentative-Auction-Schedule.xml':'S9'};
 const APPID_TO_NODE = {'yieldcurves':'A1','tipsladder':'A2','auctions':'A4','yieldsmonitor':'A3'};
 
 const nodeMap = Object.fromEntries(NODES.map(n=>[n.id,n]));

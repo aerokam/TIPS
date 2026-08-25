@@ -49,7 +49,7 @@ All apps fetch data directly from Cloudflare R2 at runtime using public HTTPS UR
 | [S6](./DataStores.md#s6) | YieldHistory/ | A3 (historical yield time series) |
 | [S7](./DataStores.md#s7) | FidelityTreasuriesTips.csv | A2 (broker bid/ask quotes), A9 (nominal fund holdings enrichment) |
 | [S8](./DataStores.md#s8) | CPI_history.csv | A5 (full monthly CPI history 1913+) |
-| [S9](./DataStores.md#s9) | tentative_tips.json | A4 (flag TIPS in upcoming auctions) |
+| [S9](./DataStores.md#s9) | Tentative-Auction-Schedule.xml | A4 (flag TIPS in upcoming auctions) |
 | [S10](./DataStores.md#s10) | YieldsSaSao.csv | A9 (TIPS fund holdings enrichment) |
 
 ---

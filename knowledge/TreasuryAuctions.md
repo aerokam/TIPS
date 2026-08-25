@@ -10,7 +10,7 @@
 graph LR
     %% Data Stores (S)
     S5[(S5 Auctions.csv)]
-    S9[(S9 tentative_tips.json)]
+    S9[(S9 Tentative-Auction-Schedule.xml)]
     E3[E3 FiscalData API]
     E4[E4 Treasury XML]
 
@@ -54,7 +54,7 @@ Retrieves auction results from both the local `Auctions.csv` database and the li
 
 ### 2.0 Upcoming TIPS Logic
 Augments the live `upcoming_auctions` feed with accurate TIPS identification.
-- **Source**: `tentative_tips.json` (S9).
+- **Source**: `Tentative-Auction-Schedule.xml` (S9).
 - **Goal**: Label TIPS in the upcoming table even when the official API lacks the field.
 
 ---

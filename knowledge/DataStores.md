@@ -124,16 +124,16 @@ This document provides the technical schemas and field-level specifications for 
 
 ---
 
-## <a id="s9"></a>S9: tentative_tips.json
-**Description**: Upcoming TIPS auctions extracted from the Treasury's Tentative Auction Schedule.
-**Update Frequency**: Periodic (Local Windows Task).
-**R2 Key**: `TIPS/tentative_tips.json`
+## <a id="s9"></a>S9: Tentative-Auction-Schedule.xml
+**Description**: Copy of the Treasury's Tentative Auction Schedule, used to identify TIPS auctions that the FiscalData upcoming-auctions feed doesn't flag.
+**Update Frequency**: Local Windows Task (`TreasuryAuctions-TentativeSchedule`). Treasury revises this schedule at its Quarterly Refunding press conference (first Wednesday of Feb/May/Aug/Nov), with the document itself updated ~1–3 weeks later. Task cadence decays: monthly Sep–Dec 2026, weekly through Jan 2027, daily from Feb 2027 onward (reset manually — ideally realigned around each quarterly refunding date — once the next real revision is observed).
+**R2 Key**: `TIPS/Tentative-Auction-Schedule.xml`
 
-**Format**: `[ { "auction_date": "2026-04-23", "security_term": "5-Year", "reopening": "No" }, ... ]`
+**Format**: XML `<AuctionCalendarDate>` elements, each with `AuctionDate`, `SecurityTermWeekYear`, `SecurityType`, `ReOpeningIndicator` (Y/N), `TIPS` (Y/N), `FloatingRate` (Y/N), `AnnouncementDate`, `SettlementDate`.
 
-**Logic**: Used by the TreasuryAuctions app to identify TIPS in the upcoming auctions feed, which lacks a native TIPS flag.
+**Logic**: Fetched directly by the TreasuryAuctions app, which matches each upcoming-auction row to an `<AuctionCalendarDate>` node by `AuctionDate` + `SecurityTermWeekYear` and flags it TIPS if that node's `TIPS` field is `Y`.
 
-**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json)
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/Tentative-Auction-Schedule.xml)
 
 ---
 

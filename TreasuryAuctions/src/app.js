@@ -3,9 +3,6 @@
 import { createDateRangeFilter } from '../../shared/src/date-range-filter.js';
 
 const R2_CSV_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/Auctions.csv';
-const TENTATIVE_TIPS_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/tentative_tips.json';
-const TENTATIVE_XML_URL = 'https://home.treasury.gov/system/files/221/Tentative-Auction-Schedule.xml';
-// If CORS fails for direct XML, we may need an R2 mirror. For now we attempt direct.
 
 const UPCOMING_BASE_URL =
   'https://api.fiscaldata.treasury.gov/services/api/fiscal_service/v1/accounting/od/upcoming_auctions' +
