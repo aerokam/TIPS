@@ -22,7 +22,7 @@
 ### Tentative Auction Schedule (`Tentative-Auction-Schedule.xml`)
 - **Source:** Treasury.gov Tentative Auction Schedule XML — `home.treasury.gov/system/files/221/Tentative-Auction-Schedule.xml`
 - **Script:** `scripts/updateTentativeSchedule.js`
-- **Local task:** `TreasuryAuctions-TentativeSchedule` — Treasury revises this schedule at its Quarterly Refunding press conference (first Wednesday of Feb/May/Aug/Nov), with the document itself updated ~1–3 weeks later. Task cadence decays: monthly Sep–Dec 2026, weekly through Jan 2027, daily from Feb 2027 onward (reset manually — ideally realigned around each quarterly refunding date — once the next real revision is observed)
+- **Local task:** `TreasuryAuctions-TentativeSchedule`, set up by `scripts/setup-tentative-schedule-task.ps1` — Treasury revises this schedule at its Quarterly Refunding press conference (first Wednesday of Feb/May/Aug/Nov), with the document itself updated ~1–3 weeks later, so the task runs daily for 21 days after each of the next 2 quarterly-refunding dates, plus a monthly safety-net check the rest of the year. A companion task, `TreasuryAuctions-TentativeSchedule-Refresh`, re-runs the same setup script quarterly to roll the trigger window forward — no manual maintenance needed
 - **R2 key:** `TIPS/Tentative-Auction-Schedule.xml`
 - **Public URL:** `https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/Tentative-Auction-Schedule.xml`
 - **Logic:** Raw XML mirrored to R2 (the browser can't fetch `home.treasury.gov` directly — no CORS). Fetched directly by the TreasuryAuctions UI, which parses `<AuctionCalendarDate>` nodes and matches each upcoming-auction row by `AuctionDate` + `SecurityTermWeekYear` to flag `TIPS`, `reopening`, and `floating_rate`.
