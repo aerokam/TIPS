@@ -676,7 +676,7 @@ import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
 import { rankForYear } from './src/allocation-policy.js';
 import { accruedInterest, bondCalcs, couponSchedule } from '../shared/src/bond-math.js';
-import { fetchTipsData, fetchFidelityTipsData, lookupRefCpi, nextBondTradingDay, actualPaymentDate } from './src/data.js';
+import { loadMarketData, lookupRefCpi, nextBondTradingDay, actualPaymentDate } from './src/data.js';
 window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
 
@@ -815,27 +815,20 @@ let _bondHolidays = null;
 
 // Market (Fidelity) ask prices/yields are the only source surfaced to users. FedInvest
 // stays available as a dormant cross-check path (matches tipsladder.com) via
-// fetchTipsData() in data.js -- flip this constant to 're-enable it; no UI control
-// exposes the choice (3.1_Data_Pipeline.md §4.0).
-const YIELD_SOURCE = 'fidelity';
-
+// Which source the app prices from is decided once, inside data.js's loadMarketData()
+// (3.1_Data_Pipeline.md §4.0). No UI control exposes the choice, and nothing here makes it.
 async function loadData() {
   console.log('loadData() started');
   try {
-    const { yieldsRows, refCpiRows: rows, tipsRefRows, saSaoRows, bondHolidays, asOfDate } =
-      YIELD_SOURCE === 'fedinvest' ? await fetchTipsData() : await fetchFidelityTipsData();
+    const { yieldsRows, refCpiRows: rows, tipsRefRows, bondHolidays, saYieldByCusip,
+            settleDateStr, tradeDateStr, defaultRefCpiDateStr } = await loadMarketData();
     refCpiRows = rows;
-    const saYieldByCusip = new Map(saSaoRows.map(r => [r.cusip, r.saYield]));
     _maxRefCpiDate = rows.length ? rows[rows.length - 1].date : null;
     tipsRefMap = new Map(tipsRefRows.map(r => [r.cusip, r]));
-    const settleDateStr = yieldsRows[0]?.settlementDate;
-    if (!settleDateStr) throw new Error('No market data returned for source: ' + YIELD_SOURCE);
     settlementDate = localDate(settleDateStr);
     _settleDateStr = settleDateStr;
-    // FedInvest's settleDateStr IS "today" (T), so trade === settle there; Market's
-    // settleDateStr is already T+1, so its "today"/trade reference is asOfDate.
-    _tradeDateStr = YIELD_SOURCE === 'fedinvest' ? settleDateStr : asOfDate;
-    _defaultRefCpiDateStr = nextBondTradingDay(_tradeDateStr, bondHolidays);
+    _tradeDateStr = tradeDateStr;
+    _defaultRefCpiDateStr = defaultRefCpiDateStr;
     _bondHolidays = bondHolidays;
     tipsMap = buildTipsMapFromYields(yieldsRows, saYieldByCusip);
 

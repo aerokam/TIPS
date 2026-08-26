@@ -159,6 +159,34 @@ export async function fetchTipsData() {
 // T+1, used for the yield/duration math). Callers deriving a "next trading day from
 // today" default (e.g. the Trade Ticket's Ref CPI date) must use `asOfDate`, not
 // yieldsRows[].settlementDate -- that's already T+1 and would double-advance.
+// The single decision point for which source the app prices from (3.1 §4.0 Yield Sources).
+// FedInvest is dormant, kept as a cross-check path; flip this to 'fedinvest' to use it.
+// Nothing outside this module chooses a source: every caller goes through loadMarketData(), so a
+// script cannot silently price off the dormant source while the app prices off the live one.
+const YIELD_SOURCE = 'fidelity';
+
+// The one entry point for market data. Returns the raw rows plus the dates whose derivation is
+// source-dependent, so no caller has to know — or can get wrong — which source is active.
+// Callers build the TIPS map themselves via buildTipsMapFromYields (rebalance-lib.js): data.js is
+// a leaf and does not import an orchestrator (4.0 §Module Dependency Graph).
+export async function loadMarketData() {
+  const d = YIELD_SOURCE === 'fedinvest' ? await fetchTipsData() : await fetchFidelityTipsData();
+  const { yieldsRows, refCpiRows, tipsRefRows, saSaoRows, bondHolidays, asOfDate } = d;
+  const settleDateStr = yieldsRows[0]?.settlementDate;
+  if (!settleDateStr) throw new Error('No market data returned for source: ' + YIELD_SOURCE);
+  // FedInvest's settleDateStr IS "today" (T), so trade === settle there; Fidelity's is already
+  // T+1, so its "today"/trade reference is the download date.
+  const tradeDateStr = YIELD_SOURCE === 'fedinvest' ? settleDateStr : asOfDate;
+  return {
+    source: YIELD_SOURCE,
+    yieldsRows, refCpiRows, tipsRefRows, saSaoRows, bondHolidays, asOfDate,
+    saYieldByCusip: new Map(saSaoRows.map(r => [r.cusip, r.saYield])),
+    settleDateStr,
+    tradeDateStr,
+    defaultRefCpiDateStr: nextBondTradingDay(tradeDateStr, bondHolidays),
+  };
+}
+
 export async function fetchFidelityTipsData() {
   const [fidRes, aux] = await Promise.all([
     fetch(BASE_URL + '/FidelityTreasuriesTips.csv', { cache: 'no-cache' }),

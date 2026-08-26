@@ -1,6 +1,6 @@
 // Regression tests — must pass after every refactor phase
-// Replicates browser data loading + parsing, then runs rebalance and build.
-// Any refactor must produce identical output for all assertions here.
+// Loads market data through the app's own loader (data.js loadMarketData), then runs rebalance
+// and build. Any refactor must produce identical output for all assertions here.
 
 import { readFileSync, readdirSync, existsSync } from 'fs';
 import path from 'path';
@@ -11,21 +11,10 @@ import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
-import { nextBondTradingDay, parseBondHolidays, lookupRefCpi } from '../src/data.js';
+import { loadMarketData, nextBondTradingDay, lookupRefCpi } from '../src/data.js';
+import { installFixtureFetch } from './market-fixture.js';
 import { accruedInterest, bondCalcs, daysBetween } from '../../shared/src/bond-math.js';
 
-// ── CSV helpers (match index.html exactly) ────────────────────────────────────
-function parseCsv(text) {
-  const lines = text.trim().split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(s => s.trim());
-  return lines.slice(1).map(line => {
-    const vals = line.split(',').map(s => s.trim());
-    const obj = {};
-    headers.forEach((h, i) => { obj[h] = vals[i] ?? ''; });
-    return obj;
-  });
-}
 
 // Multi-format holdings parser — mirrors index.html logic for Formats 3, 4, 5.
 // Formats 1/2 (broker CSV) tested separately via parseBrokerCSV below.
@@ -94,41 +83,20 @@ function parseHoldingsCSV(text, tipsMap) {
 function parseHoldings(text) { return parseHoldingsCSV(text, tipsMap); }
 
 // ── Load shared data ──────────────────────────────────────────────────────────
-const yieldsPath = path.resolve('tests/e2e/YieldsFromFedInvestPrices.csv');
-const refCpiPath = path.resolve('tests/e2e/RefCPI.csv');
-
-console.log(`[Test Setup] Market Data:   ${yieldsPath}`);
-// YieldsFromFedInvestPrices.csv: row 1 = settlement date (ignored), row 2 = header, rows 3+ = data
-// Settlement date is always computed from today's date so excluded-bond behavior matches reality.
-const yieldsText = readFileSync(yieldsPath, 'utf8');
-const yieldsLines = yieldsText.trim().split('\n');
-
-const holidayPath = path.resolve('tests/e2e/BondHolidaysSifma.csv');
-const bondHolidays = parseBondHolidays(readFileSync(holidayPath, 'utf8'));
+// Through the app's own loader, not a copy of it: loadMarketData() owns which source is live
+// (3.1 §4.0), so these tests cannot drift onto the dormant one.
 const _now = new Date();
 const _todayISO = `${_now.getFullYear()}-${String(_now.getMonth()+1).padStart(2,'0')}-${String(_now.getDate()).padStart(2,'0')}`;
-const settleDateStr = nextBondTradingDay(_todayISO, bondHolidays);
+installFixtureFetch({ settleDateStr: _todayISO });
 
-const yieldsRows = parseCsv(yieldsLines.slice(1).join('\n')).map(r => ({
-  settlementDate: settleDateStr,
-  cusip:    r.cusip,
-  maturity: r.maturity,
-  coupon:   parseFloat(r.coupon),
-  baseCpi:  parseFloat(r.datedDateCpi),
-  price:    parseFloat(r.price)  || null,
-  yield:    parseFloat(r.yield)  || null,
-}));
+const _market = await loadMarketData();
+const { yieldsRows, refCpiRows, bondHolidays, saYieldByCusip, settleDateStr } = _market;
+console.log(`[Test Setup] Market Data:   ${_market.source} (tests/e2e fixtures)`);
 console.log(`[Test Setup] Loaded ${yieldsRows.length} bonds from market data.`);
-
-console.log(`[Test Setup] Reference CPI: ${refCpiPath}`);
-const refCpiRows = parseCsv(readFileSync(refCpiPath, 'utf8')).map(r => ({
-  date:   r.date,
-  refCpi: parseFloat(r.refCpi),
-}));
 
 const settlementDate = localDate(settleDateStr);
 console.log(`[Test Setup] Settlement:    ${settleDateStr} (T+1 from today ${_todayISO})`);
-const tipsMap = buildTipsMapFromYields(yieldsRows);
+const tipsMap = buildTipsMapFromYields(yieldsRows, saYieldByCusip);
 const refCPI = lookupRefCpi(refCpiRows, settleDateStr);
 if (refCPI == null) {
   const last = refCpiRows.length ? refCpiRows[refCpiRows.length - 1].date : '(none)';
