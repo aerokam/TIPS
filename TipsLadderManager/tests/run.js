@@ -2290,6 +2290,16 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   const janExcess = details.find(d => d.cusip === 'TEST36JAN')?.excessQty ?? 0;
   assert('bracket excess sits in the July maturity', julExcess > 0, true);
   assert('bracket excess does not sit in the January maturity', janExcess, 0);
+
+  // 2.0 §Synthetic TIPS for Gap Years: a gap rung is modeled as a 10-year issued today, so it
+  // matures January 15 (the first 10-year maturity of that year, not the 30-year February date)
+  // and is priced off its own yield and coupon rather than assumed to be par.
+  const g38 = summary.gapParams.breakdown.find(g => g.year === 2038);
+  const synMaturity = g38.durDetail.periods[g38.durDetail.periods.length - 1].date;
+  assert('synthetic gap TIPS matures in January, not February', synMaturity.getMonth() + 1, 1);
+  assert('synthetic coupon is the eighth at or below its yield', g38.synCpn <= g38.synYld && g38.synYld - g38.synCpn < 0.00125, true);
+  assert('synthetic prices below par when its coupon sits below its yield', g38.synPrice < 100, true);
+  assert('gap cost is priced off the synthetic, not par', Math.round(g38.cost), Math.round(g38.qty * 1000 * g38.synPrice / 100));
 }
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);

@@ -104,7 +104,7 @@ function gapBreakdownRows(gapParams, dara, opts) {
           + (compact ? '' : row('\u21b3 P+I per synthetic TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi'))
           + (compact ? '' : row('\u21b3 LMI (actual TIPS + longer synth)', 'coupon from funded years above + synth LMI from longer gap years', fm(g.laterMatInt), false, undefined, id + 'lmi'))
           + (!compact && pliCredit > 0 ? row('\u21b3 PLI credit', 'pre-ladder pool applied to this gap year', fm(pliCredit), false, 'plcpool:' + Math.round(pliCredit), id + 'pli') : '')
-          + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000', fm(g.qty * 1000));
+          + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000 \xd7 price ' + fd(g.synPrice ?? 100, 3) + ' \u00f7 100', fm(g.cost ?? g.qty * 1000));
   });
   return rows;
 }
@@ -926,7 +926,7 @@ export function buildDurationPopupRows(summary, mode) {
       + 'qty = round((DARA \u2212 LMI \u2212 PLI) \u00f7 P+I)<br>'
       + '<b>LMI</b> = Later Maturity Interest \u2014 coupon income from TIPS maturing after this year, including hypothetical interest from synthetic gap year TIPS<br>'
       + '<b>PLI</b> = Pre-Ladder Interest credit applied to this gap year (0 unless a pre-ladder credit applies)<br>'
-      + '<b>P+I</b> = Principal + Interest per synthetic TIPS for this year \u2014 these synthetic TIPS always mature in February, which receives one coupon payment in the maturity year, so P+I reflects half the annual coupon rate shown above<br>'
+      + '<b>P+I</b> = Principal + Interest per synthetic TIPS for this year \u2014 these synthetic TIPS always mature in January, which receives one coupon payment in the maturity year, so P+I reflects half the annual coupon rate shown above<br>'
       + '<i>Click any LMI, PLI, or P+I value below for its breakdown.</i>'
       + '</div>'
       + '<table style="border-collapse:collapse;width:100%">'
@@ -1096,7 +1096,7 @@ export function buildGapYearDurationDrill(summary, year) {
   const b = gapParams?.breakdown?.find(g => g.year === year);
   const anchors = gapParams?.anchors;
   if (!b || !anchors || !b.durDetail) return [{ label: 'No data', total: true }];
-  const synMat = new Date(year, 1, 15);
+  const synMat = new Date(year, 0, 15);
   return [
     { heading: 'Yield Interpolation' },
     { label: 'Most recently issued 10-year TIPS', note: fmtDate(anchors.before.maturity), value: fd(anchors.before.yield * 100, 3) + '%' },

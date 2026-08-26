@@ -181,7 +181,7 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
   // Process longest→shortest so each gap year's synthetic interest feeds the next shorter rung.
   let runningSynLMI = 0;
   for (const year of [...gapYears].sort((a, b) => b - a)) {
-    const synMat = new Date(year, 1, 15); // Feb 15
+    const synMat = new Date(year, 0, 15); // Jan 15 — 10-year TIPS mature in Jan and Jul (2.0 §Synthetic TIPS for Gap Years)
     const synYld = interpolateYield(anchorBefore, anchorAfter, synMat);
     const synCpn = syntheticCoupon(synYld);
     const durDetail = calculateDurationDetail(settlementDate, synMat, synCpn, synYld);
@@ -199,8 +199,15 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
     // AMD from excess TIPS is income arriving this year, treated exactly like coupon LMI.
     const amd = amdByYear?.get(year) ?? 0;
     const qty = Math.max(0, Math.round((yearDara - laterMatInt - (pliCreditByGapYear[year] ?? 0) - amd) / piPerBond));
-    totalCost += qty * 1000;
-    breakdown.push({ year, qty, piPerBond, laterMatInt, pliCredit: pliCreditByGapYear[year] ?? 0, amd, dara: yearDara, dur: synDur, synYld, synCpn, durDetail });
+    // Priced as a security issued today off its own yield and coupon, not assumed to be par:
+    // the coupon is the eighth at or below the yield, so the price sits at or just below 100
+    // when the real yield is positive, and above 100 when a negative yield meets the 0.125%
+    // coupon floor. 2.0 §Synthetic TIPS for Gap Years.
+    const synPrice = priceFromYield(synYld, synCpn, settlementDate, synMat) ?? 100;
+    const costPerBond = 1000 * synPrice / 100;
+    const cost = qty * costPerBond;
+    totalCost += cost;
+    breakdown.push({ year, qty, piPerBond, laterMatInt, pliCredit: pliCreditByGapYear[year] ?? 0, amd, dara: yearDara, dur: synDur, synYld, synCpn, synPrice, costPerBond, cost, durDetail });
     runningSynLMI += qty * 1000 * synCpn;
     count++;
   }
