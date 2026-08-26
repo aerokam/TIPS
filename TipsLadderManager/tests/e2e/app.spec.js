@@ -1595,7 +1595,7 @@ test('build: a blanked per-year DARA field builds that rung at 0, not the scalar
 // RMD Options (2.0 §RMD Options; 5.0 §Funded Year Group Header Row §RMD Options): the settlement
 // year's group header row — and only that row — carries a "RMD Options" link that opens a small
 // popover for the two settlement-year-only inputs (cash override, coupon-count mode).
-test('RMD Options: link appears only on the settlement year row, and the popover round-trips values', async ({ page }) => {
+test('Coupon Counting: link appears only on the settlement year row, and the popover round-trips values', async ({ page }) => {
   test.setTimeout(20_000);
   await _buildSetup(page);
 
@@ -1605,23 +1605,22 @@ test('RMD Options: link appears only on the settlement year row, and the popover
   await expect(page.locator(`#build-table tr.fy-group-header[data-fy="${otherYear}"] .fy-rmd-link`)).toHaveCount(0);
 
   const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
-  await expect(link).toHaveText('RMD Options');
+  await expect(link).toHaveText('Coupon Counting');
   await link.click();
   const pop = page.locator('#rmd-options-popover');
   await expect(pop).toBeVisible();
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('all');
-  await expect(pop.locator('#rmd-cash-override')).toHaveValue('');
+  // Available Cash is ladder-wide, so it lives in Row 2, not in this per-year popover.
+  await expect(pop.locator('#rmd-cash-override')).toHaveCount(0);
+  await expect(page.locator('#available-cash')).toBeVisible();
 
-  await pop.locator('#rmd-cash-override').fill('2500');
-  await pop.locator('#rmd-cash-override').blur();
   await pop.locator('input[name="rmd-coupon-mode"][value="last"]').check();
   await page.locator('#rmd-options-close').click();
   await expect(pop).toBeHidden();
 
   // Non-default choice shows on the link itself, and the popover reopens with the values held.
-  await expect(link).toHaveText('RMD Options*');
+  await expect(link).toHaveText('Coupon Counting*');
   await link.click();
-  await expect(pop.locator('#rmd-cash-override')).toHaveValue('2500');
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('last');
   await page.locator('#rmd-options-close').click();
 });
@@ -1630,7 +1629,7 @@ test('RMD Options: link appears only on the settlement year row, and the popover
 // #bracket-tooltip mechanism (5.0 §Funded Year Group Header Row §RMD Options link), applied
 // directly to the link itself (no separate icon) — hovering shows the explainer, clicking still
 // opens the popover, the same way any link can carry a tooltip without it competing with its click.
-test('RMD Options: hovering the link shows an explainer without opening the popover', async ({ page }) => {
+test('Coupon Counting: hovering the link shows an explainer without opening the popover', async ({ page }) => {
   test.setTimeout(20_000);
   await _buildSetup(page);
 
@@ -1641,8 +1640,7 @@ test('RMD Options: hovering the link shows an explainer without opening the popo
 
   await link.hover();
   await expect(tooltip).toBeVisible();
-  await expect(tooltip).toContainText('Account cash targeted for RMD');
-  await expect(tooltip).toContainText('Count remaining coupons toward RMD');
+  await expect(tooltip).toContainText('Count remaining coupons');
   await expect(page.locator('#rmd-options-popover')).toBeHidden();
 
   // Hovering off hides it again.
@@ -1661,16 +1659,16 @@ test('RMD Options: hovering the link shows an explainer without opening the popo
 
 // RMD Options persist through the same standalone DARA-plan file the DARA-by-year shape already
 // uses (2.1 §Standalone DARA-plan file `#params` line) — no separate file/mechanism.
-test('RMD Options: cash override and coupon mode round-trip through the DARA-plan file', async ({ page }) => {
+test('Available Cash and coupon mode round-trip through the DARA-plan file', async ({ page }) => {
   test.setTimeout(20_000);
   await _buildSetup(page);
 
   const firstYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
   const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  await page.locator('#available-cash').fill('4200');
+  await page.locator('#available-cash').blur();
   await link.click();
   const pop = page.locator('#rmd-options-popover');
-  await pop.locator('#rmd-cash-override').fill('4200');
-  await pop.locator('#rmd-cash-override').blur();
   await pop.locator('input[name="rmd-coupon-mode"][value="none"]').check();
   await page.locator('#rmd-options-close').click();
 
@@ -1680,19 +1678,20 @@ test('RMD Options: cash override and coupon mode round-trip through the DARA-pla
   const planPath = test.info().outputPath('rmd-options-dara-plan.csv');
   await download.saveAs(planPath);
   const planText = readFileSync(planPath, 'utf8');
-  expect(planText).toContain('rmdCashOverride=4200');
+  expect(planText).toContain('availableCash=4200');
   expect(planText).toContain('rmdCouponMode=none');
 
   await page.reload();
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
   await _buildSetup(page);
-  await expect(link).toHaveText('RMD Options'); // fresh reload is the plain default again
+  await expect(link).toHaveText('Coupon Counting'); // fresh reload is the plain default again
+  await expect(page.locator('#available-cash')).toHaveValue('');
 
   await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
-  await expect(link).toHaveText('RMD Options*');
+  await expect(link).toHaveText('Coupon Counting*');
+  await expect(page.locator('#available-cash')).toHaveValue('4200');
   await link.click();
-  await expect(pop.locator('#rmd-cash-override')).toHaveValue('4200');
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('none');
 });
 

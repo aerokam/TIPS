@@ -85,15 +85,15 @@ export function sizeFuture30yCover({
 // Returns { credit, amount }.
 export function fundedYearAmount({
   principal = 0, ownCoupon = 0, laterMatInt = 0, ownExcessCoupon = 0, amd = 0, rollCoupon = 0,
-  rmdCashOverride = 0, dara, isZeroed = false, partialCredit = 0,
+  dara, isZeroed = false, partialCredit = 0,
 }) {
   // Income fixed regardless of the pre-ladder credit. For a zeroed year principal & ownCoupon
   // are 0, so this is the LMI + own-excess-coupon + AMD + Future-30Y roll coupon that the credit
   // tops up to DARA. (rollCoupon: Future-30Y cover-roll coupon credited to post-upper-maturity
   // funded years 2053–2056; see sizeLadder. Behaves exactly like AMD — non-cascading per-year credit.)
-  // rmdCashOverride: RMD Options' "account cash targeted for RMD" (2.0 §RMD Options) — always 0
-  // except for the settlement year, where the caller passes the user-entered figure.
-  const fixedIncome = principal + ownCoupon + laterMatInt + ownExcessCoupon + amd + rollCoupon + rmdCashOverride;
+  // Available Cash needs no term here: the credit pass expresses it as zeroing (credit tops the
+  // year up to DARA) or as this year's partialCredit (2.0 §Available Cash).
+  const fixedIncome = principal + ownCoupon + laterMatInt + ownExcessCoupon + amd + rollCoupon;
   const credit = isZeroed ? Math.max(0, dara - fixedIncome) : partialCredit;
   return { credit, amount: fixedIncome + credit };
 }
@@ -387,7 +387,7 @@ export function sizeLadder({
   rangeYears, gapYears, future30yYears,
   yearBondMap, yearTipsListMap = null, tipsMap, refCPI, settlementDate, settlementYear,
   preLadderInterest = false, bondHolidays = new Set(),
-  rmdCashOverride = 0, rmdCouponMode = 'all', tradeDate = settlementDate,
+  availableCash = 0, rmdCouponMode = 'all', tradeDate = settlementDate,
   future30yLowerCoverBond = null, future30yUpperCoverBond = null,
   future30yLowerYear = null, future30yUpperYear = null,
 }) {
@@ -497,6 +497,8 @@ export function sizeLadder({
   const zeroedFundedYears = new Set();
   const pliCreditByGapYear = {};
   const pliCreditByFundedYear = {};
+  const cashCreditByFundedYear = {};
+  const creditByFundedYear = {};
   let partialCreditYear = null, partialCredit = 0;
 
   if (preLadderYears > 0) {
@@ -507,10 +509,47 @@ export function sizeLadder({
       preLadderRollCouponPool += calcFuture30yRollCoupon(y);   // 2053–56 roll coupon if ladder starts after it
     }
     preLadderPool = preLadderCouponPool + preLadderAmdPool + preLadderRollCouponPool;
+  }
+
+  // Available cash and pre-ladder interest are one pool consumed earliest-rung-first
+  // (2.0 §Available Cash). Cash spends first — money in hand ahead of coupons still to arrive —
+  // and each year records the split so the drill can attribute it.
+  const creditPool = availableCash + preLadderPool;
+  if (creditPool > 0) {
+    let remainingCash = availableCash;
+
+    // The settlement year is measured against its REMAINING coupons, not a full year's: coupons
+    // already paid this year are in hand, not still-forthcoming income for that rung. Charging the
+    // pool against a full-year figure would understate the rung and spill cash up the ladder early.
+    const passLastDate = rmdCouponMode === 'last'
+      ? latestRemainingCouponDate(
+          rangeYears.filter(y => y > settlementYear).flatMap(y => tipsList(y).map(b => b.maturity)),
+          settlementDate, bondHolidays, tradeDate,
+        )
+      : null;
+    const laterMatIntForCreditPass = (year) => {
+      if (year !== settlementYear) return prelim[year].laterMatInt;
+      let sum = 0;
+      for (const [y, pr] of Object.entries(prelim)) {
+        if (parseInt(y, 10) <= settlementYear) continue;
+        for (const r of pr.rungs) {
+          sum += r.qty * r.ir * 1000 * r.coupon / 2
+               * rmdCappedRemainingCoupons(r.bond.maturity, settlementDate, bondHolidays, rmdCouponMode, tradeDate, passLastDate);
+        }
+      }
+      return sum;
+    };
+    const takeCredit = (year, amount) => {
+      const fromCash = Math.min(remainingCash, amount);
+      remainingCash -= fromCash;
+      cashCreditByFundedYear[year] = fromCash;
+      pliCreditByFundedYear[year] = amount - fromCash;
+      creditByFundedYear[year] = amount;
+    };
 
     const gapYearSet = new Set(gapYears);
     const allYearsSorted = [...new Set([...rangeYears, ...gapYears])].sort((a, b) => a - b);
-    let remaining = preLadderPool;
+    let remaining = creditPool;
 
     for (const year of allYearsSorted) {
       if (year < firstYear) continue; // lower bracket year is not a funded year
@@ -529,16 +568,17 @@ export function sizeLadder({
         }
       } else {
         const yearDaraForPLI = daraByYear?.get(year) ?? dara;
-        const need = yearDaraForPLI - prelim[year].laterMatInt - calcFuture30yExtraIncome(year);
-        if (need <= 0) { zeroedFundedYears.add(year); pliCreditByFundedYear[year] = 0; continue; }
+        const need = yearDaraForPLI - laterMatIntForCreditPass(year) - calcFuture30yExtraIncome(year);
+        if (need <= 0) { zeroedFundedYears.add(year); takeCredit(year, 0); continue; }
         if (remaining >= need) {
           zeroedFundedYears.add(year);
-          pliCreditByFundedYear[year] = need;
+          takeCredit(year, need);
           remaining -= need;
         } else {
-          pliCreditByFundedYear[year] = remaining;
+          takeCredit(year, remaining);
           partialCreditYear = year;
           partialCredit = remaining;
+          remaining = 0;
           break;
         }
       }
@@ -636,7 +676,6 @@ export function sizeLadder({
       // cash for this year. Every other funded year is entirely in the future, so its incoming
       // coupons haven't happened yet and the full-annual assumption is exactly right there.
       const isSettlementYear = year === settlementYear;
-      const rmdOverrideForYear = isSettlementYear ? rmdCashOverride : 0;
       const incomingLMI = isSettlementYear ? runningLMIRemaining : runningLMI;
       corrLMI[year] = incomingLMI;
 
@@ -649,7 +688,7 @@ export function sizeLadder({
 
       // Funded-year real P+I need after the year-level income offsets, split across the year's TIPS.
       const need = (isZrd || year > lastYear || year < firstYear) ? 0
-        : Math.max(0, yearDara - incomingLMI - excessLMI - future30yExtra - rmdOverrideForYear - (year === partialCreditYear ? partialCredit : 0));
+        : Math.max(0, yearDara - incomingLMI - excessLMI - future30yExtra - (year === partialCreditYear ? partialCredit : 0));
       const rungs = sizeYearRungs(tipsList(year), need, refCPI);
       const { qty: fyQty, annualInterest: fundedCoupon } = aggregateRungs(rungs);
 
@@ -663,8 +702,9 @@ export function sizeLadder({
 
   return {
     prelim, corrFYQty, corrLMI, corrRungs,
-    rmdCashOverride, rmdCouponMode, tradeDate,
+    availableCash, rmdCouponMode, tradeDate,
     zeroedFundedYears, partialCreditYear, partialCredit, pliCreditByGapYear, pliCreditByFundedYear,
+    cashCreditByFundedYear, creditByFundedYear, creditPool,
     lowerYear, upperYear, lowerExQty, upperExQty, lowerWeight, upperWeight,
     lowerDuration, upperDuration, lowerMonth, upperMonth, totalExcessCost,
     gapParams, future30yParams,

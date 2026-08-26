@@ -824,8 +824,8 @@ console.log('\nBuild — RMD Options (settlement-year remaining-coupon LMI)');
   const dara = 50000, lastYear = 2040;
   const earlySettle = localDate(`${settlementDate.getFullYear()}-01-01`);
   const fy = earlySettle.getFullYear();
-  const fundedQtyAt = (rmdCashOverride, rmdCouponMode) => {
-    const { details } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate: earlySettle, rmdCashOverride, rmdCouponMode });
+  const fundedQtyAt = (availableCash, rmdCouponMode) => {
+    const { details } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate: earlySettle, availableCash, rmdCouponMode });
     return details.filter(d => d.fundedYear === fy).reduce((s, d) => s + (d.fundedYearQty ?? 0), 0);
   };
   const qtyAll  = fundedQtyAt(0, 'all');
@@ -838,10 +838,10 @@ console.log('\nBuild — RMD Options (settlement-year remaining-coupon LMI)');
 
   const { details: defDetails } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate: earlySettle });
   const qtyDefault = defDetails.filter(d => d.fundedYear === fy).reduce((s, d) => s + (d.fundedYearQty ?? 0), 0);
-  assert('RMD Options: omitting rmdCashOverride/rmdCouponMode reproduces "all" (no default-behavior change)', qtyDefault, qtyAll);
+  assert('Coupon counting: omitting availableCash/rmdCouponMode reproduces "all" (no default-behavior change)', qtyDefault, qtyAll);
 
-  // A cash override large enough to cover the whole year's DARA zeroes the settlement-year rung.
-  assert('RMD Options: a large-enough cash override zeroes the settlement-year rung', fundedQtyAt(dara * 2, 'none'), 0);
+  // Available Cash large enough to cover the whole year's DARA zeroes the settlement-year rung.
+  assert('Available Cash: a large-enough figure zeroes the settlement-year rung', fundedQtyAt(dara * 2, 'none'), 0);
 }
 
 // ── Test: remainingCouponPaymentsThisYear — trade date (today) vs settlementDate (T+1) cutoff ──
@@ -1330,12 +1330,16 @@ console.log('\nparseParamsBlock — #params line');
   assert('build summary carries preLadderInterest', bSum.preLadderInterest, true);
   assert('build summary carries maturityPref', bSum.maturityPref, 'first');
 
-  // RMD Options (2.0 §RMD Options) round-trip through the same #params line.
-  const pRmd = parseParamsBlock(['#params,rmdCashOverride=1500,rmdCouponMode=last']);
-  assert('params rmdCashOverride=1500', pRmd?.rmdCashOverride, 1500);
+  // Available Cash + coupon counting (2.0 §Available Cash) round-trip through the same #params line.
+  const pCash = parseParamsBlock(['#params,availableCash=1500,rmdCouponMode=last']);
+  assert('params availableCash=1500', pCash?.availableCash, 1500);
+  // The superseded key still reads, so files written before the generalization keep working.
+  const pLegacy = parseParamsBlock(['#params,rmdCashOverride=1500']);
+  assert('params legacy rmdCashOverride reads as availableCash', pLegacy?.availableCash, 1500);
+  const pRmd = pCash;
   assert('params rmdCouponMode=last', pRmd?.rmdCouponMode, 'last');
-  const pRmdBad = parseParamsBlock(['#params,rmdCashOverride=-5,rmdCouponMode=bogus']);
-  assert('params rmdCashOverride rejects negative', pRmdBad?.rmdCashOverride, undefined);
+  const pRmdBad = parseParamsBlock(['#params,availableCash=-5,rmdCouponMode=bogus']);
+  assert('params availableCash rejects negative', pRmdBad?.availableCash, undefined);
   assert('params rmdCouponMode falls back to "all" on an unrecognized value', pRmdBad?.rmdCouponMode, 'all');
 }
 
@@ -2299,6 +2303,58 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   assert('synthetic coupon is the eighth at or below its yield', g38.synCpn <= g38.synYld && g38.synYld - g38.synCpn < 0.00125, true);
   assert('synthetic prices below par when its coupon sits below its yield', g38.synPrice < 100, true);
   assert('gap cost is priced off the synthetic, not par', Math.round(g38.cost), Math.round(g38.qty * 1000 * g38.synPrice / 100));
+}
+// ── Test: Available Cash — ladder-wide pool consumed earliest rung first ─────────────────────
+// 2.0 §Available Cash. Supersedes the settlement-year-only RMD cash override, which discarded any
+// amount beyond that one year’s need. The pool now zeroes each rung it covers and spills the
+// remainder up the ladder, stopping where it runs out.
+{
+  console.log('\nAvailable Cash — ladder-wide pool, consumed earliest rung first');
+  const dara = 40000, lastYear = 2040;
+  const qtyByYear = (availableCash, opts = {}) => {
+    const { details } = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate, availableCash, ...opts });
+    const q = {};
+    for (const d of details) if (d.fundedYear) q[d.fundedYear] = (q[d.fundedYear] ?? 0) + (d.fundedYearQty ?? 0);
+    return q;
+  };
+  const totalBuy = (availableCash) =>
+    runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate, availableCash }).summary.totalBuyCost;
+
+  const base = qtyByYear(0);
+  const years = Object.keys(base).map(Number).sort((a, b) => a - b);
+  const [y0, y1, y2, y3] = years;
+
+  // Each rung needs less than DARA (later-maturity interest covers part of it), so 2.25x DARA
+  // reaches past the second rung without finishing the third.
+  const big = qtyByYear(dara * 2.25);
+  assert('Available Cash: the earliest rung is fully covered', big[y0], 0);
+  assert('Available Cash: the surplus spills to the next rung instead of being discarded', big[y1], 0);
+  assert('Available Cash: the pool stops partway through the rung where it runs out', big[y2] > 0 && big[y2] < base[y2], true);
+  assert('Available Cash: rungs beyond the pool are untouched', big[y3], base[y3]);
+
+  // A figure within the earliest rung’s own need behaves as the superseded override did: it
+  // reduces that rung and reaches no further.
+  const small = qtyByYear(dara / 4);
+  assert('Available Cash: a small figure reduces only the earliest rung', small[y0] < base[y0] && small[y1] === base[y1], true);
+
+  assert('Available Cash: zero reproduces the untouched ladder (no default-behavior change)',
+    JSON.stringify(qtyByYear(0)), JSON.stringify(base));
+  assert('Available Cash: more cash never costs more to buy',
+    totalBuy(dara * 2.25) < totalBuy(dara / 4) && totalBuy(dara / 4) < totalBuy(0), true);
+
+  // Applies with the pre-ladder option off and a ladder starting in the settlement year — the pass
+  // used to run only for a ladder starting in a future year.
+  assert('Available Cash: works with pre-ladder interest off', qtyByYear(dara * 2.25, { preLadderInterest: false })[y0], 0);
+
+  // Rebalance honors it too, through the same canonical sizing pass.
+  const holdings = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate }).details
+    .filter(d => (d.fundedYearQty ?? 0) + (d.excessQty ?? 0) > 0)
+    .map(d => ({ cusip: d.cusip, qty: (d.fundedYearQty ?? 0) + (d.excessQty ?? 0), excessQty: d.excessQty ?? 0 }));
+  const rebDara = new Map(years.map(y => [y, dara]));
+  const reb = runFundedRebalance({ dara, holdings, tipsMap, refCPI, settlementDate,
+    daraByYear: rebDara, isPristineMirror: false, lastYearOverride: lastYear, availableCash: dara * 2.25 });
+  const rebFirst = reb.details.filter(d => d.fundedYear === y0).reduce((t, d) => t + (d.fundedYearQtyAfter ?? 0), 0);
+  assert('Available Cash: Rebalance sizes the earliest rung down too', rebFirst, 0);
 }
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);

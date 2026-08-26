@@ -212,35 +212,33 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
     + flagHTML + '</span>';
 }
 
-// Hover explainer for the RMD Options link — same [data-tip-html]/#bracket-tooltip mechanism the
+// Hover explainer for the Coupon Counting link — same [data-tip-html]/#bracket-tooltip mechanism the
 // funded-year bracket label uses (5.0 §Funded Year Group Header Row), applied directly to the link
 // itself rather than a separate icon, matching how the bracket label is both the content and the
 // hover target with no dedicated "?" affordance of its own.
 function rmdOptionsTipHTML() {
-  return '<b>RMD Options:</b>'
+  return '<b>Coupon Counting:</b>'
     + '<ul>'
-    + '<li><b>Account cash targeted for RMD</b> — any cash already set aside for this year’s '
-    + 'target, from any source. Added on top of whatever remaining-coupon interest counts below.</li>'
-    + '<li><b>Count remaining coupons toward RMD</b> — the assumption about this year’s '
+    + '<li><b>Count remaining coupons</b> — the assumption about this year’s '
     + 'not-yet-paid coupons: <b>None</b> assumes every remaining coupon gets reinvested into the '
     + 'ladder; <b>All remaining</b> assumes every remaining coupon stays as cash; <b>Only last</b> '
     + 'assumes earlier remaining coupons get reinvested but the final one this year stays as cash.</li>'
     + '<li>Only the settlement year has both already-paid and not-yet-paid coupons in the same '
-    + 'calendar year, so these options only apply to that one row.</li>'
+    + 'calendar year, so this setting only applies to that one row.</li>'
     + '</ul>';
 }
 
-// RMD Options link — appears ONLY on the settlement year's group header row, since that is the
+// Coupon Counting link — appears ONLY on the settlement year's group header row, since that is the
 // only funded year with both already-paid and not-yet-paid coupons in the same calendar year
-// (2.0 §RMD Options). Sits in the merged toggle cell's existing blank space, right after the DARA
+// (2.0 §Settlement-Year Coupon Treatment). Sits in the merged toggle cell's existing blank space, right after the DARA
 // input — no new column. A trailing "*" marks a non-default choice so it's visible without opening
 // the popover. Hovering the link shows the explainer (data-tip-html); clicking it opens the popover
 // — the two gestures don't conflict, same as any link that also carries a tooltip.
-function rmdOptionsLinkHTML(fy, settlementYear, rmdCashOverride, rmdCouponMode) {
+function rmdOptionsLinkHTML(fy, settlementYear, rmdCouponMode) {
   if (settlementYear == null || fy !== settlementYear) return '';
-  const isDefault = (!rmdCashOverride) && (rmdCouponMode === 'all' || rmdCouponMode == null);
+  const isDefault = (rmdCouponMode === 'all' || rmdCouponMode == null);
   return ` <a href="#" class="fy-rmd-link" data-year="${fy}" `
-    + `data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}">RMD Options${isDefault ? '' : '*'}</a>`;
+    + `data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}">Coupon Counting${isDefault ? '' : '*'}</a>`;
 }
 
 function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraByYear, flaggedYears) {
@@ -254,7 +252,7 @@ function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraBy
     : future30ySet.has(fy) ? ' <span style="opacity:0.6;font-style:italic;font-size:10px">(30Y)</span>' : '';
   const label = String(fy) + (isBracketGroup ? '*' : '');
   const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears);
-  const rmdHTML = rmdOptionsLinkHTML(fy, summary?.settlementYear, summary?.rmdCashOverride, summary?.rmdCouponMode);
+  const rmdHTML = rmdOptionsLinkHTML(fy, summary?.settlementYear, summary?.rmdCouponMode);
   const labelTd = isBracketGroup
     ? `<td colspan="${labelCount}"><span class="formula-var bracket-tip-target" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}">${esc(label)}</span>${suffix}${daraHTML}${rmdHTML}</td>`
     : `<td colspan="${labelCount}">${esc(label)}${suffix}${daraHTML}${rmdHTML}</td>`;

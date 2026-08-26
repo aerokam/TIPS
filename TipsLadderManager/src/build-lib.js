@@ -24,7 +24,7 @@ export const MAX_LAST_YEAR = 2066;
 // Returns: { results, HDR, summary }
 // Spec: knowledge/3.0_TIPS_Ladders.md and knowledge/4.0_TIPS_Ladder_Rebalancing.md §Full Rebalance
 // Variable naming note: fundedYearQty, excessQty, costPerBond (harmonized) — see §Code Variable Mapping
-export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', couponPref = 'higher', preLadderInterest = false, daraByYear = null, yearOverrides = null, bondHolidays = new Set(), rmdCashOverride = 0, rmdCouponMode = 'all', tradeDate = settlementDate }) {
+export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, refCPI, settlementDate, maturityPref = 'last', couponPref = 'higher', preLadderInterest = false, daraByYear = null, yearOverrides = null, bondHolidays = new Set(), availableCash = 0, rmdCouponMode = 'all', tradeDate = settlementDate }) {
   const firstYear      = firstYearOpt ?? settlementDate.getFullYear();
   const settleDateDisp = fmtDate(settlementDate);
   const settlementYear = settlementDate.getFullYear();
@@ -41,7 +41,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
   //        Lives in ladder-core.js: the IDENTICAL code path build and rebalance both run.
   const {
     prelim, corrFYQty, corrLMI, corrRungs,
-    zeroedFundedYears, partialCreditYear, partialCredit,
+    zeroedFundedYears, partialCreditYear, partialCredit, cashCreditByFundedYear,
     lowerYear, upperYear, lowerExQty, upperExQty, lowerWeight, upperWeight,
     lowerDuration, upperDuration, lowerMonth, upperMonth, totalExcessCost,
     gapParams, future30yParams,
@@ -55,7 +55,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     dara, daraByYear, firstYear, lastYear,
     rangeYears, gapYears, future30yYears,
     yearBondMap, yearTipsListMap, tipsMap, refCPI, settlementDate, settlementYear,
-    preLadderInterest, bondHolidays, rmdCashOverride, rmdCouponMode, tradeDate,
+    preLadderInterest, bondHolidays, availableCash, rmdCouponMode, tradeDate,
     future30yLowerCoverBond, future30yUpperCoverBond, future30yLowerYear, future30yUpperYear,
   });
 
@@ -103,10 +103,10 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     // so build and rebalance "After" are identical by construction. Zeroed years are funded
     // entirely by the PLI pool; the credit subtracts LMI + own-excess coupon + AMD so the row
     // lands on DARA (not overshooting by the AMD).
-    const rowRmdCashOverride = year === settlementYear ? rmdCashOverride : 0;
+    const rowAvailableCashCredit = cashCreditByFundedYear[year] ?? 0;
     const { credit: preLadderCreditForYear, amount: _fundedAmt } = fundedYearAmount({
       principal: fundedYearPITotal, laterMatInt: corr_lmi, ownExcessCoupon: excessLMI,
-      amd: future30yAmd, rollCoupon: future30yRoll, rmdCashOverride: rowRmdCashOverride, dara: yearDara, isZeroed,
+      amd: future30yAmd, rollCoupon: future30yRoll, dara: yearDara, isZeroed,
       partialCredit: year === partialCreditYear ? partialCredit : 0,
     });
     const fundedYearAmt = (year > lastYear || year < firstYear) ? 0 : _fundedAmt;
@@ -171,7 +171,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
         preLadderCreditForYear: first ? preLadderCreditForYear : null,
         future30yUpperAnnualAmd: first ? future30yAmd : 0,
         future30yRollCoupon: first ? future30yRoll : 0,
-        rmdCashOverride: first ? rowRmdCashOverride : 0,
+        availableCashCredit: first ? rowAvailableCashCredit : 0,
         fundedYearPi: r.pi,
         // Multi-TIPS Amount drill iterates fundedRungs (each TIPS's own P+I); single-TIPS uses the
         // per-bond breakdown. Year-level principal/own-coupon totals ride the first row for that drill.
@@ -212,7 +212,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
 
   const summary = {
     settleDateDisp, refCPI, dara, daraByYearResolved,
-    settlementYear, rmdCashOverride, rmdCouponMode,
+    settlementYear, availableCash, rmdCouponMode,
     firstYear, lastYear, gapYears, future30yYears,
     gapParams, lowerYear, upperYear,
     lowerDuration, upperDuration, lowerWeight, upperWeight, lowerMonth, upperMonth,
