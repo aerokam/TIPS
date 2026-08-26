@@ -363,8 +363,8 @@
 <!-- DARA basis-date popover (3.0 §DARA Basis Date) — offered when an imported DARA block records
      no Ref CPI date, so the app cannot know what basis its numbers were stated in. -->
 <div id="dara-basis-popover" class="menu-dropdown" hidden style="position:fixed;min-width:240px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
-  <div style="font-weight:700;margin-bottom:6px">DARA basis date</div>
-  <div style="font-size:11px;line-height:1.4;margin-bottom:8px">The Ref CPI date these DARA values were stated at. Supplying it restates them into the current basis.</div>
+  <div style="font-weight:700;margin-bottom:6px">File’s Ref CPI date</div>
+  <div style="font-size:11px;line-height:1.4;margin-bottom:8px">The Ref CPI date these DARA values were stated at. Supplying it scales them to the settlement date, so the ladder keeps the same real target.</div>
   <input type="date" id="dara-basis-date" class="date-picker" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:12px;border:1px solid #94a3b8;border-radius:3px">
   <div style="text-align:right;margin-top:8px">
     <button type="button" id="dara-basis-cancel" class="menu-select" style="padding:3px 10px;font-size:11px">Cancel</button>
@@ -943,6 +943,11 @@ let _daraByYearStoreBuild = new Map(), _daraByYearPanelDefaultBuild = null;
 // being restamped by a selection Infer/Set DARA action that includes it in its own scope.
 let _daraManualYearsRebal = new Set(), _daraManualYearsBuild = new Set();
 const _infoPopups = {};
+// Ref CPI date override — Build-only state (3.0 §RefCPI Date Override). Rebalance always prices at
+// the settlement date, so the override is parked here on the way into Rebalance and handed back on
+// the way into Build. Parked rather than discarded so a Build result rendered under an override
+// stays consistent with the date it was computed at after a round trip through Rebalance.
+let _refCpiOverrideBuild = null;
 let _rebalDurationRows = null, _buildDurationRows = null;
 let _rebalFuture30yDurationRows = null, _buildFuture30yDurationRows = null;
 
@@ -973,6 +978,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
       _daraManualYears = _daraManualYearsRebal;
       _bracketAutoCapYears = _bracketAutoCapYearsRebal;
+      _refCpiOverrideBuild = activeRefCpiDateStr; activeRefCpiDateStr = null;
     } else {
       _daraRebal = daraEl.value;
       _daraByYearStoreRebal = _daraByYearStore; _daraByYearPanelDefaultRebal = _daraByYearPanelDefault;
@@ -987,6 +993,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
       _daraManualYears = _daraManualYearsBuild;
       _bracketAutoCapYears = _bracketAutoCapYearsBuild;
+      activeRefCpiDateStr = _refCpiOverrideBuild;
     }
     _rungEditSessionOpen = false; _rungDirty = false;
     _clearSelection();
@@ -1052,6 +1059,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     const _activeSummary = isRebalance ? rebalSummary : buildSummary;
     _renderWAD(_activeSummary?.weightedAvgDuration ?? 0, _activeSummary?.weightedAvgYield ?? 0, _activeSummary?.weightedAvgSaYield ?? 0);
 
+    // Only once market data has landed — before that the strip is empty and _buildRows() would
+    // paint an empty Trade/Settle line over it.
+    if (_defaultRefCpiDateStr) _buildRows();
     setStatus('');
     renderDaraByYearPanel();
   });
@@ -2627,15 +2637,18 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 let currentHoldingsArray = null;
 let currentImportedDaraByYear = null; // explicit per-year DARA from our own export's #fundedYear,dara block (null for broker/legacy)
 // ─── DARA basis date (3.0 §DARA Basis Date) ──────────────────────────────────────────────────
-// DARA is a real amount denominated at a Ref CPI date, so a saved ladder’s bare DARA numbers mean
-// nothing without the date they were stated at. Our exports record it; on import the values are
-// restated into the basis now in effect, so a target keeps its real purchasing power rather than
-// being read as that many of today’s smaller dollars.
-let _daraLiteralFromFile = null;   // the file’s own values, kept so the restatement can be undone
-let _daraRestatedFrom = null;      // basis date restated from, null when nothing was restated
+// DARA is a real amount stated at a Ref CPI date, so a saved ladder’s bare DARA numbers mean
+// nothing without the date they were stated at. Our exports record that date; on import the values
+// are scaled from it to the date now in effect (the settlement date in Rebalance, always), so a
+// target keeps its real purchasing power rather than being read as that many of today’s smaller
+// dollars. There is no way to decline the scaling: reading a target stated at an older Ref CPI date
+// as though it were stated at the settlement date silently cuts it by the inflation in between,
+// which is the whole failure this exists to prevent.
+let _daraLiteralFromFile = null;   // the file’s own DARA values, kept so a date supplied later can scale them
+let _daraFileRefCpiDate = null;    // the Ref CPI date the file was stated at, once known
 
 function _restateDaraToActiveBasis(map, recordedDate) {
-  const none = { map, factor: 1, fromDate: null };
+  const none = { map, factor: 1, fromDate: null, toDate: null };
   if (!map || map.size === 0 || !recordedDate || !refCpiRows) return none;
   const activeDate = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
   if (!activeDate || activeDate === recordedDate) return none;
@@ -2646,32 +2659,32 @@ function _restateDaraToActiveBasis(map, recordedDate) {
   if (Math.abs(factor - 1) < 1e-9) return none;
   const out = new Map();
   for (const [y, v] of map) out.set(y, v * factor);
-  return { map: out, factor, fromDate: recordedDate };
+  return { map: out, factor, fromDate: recordedDate, toDate: activeDate };
 }
 
-// Applies the restatement to a freshly parsed DARA map and reports what happened in the status
-// strip. Returns the map to use. A file with no recorded basis is honored literally (exactly the
-// behavior before the basis date existed) and offered the chance to supply one.
+// Scales a freshly parsed DARA map to the Ref CPI date in effect and says so in the status strip.
+// Returns the map to use. A file that records no Ref CPI date is used as written (exactly the
+// behavior before this existed) and offered the chance to supply one.
 function _applyDaraBasis(map, params) {
   _daraLiteralFromFile = map ? new Map(map) : null;
-  _daraRestatedFrom = null;
+  _daraFileRefCpiDate = null;
   if (!map || map.size === 0) return map;
   const recorded = params?.refCpiDate ?? null;
   if (!recorded) {
-    setStatusHTML('DARA values honored as written — this file records no Ref CPI basis date. '
-      + '<a href="#" id="dara-set-basis" style="color:#2563eb">Set basis date</a>');
+    setStatusHTML('This file records no Ref CPI date, so its DARA values are used as written. '
+      + '<a href="#" id="dara-set-basis" style="color:#2563eb">Set the file’s Ref CPI date</a>');
     return map;
   }
-  const { map: restated, factor, fromDate } = _restateDaraToActiveBasis(map, recorded);
+  _daraFileRefCpiDate = recorded;
+  const { map: restated, factor, fromDate, toDate } = _restateDaraToActiveBasis(map, recorded);
   if (!fromDate) return map;
-  _daraRestatedFrom = fromDate;
-  setStatusHTML(`DARA restated from the ${esc(fromDate)} Ref CPI basis to the current one `
-    + `(×${factor.toFixed(4)}). <a href="#" id="dara-revert-basis" style="color:#2563eb">Use the file’s values</a>`);
+  setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
+    + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}).`);
   return restated;
 }
 
-// Re-applies the imported DARA map (restated or literal) to the panel. Shared by the revert link
-// and the basis-date picker, both of which change which values the panel should show.
+// Re-applies the imported DARA map (scaled or as written) to the panel, for the Ref CPI date picker
+// offered when a file records no date of its own.
 function _reapplyImportedDara(map) {
   currentImportedDaraByYear = new Map(map);
   _daraByYearStore = new Map(map);
@@ -2685,20 +2698,12 @@ function _reapplyImportedDara(map) {
 }
 
 document.getElementById('status').addEventListener('click', e => {
-  const revert = e.target.closest('#dara-revert-basis');
-  if (revert) {
-    e.preventDefault();
-    if (_daraLiteralFromFile) _reapplyImportedDara(_daraLiteralFromFile);
-    _daraRestatedFrom = null;
-    setStatus('DARA values taken from the file as written.');
-    return;
-  }
   const setBasis = e.target.closest('#dara-set-basis');
   if (setBasis) {
     e.preventDefault();
     const pop = document.getElementById('dara-basis-popover');
     const input = document.getElementById('dara-basis-date');
-    input.value = activeRefCpiDateStr ?? _defaultRefCpiDateStr ?? '';
+    input.value = _daraFileRefCpiDate ?? activeRefCpiDateStr ?? _defaultRefCpiDateStr ?? '';
     const r = setBasis.getBoundingClientRect();
     pop.hidden = false;
     pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
@@ -2714,12 +2719,18 @@ document.getElementById('dara-basis-apply').addEventListener('click', () => {
   const v = document.getElementById('dara-basis-date').value;
   pop.hidden = true;
   if (!v || !_daraLiteralFromFile) return;
-  const { map, factor, fromDate } = _restateDaraToActiveBasis(_daraLiteralFromFile, v);
-  if (!fromDate) { setStatus('That basis date matches the one in effect — DARA values unchanged.'); return; }
-  _daraRestatedFrom = fromDate;
+  _daraFileRefCpiDate = v;
+  const { map, factor, fromDate, toDate } = _restateDaraToActiveBasis(_daraLiteralFromFile, v);
+  if (!fromDate) {
+    _reapplyImportedDara(_daraLiteralFromFile);
+    setStatusHTML('That is the date already in effect, so the DARA values are used as written. '
+      + '<a href="#" id="dara-set-basis" style="color:#2563eb">Change</a>');
+    return;
+  }
   _reapplyImportedDara(map);
-  setStatusHTML(`DARA restated from the ${esc(fromDate)} Ref CPI basis to the current one `
-    + `(×${factor.toFixed(4)}). <a href="#" id="dara-revert-basis" style="color:#2563eb">Use the file’s values</a>`);
+  setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
+    + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}). `
+    + `<a href="#" id="dara-set-basis" style="color:#2563eb">Change</a>`);
 });
 
 let currentImportedParams = null; // construction params from our own export's #params line ({preLadderInterest, maturityPref}); null for broker/legacy
@@ -3562,11 +3573,18 @@ document.getElementById('run-btn').addEventListener('click', async () => {
 });
 
 function _fmtMDY(iso) { if (!iso) return ''; const [y,m,d] = iso.split('-'); return `${m}/${d}/${y}`; }
+// The Ref CPI date appears in the info strip only in Build, where it is a control (3.0 §RefCPI Date
+// Override). Rebalance always prices at the settlement date, which the strip already shows as
+// "Settle" — repeating the same date under a second label was clutter, and the label said "Ref CPI"
+// over a date rather than a Ref CPI value. The Ref CPI figures themselves stay reachable from the
+// Ref/Mkt links alongside and from any Ref CPI row's drill.
 function _buildRows() {
   const date = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
-  document.getElementById('info-source').innerHTML =
-    `Trade: ${_fmtMDY(_tradeDateStr)} · Settle: ${_fmtMDY(_settleDateStr)} · ` +
-    `<span class="info-const">Ref CPI: </span><span id="refcpi-link" class="info-link">${_fmtMDY(date)}</span>`;
+  let html = `Trade: ${_fmtMDY(_tradeDateStr)} · Settle: ${_fmtMDY(_settleDateStr)}`;
+  if (currentMode === 'build') {
+    html += ` · <span class="info-const">Ref CPI: </span><span id="refcpi-link" class="info-link">${_fmtMDY(date)}</span>`;
+  }
+  document.getElementById('info-source').innerHTML = html;
   document.getElementById('info-tips-count').innerHTML = _staticInfoSuffix;
 }
 

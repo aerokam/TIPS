@@ -91,11 +91,19 @@ test.beforeEach(async ({ page }) => {
 });
 
 // ── 1. Data load ──────────────────────────────────────────────────────────────
-test('data loads: info strip shows Trade/Settle/Ref CPI dates, run button enabled', async ({ page }) => {
+test('data loads: info strip shows Trade/Settle, Ref CPI date in Build only, run button enabled', async ({ page }) => {
   await expect(page.locator('#info-source')).toContainText('Trade:');
   await expect(page.locator('#info-source')).toContainText('Settle:');
-  await expect(page.locator('#info-source')).toContainText('Ref CPI:');
   await expect(page.locator('#run-btn')).not.toBeDisabled();
+
+  // Rebalance always prices at the settlement date and offers no Ref CPI control, so it does not
+  // repeat that date under a second label (3.0 §RefCPI Date Override).
+  await expect(page.locator('#info-source')).not.toContainText('Ref CPI:');
+  await expect(page.locator('#refcpi-link')).toHaveCount(0);
+
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await expect(page.locator('#info-source')).toContainText('Ref CPI:');
+  await expect(page.locator('#refcpi-link')).toBeVisible();
 });
 
 // ── 2. Mode toggle ────────────────────────────────────────────────────────────
@@ -1097,12 +1105,10 @@ test('rebalance: Shift-click after a click-and-drag extends the selection from t
 });
 
 // ── 17. RefCPI date change clears output but preserves DARA ──────────────────
-test('rebalance: changing RefCPI date clears output and does not alter DARA', async ({ page }) => {
-  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await page.locator('#run-btn').click();
-  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+test('build: changing RefCPI date clears output and does not alter DARA', async ({ page }) => {
+  test.setTimeout(20_000);
+  await _buildSetup(page);
 
-  // Record the DARA (set from portfolio ARA at file load)
   expect(await daraDisplay(page)).not.toBe('');
 
   // Open RefCPI picker and apply a new date
@@ -1112,10 +1118,10 @@ test('rebalance: changing RefCPI date clears output and does not alter DARA', as
   await page.locator('#refcpi-apply-btn').click();
 
   // Output must be cleared
-  await expect(page.locator('#output')).toHaveCSS('display', 'none');
+  await expect(page.locator('#build-output')).toHaveCSS('display', 'none');
   await expect(page.locator('#net-cash-inline')).toHaveCSS('display', 'none');
 
-  // DARA must be preserved — it comes from portfolio, not inference, so RefCPI change does not invalidate it
+  // DARA must be preserved — the RefCPI date changes what things are worth, not what is targeted
   expect(await daraDisplay(page), 'DARA was cleared after RefCPI change').not.toBe('');
 });
 
@@ -1137,25 +1143,25 @@ test('rebalance: Full method does not overwrite DARA when field is already fille
 });
 
 // ── 19. Clearing DARA uses panel default; net cash stays near zero ─────────────
-test('rebalance: Full method net cash is non-negative after clearing DARA and re-running with new RefCPI', async ({ page }) => {
-  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await page.locator('#run-btn').click();
-  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+// A Build override must not follow the user into Rebalance, which always prices at the settlement
+// date (3.0 §RefCPI Date Override). It is parked, not discarded: the Build result stays consistent
+// with the date it was computed at, so switching back restores it.
+test('a Build RefCPI override is parked on the way into Rebalance and handed back on return', async ({ page }) => {
+  test.setTimeout(20_000);
+  await _buildSetup(page);
 
-  // Change RefCPI, then clear DARA field and re-run
-  // Clearing DARA falls back to _daraByYearPanelDefault (set from portfolio at file load)
   await page.locator('#refcpi-link').click();
   await page.locator('#refcpi-date-input').fill('2024-01-01');
   await page.locator('#refcpi-apply-btn').click();
-  await page.locator('#dara').fill('');
+  await expect(page.locator('#refcpi-link')).toContainText('01/01/2024');
 
-  await page.locator('#run-btn').click();
-  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+  // Rebalance shows no Ref CPI date at all, and offers no way to reach the picker.
+  await page.locator('.tab-btn[data-mode="rebalance"]').click();
+  await expect(page.locator('#refcpi-link')).toHaveCount(0);
+  await expect(page.locator('#info-source')).not.toContainText('Ref CPI:');
 
-  // After a RefCPI date change the per-year DARA targets (from original load) no longer
-  // match the new prices, so net cash may be significantly non-zero — just verify the run completes.
-  const raw = await page.locator('#net-cash-val').textContent();
-  expect(parseNetCash(raw), 'Net cash must be a number after RefCPI change').not.toBeNaN();
+  await page.locator('.tab-btn[data-mode="build"]').click();
+  await expect(page.locator('#refcpi-link')).toContainText('01/01/2024');
 });
 
 // ── 20b. DARA stays stable when bracket mode changes ──────────────────────────
@@ -1178,10 +1184,9 @@ test('rebalance: auto-inferred DARA is re-inferred when bracket mode changes', a
 });
 
 // ── 20. Enter on refcpi-date-input must not auto-trigger Run ──────────────────
-test('rebalance: pressing Enter in RefCPI date picker applies date but does not auto-run', async ({ page }) => {
-  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
-  await page.locator('#run-btn').click();
-  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+test('build: pressing Enter in RefCPI date picker applies date but does not auto-run', async ({ page }) => {
+  test.setTimeout(20_000);
+  await _buildSetup(page);
 
   // Open picker, type date, press Enter
   await page.locator('#refcpi-link').click();
@@ -1191,9 +1196,8 @@ test('rebalance: pressing Enter in RefCPI date picker applies date but does not 
 
   // Picker must be closed and output cleared
   await expect(page.locator('#refcpi-picker')).toHaveCSS('display', 'none');
-  await expect(page.locator('#output')).toHaveCSS('display', 'none');
+  await expect(page.locator('#build-output')).toHaveCSS('display', 'none');
 
-  // DARA must be preserved — portfolio-derived DARA is not invalidated by RefCPI change
   expect(await daraDisplay(page), 'DARA was unexpectedly cleared after RefCPI Enter').not.toBe('');
 });
 
