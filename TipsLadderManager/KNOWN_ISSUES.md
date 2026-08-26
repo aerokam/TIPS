@@ -29,72 +29,67 @@ production impact go here.
   actually does.
 - **Status:** open, not yet investigated.
 
-### Ref CPI override carries from Build into Rebalance, silently pricing at a stale basis
-
-- **Found:** 2026-08-26, first hands-on review of the DARA basis-date feature.
-- **Repro:** Build tab, DARA 100,000, Ref CPI overridden to 2025-08-27, all other defaults. Build,
-  export CUSIP/Qty, switch to Rebalance, load the exported file.
-- **Symptom:** the Rebalance tab still shows 2025-08-27 as the Ref CPI date. DARA loads as 100,000
-  and the rebalance reports no trades, but every cost and amount is priced at the 2025 basis
-  rather than the settlement date any real trade would settle at. Nothing on screen says so.
-  Reloading the page first (which clears the override) gives the intended behavior: DARA restates
-  100,000 → 103,657 and the rebalance produces no trades.
-- **Root cause:** the override is global (`activeRefCpiDateStr`) and is not reset when the mode
-  changes. With the 2025 date still active at load, the basis restatement (3.0 §DARA Basis Date)
-  computes `RefCPI(active) ÷ RefCPI(recorded)` over two identical dates, gets 1, and correctly
-  does nothing — so the guard that would have caught this never fires.
-- **Fix direction:** reset the override to the settlement date on a mode switch. That alone
-  resolves the reported flow. Keep the existing rule that restatement targets whichever date is
-  active — a deliberate override set *within* Rebalance is a legitimate simulation control, and
-  3.0 §DARA Basis Date is written that way on purpose.
-- **Status:** open.
-
-### Changing the Ref CPI date after a load does not re-restate DARA
-
-- **Found:** 2026-08-26, same session, second step of the repro above.
-- **Symptom:** with the file loaded under the 2025 override, changing the Ref CPI date to the
-  settlement date leaves DARA at 100,000 instead of restating it to 103,657. The rebalance then
-  reports sells, because the target is now being read in a basis it was never stated in.
-- **Root cause:** the restatement happens once, at import. The per-year DARA store then holds
-  values in whatever basis was active at that moment, and nothing re-derives it when the active
-  date changes.
-- **Fix direction:** the store should always sit in the currently-active basis, re-derived from
-  the file's literal values and its recorded basis (both already kept, for the revert control)
-  whenever the active Ref CPI date changes. Independent of the bug above; both need fixing.
-- **Status:** open.
-
-### No notice when a non-current Ref CPI date is in force at load
-
-- **Found:** 2026-08-26, same session.
-- **Symptom:** nothing told the user the app was pricing everything at a 2025 basis. The info
-  strip shows the override date in grey (3.0 §RefCPI Date Override), which was not enough to
-  notice while loading a file and reading a trade list.
-- **Fix direction:** say so explicitly at load whenever the active Ref CPI date is not the
-  settlement date. Largely falls out of fixing the mode-switch reset, but worth stating on its own
-  since a deliberate override in Rebalance stays legal.
-- **Status:** open.
-
-### "Coupon Counting" link widens the settlement-year column
-
-- **Found:** 2026-08-26, same session.
-- **Symptom:** the link on the settlement year's group header row (5.0 §Coupon Counting link) is
-  long enough to widen that column in the rebalance table, which is already very wide.
-- **Fix direction:** shorten the label; the popover title and hover explainer carry the detail.
-  "Coupons" is shorter than the "RMD Options" it replaced.
-- **Status:** open.
-
-### Row 2 overflows in Rebalance since Available Cash was added
-
-- **Found:** 2026-08-26, same session.
-- **Symptom:** the construction/computation policy row (6.0 §Row 2) runs too long in Rebalance
-  mode, forcing the top card wider than it needs to be.
-- **Fix direction:** move either Brackets or Available Cash to Row 1. Available Cash is the better
-  candidate: 6.0 records that Brackets and Pre-ladder int. were deliberately moved *out* of Row 1
-  as construction policy, and available cash is a target-side input rather than construction
-  policy, so it belongs on the target row.
-- **Status:** open.
-
 ## FIXED
+
+### Ref CPI date in Rebalance: stale basis carried in, no re-scale on change, no notice
+
+- **Found:** 2026-08-26, first hands-on review of the DARA basis-date feature. Three reported
+  symptoms, one mechanism.
+- **Repro:** Build tab, DARA 100,000, Ref CPI overridden to 2025-08-27. Build, export CUSIP/Qty,
+  switch to Rebalance, load the exported file.
+- **Symptoms:**
+  1. Rebalance still showed 2025-08-27 as the Ref CPI date. DARA loaded as 100,000 and no trades
+     were reported, but every cost and amount was priced at the 2025 date rather than the
+     settlement date any real trade would settle at.
+  2. Changing the Ref CPI date to the settlement date afterward left DARA at 100,000 instead of
+     scaling it to 103,657, and the rebalance then reported sells.
+  3. Nothing on screen said a 2025 date was pricing everything.
+- **Root cause:** the override was global and was not reset on a mode switch, so with the same
+  date on both sides the scaling factor was 1 and correctly did nothing. The scaling also ran
+  once, at import, and nothing re-derived it when the active date changed.
+- **Fix:** Rebalance no longer has a Ref CPI date at all — no control, and no display, since the
+  date equals the settlement date the info strip already shows. A rebalance settles on the
+  settlement date, so its costs and amounts are only meaningful there; holding a saved ladder’s
+  real target steady is what the DARA scaling already does, from the date recorded in the file.
+  With no way to change the date, none of the three symptoms can occur. Build keeps the control
+  (it simulates a ladder built earlier) as Build-mode state: parked on the way into Rebalance,
+  handed back on return, so a Build result stays consistent with the date it was computed at.
+- **Files:** `index.html`, `knowledge/3.0_TIPS_Ladder_Rebalancing.md`, `tests/e2e/app.spec.js`.
+  Commit `36f0cac`.
+- **Related, removed in the same pass:** the "use the file’s values as written" control. Reading a
+  target stated at an earlier Ref CPI date as though it were stated at the settlement date quietly
+  cuts the real target by the inflation in between — the failure the scaling exists to prevent, so
+  the control could only ever produce a wrong answer.
+
+### DARA basis notice never appeared on a DARA-plan import
+
+- **Found:** 2026-08-26, writing the E2E test for the no-recorded-date path (which had never been
+  exercised).
+- **Symptom:** importing a DARA plan showed neither basis message — not the offer to supply a Ref
+  CPI date when the file records none, and not the scaling report when it records one.
+- **Root cause:** the DARA-plan import handler cleared the status strip as its last act, after the
+  notice had been written there. The holdings handler clears at entry instead, which is why the
+  message showed up on that path and this went unnoticed.
+- **Fix:** clear at entry in both handlers.
+- **Files:** `index.html`, `tests/e2e/app.spec.js`. Commit `f5863c0`.
+
+### "Coupon Counting" link widened the settlement-year column
+
+- **Found:** 2026-08-26, same review.
+- **Symptom:** the link on the settlement year’s group header row (5.0 §Coupon Counting link) was
+  long enough to widen that column in an already very wide rebalance table.
+- **Fix:** shortened the label to "Coupons". The popover title and the hover explainer keep the
+  full name and carry the detail.
+- **Files:** `src/render.js`, `knowledge/5.0_UI_Schema.md`, `tests/e2e/app.spec.js`. Commit `b2293c6`.
+
+### Row 2 overflowed in Rebalance once Available Cash was added
+
+- **Found:** 2026-08-26, same review.
+- **Symptom:** the construction/computation policy row (6.0 §Row 2) ran long enough to force the
+  form card wider than it needed to be in Rebalance.
+- **Fix:** Available cash moved to Row 1. It is a target-side dollar figure, not construction
+  policy — the same reasoning 6.0 records for moving Brackets and Pre-ladder int. the other way.
+- **Files:** `index.html`, `knowledge/6.0_UI_Layout.md`. Commit `b2293c6`.
 
 ### Future 30Y duration match: negative weight/quantity on a short single-year block
 
