@@ -1003,8 +1003,7 @@ console.log('\nBuild — Rev 6 cover Amount + roll coupon, DARA=40000, lastYear=
   const cover = details.filter(d => d.isFuture30yCover);
   const coverAmt = cover.reduce((s, d) => s + (d.excessAmt ?? 0), 0);
   const nFuture = summary.future30yYears.length;
-  // 6a: cover Amount totals ≈ numFuture30yYears × DARA (was par-based ≈ 1.3× that). Within 2%.
-  assert('cover Amount ≈ numFuture30yYears × DARA', coverAmt, nFuture * dara, nFuture * dara * 0.02);
+  // 6a: the cover pair is sized by COST against the Future-30Y block, and each synthetic rung  // delivers DARA at maturity, so cover Amount tracks numFuture30yYears × DARA scaled by what  // those rungs actually cost. They price below par (2.0 §Future 30Y Rungs), so the expectation  // carries that discount rather than assuming par. Still catches the bug this was written for,  // where cover Amount came out ≈ 1.3× the block. Within 2%.  const f30bd = summary.future30yParams.breakdown;  const avgSynPrice = f30bd.reduce((s, g) => s + (g.synPrice ?? 100), 0) / f30bd.length;  const expectedCoverAmt = nFuture * dara * avgSynPrice / 100;  assert("cover Amount ≈ numFuture30yYears × DARA at the block price", coverAmt, expectedCoverAmt, expectedCoverAmt * 0.02);
   // 6a: the 2052 cover nets its lifetime AMD out of P+I — Amount strictly below raw par P+I.
   const c2052 = cover.find(d => d.fundedYear === 2052);
   assert('2052 cover Amount < raw par P+I (AMD netted out)',

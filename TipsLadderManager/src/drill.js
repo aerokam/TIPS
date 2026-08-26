@@ -67,7 +67,7 @@ function future30yBreakdownRows(future30yParams) {
     rows += row(g.year + ' quantity', fmla, g.qty, false, undefined, id + 'qty')
           + row('\u21b3 P+I per hypothetical TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi')
           + row('\u21b3 Later mat int (LMI)', 'Coupon interest from longer hypothetical TIPS rungs', fm(g.laterMatInt), false, undefined, id + 'lmi')
-          + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000', fm(g.qty * 1000));
+          + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000 \xd7 price ' + fd(g.synPrice ?? 100, 3) + ' \u00f7 100', fm(g.cost ?? g.qty * 1000));
   });
   return rows;
 }

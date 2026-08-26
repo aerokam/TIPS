@@ -293,9 +293,14 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
     totalDuration += dur;
     const yearDara = daraByYear?.get(year) ?? dara;
     const qty = Math.max(0, Math.round((yearDara - runningLMI) / piPerBond));
-    breakdown.push({ year, qty, piPerBond, laterMatInt: runningLMI, dara: yearDara, dur, synYld: yield2056, synCpn: synCoupon, durDetail });
+    // Priced as a security issued today off the anchor yield and the synthetic coupon, not
+    // assumed to be par — same rule as the gap synthetics (2.0 §Future 30Y Rungs).
+    const synPrice = priceFromYield(yield2056, synCoupon, settlementDate, mat) ?? 100;
+    const costPerBond = 1000 * synPrice / 100;
+    const cost = qty * costPerBond;
+    breakdown.push({ year, qty, piPerBond, laterMatInt: runningLMI, dara: yearDara, dur, synYld: yield2056, synCpn: synCoupon, synPrice, costPerBond, cost, durDetail });
     runningLMI += qty * 1000 * synCoupon;
-    future30yTotalCost += qty * 1000;
+    future30yTotalCost += cost;
   }
   // Cost-weighted avg duration so the per-rung 2052 cover decomposition sums exactly to the block excess.
   const _qtySum = breakdown.reduce((s, b) => s + b.qty, 0);
