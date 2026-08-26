@@ -490,7 +490,7 @@
     </div>
   </div>
   <div class="form-card">
-    <!-- Row 1: Import/Export, DARA, Years -->
+    <!-- Row 1: Import/Export, DARA, Years, Available cash -->
     <div class="card-inputs">
       <input type="file" id="holdings-file" accept=".csv" class="visually-hidden-file">
       <input type="file" id="dara-plan-import-file" accept=".csv,.txt" class="visually-hidden-file">
@@ -535,13 +535,19 @@
         <label>Last Year</label>
         <select id="last-year"><option value="">—</option></select>
       </div>
+      <div class="field" id="field-available-cash">
+        <label style="white-space:nowrap" title="Cash on hand you will spend rather than invest. Applied to the earliest funded year first, spilling up the ladder as each year is covered.">Available cash</label>
+        <input type="number" id="available-cash" min="0" step="100" placeholder="0" style="width:90px">
+      </div>
     </div>
     <!-- Row 2: construction/computation policy — Brackets / Pre-ladder int. / Maturity preference /
          Coupon pick / Allocation policy. Shared between both modes (2.0 §Maturity Selection Within a
          Funded Year, §Within-Year Allocation Policy); Coupon pick and Allocation policy show/hide per
          their own existing rules. Brackets and Pre-ladder int. moved here from Row 1 (were never
          "ladder target" fields, always construction policy) once Import/Export moved to Row 1's front,
-         to keep the two rows about the same length (6.0 §Row 1 / §Row 2). -->
+         to keep the two rows about the same length. Available cash went the other way, to Row 1: it
+         is a target-side dollar figure, not construction policy, and Row 2 had grown too long for
+         the card in Rebalance (6.0 §Row 1 / §Row 2). -->
     <div class="card-inputs" style="margin-top:8px">
       <div class="field" id="field-bracket-mode">
         <label>Brackets</label>
@@ -559,10 +565,6 @@
           <input type="checkbox" id="pre-ladder-interest" style="width:auto;margin:0">
           <span style="font-size:10px;font-weight:800;color:#fff;text-transform:uppercase;letter-spacing:.08em">Include</span>
         </label>
-      </div>
-      <div class="field" id="field-available-cash">
-        <label style="white-space:nowrap" title="Cash on hand you will spend rather than invest. Applied to the earliest funded year first, spilling up the ladder as each year is covered.">Available cash</label>
-        <input type="number" id="available-cash" min="0" step="100" placeholder="0" style="width:90px">
       </div>
       <div class="field" id="field-build-maturity">
         <label>Maturity preference</label>

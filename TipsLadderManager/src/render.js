@@ -238,7 +238,7 @@ function rmdOptionsLinkHTML(fy, settlementYear, rmdCouponMode) {
   if (settlementYear == null || fy !== settlementYear) return '';
   const isDefault = (rmdCouponMode === 'all' || rmdCouponMode == null);
   return ` <a href="#" class="fy-rmd-link" data-year="${fy}" `
-    + `data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}">Coupon Counting${isDefault ? '' : '*'}</a>`;
+    + `data-tip-html="${encodeURIComponent(rmdOptionsTipHTML())}">Coupons${isDefault ? '' : '*'}</a>`;
 }
 
 function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraByYear, flaggedYears) {

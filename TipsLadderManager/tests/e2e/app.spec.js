@@ -1605,7 +1605,7 @@ test('Coupon Counting: link appears only on the settlement year row, and the pop
   await expect(page.locator(`#build-table tr.fy-group-header[data-fy="${otherYear}"] .fy-rmd-link`)).toHaveCount(0);
 
   const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
-  await expect(link).toHaveText('Coupon Counting');
+  await expect(link).toHaveText('Coupons');
   await link.click();
   const pop = page.locator('#rmd-options-popover');
   await expect(pop).toBeVisible();
@@ -1619,7 +1619,7 @@ test('Coupon Counting: link appears only on the settlement year row, and the pop
   await expect(pop).toBeHidden();
 
   // Non-default choice shows on the link itself, and the popover reopens with the values held.
-  await expect(link).toHaveText('Coupon Counting*');
+  await expect(link).toHaveText('Coupons*');
   await link.click();
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('last');
   await page.locator('#rmd-options-close').click();
@@ -1687,12 +1687,12 @@ test('Available Cash and coupon mode round-trip through the DARA-plan file', asy
   await page.reload();
   await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
   await _buildSetup(page);
-  await expect(link).toHaveText('Coupon Counting'); // fresh reload is the plain default again
+  await expect(link).toHaveText('Coupons'); // fresh reload is the plain default again
   await expect(page.locator('#available-cash')).toHaveValue('');
 
   await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);
-  await expect(link).toHaveText('Coupon Counting*');
+  await expect(link).toHaveText('Coupons*');
   await expect(page.locator('#available-cash')).toHaveValue('4200');
   await link.click();
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('none');
