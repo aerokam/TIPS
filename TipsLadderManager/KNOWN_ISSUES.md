@@ -29,6 +29,71 @@ production impact go here.
   actually does.
 - **Status:** open, not yet investigated.
 
+### Ref CPI override carries from Build into Rebalance, silently pricing at a stale basis
+
+- **Found:** 2026-08-26, first hands-on review of the DARA basis-date feature.
+- **Repro:** Build tab, DARA 100,000, Ref CPI overridden to 2025-08-27, all other defaults. Build,
+  export CUSIP/Qty, switch to Rebalance, load the exported file.
+- **Symptom:** the Rebalance tab still shows 2025-08-27 as the Ref CPI date. DARA loads as 100,000
+  and the rebalance reports no trades, but every cost and amount is priced at the 2025 basis
+  rather than the settlement date any real trade would settle at. Nothing on screen says so.
+  Reloading the page first (which clears the override) gives the intended behavior: DARA restates
+  100,000 → 103,657 and the rebalance produces no trades.
+- **Root cause:** the override is global (`activeRefCpiDateStr`) and is not reset when the mode
+  changes. With the 2025 date still active at load, the basis restatement (3.0 §DARA Basis Date)
+  computes `RefCPI(active) ÷ RefCPI(recorded)` over two identical dates, gets 1, and correctly
+  does nothing — so the guard that would have caught this never fires.
+- **Fix direction:** reset the override to the settlement date on a mode switch. That alone
+  resolves the reported flow. Keep the existing rule that restatement targets whichever date is
+  active — a deliberate override set *within* Rebalance is a legitimate simulation control, and
+  3.0 §DARA Basis Date is written that way on purpose.
+- **Status:** open.
+
+### Changing the Ref CPI date after a load does not re-restate DARA
+
+- **Found:** 2026-08-26, same session, second step of the repro above.
+- **Symptom:** with the file loaded under the 2025 override, changing the Ref CPI date to the
+  settlement date leaves DARA at 100,000 instead of restating it to 103,657. The rebalance then
+  reports sells, because the target is now being read in a basis it was never stated in.
+- **Root cause:** the restatement happens once, at import. The per-year DARA store then holds
+  values in whatever basis was active at that moment, and nothing re-derives it when the active
+  date changes.
+- **Fix direction:** the store should always sit in the currently-active basis, re-derived from
+  the file's literal values and its recorded basis (both already kept, for the revert control)
+  whenever the active Ref CPI date changes. Independent of the bug above; both need fixing.
+- **Status:** open.
+
+### No notice when a non-current Ref CPI date is in force at load
+
+- **Found:** 2026-08-26, same session.
+- **Symptom:** nothing told the user the app was pricing everything at a 2025 basis. The info
+  strip shows the override date in grey (3.0 §RefCPI Date Override), which was not enough to
+  notice while loading a file and reading a trade list.
+- **Fix direction:** say so explicitly at load whenever the active Ref CPI date is not the
+  settlement date. Largely falls out of fixing the mode-switch reset, but worth stating on its own
+  since a deliberate override in Rebalance stays legal.
+- **Status:** open.
+
+### "Coupon Counting" link widens the settlement-year column
+
+- **Found:** 2026-08-26, same session.
+- **Symptom:** the link on the settlement year's group header row (5.0 §Coupon Counting link) is
+  long enough to widen that column in the rebalance table, which is already very wide.
+- **Fix direction:** shorten the label; the popover title and hover explainer carry the detail.
+  "Coupons" is shorter than the "RMD Options" it replaced.
+- **Status:** open.
+
+### Row 2 overflows in Rebalance since Available Cash was added
+
+- **Found:** 2026-08-26, same session.
+- **Symptom:** the construction/computation policy row (6.0 §Row 2) runs too long in Rebalance
+  mode, forcing the top card wider than it needs to be.
+- **Fix direction:** move either Brackets or Available Cash to Row 1. Available Cash is the better
+  candidate: 6.0 records that Brackets and Pre-ladder int. were deliberately moved *out* of Row 1
+  as construction policy, and available cash is a target-side input rather than construction
+  policy, so it belongs on the target row.
+- **Status:** open.
+
 ## FIXED
 
 ### Future 30Y duration match: negative weight/quantity on a short single-year block
