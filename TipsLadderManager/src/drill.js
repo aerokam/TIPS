@@ -845,7 +845,7 @@ export function buildDurationPopupRows(summary, mode) {
   const avg = gapParams.avgDuration;
 
   const rows = [
-    { label: 'Gap average modified duration', value: avg.toFixed(2) + ' yr' },
+    { label: 'Gap average modified duration', value: avg.toFixed(2) },
     { sep: true },
   ];
 
@@ -856,9 +856,9 @@ export function buildDurationPopupRows(summary, mode) {
       const label = b.durDetail
         ? '<span class="drill-l3" data-l3="gapdur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + b.year + ' (Feb 15)</span>'
         : b.year + ' (Feb 15)';
-      rows.push({ label, value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
+      rows.push({ label, value: b.dur != null ? b.dur.toFixed(2) : '\u2014' });
     });
-    rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + gapParams.breakdown.length + ')', value: avg.toFixed(2) + ' yr', total: true });
+    rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + gapParams.breakdown.length + ')', value: avg.toFixed(2), total: true });
     rows.push({ sep: true });
   }
 
@@ -876,7 +876,7 @@ export function buildDurationPopupRows(summary, mode) {
 
     rows.push(
       { label: 'Bracket modified duration (orig lower ' + lowerYear + ', new lower ' + newLowerYear + ', upper ' + upperYear + ')',
-        value: lowerDuration.toFixed(2) + ', ' + newLowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) + ' yr' },
+        value: lowerDuration.toFixed(2) + ', ' + newLowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) },
       { sep: true },
       { label: 'Bracket weight (orig lower, new lower, upper)',
         note: 'orig lower (w1) = held excess / gap total cost (frozen; sold down only as far as the match requires if over-allocated); upper = ' + upperFml + '; new lower = (1 \u2212 w1) \u2212 upper weight',
@@ -897,7 +897,7 @@ export function buildDurationPopupRows(summary, mode) {
     // No lower bracket (firstYear is inside the gap \u2014 all coverage on upper bracket alone)
     rows.push(
       { label: 'Bracket modified duration (none, ' + upperLabel + ')',
-        note: 'no lower bracket \u2014 firstYear is inside the gap block', value: '\u2014, ' + upperDuration.toFixed(2) + ' yr' },
+        note: 'no lower bracket \u2014 firstYear is inside the gap block', value: '\u2014, ' + upperDuration.toFixed(2) },
       { sep: true },
       { label: 'Bracket weight (lower, upper)', note: 'all coverage on upper bracket', value: '0.0000, ' + (upperWeight ?? 1).toFixed(4) }
     );
@@ -908,7 +908,7 @@ export function buildDurationPopupRows(summary, mode) {
     const wFml = '(upper dur \u2212 avg dur) / (upper dur \u2212 lower dur)';
     rows.push(
       { label: 'Bracket modified duration (' + lowerLabel + ', ' + upperLabel + ')',
-        value: lowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) + ' yr' },
+        value: lowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) },
       { sep: true },
       { label: 'Bracket weight (lower, upper)', note: wFml + '; upper = 1 \u2212 lower', value: lowerWeight.toFixed(4) + ', ' + upperWeight.toFixed(4) }
     );
@@ -972,7 +972,7 @@ export function buildFuture30yDurationPopupRows(summary) {
               + ' = ' + avg.toFixed(2);
 
   const rows = [
-    { label: 'Future 30Y average duration', value: avg.toFixed(2) + ' yr' },
+    { label: 'Future 30Y average duration', value: avg.toFixed(2) },
     { sep: true },
   ];
 
@@ -983,15 +983,15 @@ export function buildFuture30yDurationPopupRows(summary) {
       const label = b.durDetail
         ? '<span class="drill-l3" data-l3="f30dur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + b.year + ' (Feb 15)</span>'
         : b.year + ' (Feb 15)';
-      rows.push({ label, note: 'mod. duration', value: b.dur != null ? b.dur.toFixed(2) + ' yr' : '\u2014' });
+      rows.push({ label, note: 'mod. duration', value: b.dur != null ? b.dur.toFixed(2) : '\u2014' });
     });
-    rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + future30yParams.breakdown.length + ')', value: avg.toFixed(2) + ' yr', total: true });
+    rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + future30yParams.breakdown.length + ')', value: avg.toFixed(2), total: true });
     rows.push({ sep: true });
   }
 
   rows.push(
-    { label: 'Lower cover (' + lowerLabel + ')', note: 'mod. duration', value: future30yLowerDuration.toFixed(2) + ' yr' },
-    { label: 'Upper cover (' + upperLabel + ')', note: 'mod. duration', value: future30yUpperDuration.toFixed(2) + ' yr' },
+    { label: 'Lower cover (' + lowerLabel + ')', note: 'mod. duration', value: future30yLowerDuration.toFixed(2) },
+    { label: 'Upper cover (' + upperLabel + ')', note: 'mod. duration', value: future30yUpperDuration.toFixed(2) },
     { sep: true },
     { label: 'Lower weight', note: wFml,                    value: future30yLowerWeight.toFixed(4) },
     { label: 'Upper weight', note: '1 \u2212 lower weight', value: future30yUpperWeight.toFixed(4) },
@@ -1045,7 +1045,7 @@ function macaulayWalkRows(durDetail, dur) {
     { label: 'Macaulay duration', note: 'Σ(t × PV) ÷ Σ(PV) ÷ 2', value: fd(durDetail.macaulay, 4) + ' yr', total: true },
     { sep: true },
     { heading: 'Modified Duration' },
-    { label: 'Modified duration', note: 'Macaulay ÷ (1 + yield ÷ 2)', value: fd(dur, 4) + ' yr', total: true }
+    { label: 'Modified duration', note: 'Macaulay ÷ (1 + yield ÷ 2)', value: fd(dur, 4), total: true }
   );
   return rows;
 }
