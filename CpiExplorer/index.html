@@ -47,6 +47,8 @@
 
   /* P2P result */
   #p2pResult { font-size: 12px; color: var(--portal-text-main); background: #f8fafc; border: 1px solid var(--border-light); border-radius: 6px; padding: 7px 9px; line-height: 1.6; display: none; }
+  .p2p-line { margin: 2px 0; }
+  .p2p-source { font-weight: 700; }
   .p2p-val { font-weight: 700; color: var(--portal-header-bg); }
   .p2p-sep { color: var(--border-med); }
   .p2p-annualized { color: var(--portal-text-muted); }
@@ -114,7 +116,7 @@
       </div>
     </div>
 
-    <!-- Date range (hidden in p2p mode) -->
+    <!-- Date range (used by every display mode, including Point-to-Point) -->
     <div class="sidebar-section" id="dateRangeSection">
       <div class="sidebar-label">Date Range</div>
       <div class="date-row">
@@ -128,17 +130,9 @@
       <button class="btn-link" id="btnFullHistory">Full History</button>
     </div>
 
-    <!-- Point-to-point inputs (shown only in p2p mode) -->
+    <!-- Point-to-point result (shown only in p2p mode; uses the Date Range above) -->
     <div class="sidebar-section" id="p2pSection" style="display:none">
       <div class="sidebar-label">Point-to-Point</div>
-      <div class="date-row">
-        <label>Start</label>
-        <input id="p2pStartDate" type="date" class="date-picker">
-      </div>
-      <div class="date-row">
-        <label>End</label>
-        <input id="p2pEndDate" type="date" class="date-picker">
-      </div>
       <div id="p2pResult"></div>
     </div>
 

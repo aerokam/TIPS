@@ -3,7 +3,7 @@
 
 import { fetchCpiHistory, fetchRefCpi } from './data.js';
 import { isoDate, filterRows, calcIndex, calcYoY, calcMoM, calcRolling, calcP2P, calcStats } from './calc.js';
-import { createChart, updateChart, resetZoom, getChart } from './chart.js';
+import { createChart, updateChart, resetZoom, getChart, COLORS } from './chart.js';
 import { handleChartKeydown } from '../../shared/src/chart-keys.js';
 import { initDatePicker } from '../../shared/src/date-picker.js';
 
@@ -16,10 +16,8 @@ const state = {
   dataSources:   ['cpi-nsa'], // array of 'cpi-nsa' | 'cpi-sa' | 'ref-cpi'
   displayMode:   'index',    // 'index' | 'yoy' | 'mom' | 'rolling' | 'p2p'
   rollingMonths: 12,
-  startDate:     null,       // Date | null (null = use source min)
+  startDate:     null,       // Date | null (null = use source min) — used by every display mode, including p2p
   endDate:       null,       // Date | null (null = use source max)
-  p2pStart:      null,
-  p2pEnd:        null,
   logScale:      false,
 };
 
@@ -76,7 +74,7 @@ function getValuesFromUI(prefix) {
 }
 
 function initDatePickers() {
-  ['start', 'end', 'p2pStart', 'p2pEnd'].forEach(prefix => {
+  ['start', 'end'].forEach(prefix => {
     const el = document.getElementById(`${prefix}Date`);
     if (el) initDatePicker(el);
   });
@@ -88,7 +86,7 @@ function yAxisLabel() {
     case 'yoy':     return 'Year-over-Year %';
     case 'mom':     return 'Month-over-Month %';
     case 'rolling': return `Trailing ${state.rollingMonths}m Change %`;
-    case 'p2p':     return 'CPI Index';
+    case 'p2p':     return 'Point-to-Point %';
     default:        return 'CPI';
   }
 }
@@ -109,6 +107,7 @@ function fmtDate(iso) {
 function render() {
   if (!state.dataSources.length) return;
   const datasets = [];
+  const p2pResults = [];
   const ext = combinedExtent();
   const startDate = state.startDate ?? ext.min;
   const endDate   = state.endDate   ?? ext.max;
@@ -121,11 +120,9 @@ function render() {
 
     let labels, values;
     if (state.displayMode === 'p2p') {
-      const pStart = state.p2pStart ?? sourceExtent(rows).min;
-      const pEnd   = state.p2pEnd   ?? sourceExtent(rows).max;
-      const result = calcP2P(rows, field, pStart, pEnd);
+      const result = calcP2P(rows, field, startDate, endDate);
       ({ labels, values } = result.series);
-      if (src === state.dataSources[0]) renderP2PResult(result);
+      p2pResults.push({ label: getSourceLabel(src), result });
     } else {
       // FIX DATE BUG: Run calc on FULL data, then filter
       let fullLabels, fullValues;
@@ -152,6 +149,8 @@ function render() {
     datasets.push({ label: getSourceLabel(src), labels, values });
   });
 
+  if (state.displayMode === 'p2p') renderP2PResult(p2pResults);
+
   const tooltipFormat = state.dataSources.includes('ref-cpi') ? 'MMM d, yyyy' : 'MMM yyyy';
   const chart = getChart();
   if (!chart) {
@@ -168,16 +167,24 @@ function render() {
   }
 }
 
-function renderP2PResult(result) {
+function renderP2PResult(results) {
   const el = document.getElementById('p2pResult');
-  if (result.changePct === null) {
-    el.textContent = 'No data for selected range.';
-  } else {
+  if (!results.length) { el.style.display = 'none'; return; }
+
+  const showLabel = results.length > 1;
+  el.innerHTML = results.map(({ label, result }, i) => {
+    const prefix = showLabel
+      ? `<span class="p2p-source" style="color:${COLORS[i % COLORS.length]}">${label}</span>: `
+      : '';
+    if (result.changePct === null) {
+      return `<div class="p2p-line">${prefix}No data for selected range.</div>`;
+    }
     const annualStr = result.annualized !== null ? `${fmt(result.annualized)}% annualized` : '';
-    el.innerHTML =
+    return `<div class="p2p-line">${prefix}` +
       `<span class="p2p-val">${fmt(result.changePct)}% total</span>` +
-      (annualStr ? `  <span class="p2p-sep">|</span>  <span class="p2p-annualized">${annualStr}</span>` : '');
-  }
+      (annualStr ? `  <span class="p2p-sep">|</span>  <span class="p2p-annualized">${annualStr}</span>` : '') +
+      `</div>`;
+  }).join('');
   el.style.display = 'block';
 }
 
@@ -188,7 +195,7 @@ function renderStats(labels, values) {
   if (!s) { strip.style.display = 'none'; return; }
 
   const dec = state.dataSources[0] === 'ref-cpi' ? 5 : 3;
-  const isIndexMode = state.displayMode === 'index' || state.displayMode === 'p2p';
+  const isIndexMode = state.displayMode === 'index';
   strip.innerHTML = [
     `<span class="stat"><span class="stat-label">Current</span> <span class="stat-val">${fmt(s.current, dec)}</span></span>`,
     isIndexMode && s.changePct !== null
@@ -208,9 +215,9 @@ function renderStats(labels, values) {
 function applySourceExtentToInputs() {
   const { min, max } = combinedExtent();
   if (!min || !max) return;
-  // Bound all pickers to the available data range.
+  // Bound the pickers to the available data range.
   const minIso = isoDate(min), maxIso = isoDate(max);
-  ['start', 'end', 'p2pStart', 'p2pEnd'].forEach(prefix => {
+  ['start', 'end'].forEach(prefix => {
     const el = document.getElementById(`${prefix}Date`);
     if (el) { el.min = minIso; el.max = maxIso; }
   });
@@ -218,10 +225,6 @@ function applySourceExtentToInputs() {
   state.endDate   = max;
   updateDateUI('start', min);
   updateDateUI('end', max);
-  state.p2pStart = min;
-  state.p2pEnd   = max;
-  updateDateUI('p2pStart', min);
-  updateDateUI('p2pEnd', max);
 }
 
 // ── UI visibility ─────────────────────────────────────────────────────────────
@@ -229,9 +232,8 @@ function applySourceExtentToInputs() {
 function updateSectionVisibility() {
   const mode = state.displayMode;
   document.getElementById('rollingSection').style.display   = mode === 'rolling' ? '' : 'none';
-  document.getElementById('dateRangeSection').style.display = mode === 'p2p'     ? 'none' : '';
   document.getElementById('p2pSection').style.display       = mode === 'p2p'     ? '' : 'none';
-  document.getElementById('logScaleOption').style.display   = (mode === 'index' || mode === 'p2p') ? '' : 'none';
+  document.getElementById('logScaleOption').style.display   = (mode === 'index') ? '' : 'none';
 }
 
 // ── Status ────────────────────────────────────────────────────────────────────
@@ -293,6 +295,10 @@ function wireControls() {
   document.querySelectorAll('input[name="displayMode"]').forEach(el => {
     el.addEventListener('change', () => {
       state.displayMode = el.value;
+      if (state.displayMode !== 'index') {
+        state.logScale = false;
+        document.getElementById('logScale').checked = false;
+      }
       updateSectionVisibility();
       resetZoom();
       render();
@@ -343,16 +349,6 @@ function wireControls() {
     applySourceExtentToInputs();
     resetZoom();
     render();
-  });
-
-  // P2P date inputs
-  document.getElementById('p2pStartDate').addEventListener('change', () => {
-    const d = getValuesFromUI('p2pStart');
-    if (d) { state.p2pStart = d; render(); }
-  });
-  document.getElementById('p2pEndDate').addEventListener('change', () => {
-    const d = getValuesFromUI('p2pEnd');
-    if (d) { state.p2pEnd = d; render(); }
   });
 
   // Reset Zoom button

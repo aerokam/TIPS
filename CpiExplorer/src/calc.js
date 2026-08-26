@@ -146,7 +146,7 @@ export function calcRolling(rows, field, windowMonths, isDaily = false) {
 }
 
 /**
- * Point-to-point: scalar result + full index series between start and end.
+ * Point-to-point: scalar result + percent-change-from-start series between start and end.
  * @param {Array} rows
  * @param {string} field
  * @param {Date} startDate
@@ -156,7 +156,7 @@ export function calcRolling(rows, field, windowMonths, isDaily = false) {
  */
 export function calcP2P(rows, field, startDate, endDate) {
   const inRange = filterRows(rows, startDate, endDate);
-  const series = calcIndex(inRange, field);
+  const indexSeries = calcIndex(inRange, field);
 
   // Find the closest valid rows on or before each boundary
   const startVal = findClosestOnOrBefore(rows, field, startDate);
@@ -164,7 +164,7 @@ export function calcP2P(rows, field, startDate, endDate) {
 
   if (startVal === null || endVal === null || startVal === 0) {
     return { changePct: null, annualized: null, months: null, startVal, endVal,
-             startLabel: '', endLabel: '', series };
+             startLabel: '', endLabel: '', series: { labels: [], values: [] } };
   }
 
   // Compute month count between boundary dates
@@ -177,6 +177,12 @@ export function calcP2P(rows, field, startDate, endDate) {
 
   const changePct = (endVal / startVal - 1) * 100;
   const annualized = months > 0 ? (Math.pow(endVal / startVal, 12 / months) - 1) * 100 : null;
+
+  // Chart series: normalized to percent change from startVal, so the path ends at changePct.
+  const series = {
+    labels: indexSeries.labels,
+    values: indexSeries.values.map(v => (v / startVal - 1) * 100),
+  };
 
   return {
     changePct, annualized, months,
@@ -202,7 +208,7 @@ export function calcStats(labels, values, mode) {
   const start   = values[0];
 
   let changePct = null, annualized = null;
-  if (mode === 'index' || mode === 'p2p') {
+  if (mode === 'index') {
     changePct = start !== 0 ? (current / start - 1) * 100 : null;
     // Month count from labels
     if (labels.length >= 2) {

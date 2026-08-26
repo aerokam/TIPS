@@ -7,7 +7,7 @@ import { calendarTimeAxis } from '../../shared/src/chart-time-axis.js';
 let _chart = null;
 let _currentDatasets = null; // { label, labels, values }[]
 
-const COLORS = ['#1a56db', '#ea580c', '#7c3aed', '#059669', '#dc2626'];
+export const COLORS = ['#1a56db', '#ea580c', '#7c3aed', '#059669', '#dc2626'];
 
 // ── Y rescaling ───────────────────────────────────────────────────────────────
 
@@ -141,8 +141,7 @@ export function createChart(canvasId, { datasets, yLabel, logScale, tooltipForma
             title: items => items[0]?.label ?? '',
             label: item => {
               const v = item.raw && typeof item.raw === 'object' ? item.raw.y : item.raw;
-              const dec = item.dataset.label === 'Ref CPI' ? 5 : 3;
-              return ` ${item.dataset.label}: ${typeof v === 'number' ? v.toFixed(dec) : v}`;
+              return ` ${item.dataset.label}: ${typeof v === 'number' ? v.toFixed(2) : v}`;
             },
           },
         },
