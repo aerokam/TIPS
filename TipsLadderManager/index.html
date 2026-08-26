@@ -360,6 +360,18 @@
 
 <div id="bracket-tooltip"></div>
 
+<!-- DARA basis-date popover (3.0 §DARA Basis Date) — offered when an imported DARA block records
+     no Ref CPI date, so the app cannot know what basis its numbers were stated in. -->
+<div id="dara-basis-popover" class="menu-dropdown" hidden style="position:fixed;min-width:240px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
+  <div style="font-weight:700;margin-bottom:6px">DARA basis date</div>
+  <div style="font-size:11px;line-height:1.4;margin-bottom:8px">The Ref CPI date these DARA values were stated at. Supplying it restates them into the current basis.</div>
+  <input type="date" id="dara-basis-date" class="date-picker" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:12px;border:1px solid #94a3b8;border-radius:3px">
+  <div style="text-align:right;margin-top:8px">
+    <button type="button" id="dara-basis-cancel" class="menu-select" style="padding:3px 10px;font-size:11px">Cancel</button>
+    <button type="button" id="dara-basis-apply" class="menu-select" style="padding:3px 10px;font-size:11px">Apply</button>
+  </div>
+</div>
+
 <!-- Coupon Counting popover (2.0 §Settlement-Year Coupon Treatment; 5.0 §Coupon Counting link) -->
 <div id="rmd-options-popover" class="menu-dropdown" hidden style="position:fixed;min-width:230px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
   <div style="font-weight:700;margin-bottom:8px" id="rmd-options-title">Coupon Counting</div>
@@ -882,6 +894,13 @@ function setStatus(msg, isError = false) {
   el.textContent = msg; el.className = isError ? 'error' : '';
 }
 
+// Status text that carries a control (the DARA basis-date notices, 3.0 §DARA Basis Date). Only ever
+// called with app-composed markup — nothing from a loaded file reaches it unescaped.
+function setStatusHTML(html) {
+  const el = document.getElementById('status');
+  el.innerHTML = html; el.className = '';
+}
+
 
 function esc(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1182,7 +1201,7 @@ function _exportCusipQty() {
   // per year; couponPref breaks same-month two-issue ties). Persisted so a re-import reconstructs
   // the exact target without relying on UI state.
   if (summary) {
-    rows.push(`#params,preLadderInterest=${summary.preLadderInterest ? 'true' : 'false'},maturityPref=${summary.maturityPref ?? 'last'},couponPref=${summary.couponPref ?? 'higher'},availableCash=${Math.round(summary.availableCash ?? 0)},rmdCouponMode=${summary.rmdCouponMode ?? 'all'}`);
+    rows.push(`#params,preLadderInterest=${summary.preLadderInterest ? 'true' : 'false'},maturityPref=${summary.maturityPref ?? 'last'},couponPref=${summary.couponPref ?? 'higher'},refCpiDate=${activeRefCpiDateStr ?? _defaultRefCpiDateStr},availableCash=${Math.round(summary.availableCash ?? 0)},rmdCouponMode=${summary.rmdCouponMode ?? 'all'}`);
   }
 
   const filename = `cusip-qty-${new Date().toISOString().split('T')[0]}.csv`;
@@ -2531,8 +2550,13 @@ function _exportDaraPlan() {
   for (const [y, v] of [..._daraByYearStore.entries()].sort((a, b) => a[0] - b[0])) lines.push(`${y},${Math.round(v)}`);
   // Available Cash + coupon counting (2.0 §Available Cash) — only when non-default, so a plan saved
   // without ever touching either round-trips as a plain #fundedYear,dara file, unchanged from before this feature.
-  if (_availableCash || _rmdCouponMode !== 'all') {
-    lines.push(`#params,availableCash=${Math.round(_availableCash)},rmdCouponMode=${_rmdCouponMode}`);
+  // The basis date always rides along: bare DARA numbers are meaningless without the Ref CPI date
+  // they were stated at (3.0 §DARA Basis Date).
+  {
+    const parts = [`refCpiDate=${activeRefCpiDateStr ?? _defaultRefCpiDateStr}`];
+    if (_availableCash) parts.push(`availableCash=${Math.round(_availableCash)}`);
+    if (_rmdCouponMode !== 'all') parts.push(`rmdCouponMode=${_rmdCouponMode}`);
+    lines.push('#params,' + parts.join(','));
   }
   const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
@@ -2550,14 +2574,16 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   if (!_panelYearRange) { setStatus(currentMode === 'rebalance' ? 'Load holdings before importing a DARA plan.' : 'Choose a Last Year before importing a DARA plan.', true); return; }
   const text = await file.text();
   const rawLines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l);
-  const daraMap = parseFundedYearDaraBlock(rawLines);
-  if (!daraMap) { setStatus('Not a DARA-plan file — expected a #fundedYear,dara block.', true); return; }
-
-  const yrs = [...daraMap.keys()].sort((a, b) => a - b);
-  const vals = [...daraMap.values()].sort((a, b) => a - b);
+  const daraMapRaw = parseFundedYearDaraBlock(rawLines);
+  if (!daraMapRaw) { setStatus('Not a DARA-plan file — expected a #fundedYear,dara block.', true); return; }
 
   // Available Cash + coupon counting (2.0 §Available Cash) — absent in a plain/legacy plan, which is exactly the default state.
   const importedParams = parseParamsBlock(rawLines);
+  // Restate into the Ref CPI basis now in effect (3.0 §DARA Basis Date).
+  const daraMap = _applyDaraBasis(daraMapRaw, importedParams);
+
+  const yrs = [...daraMap.keys()].sort((a, b) => a - b);
+  const vals = [...daraMap.values()].sort((a, b) => a - b);
   _availableCash = importedParams?.availableCash ?? 0;
   _syncAvailableCashInput();
   _rmdCouponMode = importedParams?.rmdCouponMode ?? 'all';
@@ -2597,7 +2623,103 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 
 // ─── File Parsing & State ─────────────────────────────────────────────────────
 let currentHoldingsArray = null;
-let currentImportedDaraByYear = null; // explicit per-year DARA from our own export's #fundedYear,dara block (null for broker/legacy)
+let currentImportedDaraByYear = null; // explicit per-year DARA from our own export's #fundedYear,dara block (null for broker/legacy)
+// ─── DARA basis date (3.0 §DARA Basis Date) ──────────────────────────────────────────────────
+// DARA is a real amount denominated at a Ref CPI date, so a saved ladder’s bare DARA numbers mean
+// nothing without the date they were stated at. Our exports record it; on import the values are
+// restated into the basis now in effect, so a target keeps its real purchasing power rather than
+// being read as that many of today’s smaller dollars.
+let _daraLiteralFromFile = null;   // the file’s own values, kept so the restatement can be undone
+let _daraRestatedFrom = null;      // basis date restated from, null when nothing was restated
+
+function _restateDaraToActiveBasis(map, recordedDate) {
+  const none = { map, factor: 1, fromDate: null };
+  if (!map || map.size === 0 || !recordedDate || !refCpiRows) return none;
+  const activeDate = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  if (!activeDate || activeDate === recordedDate) return none;
+  const rcFrom = lookupRefCpi(refCpiRows, recordedDate);
+  const rcTo   = lookupRefCpi(refCpiRows, activeDate);
+  if (!(rcFrom > 0) || !(rcTo > 0)) return none;
+  const factor = rcTo / rcFrom;
+  if (Math.abs(factor - 1) < 1e-9) return none;
+  const out = new Map();
+  for (const [y, v] of map) out.set(y, v * factor);
+  return { map: out, factor, fromDate: recordedDate };
+}
+
+// Applies the restatement to a freshly parsed DARA map and reports what happened in the status
+// strip. Returns the map to use. A file with no recorded basis is honored literally (exactly the
+// behavior before the basis date existed) and offered the chance to supply one.
+function _applyDaraBasis(map, params) {
+  _daraLiteralFromFile = map ? new Map(map) : null;
+  _daraRestatedFrom = null;
+  if (!map || map.size === 0) return map;
+  const recorded = params?.refCpiDate ?? null;
+  if (!recorded) {
+    setStatusHTML('DARA values honored as written — this file records no Ref CPI basis date. '
+      + '<a href="#" id="dara-set-basis" style="color:#2563eb">Set basis date</a>');
+    return map;
+  }
+  const { map: restated, factor, fromDate } = _restateDaraToActiveBasis(map, recorded);
+  if (!fromDate) return map;
+  _daraRestatedFrom = fromDate;
+  setStatusHTML(`DARA restated from the ${esc(fromDate)} Ref CPI basis to the current one `
+    + `(×${factor.toFixed(4)}). <a href="#" id="dara-revert-basis" style="color:#2563eb">Use the file’s values</a>`);
+  return restated;
+}
+
+// Re-applies the imported DARA map (restated or literal) to the panel. Shared by the revert link
+// and the basis-date picker, both of which change which values the panel should show.
+function _reapplyImportedDara(map) {
+  currentImportedDaraByYear = new Map(map);
+  _daraByYearStore = new Map(map);
+  _daraLoadedSnapshot = new Map(map);
+  const vals = [...map.values()].sort((a, b) => a - b);
+  _daraByYearPanelDefault = Math.round(vals[Math.floor(vals.length / 2)]);
+  document.getElementById('dara').value = _daraByYearPanelDefault;
+  _clearOutput();
+  renderDaraByYearPanel();
+  updateDaraInput(true);
+}
+
+document.getElementById('status').addEventListener('click', e => {
+  const revert = e.target.closest('#dara-revert-basis');
+  if (revert) {
+    e.preventDefault();
+    if (_daraLiteralFromFile) _reapplyImportedDara(_daraLiteralFromFile);
+    _daraRestatedFrom = null;
+    setStatus('DARA values taken from the file as written.');
+    return;
+  }
+  const setBasis = e.target.closest('#dara-set-basis');
+  if (setBasis) {
+    e.preventDefault();
+    const pop = document.getElementById('dara-basis-popover');
+    const input = document.getElementById('dara-basis-date');
+    input.value = activeRefCpiDateStr ?? _defaultRefCpiDateStr ?? '';
+    const r = setBasis.getBoundingClientRect();
+    pop.hidden = false;
+    pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+  }
+});
+
+document.getElementById('dara-basis-cancel').addEventListener('click', () => {
+  document.getElementById('dara-basis-popover').hidden = true;
+});
+document.getElementById('dara-basis-apply').addEventListener('click', () => {
+  const pop = document.getElementById('dara-basis-popover');
+  const v = document.getElementById('dara-basis-date').value;
+  pop.hidden = true;
+  if (!v || !_daraLiteralFromFile) return;
+  const { map, factor, fromDate } = _restateDaraToActiveBasis(_daraLiteralFromFile, v);
+  if (!fromDate) { setStatus('That basis date matches the one in effect — DARA values unchanged.'); return; }
+  _daraRestatedFrom = fromDate;
+  _reapplyImportedDara(map);
+  setStatusHTML(`DARA restated from the ${esc(fromDate)} Ref CPI basis to the current one `
+    + `(×${factor.toFixed(4)}). <a href="#" id="dara-revert-basis" style="color:#2563eb">Use the file’s values</a>`);
+});
+
 let currentImportedParams = null; // construction params from our own export's #params line ({preLadderInterest, maturityPref}); null for broker/legacy
 // Generation token guarding the #holdings-file 'change' handler's single await (file.text()). The
 // startup auto-preload of data/SampleHoldings.csv (loadData()) dispatches this same 'change' event;
@@ -2726,6 +2848,8 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
         _updateMaturityOptionLabel('Select maturities…');
         _maturityListOpenPending = false;
       }
+      // Restate the file's DARA into the Ref CPI basis now in effect (3.0 §DARA Basis Date).
+      currentImportedDaraByYear = _applyDaraBasis(currentImportedDaraByYear, currentImportedParams);
     } else if (acctNames.length === 1) {
       currentHoldingsArray = parsedAccounts[acctNames[0]];
     } else {

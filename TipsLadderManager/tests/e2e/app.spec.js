@@ -1679,6 +1679,9 @@ test('Available Cash and coupon mode round-trip through the DARA-plan file', asy
   await download.saveAs(planPath);
   const planText = readFileSync(planPath, 'utf8');
   expect(planText).toContain('availableCash=4200');
+  // A saved plan always records the Ref CPI basis its DARA values are stated at, so reloading it
+  // later restates rather than silently re-denominating them (3.0 §DARA Basis Date).
+  expect(planText).toMatch(/refCpiDate=\d{4}-\d{2}-\d{2}/);
   expect(planText).toContain('rmdCouponMode=none');
 
   await page.reload();

@@ -492,6 +492,8 @@ export function parseParamsBlock(rawLines) {
       // written before Available Cash went ladder-wide keep working (2.1 §`#params` line).
       else if (/^(availablecash|rmdcashoverride)$/i.test(k)) { const n = parseFloat(v); if (!isNaN(n) && n >= 0) out.availableCash = n; }
       else if (/^rmdcouponmode$/i.test(k)) out.rmdCouponMode = /^(none|last)$/i.test(v) ? v.toLowerCase() : 'all';
+      // The Ref CPI date the file's DARA values are denominated at (3.0 §DARA Basis Date).
+      else if (/^refcpidate$/i.test(k)) { if (/^\d{4}-\d{2}-\d{2}$/.test(v)) out.refCpiDate = v; }
     }
     return Object.keys(out).length > 0 ? out : null;
   }
