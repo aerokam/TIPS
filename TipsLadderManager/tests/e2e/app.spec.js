@@ -1452,6 +1452,58 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
   await expect(rung).toHaveValue('33000');
 });
 
+// A DARA plan that records no Ref CPI date of its own (every export written before the date was
+// recorded, and any hand-written plan). The app cannot know the date and does not guess: the values
+// are used as written, and the status strip offers to supply one. Supplying an earlier date scales
+// the values from it to the settlement date (3.0 §DARA Basis Date).
+test('DARA plan with no Ref CPI date: used as written, then scaled once a date is supplied', async ({ page }) => {
+  test.setTimeout(20_000);
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+
+  // Hand-written plan: a #fundedYear,dara block and nothing else. No #params line at all, so no
+  // recorded Ref CPI date.
+  const years = await page.locator('.fy-dara-input[data-year]').evaluateAll(
+    els => els.slice(0, 4).map(e => e.dataset.year)
+  );
+  const planPath = test.info().outputPath('plan-no-refcpi-date.csv');
+  writeFileSync(planPath, ['#fundedYear,dara', ...years.map(y => y + ',40000')].join('\n') + '\n');
+
+  await chooseMenu(page, 'import-menu', 'dara-plan');
+  await page.locator('#dara-plan-import-file').setInputFiles(planPath);
+
+  // Used as written, and said so.
+  for (const y of years) {
+    await expect(page.locator(`.fy-dara-input[data-year="${y}"]`)).toHaveValue('40000');
+  }
+  await expect(page.locator('#status')).toContainText('records no Ref CPI date');
+  await expect(page.locator('#dara-set-basis')).toBeVisible();
+
+  // Supply an earlier date.
+  await page.locator('#dara-set-basis').click();
+  await expect(page.locator('#dara-basis-popover')).toBeVisible();
+  await page.locator('#dara-basis-date').fill('2025-08-27');
+  await page.locator('#dara-basis-apply').click();
+  await expect(page.locator('#dara-basis-popover')).toBeHidden();
+
+  // The status strip reports the date scaled from and the factor; the values move by that factor.
+  const status = await page.locator('#status').textContent();
+  expect(status, 'status names the supplied date').toContain('08/27/2025');
+  const factor = parseFloat((status.match(/×([0-9.]+)/) || [])[1]);
+  expect(factor, 'a factor was reported').toBeGreaterThan(1);
+
+  for (const y of years) {
+    const v = parseFloat(await page.locator(`.fy-dara-input[data-year="${y}"]`).inputValue());
+    // The reported factor is rounded to 4 dp, so allow a few dollars on a 40,000 target.
+    expect(Math.abs(v - 40000 * factor), 'every year scaled by the reported factor').toBeLessThanOrEqual(5);
+  }
+
+  // The offer stays available so a wrong date can be corrected, and reopens on the date supplied.
+  await expect(page.locator('#dara-set-basis')).toBeVisible();
+  await page.locator('#dara-set-basis').click();
+  await expect(page.locator('#dara-basis-date')).toHaveValue('2025-08-27');
+});
+
 // Regression: runFundedRebalance only applies its self-financing scale (3.0 §Funding the rebalance)
 // when isPristineMirror -- index.html's _storeIsPristineMirror() decides that from whether
 // currentImportedDaraByYear is set, NOT from how the store was actually populated. The DARA Plan

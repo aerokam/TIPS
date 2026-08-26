@@ -2591,7 +2591,12 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 
   // Available Cash + coupon counting (2.0 §Available Cash) — absent in a plain/legacy plan, which is exactly the default state.
   const importedParams = parseParamsBlock(rawLines);
-  // Restate into the Ref CPI basis now in effect (3.0 §DARA Basis Date).
+  // Cleared here, on the way in, rather than at the end of this handler: _applyDaraBasis reports
+  // what it scaled (or that the file records no date) in the status strip, and a clear afterward
+  // wiped that notice before it could be read. The holdings handler clears at entry for the same
+  // reason.
+  setStatus('');
+  // Scale the file’s DARA to the Ref CPI date in effect (3.0 §DARA Basis Date).
   const daraMap = _applyDaraBasis(daraMapRaw, importedParams);
 
   const yrs = [...daraMap.keys()].sort((a, b) => a - b);
@@ -2630,7 +2635,6 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   renderDaraByYearPanel();
   if (wasBuilt) _runBuildFromForm();
   updateDaraInput(true);
-  setStatus('');
 });
 
 // ─── File Parsing & State ─────────────────────────────────────────────────────
