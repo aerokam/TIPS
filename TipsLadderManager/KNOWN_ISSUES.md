@@ -240,6 +240,24 @@ per-CUSIP prices for a past date (3.1 §4.0).
   and the coupons received during 2026 are pure surplus rather than income the 2026 rung was
   counting on.
 
+### The Build Ref CPI date control mixed two dates, and is gone
+
+- **Removed:** 2026-08-27.
+- **What it did:** let a Build price at an older Ref CPI date while still using today’s market
+  prices. Index ratios came from one date and prices from another, and the two move independently,
+  so the ladder it produced existed on no day.
+- **Why it was there:** to simulate a ladder built earlier, so the saved-and-reloaded path could be
+  exercised end to end. `tests/fixtures/yearago/` does that properly — one date’s prices, yields and
+  Ref CPI throughout — so the control had nothing left to do.
+- **The real path is better anyway.** A holder who built a year ago has the holdings. Loading their
+  CUSIP/Qty file into Rebalance prices what they actually own at today’s market, which is both more
+  accurate and what Rebalance is for.
+- **What stays:** the file-side basis machinery. A year-old export legitimately records an older Ref
+  CPI date, and both the DARA restatement (3.0 §DARA Basis Date) and the received-cash window read
+  it. The date arrives in a file; it is not something the user sets.
+- **Spec:** 3.0 §RefCPI Date Override rewritten as §Ref CPI Date; cross-references in 3.1, 5.0 and
+  6.0 follow.
+
 ### A matured rung was bought back, because a matured TIPS is invisible
 
 - **Fixed:** 2026-08-27.

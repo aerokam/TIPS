@@ -957,7 +957,7 @@ let lastHDR = null, lastResults = null;
 let lastBuildHDR = null, lastBuildResults = null;
 let lastRebalHDR = null, lastRebalResults = null;
 let _staticInfoSuffix = '';
-let activeRefCpiDateStr = null;
+
 let _defaultRefCpiDateStr = null;
 let _maxRefCpiDate = null;
 let _daraRebal = '', _daraBuild = '40000';
@@ -968,11 +968,6 @@ let _daraByYearStoreBuild = new Map(), _daraByYearPanelDefaultBuild = null;
 // being restamped by a selection Infer/Set DARA action that includes it in its own scope.
 let _daraManualYearsRebal = new Set(), _daraManualYearsBuild = new Set();
 const _infoPopups = {};
-// Ref CPI date override — Build-only state (3.0 §RefCPI Date Override). Rebalance always prices at
-// the settlement date, so the override is parked here on the way into Rebalance and handed back on
-// the way into Build. Parked rather than discarded so a Build result rendered under an override
-// stays consistent with the date it was computed at after a round trip through Rebalance.
-let _refCpiOverrideBuild = null;
 // Available Cash is per-mode, like every other figure on this card. It was shared until the app
 // began filling it in from coupons already received (2.0 §Available Cash), which is a statement
 // about a HELD portfolio: letting that figure follow the user into Build would size a from-scratch
@@ -1011,7 +1006,6 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
       _daraManualYears = _daraManualYearsRebal;
       _bracketAutoCapYears = _bracketAutoCapYearsRebal;
-      _refCpiOverrideBuild = activeRefCpiDateStr; activeRefCpiDateStr = null;
     } else {
       _daraRebal = daraEl.value;
       _daraByYearStoreRebal = _daraByYearStore; _daraByYearPanelDefaultRebal = _daraByYearPanelDefault;
@@ -1028,7 +1022,6 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
       _daraManualYears = _daraManualYearsBuild;
       _bracketAutoCapYears = _bracketAutoCapYearsBuild;
-      activeRefCpiDateStr = _refCpiOverrideBuild;
     }
     _rungEditSessionOpen = false; _rungDirty = false;
     _clearSelection();
@@ -1253,7 +1246,7 @@ function _exportCusipQty() {
   // per year; couponPref breaks same-month two-issue ties). Persisted so a re-import reconstructs
   // the exact target without relying on UI state.
   if (summary) {
-    rows.push(`#params,preLadderInterest=${summary.preLadderInterest ? 'true' : 'false'},maturityPref=${summary.maturityPref ?? 'last'},couponPref=${summary.couponPref ?? 'higher'},refCpiDate=${activeRefCpiDateStr ?? _defaultRefCpiDateStr},availableCash=${Math.round(summary.availableCash ?? 0)},rmdCouponMode=${summary.rmdCouponMode ?? 'all'}`);
+    rows.push(`#params,preLadderInterest=${summary.preLadderInterest ? 'true' : 'false'},maturityPref=${summary.maturityPref ?? 'last'},couponPref=${summary.couponPref ?? 'higher'},refCpiDate=${_defaultRefCpiDateStr},availableCash=${Math.round(summary.availableCash ?? 0)},rmdCouponMode=${summary.rmdCouponMode ?? 'all'}`);
   }
 
   const filename = `cusip-qty-${new Date().toISOString().split('T')[0]}.csv`;
@@ -1718,7 +1711,7 @@ function _rankPickerYearOrder(year, useOverride) {
   const held = (currentHoldingsArray ?? [])
     .filter(h => tipsMap.get(h.cusip)?.maturity?.getFullYear() === year)
     .map(h => ({ ...h, maturity: tipsMap.get(h.cusip)?.maturity }));
-  const rc = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const rc = lookupRefCpi(refCpiRows, _defaultRefCpiDateStr);
   const piMap = {};
   for (const h of held) piMap[h.cusip] = calculatePIPerBond(h.cusip, h.maturity, rc, tipsMap);
   const override = useOverride ? _yearRankOverrides.get(year) : null;
@@ -1843,7 +1836,7 @@ function _ttFm(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
 // (1,000 × index ratio); this is the dollar amount paid, which also reflects market price.
 function _ttRowCost(d, qty) {
   const bond = tipsMap?.get(d.cusip);
-  const ttSettlementDate = localDate(activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const ttSettlementDate = localDate(_defaultRefCpiDateStr);
   const { accrued, A, E } = bond?.maturity
     ? accruedInterest(d.coupon ?? 0, ttSettlementDate, bond.maturity)
     : { accrued: 0, A: 0, E: 0 };
@@ -1983,7 +1976,7 @@ function _actualPaymentDate(d) {
 }
 
 // One coupon payment's per-bond value on its own payment date. The Ref CPI series is published
-// ~2 months ahead of the active Ref CPI date, so a payment usually already has its own published
+// ~2 months ahead of the settlement date, so a payment usually already has its own published
 // Ref CPI — use that when present, else fall back to the active Ref CPI, same as every other
 // Amount figure in this app (5.0 §Cash Flow Calendar). Shared by the Cash Flow Calendar (payments
 // still to come) and the settlement-year received-coupon total (payments already made), so the two
@@ -2045,7 +2038,7 @@ function _bondOrMatured(cusip) {
 function _settlementYearCashReceivedSince(holdingsArr, sinceDateStr) {
   const none = { total: 0, coupons: 0, principal: 0, matured: [], from: null };
   if (!holdingsArr || !tipsMap || !refCpiRows || !settlementDate) return none;
-  const activeDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  const activeDateIso = _defaultRefCpiDateStr;
   const activeRc = lookupRefCpi(refCpiRows, activeDateIso);
   const today = localDate(_tradeDateStr);
   if (!activeRc || !today) return none;
@@ -2078,7 +2071,7 @@ function _settlementYearCashReceivedSince(holdingsArr, sinceDateStr) {
 // portfolio, for previewing what the calendar looks like once the trades settle).
 function buildCashFlowData(holdingsArr) {
   if (!holdingsArr || !tipsMap || !refCpiRows) return [];
-  const activeDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  const activeDateIso = _defaultRefCpiDateStr;
   const activeRc = lookupRefCpi(refCpiRows, activeDateIso);
   const today = localDate(_tradeDateStr);
   if (!activeRc || !today) return [];
@@ -2159,7 +2152,7 @@ let _cfDrillBuckets = [];
 let _cfMode = 'before';
 
 function _cashFlowRowsHTML(byYear) {
-  const today = localDate(activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const today = localDate(_defaultRefCpiDateStr);
   const curYear = today ? today.getFullYear() : null;
   _cfDrillBuckets = [];
   let html = '<table><thead><tr><th></th><th>Coupon</th><th>Principal</th><th>Total</th></tr></thead><tbody>';
@@ -2431,8 +2424,8 @@ function updateRebalFirstYearDropdown() {
   const _curVal = sel.value ? parseInt(sel.value, 10) : NaN;
   let _defaultFirstYear = _firstY;
   if (isNaN(_curVal) || _curVal < _minTipsY || _curVal > _derivedLY) {
-    const _refCPI = refCpiRows && (activeRefCpiDateStr ?? _defaultRefCpiDateStr)
-      ? lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr) : 0;
+    const _refCPI = refCpiRows && (_defaultRefCpiDateStr)
+      ? lookupRefCpi(refCpiRows, _defaultRefCpiDateStr) : 0;
     if (_refCPI > 0 && settlementDate) {
       const _inferred = inferFirstYearFromHoldings({ holdings: currentHoldingsArray, tipsMap, refCPI: _refCPI, settlementDate });
       if (_inferred != null) _defaultFirstYear = _inferred;
@@ -2479,8 +2472,8 @@ function updateRebalLastYearDropdown() {
   // import preserves the future cover excess instead of selling it to DARA.
   let _defaultLY = _derivedLY;
   {
-    const _refCPI = refCpiRows && (activeRefCpiDateStr ?? _defaultRefCpiDateStr)
-      ? lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr) : 0;
+    const _refCPI = refCpiRows && (_defaultRefCpiDateStr)
+      ? lookupRefCpi(refCpiRows, _defaultRefCpiDateStr) : 0;
     if (_refCPI > 0 && settlementDate) {
       const _inferredLast = inferLastYearFromHoldings({ holdings: currentHoldingsArray, tipsMap, refCPI: _refCPI, settlementDate });
       if (_inferredLast != null && _inferredLast > _defaultLY) _defaultLY = _inferredLast;
@@ -2529,7 +2522,7 @@ function _initRebalDaraFromPortfolio() {
     renderDaraByYearPanel();
     return;
   }
-  const rc = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const rc = lookupRefCpi(refCpiRows, _defaultRefCpiDateStr);
   if (!(rc > 0)) { renderDaraByYearPanel(); return; }
 
   _offerReceivedCouponsAsCash(currentImportedParams);
@@ -2638,7 +2631,7 @@ function _initRebalDaraFromPortfolio() {
 // too (6.0 §Before-State on Load (Rebalance)).
 function _renderBeforeStatePreview() {
   if (currentMode !== 'rebalance' || !currentHoldingsArray || !tipsMap || !refCpiRows || !settlementDate) return;
-  const rc = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const rc = lookupRefCpi(refCpiRows, _defaultRefCpiDateStr);
   if (!(rc > 0)) return;
   const lastYear = parseInt(document.getElementById('rebal-last-year').value);
   const firstYear = parseInt(document.getElementById('rebal-first-year').value)
@@ -2692,7 +2685,7 @@ function _exportDaraPlan() {
   // The basis date always rides along: bare DARA numbers are meaningless without the Ref CPI date
   // they were stated at (3.0 §DARA Basis Date).
   {
-    const parts = [`refCpiDate=${activeRefCpiDateStr ?? _defaultRefCpiDateStr}`];
+    const parts = [`refCpiDate=${_defaultRefCpiDateStr}`];
     if (_availableCash) parts.push(`availableCash=${Math.round(_availableCash)}`);
     if (_rmdCouponMode !== 'all') parts.push(`rmdCouponMode=${_rmdCouponMode}`);
     lines.push('#params,' + parts.join(','));
@@ -2779,7 +2772,7 @@ let _daraFileRefCpiDate = null;    // the Ref CPI date the file was stated at, o
 function _restateDaraToActiveBasis(map, recordedDate) {
   const none = { map, factor: 1, fromDate: null, toDate: null };
   if (!map || map.size === 0 || !recordedDate || !refCpiRows) return none;
-  const activeDate = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  const activeDate = _defaultRefCpiDateStr;
   if (!activeDate || activeDate === recordedDate) return none;
   const rcFrom = lookupRefCpi(refCpiRows, recordedDate);
   const rcTo   = lookupRefCpi(refCpiRows, activeDate);
@@ -2832,7 +2825,7 @@ document.getElementById('status').addEventListener('click', e => {
     e.preventDefault();
     const pop = document.getElementById('dara-basis-popover');
     const input = document.getElementById('dara-basis-date');
-    input.value = _daraFileRefCpiDate ?? activeRefCpiDateStr ?? _defaultRefCpiDateStr ?? '';
+    input.value = _daraFileRefCpiDate ?? _defaultRefCpiDateStr ?? '';
     const r = setBasis.getBoundingClientRect();
     pop.hidden = false;
     pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
@@ -3355,7 +3348,7 @@ function _updateSelectionToolbar() {
 // no holdings to solve against, so Infer is Rebalance-only).
 function _inferCtx() {
   if (currentMode !== 'rebalance' || !currentHoldingsArray || !tipsMap || !refCpiRows || !settlementDate) return null;
-  const rc = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const rc = lookupRefCpi(refCpiRows, _defaultRefCpiDateStr);
   if (!(rc > 0)) return null;
   const rawARA = computePortfolioARAByYear(currentHoldingsArray, tipsMap, rc);
   if (Object.keys(rawARA).length === 0) return null;
@@ -3591,7 +3584,7 @@ document.getElementById('dara').addEventListener('input', () => { _daraAutoInfer
 // Runs Build with the current form inputs (+ any per-year maturity picks). Returns true on
 // success, false (with a status message set) if inputs are missing/invalid.
 function _runBuildFromForm() {
-  const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+  const refCPI = lookupRefCpi(refCpiRows, _defaultRefCpiDateStr);
   const dara = _getDefaultDara();
   const maturityPrefSel = document.getElementById('build-maturity').value;
 
@@ -3662,7 +3655,7 @@ document.getElementById('run-btn').addEventListener('click', async () => {
     if (currentMode === 'build') {
       _runBuildFromForm();
     } else {
-      const refCPI = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
+      const refCPI = lookupRefCpi(refCpiRows, _defaultRefCpiDateStr);
       if (!currentHoldingsArray) { setStatus('Holdings required.', true); return; }
 
       let finalDara = _getDefaultDara();
@@ -3728,11 +3721,7 @@ function _fmtMDY(iso) { if (!iso) return ''; const [y,m,d] = iso.split('-'); ret
 // over a date rather than a Ref CPI value. The Ref CPI figures themselves stay reachable from the
 // Ref/Mkt links alongside and from any Ref CPI row's drill.
 function _buildRows() {
-  const date = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
-  let html = `Trade: ${_fmtMDY(_tradeDateStr)} · Settle: ${_fmtMDY(_settleDateStr)}`;
-  if (currentMode === 'build') {
-    html += ` · <span class="info-const">Ref CPI: </span><span id="refcpi-link" class="info-link">${_fmtMDY(date)}</span>`;
-  }
+  const html = `Trade: ${_fmtMDY(_tradeDateStr)} · Settle: ${_fmtMDY(_settleDateStr)}`;
   document.getElementById('info-source').innerHTML = html;
   document.getElementById('info-tips-count').innerHTML = _staticInfoSuffix;
 }
@@ -3800,7 +3789,7 @@ document.addEventListener('click', e => {
     const d = _currentDrillData;
 
     if (key === 'refCPI') {
-      const _rcDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+      const _rcDateIso = _defaultRefCpiDateStr;
       const _dForRefCpi = _rcDateIso ? { ...(d || {}), settlementDate: _fmtMDY(_rcDateIso) } : (d || {});
       showPopup(drillL3, 'Ref CPI Interpolation', (c) => buildRefCpiDrill(_dForRefCpi, c, refCpiRows), 'Ref CPI', 'quant');
     } else if (key === 'indexRatio') {
@@ -3846,8 +3835,6 @@ document.addEventListener('click', e => {
       _showTipsRefModal('Ref');
     } else if (info.classList.contains('tips-mkt-link')) {
       _showTipsRefModal('Mkt');
-    } else if (info.id === 'refcpi-link') {
-      _showRefCpiPicker(info);
     } else if (info.dataset.popup) {
       showPopup(info, info.textContent, _infoPopups[info.dataset.popup]);
     }
@@ -3938,23 +3925,6 @@ document.getElementById('tipsref-close').addEventListener('click', () => {
 document.getElementById('tipsref-mode-ref').addEventListener('click', () => _showTipsRefModal('Ref'));
 document.getElementById('tipsref-mode-mkt').addEventListener('click', () => _showTipsRefModal('Mkt'));
 
-/* --- REFCPI PICKER --- */
-function _showRefCpiPicker(anchor) {
-  const picker = document.getElementById('refcpi-picker');
-  const input = document.getElementById('refcpi-date-input');
-  picker.style.display = 'block';
-  input.value = activeRefCpiDateStr ?? _defaultRefCpiDateStr; // native date wants ISO
-  input.focus();
-  
-  const ar = anchor.getBoundingClientRect();
-  picker.style.left = ar.left + 'px';
-  picker.style.top = (ar.bottom + 4) + 'px';
-}
-
-document.getElementById('refcpi-picker-close').addEventListener('click', () => {
-  document.getElementById('refcpi-picker').style.display = 'none';
-});
-
 function _clearOutput() {
   rebalanceRendered = false; buildRendered = false; _rebalBeforeStateShown = false;
   rebalDetails = null; rebalSummary = null; buildDetails = null; buildSummary = null;
@@ -3964,55 +3934,15 @@ function _clearOutput() {
   document.getElementById('net-cash-inline').style.display = 'none';
   document.getElementById('ladder-stats-display').style.display = 'none';
   _clearAutoDara();
-  // Cash Flow's events/buckets are computed once per open (buildCashFlowData(), not live-bound to
-  // activeRefCpiDateStr) — closing here, rather than leaving stale data on screen, forces a fresh
-  // rebuild against the new Ref CPI date the next time it's opened. Without this, changing the RefCPI
-  // date while the modal (or one of its drill popups) was open left the old date's figures on screen
-  // even after the date was changed back.
+  // Cash Flow's events/buckets are computed once per open (buildCashFlowData()), so closing here
+  // rather than leaving stale data on screen forces a fresh rebuild the next time it is opened.
   document.getElementById('cash-flow-overlay').style.display = 'none';
   _cfOpenBucket = null;
   hidePopup();
 }
 
-document.getElementById('refcpi-date-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter') { e.stopPropagation(); document.getElementById('refcpi-apply-btn').click(); }
-});
-
-document.getElementById('refcpi-apply-btn').addEventListener('click', () => {
-  const v = document.getElementById('refcpi-date-input').value; // native date → ISO YYYY-MM-DD
-  if (v) {
-    activeRefCpiDateStr = v;
-    _clearOutput();
-    _buildRows();
-    document.getElementById('refcpi-picker').style.display = 'none';
-  }
-});
-
-document.getElementById('refcpi-reset-btn').addEventListener('click', () => {
-  activeRefCpiDateStr = null;
-  _clearOutput();
-  _buildRows();
-  document.getElementById('refcpi-picker').style.display = 'none';
-});
-
 loadData();
 </script>
-<!-- RefCPI date picker -->
-<div id="refcpi-picker" style="display:none;position:fixed;background:#fff;border:1px solid #cbd5e1;border-radius:6px;padding:0;width:230px;box-shadow:0 4px 18px rgba(0,0,0,.14);z-index:400;font-size:12px;">
-  <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 10px 7px 14px;border-bottom:1px solid #e2e8f0;">
-    <span style="font-size:12px;font-weight:700;color:#1e293b">Ref CPI Date</span>
-    <button id="refcpi-picker-close" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;padding:0 0 0 12px;">×</button>
-  </div>
-  <div style="padding:10px 14px;">
-    <div style="font-size:11px;color:#64748b;margin-bottom:8px;line-height:1.4">Default is the settlement date (T+1 of the market price date). Change to a past date (e.g., purchase date) to measure inflation-adjusted values relative to that point. Affects ladder calculations.</div>
-    <input type="date" id="refcpi-date-input" class="date-picker" style="width:100%;font-size:13px;">
-    <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
-      <button id="refcpi-reset-btn" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;font-size:12px;padding:4px 10px;">Use settlement date</button>
-      <button id="refcpi-apply-btn">Apply</button>
-    </div>
-  </div>
-</div>
-
 <!-- TIPS popup (Ref / Mkt) -->
 <div id="tipsref-overlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:150;overflow:hidden;">
   <div id="tipsref-modal" style="background:#fff;width:680px;min-width:400px;min-height:200px;border-radius:8px;padding:20px 24px;position:fixed;top:60px;left:50%;transform:translateX(-50%);max-height:calc(100vh - 120px);display:flex;flex-direction:column;box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:visible;">
