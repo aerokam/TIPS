@@ -61,11 +61,28 @@ production impact go here.
   `#fundedYear,dara` block (our own exports) from the run-time self-financing scale, because the
   build→export→import round trip used to be zero-trade by construction. Once a year of real change
   separates the two ends, that exemption leaves nothing enforcing the funding rule.
-- **Direction (not yet decided):** additional trades should be expected to fund a new 10Y purchase,
-  and higher coupons flowing down to nearer maturities should let some of those be sold to raise it.
-  Cash cannot be conjured. Whether the self-financing scale should apply to an aged export, and how
-  that interacts with per-year DARA (which made "net cash is zero" no longer automatic), is an open
-  design question.
+- **The shape-preserving fallback still exists, but is switched off here.** 3.0 §Funding the
+  rebalance scales the whole per-year shape down to the highest level that funds itself. It runs
+  only when the store is the untouched load mirror, and `_storeIsPristineMirror()` (`index.html`)
+  returns false as soon as a file carries a `#fundedYear,dara` block — which our own exports always
+  do. So the one case that needs the fallback is the one case excluded from it.
+- **Measured, on this scenario:**
+
+  | setting | net cash | resulting DARA |
+  |---|---|---|
+  | as shipped | −12,743 | 41,459 |
+  | shape-preserving scale on | −166 | 40,440 (−2.5%) |
+  | settlement-year coupons counted | −5,434 | 41,459 |
+  | both | **+977** | 41,001 (−1.1%) |
+
+  Counting the settlement year’s already-paid coupons (6,988 here) removes the 2026 buy outright.
+  With both, the rebalance funds itself and costs about 1.1% of ARA rather than 2.5%.
+- **Note:** the scale landed at −166, slightly negative, where the documented search targets the
+  largest level with net cash ≥ 0. Small, but it means the search is not quite meeting its own
+  stated guarantee — worth a look when this is implemented.
+- **Direction (stated, not yet implemented):** every coupon of the settlement year is assumed
+  retained toward that year’s target, already-paid ones included; on that basis rebalancing must be
+  self-financing, falling back to preserving the shape and reducing ARA when it cannot be.
 - **Status:** open. Scenario is reproducible — see §Reproducing the year-over-year scenario below.
 
 ### The settlement-year rung buys on reload, for a reason unrelated to duration matching
@@ -79,7 +96,10 @@ production impact go here.
 - **Stated intent:** for this scenario every 2026 coupon should count toward the 2026 target,
   already-paid ones included. The coupon-counting choice is secondary; what matters is that the
   ladder finances itself one way or another, counting coupons received during the year.
-- **Status:** open. Likely bears on the funding question above rather than being separate from it.
+- **Measured:** the already-paid 2026 coupons on the held bonds come to 6,988. Supplying that as
+  Available Cash removes the 2026 buy entirely and takes net cash from −12,743 to −5,434, so this
+  is more than half the funding gap on its own.
+- **Status:** open. Bears directly on the funding question above rather than being separate from it.
 
 ### Ref CPI basis change contributes a bond or two of its own
 
@@ -112,6 +132,51 @@ production impact go here.
 - **Scale:** negligible next to the structural trades above, which are tens of thousands of dollars.
 - **Status:** open, low priority.
 
+### Rising yields compensate: measured
+
+- **The claim:** when yields rise the held bracket excess is worth less and can no longer fund the
+  new 10Y, but the synthetic coupons on the remaining gap years are correspondingly higher, which
+  lifts the coupon income reaching earlier rungs, so some of those rungs can be sold to make up the
+  difference. Long held as logical but never verified.
+- **It holds.** Between 2025-08-26 and 2026-08-26 yields rose roughly 50 bp. The synthetic gap
+  coupons went from 1.875–2.000% to 2.250–2.500%, and the new Jul 2036 carries 2.375% against the
+  1.875% of the Jul 2035 it displaces as lower bracket. Comparing two ladders sized to the **same**
+  real target, coupon income reaching each early rung grew:
+
+  | rung | year-ago | today | growth |
+  |---|---|---|---|
+  | 2027 | 7,118.52 | 8,199.43 | 1.152 |
+  | 2029 | 5,794.31 | 6,844.04 | 1.181 |
+  | 2031 | 5,709.79 | 6,405.28 | 1.122 |
+  | 2033 | 5,013.23 | 5,705.56 | 1.138 |
+  | 2035 | 2,250.13 | 4,343.79 | 1.931 |
+
+  Against inflation of 1.0366. Every early rung gains 12–19% of *real* coupon income, so each needs
+  fewer bonds to hit the same target. The whole ladder buys the same real income for **0.94% less**
+  in real terms than a year earlier. That is the compensation, and it is why the shape-preserving
+  reduction needed to close the gap is around 1% rather than something painful.
+- **2026 is the exception** (0.149, a sharp fall) purely because it is the settlement year and only
+  its remaining coupons count — the artifact described above, not a real loss of income.
+
+### A ladder does not roll forward into newly issued long maturities
+
+- **Checked** 2026-08-26, because a ladder built to 2055 a year ago now sees a Feb 2056 that did not
+  exist then. Ladders are consumed, not rolled: no 2056 should be bought.
+- **Result: correct as shipped.** Built to 2055 on year-ago data and reloaded today, the rebalance
+  resolves last year 2055, engages no Future 30Y years, and proposes no trade in any 2056 or later
+  maturity. (It still carries the funding gap above, net cash −17,112.)
+
+### New issuance can swap which bond fills a rung, changing its size sharply
+
+- **Found:** 2026-08-26, investigating why the 2030 rung wanted 7 more bonds (27 → 34) when its
+  coupon income had *risen*, which should have meant fewer.
+- **Cause, and it is correct behavior:** an Oct 2030 TIPS (91282CPH8) was issued in Oct 2025 and now
+  wins "last to mature" for that rung, displacing the Jul 2030 (912828ZZ6). The new issue has barely
+  any accrued inflation — index ratio near 1.0 against roughly 1.3 for the 2020-issued bond it
+  replaces — so each bond carries far less principal and more of them are needed, at proportionally
+  lower cost per bond.
+- **Worth knowing** because the quantity change looks alarming and has nothing to do with the ladder
+  being wrong. Same family as a gap year closing: the universe changed, not the target.
 ### Reproducing the year-over-year scenario
 
 `scripts/getFedInvestPricesForDate.js <YYYY-MM-DD>` writes a `YieldsFromFedInvestPrices.csv` for any
