@@ -29,6 +29,94 @@ production impact go here.
   actually does.
 - **Status:** open, not yet investigated.
 
+### A year-old ladder, reloaded, is not self-financing
+
+- **Found:** 2026-08-26, running the first realistic year-over-year scenario.
+- **Scenario:** ladder built on real FedInvest prices for 2025-08-26 (DARA 40,000, first year
+  2026, last year 2040), exported, then loaded on live market data for 2026-08-26. A year earlier
+  there was no 2036 TIPS at all, so the gap ran 2036–2039 and the lower bracket was Jul 2035;
+  today the gap is 2037–2039 and the lower bracket is Jul 2036.
+- **Result:** net cash **−12,743**. Every trade reconciles exactly to that figure:
+
+  | trade | qty | cash |
+  |---|---|---|
+  | 2026 buy (settlement-year rung) | +6 | −7,309 |
+  | 2027 | −1 | +1,123 |
+  | 2033 | −1 | +1,050 |
+  | Jul 2035 excess 77 → 54 | −23 | +23,204 |
+  | Jul 2036 new funded rung 0 → 38 | +38 | −38,148 |
+  | Feb 2040 excess 45 → 40 | −5 | +7,337 |
+
+  Nothing else moves: 2028–2032, 2034, 2037–2039 and the 2040 funded rung are untouched.
+- **The structural trades are correct.** A TIPS that did not exist a year ago now exists and has to
+  be bought as a funded rung. The old lower bracket was carrying excess against **four** gap years
+  and now covers three, so it needs less; the upper bracket trims for the same reason. The 2035
+  position is not dumped — 54 of 77 are retained (2.0 §Retained Bracket Excess).
+- **The problem is the funding, not the trades.** Those excess sales happen because the excess is no
+  longer needed to duration-match a smaller gap, not in order to pay for the new 10Y. That they
+  might cover it was always a hope, never a guarantee. Here they do not: the rebalance ends 12,743
+  short, and the app does not say where that money comes from.
+- **Spec conflict:** 3.0 §Funding the rebalance states a rebalance must be self-financing, with net
+  cash "a small non-negative number". The same section exempts files carrying an explicit
+  `#fundedYear,dara` block (our own exports) from the run-time self-financing scale, because the
+  build→export→import round trip used to be zero-trade by construction. Once a year of real change
+  separates the two ends, that exemption leaves nothing enforcing the funding rule.
+- **Direction (not yet decided):** additional trades should be expected to fund a new 10Y purchase,
+  and higher coupons flowing down to nearer maturities should let some of those be sold to raise it.
+  Cash cannot be conjured. Whether the self-financing scale should apply to an aged export, and how
+  that interacts with per-year DARA (which made "net cash is zero" no longer automatic), is an open
+  design question.
+- **Status:** open. Scenario is reproducible — see §Reproducing the year-over-year scenario below.
+
+### The settlement-year rung buys on reload, for a reason unrelated to duration matching
+
+- **Found:** 2026-08-26, same scenario.
+- **Symptom:** the first rung (2026) buys 6 bonds, −7,309, the single largest non-bracket trade.
+  Its Amount Before is 34,018 against a target of 41,355.
+- **Cause:** a year has passed, so 2026 is now the settlement year and only its *remaining* coupons
+  count toward that rung (2.0 §Settlement-Year Coupon Treatment). The rung looks underfunded and
+  buys principal to close the difference.
+- **Stated intent:** for this scenario every 2026 coupon should count toward the 2026 target,
+  already-paid ones included. The coupon-counting choice is secondary; what matters is that the
+  ladder finances itself one way or another, counting coupons received during the year.
+- **Status:** open. Likely bears on the funding question above rather than being separate from it.
+
+### Ref CPI basis change contributes a bond or two of its own
+
+- **Found:** 2026-08-26.
+- **Effect:** reloading an export whose Ref CPI date differs from the settlement date moves the
+  bracket years by up to about two bonds. Measured across 240 runs (four ladder lengths, twelve
+  build dates, five DARA levels) on the prices the app actually uses: 62% exactly zero, worst case
+  2,471 (0.24% of the ladder that produced it), never more than four bonds, both directions.
+- **Cause:** the synthetic gap rungs are modeled as issued today, so their P+I per bond does not
+  accrete while the target does. Their quantity is therefore a genuinely different number, not a
+  nudge — e.g. (40,000 − 1,870.04) ÷ 1,012.50 = 37.66 → 38 bonds, against
+  (41,458.71 − 1,905.38) ÷ 1,012.50 = 39.07 → 39. A real rung is unaffected because its P+I
+  accretes by the same factor as the target, leaving the quotient unchanged. Rounding to whole
+  bonds is a second, smaller step on top.
+- **Not verified:** the chain from those synthetic quantities through to the bracket excess
+  requirement does not close arithmetically. The gap block cost grew 2.70% while the required
+  bracket excess grew 1.42%, and that difference is unexplained — the duration weights are the
+  likely place it goes. **Any explanation written for users must not rest on this link until it is
+  verified.**
+- **Scale:** negligible next to the structural trades above, which are tens of thousands of dollars.
+- **Status:** open, low priority.
+
+### Reproducing the year-over-year scenario
+
+`scripts/getFedInvestPricesForDate.js <YYYY-MM-DD>` writes a `YieldsFromFedInvestPrices.csv` for any
+past trading day, in the format `src/data.js` parses. Point the app at it (serve it in place of the
+live file and flip `YIELD_SOURCE` to `fedinvest`), build and export a ladder, then load that export
+against live data. FedInvest is the right source for the historical end: it is the only one with
+per-CUSIP prices for a past date (3.1 §4.0).
+
+### The assumed synthetic coupon is not shown anywhere
+
+- **Found:** 2026-08-26.
+- **Symptom:** the coupon assumed for a synthetic gap or Future 30Y rung (the eighth at or below the
+  anchor yield — 2.0 §Future 30Y Rungs) appears in no popup. The only way to recover it is to back
+  it out of the displayed P+I: 1,014.38 implies 2 × 14.38 = 2.876%, against an actual 2.875%.
+- **Status:** open.
 ## FIXED
 
 ### Ref CPI date in Rebalance: stale basis carried in, no re-scale on change, no notice
