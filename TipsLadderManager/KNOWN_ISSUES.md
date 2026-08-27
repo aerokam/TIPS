@@ -94,11 +94,21 @@ production impact go here.
   (41,458.71 − 1,905.38) ÷ 1,012.50 = 39.07 → 39. A real rung is unaffected because its P+I
   accretes by the same factor as the target, leaving the quotient unchanged. Rounding to whole
   bonds is a second, smaller step on top.
-- **Not verified:** the chain from those synthetic quantities through to the bracket excess
-  requirement does not close arithmetically. The gap block cost grew 2.70% while the required
-  bracket excess grew 1.42%, and that difference is unexplained — the duration weights are the
-  likely place it goes. **Any explanation written for users must not rest on this link until it is
-  verified.**
+- **Chain to the bracket, verified.** Each cover is sized `round(gap block cost × weight ÷ cover
+  cost per bond)` (`gap-math.js`), and the two weights sum to exactly 1, so they split the cost
+  between covers without changing its total. The required excess *cost* therefore equals the gap
+  block cost, up to the rounding of those two quantities to whole bonds. Measured on the same
+  case: that rounding ran +0.7200% at the file basis and −0.5343% at the settlement basis, and
+
+  ```
+  gap block growth 1.027024  ×  rounding swing 0.987547  =  1.014235
+  required excess growth                              =  1.014235   (residual 0.00000000)
+  ```
+
+  So the whole path from Ref CPI date to bracket trade is accounted for, with nothing left over:
+  the synthetic quantities round, then the cover quantities round again. Meanwhile the excess
+  actually held accretes at the full 3.6468%, and the difference against a requirement that grew
+  1.42% is what gets sold.
 - **Scale:** negligible next to the structural trades above, which are tens of thousands of dollars.
 - **Status:** open, low priority.
 
