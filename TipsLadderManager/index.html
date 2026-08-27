@@ -2018,6 +2018,16 @@ function _offerReceivedCouponsAsCash(params) {
   _receivedCashSince = params?.refCpiDate ?? null;
   _availableCashUserSet = false;
   _applyReceivedCashOffer();
+
+  // A file that records no date is counted from the start of the year. That is the right default for
+  // a broker position, which is held all along, but it is an assumption the holder cannot see and it
+  // now moves trades — so say it, and offer the date. Only for a file with no DARA values of its own:
+  // one that has them already carries the basis notice (§DARA Basis Date), which must not be
+  // overwritten, and its own date is what the window uses.
+  if (!_receivedCashSince && !_daraLiteralFromFile && _availableCash > 0) {
+    setStatusHTML('Cash already received is counted from the start of the year, since this file '
+      + 'records no date. <a href="#" id="dara-set-basis" style="color:#93c5fd">Set the date</a>');
+  }
 }
 
 // Recomputes the offered figure against the coupon-counting choice in force, and is re-run whenever
@@ -2867,7 +2877,7 @@ document.getElementById('status').addEventListener('click', e => {
     e.preventDefault();
     const pop = document.getElementById('dara-basis-popover');
     const input = document.getElementById('dara-basis-date');
-    input.value = _daraFileRefCpiDate ?? _defaultRefCpiDateStr ?? '';
+    input.value = _daraFileRefCpiDate ?? _receivedCashSince ?? _defaultRefCpiDateStr ?? '';
     const r = setBasis.getBoundingClientRect();
     pop.hidden = false;
     pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
@@ -2882,8 +2892,21 @@ document.getElementById('dara-basis-apply').addEventListener('click', () => {
   const pop = document.getElementById('dara-basis-popover');
   const v = document.getElementById('dara-basis-date').value;
   pop.hidden = true;
-  if (!v || !_daraLiteralFromFile) return;
+  if (!v) return;
+  // A file with no DARA values of its own has nothing to restate, but the date still says when the
+  // holder started collecting, which is the window the received-cash offer is counted over.
+  if (!_daraLiteralFromFile) {
+    _receivedCashSince = v;
+    _applyReceivedCashOffer();
+    setStatusHTML('Cash already received is counted from ' + esc(_fmtMDY(v))
+      + '. <a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>');
+    return;
+  }
   _daraFileRefCpiDate = v;
+  // The same date governs both: what the per-year amounts are stated at, and how far back cash
+  // received counts.
+  _receivedCashSince = v;
+  _applyReceivedCashOffer();
   const { map, factor, fromDate, toDate } = _restateDaraToActiveBasis(_daraLiteralFromFile, v);
   if (!fromDate) {
     _reapplyImportedDara(_daraLiteralFromFile);

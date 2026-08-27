@@ -1402,6 +1402,33 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 // recorded, and any hand-written plan). The app cannot know the date and does not guess: the values
 // are used as written, and the status strip offers to supply one. Supplying an earlier date scales
 // the values from it to the settlement date (3.0 §DARA Basis Date).
+// A broker file records no date, so cash already received is counted from the start of the year.
+// That is the right default for a position held all along, but it is an assumption the holder cannot
+// otherwise see, and it moves trades -- so the strip says so and offers the date.
+test('a file with no date says which window its received cash was counted over, and the date can be set', async ({ page }) => {
+  test.setTimeout(20_000);
+  const cash = page.locator('#available-cash');
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  // Auto-loaded sample holdings: broker-style, no #params line, so no date of its own.
+  const wholeYear = Number(await cash.inputValue());
+  expect(wholeYear).toBeGreaterThan(0);
+  await expect(page.locator('#status')).toContainText('counted from the start of the year');
+  await expect(page.locator('#dara-set-basis')).toBeVisible();
+
+  // Setting a date partway through the year narrows the window, so less has been collected.
+  await page.locator('#dara-set-basis').click();
+  const settleYear = new Date().getFullYear();
+  await page.locator('#dara-basis-date').fill(settleYear + '-07-01');
+  await page.locator('#dara-basis-apply').click();
+  await expect(page.locator('#status')).toContainText('counted from 07/01/');
+  const fromJuly = Number(await cash.inputValue() || 0);
+  expect(fromJuly, 'a July start collects less than a full year').toBeLessThan(wholeYear);
+
+  // The offer is still the app's, so it still follows the Coupons control.
+  await expect(page.locator('#available-cash-auto')).toBeVisible();
+});
+
 // Whether this year's coupons were kept toward this year or reinvested is one decision, asked on the
 // settlement year's Coupons control. The offered Available Cash follows it live. Maturity proceeds do
 // not: returned principal is not coupon income. And once the holder types a figure of their own, the
