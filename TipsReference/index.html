@@ -172,10 +172,13 @@ import { calculateDuration, _nextCouponOnOrAfter } from '../shared/src/bond-math
 import { initDatePicker } from '../shared/src/date-picker.js';
 // Shared date range filter manager (projects/CLAUDE.md §2a).
 import { createDateRangeFilter } from '../shared/src/date-range-filter.js';
-
-const R2_ROOT = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
-const BASE_URL = R2_ROOT + '/Treasuries';
-const TIPS_URL = R2_ROOT + '/TIPS';
+// Single entry point for market data (source decision, fetch, parse) — shared with
+// TipsLadderManager so a YIELD_SOURCE flip applies to every consumer at once
+// (projects/CLAUDE.md §2a; TipsLadderManager/knowledge/3.1_Data_Pipeline.md §4.0).
+import { loadMarketData } from '../shared/src/market-data.js';
+// Bond-calendar primitives (weekend/SIFMA-holiday skip) — same module TipsLadderManager,
+// YieldsMonitor, SeasonalAdjustments, and YieldCurves import (3.1_Data_Pipeline.md §4.0).
+import { localDate, toIsoDate, actualPaymentDate } from '../shared/src/settlement.js';
 
 var allRows = [];
 var refCpiRows = [];
@@ -183,6 +186,7 @@ var lastRenderedRows = [];
 var priceDateStr = '';
 var settlementDateStr = '';
 var refCpiDateStr = '';
+var bondHolidays = new Set();
 var sortCol = 'maturity';
 var sortDir = 'asc';
 var filters = {};
@@ -229,69 +233,20 @@ var COLS = [
     exportFmt: function(v) { return v != null ? v.toFixed(6) : '—'; } },
 ];
 
-// Duration helpers — inline copy of shared/src/bond-math.js (must stay in sync)
-// Observed US Treasury market closure dates (bond market holidays)
-var BOND_HOLIDAYS = new Set([
-  '2025-01-01','2025-01-20','2025-02-17','2025-04-18','2025-05-26',
-  '2025-06-19','2025-07-04','2025-09-01','2025-10-13','2025-11-11',
-  '2025-11-27','2025-12-25',
-  '2026-01-01','2026-01-19','2026-02-16','2026-04-03','2026-05-25',
-  '2026-06-19','2026-07-03','2026-09-07','2026-10-12','2026-11-11',
-  '2026-11-26','2026-12-25',
-  '2027-01-01','2027-01-18','2027-02-15','2027-03-26','2027-05-31',
-  '2027-06-18','2027-07-05','2027-09-06','2027-10-11','2027-11-11',
-  '2027-11-25','2027-12-24',
-]);
-
-function nextTreasuryBusinessDay(isoStr) {
-  var d = new Date(isoStr + 'T12:00:00Z');
-  do {
-    d.setUTCDate(d.getUTCDate() + 1);
-  } while (d.getUTCDay() === 0 || d.getUTCDay() === 6 ||
-           BOND_HOLIDAYS.has(d.toISOString().slice(0, 10)));
-  return d.toISOString().slice(0, 10);
-}
-
-function isTreasuryBusinessDay(isoStr) {
-  var d = new Date(isoStr + 'T12:00:00Z');
-  return d.getUTCDay() !== 0 && d.getUTCDay() !== 6 && !BOND_HOLIDAYS.has(isoStr);
-}
-
-// A maturity (or coupon) payment due on a weekend or bond holiday is actually paid on
-// the next Treasury business day. Returns the date itself when it's already a business day.
+// A maturity (or coupon) payment due on a weekend or SIFMA bond holiday is actually paid
+// on the next Treasury business day. Returns the date itself when it's already a business
+// day (on-or-after semantics — see shared/src/settlement.js actualPaymentDate). ISO-string
+// wrapper so the rest of this file, which works in ISO strings throughout, doesn't need to
+// touch Date objects.
 function effectivePaymentDate(isoStr) {
-  return isTreasuryBusinessDay(isoStr) ? isoStr : nextTreasuryBusinessDay(isoStr);
+  return toIsoDate(actualPaymentDate(localDate(isoStr), bondHolidays));
 }
 
 // Today's date in ET (matches scripts/getYieldsFedInvest.js todayET()) — used to detect
-// a TIPS maturing today so it stays visible after FedInvest drops its price at maturity.
+// a TIPS maturing today so it stays visible after the market-data source drops its price
+// at maturity (TipsRef.csv, the primary source below, keeps listing it regardless).
 function todayET() {
   return new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
-}
-
-function parseCsv(text) {
-  var lines = text.trim().split('\n').filter(function(l) { return l.trim(); });
-  if (lines.length < 2) return [];
-  var headers = lines[0].split(',').map(function(s) { return s.trim(); });
-  return lines.slice(1).map(function(line) {
-    var vals = line.split(',').map(function(s) { return s.trim(); });
-    var obj = {};
-    headers.forEach(function(h, i) { obj[h] = vals[i] !== undefined ? vals[i] : ''; });
-    return obj;
-  });
-}
-
-function isoLocalDate(d) {
-  var m = d.getMonth() + 1 < 10 ? '0' + (d.getMonth() + 1) : String(d.getMonth() + 1);
-  var day = d.getDate() < 10 ? '0' + d.getDate() : String(d.getDate());
-  return d.getFullYear() + '-' + m + '-' + day;
-}
-
-// Local midnight, matching _nextCouponOnOrAfter's own candidate-date convention (see refDate
-// below) — distinct from the noon-UTC `matDate` parse used for cross-day comparisons.
-function localDateFromIso(isoStr) {
-  var p = isoStr.split('-');
-  return new Date(+p[0], +p[1] - 1, +p[2]);
 }
 
 function fmtDate(isoStr) {
@@ -304,12 +259,10 @@ function fmtDate(isoStr) {
 function recomputeWithRefCpi(dateStr) {
   refCpiDateStr = dateStr;
   var cpi = lookupRefCpi(refCpiRows, dateStr);
-  var _rp = dateStr.split('-');
-  var refDate = new Date(+_rp[0], +_rp[1] - 1, +_rp[2]); // local midnight, matches _nextCouponOnOrAfter candidates
+  var refDate = localDate(dateStr); // local midnight, matches _nextCouponOnOrAfter candidates
 
   var todayStr = todayET();
-  var _tp = todayStr.split('-');
-  var todayDate = new Date(+_tp[0], +_tp[1] - 1, +_tp[2]);
+  var todayDate = localDate(todayStr);
   // A weekend + adjacent bond holiday can roll a coupon's payment forward by several
   // calendar days, so a coupon dated a few days before today can still be paying out
   // today — look back far enough to catch it (7 days safely covers any realistic
@@ -336,15 +289,15 @@ function recomputeWithRefCpi(dateStr) {
     // semiannual coupon gets the same treatment: search from couponLookbackDate (not
     // todayDate) so a coupon dated a few days ago — already in the past calendar-wise,
     // but only now actually paid because of a weekend/holiday roll — is still found.
-    var candidateCpn = isMatured ? localDateFromIso(r.maturity)
+    var candidateCpn = isMatured ? localDate(r.maturity)
       : (matDate ? _nextCouponOnOrAfter(couponLookbackDate, matDate) : null);
-    var candidateCpnStr = isMatured ? r.maturity : (candidateCpn ? isoLocalDate(candidateCpn) : null);
+    var candidateCpnStr = isMatured ? r.maturity : (candidateCpn ? toIsoDate(candidateCpn) : null);
     var todayIsCpnDate = candidateCpnStr && effectivePaymentDate(candidateCpnStr) === todayStr;
     var cpnRefDate = todayIsCpnDate ? candidateCpn : refDate;
     var nextCpn = (matDate && matDate >= cpnRefDate) ? _nextCouponOnOrAfter(cpnRefDate, matDate) : null;
 
     if (nextCpn) {
-      r.nextCoupon = isoLocalDate(nextCpn);
+      r.nextCoupon = toIsoDate(nextCpn);
       r.cpnRefCpi = lookupRefCpi(refCpiRows, r.nextCoupon);
       var cpnIR = indexRatio(r.cpnRefCpi, r.baseCpi);
       r.cpnDateIR = cpnIR;
@@ -560,50 +513,23 @@ function renderTable() {
 async function loadData() {
   var statusEl = document.getElementById('status');
   try {
-    var responses = await Promise.all([
-      fetch(BASE_URL + '/YieldsFromFedInvestPrices.csv', { cache: 'no-cache' }),
-      fetch(TIPS_URL + '/RefCPI.csv', { cache: 'no-cache' }),
-      fetch(TIPS_URL + '/TipsRef.csv', { cache: 'no-cache' }),
-    ]);
-    if (!responses[0].ok) throw new Error('YieldsFromFedInvestPrices.csv: HTTP ' + responses[0].status);
-    if (!responses[1].ok) throw new Error('RefCPI.csv: HTTP ' + responses[1].status);
-    if (!responses[2].ok) throw new Error('TipsRef.csv: HTTP ' + responses[2].status);
-
-    var yieldsText = await responses[0].text();
-    var yieldsLines = yieldsText.trim().split('\n');
-    priceDateStr = yieldsLines[0].trim();
-    settlementDateStr = nextTreasuryBusinessDay(priceDateStr);
-
-    var yieldsRows = parseCsv(yieldsLines.slice(1).join('\n'))
-      .filter(function(r) { return r.type === 'TIPS'; })
-      .map(function(r) {
-        return {
-          cusip:    r.cusip,
-          maturity: r.maturity,
-          coupon:   parseFloat(r.coupon),
-          price:    parseFloat(r.price) || null,
-          yield:    parseFloat(r.yield) || null,
-        };
-      });
-
-    refCpiRows = parseCsv(await responses[1].text()).map(function(r) {
-      return { date: r.date, refCpi: parseFloat(r.refCpi) };
-    });
-
-    var tipsRefRows = parseCsv(await responses[2].text()).map(function(r) {
-      return { cusip: r.cusip, maturity: r.maturity, datedDate: r.datedDate, coupon: parseFloat(r.coupon), baseCpi: parseFloat(r.baseCpi) };
-    });
-    var tipsRefMap = {};
-    tipsRefRows.forEach(function(r) { tipsRefMap[r.cusip] = r; });
+    var d = await loadMarketData();
+    bondHolidays = d.bondHolidays;
+    refCpiRows = d.refCpiRows;
+    // Trade = the data's as-of/"today" date (Fidelity's download date; for the dormant
+    // FedInvest cross-check path, settleDateStr doubles as this — see loadMarketData()).
+    // Settlement = T+1, source-dependent (3.1_Data_Pipeline.md §4.0).
+    priceDateStr = d.tradeDateStr;
+    settlementDateStr = d.settleDateStr;
 
     // Create yields map for quick lookup
     var yieldsMap = {};
-    yieldsRows.forEach(function(r) { yieldsMap[r.cusip] = r; });
+    d.yieldsRows.forEach(function(r) { yieldsMap[r.cusip] = r; });
 
     var settlDate = new Date(settlementDateStr + 'T12:00:00Z');
 
     // Primary source: TipsRef.csv (all TIPS). Enrich with yields where available.
-    allRows = tipsRefRows.map(function(ref) {
+    allRows = d.tipsRefRows.map(function(ref) {
       var yields = yieldsMap[ref.cusip];
       var matDate = ref.maturity ? new Date(ref.maturity + 'T12:00:00Z') : null;
       var term = (matDate && matDate > settlDate) ? (matDate - settlDate) / (365.25 * 86400000) : null;
