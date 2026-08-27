@@ -266,6 +266,46 @@ per-CUSIP prices for a past date (3.1 §4.0).
 - **Spec:** 3.0 §RefCPI Date Override rewritten as §Ref CPI Date; cross-references in 3.1, 5.0 and
   6.0 follow.
 
+### The offered Available Cash ignored the coupon-counting choice
+
+- **Found:** 2026-08-27, first hands-on test of the offer, hours after it shipped.
+- **Symptom:** setting Coupons to None left a full year of coupons sitting in the box as spendable
+  cash. The figure did not respond to the control at all, and did not respond to anything else
+  either — it was computed once at load and never again.
+- **Two faults, one appearance:** the offer never consulted the coupon-counting choice, and it had
+  no recompute path.
+- **Fix:** whether the settlement year’s coupons were kept toward that year or reinvested is one
+  decision, already asked by the Coupons control. The box follows it and moves the moment it
+  changes: All remaining counts every coupon already paid, Only last and None count none — by that
+  setting’s own definition, every already-paid coupon is earlier than the last one still to arrive,
+  so it was reinvested.
+- **Maturity proceeds deliberately do not follow it.** Returned principal is not coupon income, and
+  a rung exists to mature and be spent, so it counts under every setting.
+- **Also fixed:** the offer tracked only whether the app had filled the box in, not whether the
+  holder had taken it over. A typed figure followed by a Coupons change would have been overwritten.
+  And the DARA-plan import restored the coupon choice *after* computing the offer against it, so a
+  plan saved with None was credited its coupons anyway.
+- **Covered by:** `Available Cash follows the Coupons setting, and stops once the holder sets it`
+  (`tests/e2e/app.spec.js`).
+
+### A dateless file’s received-cash window was silent
+
+- **Found:** 2026-08-27, same session: loading a broker file produced a filled-in Available Cash
+  figure with no indication of what period it covered and no way to change it.
+- **Cause:** with no Ref CPI date in the file the window runs from the start of the year. That is
+  right for a broker position, which was held all along, but the holder could not see the assumption
+  and it moves trades. The existing "set the file’s date" offer fires only for a file carrying
+  per-year amounts, so a broker file never saw it — and the apply handler returned early when there
+  were no amounts to restate, so a date set there would have done nothing regardless.
+- **Fix:** the strip states the window and offers the date; setting one narrows it and the figure
+  recomputes. One control serves both jobs: with per-year amounts the date restates them and bounds
+  the window, without them it bounds the window alone.
+- **Worth knowing:** maturity proceeds cannot be recovered from a broker file at all. It lists what
+  is currently held, and a matured bond is not currently held. Only a file this app saved still
+  carries the CUSIP and quantity. From a broker import the offer is coupons only.
+- **Covered by:** `a file with no date says which window its received cash was counted over, and the
+  date can be set` (`tests/e2e/app.spec.js`).
+
 ### A matured rung was bought back, because a matured TIPS is invisible
 
 - **Fixed:** 2026-08-27.
