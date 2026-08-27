@@ -110,6 +110,14 @@ async function main() {
   ok(rcApr16 === 154.65000, `CFR example: Ref CPI Apr16,1996 → 154.65000 (got ${rcApr16})`);
   ok(indexRatio(rcApr16, rcApr15) === 1.00011, `CFR example: Index Ratio Apr16,1996 → 1.00011 (got ${indexRatio(rcApr16, rcApr15)})`);
 
+  // ── Regression: IEEE754 truncation bug reported against 91282CEZ0 (2026-08-27) ──
+  // TreasuryDirect's own detail page shows Index Ratio 1.15004 for this CUSIP/date
+  // (baseCpi 290.54829, refCpi 334.14087). The raw quotient truncates cleanly to
+  // 1.150035, whose 6th decimal is exactly 5 — a case where multiply/trunc/divide
+  // float arithmetic silently lands on 1.1500349999999999 and rounds down to
+  // 1.15003 instead of 1.15004. See shared/src/ref-cpi.js truncateThenRound.
+  ok(indexRatio(334.14087, 290.54829) === 1.15004, `truncation regression: 334.14087/290.54829 → 1.15004 (got ${indexRatio(334.14087, 290.54829)})`);
+
   // ── saFactorForDate ── (uses the raw CSV-column shape, via the shared parser)
   const saRows = parseCsv(nsaSaText); // [{ "Ref CPI Date", "Ref CPI NSA", "Ref CPI SA", "SA Factor" }, ...]
   const midRow = saRows[Math.floor(saRows.length / 2)];

@@ -38,10 +38,17 @@ export function lookupRefCpi(rows, dateStr) {
 // expressed to five decimal places." Applied at both computation points below.
 function truncateThenRound(x, truncDp = 6, roundDp = 5) {
   if (x == null) return x;
+  // IEEE754 doubles can represent an exact n-decimal value as e.g.
+  // 1.1500349999999999 instead of 1.150035, which silently truncates/rounds
+  // one digit low. Nudge by an epsilon far smaller than the 6th/5th decimal
+  // place (1e-6/1e-5) but far larger than double representation error
+  // (~1e-13 relative) so exact boundary values land on their true value.
+  const eps = 1e-9;
+  const sign = x < 0 ? -1 : 1;
   const truncFactor = 10 ** truncDp;
-  const truncated = Math.trunc(x * truncFactor) / truncFactor;
+  const truncated = Math.trunc(x * truncFactor + sign * eps) / truncFactor;
   const roundFactor = 10 ** roundDp;
-  return Math.round(truncated * roundFactor) / roundFactor;
+  return Math.round(truncated * roundFactor + sign * eps) / roundFactor;
 }
 
 // ─── Calculated (31 CFR §356 Appendix B) ─────────────────────────────────────
