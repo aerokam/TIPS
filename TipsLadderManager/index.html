@@ -88,7 +88,7 @@
   /* ── Status ── */
   #run-btn { padding: 5px 18px; }
   #status { margin: 3px 0 0; font-size: 12px; color: #fff; font-weight: 500; }
-  #status.error { color: #f87171; font-weight: 700; }
+  #status.error, #status.notice { color: #f87171; font-weight: 700; }
 
   /* ── Main table ── */
   .table-wrap { padding: 12px 16px; }
@@ -893,7 +893,7 @@ function setStatus(msg, isError = false) {
 // called with app-composed markup — nothing from a loaded file reaches it unescaped.
 function setStatusHTML(html) {
   const el = document.getElementById('status');
-  el.innerHTML = html; el.className = '';
+  el.innerHTML = html; el.className = 'notice';
 }
 
 
@@ -2669,7 +2669,7 @@ function _applyDaraBasis(map, params) {
   const recorded = params?.refCpiDate ?? null;
   if (!recorded) {
     setStatusHTML('This file records no Ref CPI date, so its DARA values are used as written. '
-      + '<a href="#" id="dara-set-basis" style="color:#2563eb">Set the file’s Ref CPI date</a>');
+      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Set the file’s Ref CPI date</a>');
     return map;
   }
   _daraFileRefCpiDate = recorded;
@@ -2721,13 +2721,13 @@ document.getElementById('dara-basis-apply').addEventListener('click', () => {
   if (!fromDate) {
     _reapplyImportedDara(_daraLiteralFromFile);
     setStatusHTML('That is the date already in effect, so the DARA values are used as written. '
-      + '<a href="#" id="dara-set-basis" style="color:#2563eb">Change</a>');
+      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>');
     return;
   }
   _reapplyImportedDara(map);
   setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
     + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}). `
-    + `<a href="#" id="dara-set-basis" style="color:#2563eb">Change</a>`);
+    + `<a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>`);
 });
 
 let currentImportedParams = null; // construction params from our own export's #params line ({preLadderInterest, maturityPref}); null for broker/legacy
@@ -3852,7 +3852,7 @@ loadData();
     <button id="refcpi-picker-close" style="background:none;border:none;font-size:18px;color:#94a3b8;cursor:pointer;line-height:1;padding:0 0 0 12px;">×</button>
   </div>
   <div style="padding:10px 14px;">
-    <div style="font-size:11px;color:#64748b;margin-bottom:8px;line-height:1.4">Default is T+1 of the FedInvest price date (settlement date). Change to a past date (e.g., purchase date) to measure inflation-adjusted values relative to that point. Affects ladder calculations.</div>
+    <div style="font-size:11px;color:#64748b;margin-bottom:8px;line-height:1.4">Default is the settlement date (T+1 of the market price date). Change to a past date (e.g., purchase date) to measure inflation-adjusted values relative to that point. Affects ladder calculations.</div>
     <input type="date" id="refcpi-date-input" class="date-picker" style="width:100%;font-size:13px;">
     <div style="margin-top:8px;display:flex;justify-content:space-between;align-items:center;">
       <button id="refcpi-reset-btn" style="background:#f1f5f9;color:#475569;border:1px solid #cbd5e1;font-size:12px;padding:4px 10px;">Use settlement date</button>
