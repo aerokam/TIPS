@@ -1497,9 +1497,12 @@ test('Available Cash is offered from coupons already received, and only for a la
   await expect(mark).toBeHidden();
 
   // The same plan stated a year ago: every coupon paid since counts, and the offer returns.
+  // availableCash=0 is written here on purpose: the CUSIP/Qty export always emits the key, so every
+  // ladder that never had cash entered carries a zero. Reading that as "the file stated its cash"
+  // would suppress the offer on precisely the aged exports it exists for.
   const planAged = test.info().outputPath('plan-stated-a-year-ago.csv');
   const lastYear = new Date(); lastYear.setFullYear(lastYear.getFullYear() - 1);
-  writeFileSync(planAged, ['#params,refCpiDate=' + lastYear.toISOString().slice(0, 10),
+  writeFileSync(planAged, ['#params,availableCash=0,refCpiDate=' + lastYear.toISOString().slice(0, 10),
     '#fundedYear,dara', ...years.map(y => y + ',40000')].join('\n') + '\n');
   await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planAged);
@@ -1717,9 +1720,10 @@ test('Coupon Counting: link appears only on the settlement year row, and the pop
   const pop = page.locator('#rmd-options-popover');
   await expect(pop).toBeVisible();
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('all');
-  // Available Cash is ladder-wide, so it lives in Row 2, not in this per-year popover.
+  // Available Cash is ladder-wide, so it lives in Row 1 rather than in this per-year popover --
+  // and it is Rebalance-only, since a Build starts from cash by definition (2.0 §Available Cash).
   await expect(pop.locator('#rmd-cash-override')).toHaveCount(0);
-  await expect(page.locator('#available-cash')).toBeVisible();
+  await expect(page.locator('#field-available-cash')).toBeHidden();
 
   await pop.locator('input[name="rmd-coupon-mode"][value="last"]').check();
   await page.locator('#rmd-options-close').click();
@@ -1766,12 +1770,15 @@ test('Coupon Counting: hovering the link shows an explainer without opening the 
 
 // RMD Options persist through the same standalone DARA-plan file the DARA-by-year shape already
 // uses (2.1 §Standalone DARA-plan file `#params` line) — no separate file/mechanism.
+// Rebalance mode: Available Cash lives there alone, so a plan carrying it has to be written and
+// read back there.
 test('Available Cash and coupon mode round-trip through the DARA-plan file', async ({ page }) => {
   test.setTimeout(20_000);
-  await _buildSetup(page);
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
 
-  const firstYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
-  const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  const firstYear = await page.locator('#simple-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const link = page.locator(`#simple-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  await expect(page.locator('#field-available-cash')).toBeVisible();
   await page.locator('#available-cash').fill('4200');
   await page.locator('#available-cash').blur();
   await link.click();
@@ -1792,10 +1799,11 @@ test('Available Cash and coupon mode round-trip through the DARA-plan file', asy
   expect(planText).toContain('rmdCouponMode=none');
 
   await page.reload();
-  await expect(page.locator('#run-btn')).not.toBeDisabled({ timeout: 4_000 });
-  await _buildSetup(page);
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
   await expect(link).toHaveText('Coupons'); // fresh reload is the plain default again
-  await expect(page.locator('#available-cash')).toHaveValue('');
+  // Not empty on a fresh load: the sample holdings are a held position, so the app offers the
+  // coupons already received. What matters is that 4,200 is gone.
+  await expect(page.locator('#available-cash')).not.toHaveValue('4200');
 
   await chooseMenu(page, 'import-menu', 'dara-plan');
   await page.locator('#dara-plan-import-file').setInputFiles(planPath);

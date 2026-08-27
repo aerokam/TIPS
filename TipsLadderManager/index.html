@@ -1039,6 +1039,10 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     if (isRebalance) _closeMaturityPickerModal();
 
     // Allocation policy (C) / rank override (D) — Rebalance-only, no Build equivalent.
+    // Available cash states what the holder will spend rather than invest out of a portfolio they
+    // already hold. A Build starts from cash by definition and reports what the ladder costs, so
+    // there is nothing for the figure to mean there (2.0 §Available Cash).
+    document.getElementById('field-available-cash').style.display = isRebalance ? '' : 'none';
     document.getElementById('field-alloc-policy').style.display = isRebalance ? '' : 'none';
     if (!isRebalance) { _closeRankPickerModal(); _updateAllocPolicyOptionLabel('Set priority order…'); _allocListOpenPending = false; }
 
@@ -1998,8 +2002,11 @@ function _couponEventCalc(bond, d, activeRc, activeDateIso) {
 // comes back zero on its own and the box stays empty — no special case for the same-day round trip.
 // Called from both load paths (holdings file / account selection, and a standalone DARA plan), so
 // the two can never disagree about the figure.
+// A file's `availableCash=0` is not a statement: the CUSIP/Qty export writes the key unconditionally,
+// so every ladder that never had cash entered carries a zero — including the aged exports this offer
+// exists for. Only a positive figure means the holder said what they hold.
 function _offerReceivedCouponsAsCash(params) {
-  if (params?.availableCash == null && currentMode === 'rebalance') {
+  if (!(params?.availableCash > 0) && currentMode === 'rebalance') {
     const { total } = _settlementYearCouponsReceivedSince(currentHoldingsArray, params?.refCpiDate ?? null);
     _availableCash = total > 0 ? total : 0;
     _availableCashAuto = total > 0;
@@ -3596,7 +3603,9 @@ function _runBuildFromForm() {
     daraByYear,
     yearOverrides: _yearMaturityOverrides,
     bondHolidays: _bondHolidays,
-    availableCash: _availableCash, rmdCouponMode: _rmdCouponMode,
+    // Build never spends down against cash on hand — the field is Rebalance-only, and a DARA plan
+    // carrying a figure from the mode that does use it must not apply here unseen.
+    availableCash: 0, rmdCouponMode: _rmdCouponMode,
     tradeDate: localDate(_tradeDateStr),
   });
   _lastKnownDara = dara;

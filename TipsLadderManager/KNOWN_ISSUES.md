@@ -171,19 +171,7 @@ production impact go here.
 - **Still to verify:** whether any path *could* produce within-year churn — the target bond set is
   selected from the preference at Run, so it is worth confirming that a held bond is never displaced
   merely because a newer one now matches the preference better.
-### Available Cash does not belong in Build
 
-- **Found:** 2026-08-27.
-- **Symptom:** the Available Cash field shows in both modes (`#field-available-cash` is never
-  hidden on the mode switch, unlike Brackets and Allocation policy).
-- **Why it is wrong:** a Build starts from all cash and the app reports what the ladder costs, so
-  stating cash on hand is redundant there. It earns its place only in Rebalance, where the holder
-  may have kept coupons or maturing principal rather than spending them (the default assumption is
-  that they were spent) and wants that deployed in the rebalance.
-- **Partly addressed 2026-08-27:** the figure is now per-mode, because the received-coupon offer is
-  a statement about a held portfolio and must not follow the user into a from-scratch build. The
-  field itself is still shown in Build; whether to remove it outright is still open.
-- **Status:** open — the control is still there in Build, it just no longer shares its value.
 ### Reproducing the year-over-year scenario
 
 `scripts/getFedInvestPricesForDate.js <YYYY-MM-DD>` writes a `YieldsFromFedInvestPrices.csv` for any
@@ -200,6 +188,49 @@ per-CUSIP prices for a past date (3.1 §4.0).
   it out of the displayed P+I: 1,014.38 implies 2 × 14.38 = 2.876%, against an actual 2.875%.
 - **Status:** open.
 ## FIXED
+
+### Available Cash showed in Build, where it has nothing to mean
+
+- **Fixed:** 2026-08-27.
+- **Symptom:** the field was never hidden on a mode switch, unlike Brackets and Allocation policy,
+  so it showed in both modes and shared one value across them.
+- **Why it is wrong:** the figure states what the holder will spend out of a portfolio they already
+  hold. A Build starts from cash by definition and reports what the ladder costs, so there is
+  nothing there for it to mean. It became actively harmful once the app began offering the figure
+  from coupons already received: that is a statement about a held position, and letting it follow
+  the user into Build would size a from-scratch ladder down against coupons nobody was paid.
+- **Fix:** the control is Rebalance-only, its state is per-mode, and a Build run always sizes at
+  zero cash — including when a DARA plan carrying a figure from Rebalance is imported into Build.
+
+### A stated availableCash=0 suppressed the received-coupon offer
+
+- **Fixed:** 2026-08-27, same day it was introduced, before it ever ran on a real file.
+- **Symptom:** the offer was skipped whenever the file stated its own Available Cash. The CUSIP/Qty
+  export writes `availableCash=0` unconditionally, so every ladder that never had cash entered
+  carries a zero — including every aged export the offer exists for. It would have fired only on
+  hand-written files.
+- **Fix:** only a positive figure counts as the holder having said what they hold. Guarded by the
+  aged-plan half of the Available Cash E2E test, which now writes `availableCash=0` on purpose.
+
+### Test ladders built on real year-ago market data
+
+- **Added:** 2026-08-27, in `data/yearago/`.
+- **Why:** a ladder stated at an older Ref CPI date cannot be produced in the app from live data,
+  and building one against today’s prices with an old Ref CPI would mix two dates. These are built
+  entirely on FedInvest prices, yields and Ref CPI for 2025-08-26 — what the app would have
+  exported that day — written in the CUSIP/Qty export format, so they load in Rebalance like any
+  other export.
+
+  | file | ladder | DARA | reload today |
+  |---|---|---|---|
+  | `ladder-2026-2040-dara40k.csv` | 2026–2040 | 40,000 | +204, ARA −1.4% |
+  | `ladder-2026-2055-dara40k.csv` | 2026–2055 | 40,000 | +95, ARA −0.8% |
+  | `ladder-2026-2045-dara100k.csv` | 2026–2045 | 100,000 | +399, ARA −0.8% |
+  | `ladder-2027-2050-dara60k.csv` | 2027–2050 | 60,000 | +228, ARA **+0.8%** |
+
+  The last one gains: its first funded year is 2027, so the settlement year is outside the ladder
+  and the coupons received during 2026 are pure surplus rather than income the 2026 rung was
+  counting on.
 
 ### The settlement year bought principal against coupons it had already been paid
 
