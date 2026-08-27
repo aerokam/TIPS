@@ -4,14 +4,16 @@
 // RefCPI.csv, TipsRef.csv, YieldsSaSao.csv, BondHolidaysSifma.csv) via page.route() in beforeEach below —
 // the test browser has no live network egress in a sandboxed session, so an unmocked R2 URL fails with
 // "Failed to fetch" (this is by design, not flakiness; well-known, see 3.1_Data_Pipeline.md §Testing).
-// Any new required R2 fetch added to data.js MUST get a matching fixture file + route() mock here, or
+// Any new required R2 fetch added to shared/src/market-data.js MUST get a matching fixture file + route() mock here, or
 // every test hangs/fails at the beforeEach's data-load wait, not just tests that touch the new field.
 
 import { test, expect } from 'playwright/test';
 import { readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { nextBondTradingDay, parseBondHolidays } from '../../src/data.js';
+import { nextBondTradingDay } from '../../../shared/src/market-data.js';
+import { parseHolidaySet } from '../../../shared/src/settlement.js';
+import { parseCsv as parseCsvRows } from '../../../shared/src/csv.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FIXTURES = path.join(ROOT, 'tests', 'e2e');
@@ -20,7 +22,7 @@ const csv = name => readFileSync(path.join(FIXTURES, name), 'utf8');
 // Compute today's T+1 settlement date using the same logic as the live app.
 function computeSettleDateStr() {
   const holidayText = readFileSync(path.join(FIXTURES, 'BondHolidaysSifma.csv'), 'utf8');
-  const bondHolidays = parseBondHolidays(holidayText);
+  const bondHolidays = parseHolidaySet(parseCsvRows(holidayText, false));
   const now = new Date();
   const todayISO = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
   return nextBondTradingDay(todayISO, bondHolidays);

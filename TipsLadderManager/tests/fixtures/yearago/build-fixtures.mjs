@@ -17,7 +17,7 @@ globalThis.fetch = async (url) => {
   try { return { ok: true, status: 200, async text() { return readFileSync(`${SNAPSHOT}/${name}`, 'utf8'); } }; }
   catch { return { ok: false, status: 404, async text() { return ''; } }; }
 };
-const data  = await import(`file:///${APP}/src/data.js`);
+const data  = await import(`file:///${path.resolve(APP, '..', 'shared', 'src', 'market-data.js')}`);
 const rl    = await import(`file:///${APP}/src/rebalance-lib.js`);
 const build = await import(`file:///${APP}/src/build-lib.js`);
 

@@ -11,7 +11,7 @@ import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
-import { loadMarketData, nextBondTradingDay, lookupRefCpi } from '../src/data.js';
+import { loadMarketData, nextBondTradingDay, lookupRefCpi } from '../../shared/src/market-data.js';
 import { installFixtureFetch } from './market-fixture.js';
 import { accruedInterest, bondCalcs, daysBetween } from '../../shared/src/bond-math.js';
 

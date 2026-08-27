@@ -1,4 +1,4 @@
-// Write a YieldsFromFedInvestPrices.csv for a PAST trading day, in the format src/data.js parses
+// Write a YieldsFromFedInvestPrices.csv for a PAST trading day, in the format shared/src/market-data.js parses
 // (line 1 = settlement date, line 2 = header, rows 3+ = data).
 //
 // Why this exists: FedInvest is the only source with per-CUSIP prices for a past date, which is

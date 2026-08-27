@@ -1,57 +1,35 @@
-// data.js -- CSV fetch and parse (4.0_Computation_Modules.md)
-// Exports: parseCsv, fetchTipsData, fetchFidelityTipsData, lookupRefCpi (re-exported from shared)
+// market-data.js -- CSV fetch and parse for TIPS market data (4.0_Computation_Modules.md,
+// TipsLadderManager/knowledge/3.1_Data_Pipeline.md).
+// Moved here from TipsLadderManager/src/data.js so TipsReference can share it too, per the
+// project-wide no-redundancy directive (projects/CLAUDE.md §2a) -- a source flip in YIELD_SOURCE
+// now applies to every consumer at once, instead of being able to strand one app on the dormant
+// source while another moved on (see handoff-shared-data-js.md).
+// Named market-data.js, not data.js: CpiExplorer/src/data.js already exists and is unrelated
+// (fetchCpiHistory, fetchRefCpi) -- two data.js files, one of them shared, invites exactly the
+// wrong-file mistake this move is meant to prevent.
+//
+// Exports: parseCsv, fetchTipsData, fetchFidelityTipsData, loadMarketData, nextBondTradingDay,
+// lookupRefCpi (re-exported from shared/src/ref-cpi.js)
 
 // Ref CPI lookup is defined once in shared/src/ref-cpi.js (no-redundancy directive,
-// projects/CLAUDE.md §2a). Re-exported here so existing `from './data.js'` imports resolve.
-export { lookupRefCpi } from '../../shared/src/ref-cpi.js';
-import { parseFidelityTipsRows, parseFidelityDownloadDate, fidelityDownloadDateIso } from '../../shared/src/fidelity-parse.js';
-import { yieldFromPrice } from '../../shared/src/bond-math.js';
-import { localDate } from '../../shared/src/settlement.js';
+// projects/CLAUDE.md §2a). Re-exported here so existing `from './market-data.js'` imports resolve.
+export { lookupRefCpi } from './ref-cpi.js';
+import { parseFidelityTipsRows, parseFidelityDownloadDate, fidelityDownloadDateIso } from './fidelity-parse.js';
+import { yieldFromPrice } from './bond-math.js';
+import { localDate, toIsoDate, nextBusinessDay, parseHolidaySet } from './settlement.js';
+import { parseCsv as parseCsvRows } from './csv.js';
 
 const R2_ROOT = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const BASE_URL = R2_ROOT + '/Treasuries';
 
 const TIPS_URL = R2_ROOT + '/TIPS';
 
-// Parse BondHolidaysSifma.csv into a Set of YYYY-MM-DD ISO strings.
-// CSV rows look like: "Thursday, April 03, 2025","Good Friday"
-export function parseBondHolidays(text) {
-  const months = { January:1, February:2, March:3, April:4, May:5, June:6,
-                   July:7, August:8, September:9, October:10, November:11, December:12 };
-  const holidays = new Set();
-  for (const line of text.trim().split('\n')) {
-    const m = line.match(/"[^,]+,\s+(\w+)\s+(\d+),\s+(\d{4})"/);
-    if (!m) continue;
-    const mo = months[m[1]];
-    if (!mo) continue;
-    holidays.add(`${m[3]}-${String(mo).padStart(2,'0')}-${String(+m[2]).padStart(2,'0')}`);
-  }
-  return holidays;
-}
-
-// Returns the next bond trading day after isoDateStr (skips weekends + bond market holidays).
-export function nextBondTradingDay(isoDateStr, bondHolidays) {
-  const [y, mo, d] = isoDateStr.split('-').map(Number);
-  const dt = new Date(y, mo - 1, d);
-  do {
-    dt.setDate(dt.getDate() + 1);
-    const iso = dt.getFullYear() + '-' +
-      String(dt.getMonth() + 1).padStart(2, '0') + '-' +
-      String(dt.getDate()).padStart(2, '0');
-    if (dt.getDay() !== 0 && dt.getDay() !== 6 && !bondHolidays.has(iso)) return iso;
-  } while (true);
-}
-
-// A coupon/principal dated on a weekend or bond holiday is actually paid the next bond trading
-// day — the cash isn't in hand until then. `bondHolidays` defaults to an empty Set (weekend-only
-// rolling still applies via the day-of-week check in nextBondTradingDay; pass real holiday data
-// for full accuracy). 5.0 §Cash Flow Calendar.
-export function actualPaymentDate(d, bondHolidays = new Set()) {
-  const iso = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-  const isTradingDay = d.getDay() !== 0 && d.getDay() !== 6 && !bondHolidays.has(iso);
-  if (isTradingDay) return d;
-  const [ny, nmo, nd] = nextBondTradingDay(iso, bondHolidays).split('-').map(Number);
-  return new Date(ny, nmo - 1, nd);
+// Next bond trading day after isoDateStr (skips weekends + SIFMA bond-market holidays), as an
+// ISO string in, ISO string out -- a thin wrapper so callers here keep working with dates the way
+// this module's CSVs already do, while the actual weekend/holiday-skip logic lives once in
+// shared/src/settlement.js (nextBusinessDay), imported by every app that needs it.
+export function nextBondTradingDay(isoDateStr, holidaySet) {
+  return toIsoDate(nextBusinessDay(localDate(isoDateStr), holidaySet));
 }
 
 export function parseCsv(text) {
@@ -66,7 +44,7 @@ export function parseCsv(text) {
   });
 }
 
-// Fetches RefCPI.csv, TipsRef.csv, YieldsSaSao.csv, and BondHolidaysSifma.csv from R2 —
+// Fetches RefCPI.csv, TipsRef.csv, YieldsSaSao.csv, and BondHolidaysSifma.csv from R2 --
 // shared by both fetchTipsData() (FedInvest) and fetchFidelityTipsData() (Fidelity) so the
 // parsing isn't duplicated between the two sources (projects/CLAUDE.md §2a).
 // Throws on HTTP errors for RefCPI/TipsRef/YieldsSaSao; holidays are optional (3s timeout).
@@ -86,8 +64,8 @@ async function fetchAuxTipsData() {
     const timer = setTimeout(() => ctrl.abort(), 3000);
     const holidayRes = await fetch(R2_ROOT + '/misc/BondHolidaysSifma.csv', { signal: ctrl.signal });
     clearTimeout(timer);
-    if (holidayRes.ok) bondHolidays = parseBondHolidays(await holidayRes.text());
-  } catch (_) { /* unavailable — T+1 falls back to weekend-skip only */ }
+    if (holidayRes.ok) bondHolidays = parseHolidaySet(parseCsvRows(await holidayRes.text(), false));
+  } catch (_) { /* unavailable -- T+1 falls back to weekend-skip only */ }
 
   const refCpiRows = parseCsv(await refCpiRes.text()).map(r => ({
     date:   r.date,
@@ -103,7 +81,7 @@ async function fetchAuxTipsData() {
     term:      r.term,
   }));
 
-  // YieldsSaSao.csv: cusip,maturity,coupon,ask_yield,sa_yield,sao_yield — produced by
+  // YieldsSaSao.csv: cusip,maturity,coupon,ask_yield,sa_yield,sao_yield -- produced by
   // YieldCurves/scripts/updateSaSaoYields.js. Only sa_yield is consumed (2.0 §Within-Year
   // Allocation Policy); ask_yield/sao_yield are parsed but unused here.
   const saSaoRows = parseCsv(await saSaoRes.text()).map(r => ({
@@ -146,11 +124,11 @@ export async function fetchTipsData() {
 }
 
 // Fetches FidelityTreasuriesTips.csv from R2 (ask price; yield is computed from that price
-// via the shared yieldFromPrice(), not read from Fidelity's own quoted yield column — verified
+// via the shared yieldFromPrice(), not read from Fidelity's own quoted yield column -- verified
 // more accurate than Fidelity's own figure, see 3.1_Data_Pipeline.md). baseCpi comes from
 // TipsRef.csv (Fidelity's export doesn't carry it). Settlement is T+1 from Fidelity's download
 // date (real broker trade settlement), unlike FedInvest's T=0 (needed for its own price->yield
-// math) — see 3.1_Data_Pipeline.md "Settlement Date Conventions".
+// math) -- see 3.1_Data_Pipeline.md "Settlement Date Conventions".
 // Returns the same shape as fetchTipsData(): { yieldsRows, refCpiRows, tipsRefRows, bondHolidays }
 // Throws on HTTP errors.
 //
@@ -166,9 +144,10 @@ export async function fetchTipsData() {
 const YIELD_SOURCE = 'fidelity';
 
 // The one entry point for market data. Returns the raw rows plus the dates whose derivation is
-// source-dependent, so no caller has to know — or can get wrong — which source is active.
-// Callers build the TIPS map themselves via buildTipsMapFromYields (rebalance-lib.js): data.js is
-// a leaf and does not import an orchestrator (4.0 §Module Dependency Graph).
+// source-dependent, so no caller has to know -- or can get wrong -- which source is active.
+// Callers build the TIPS map themselves via buildTipsMapFromYields (TipsLadderManager's
+// rebalance-lib.js): this module is a leaf and does not import an orchestrator
+// (TipsLadderManager knowledge/4.0_Computation_Modules.md §Module Dependency Graph).
 export async function loadMarketData() {
   const d = YIELD_SOURCE === 'fedinvest' ? await fetchTipsData() : await fetchFidelityTipsData();
   const { yieldsRows, refCpiRows, tipsRefRows, saSaoRows, bondHolidays, asOfDate } = d;

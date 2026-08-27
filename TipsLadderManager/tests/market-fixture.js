@@ -1,7 +1,7 @@
 // Serves the tests/e2e/*.csv fixtures to the app's own data loader.
 //
 // Tests must not re-implement the market-data load: which source is live is decided inside
-// data.js's loadMarketData() (3.1 §4.0 Yield Sources), and a test that parses a CSV itself has to
+// shared/src/market-data.js's loadMarketData() (3.1 §4.0 Yield Sources), and a test that parses a CSV itself has to
 // pick a source, which is the one thing it cannot get right by construction. Installing this shim
 // and calling loadMarketData() gives a test exactly the rows, dates, and source the app gets.
 import { readFileSync } from 'fs';

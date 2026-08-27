@@ -10,7 +10,7 @@
 // truth that kills the build↔rebalance duplication.
 
 import { bondCalcs, calculateMDuration, couponSchedule } from '../../shared/src/bond-math.js';
-import { actualPaymentDate } from './data.js';
+import { actualPaymentDate } from '../../shared/src/settlement.js';
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 import { bracketWeights, bracketExcessQtys, fyQty as _fyQty, gapParamsWithUpperFeedback, future30yParamsCore, excessAmdSchedule } from './gap-math.js';
 

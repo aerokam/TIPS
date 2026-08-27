@@ -679,7 +679,8 @@ import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
 import { rankForYear } from './src/allocation-policy.js';
 import { accruedInterest, bondCalcs, couponSchedule } from '../shared/src/bond-math.js';
-import { loadMarketData, lookupRefCpi, nextBondTradingDay, actualPaymentDate } from './src/data.js';
+import { loadMarketData, lookupRefCpi, nextBondTradingDay } from '../shared/src/market-data.js';
+import { actualPaymentDate } from '../shared/src/settlement.js';
 window.lookupRefCpi = lookupRefCpi;
 import { parseBrokerCSV } from './src/broker-import.js';
 
@@ -1969,7 +1970,7 @@ function _isoDate(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).p
 
 // A coupon dated on a weekend/holiday is actually paid the next bond trading day, so the event
 // must stay on the calendar (still "unpaid") through that day (5.0 §Cash Flow Calendar).
-// Single source: src/data.js actualPaymentDate() — also used by the settlement-year remaining-
+// Single source: shared/src/settlement.js actualPaymentDate() — also used by the settlement-year remaining-
 // coupon LMI logic in ladder-core.js/rebalance-lib.js, so the two stay in agreement.
 function _actualPaymentDate(d) {
   return actualPaymentDate(d, _bondHolidays);
@@ -2757,103 +2758,103 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 
 // ─── File Parsing & State ─────────────────────────────────────────────────────
 let currentHoldingsArray = null;
-let currentImportedDaraByYear = null; // explicit per-year DARA from our own export's #fundedYear,dara block (null for broker/legacy)
-// ─── DARA basis date (3.0 §DARA Basis Date) ──────────────────────────────────────────────────
-// DARA is a real amount stated at a Ref CPI date, so a saved ladder’s bare DARA numbers mean
-// nothing without the date they were stated at. Our exports record that date; on import the values
-// are scaled from it to the date now in effect (the settlement date in Rebalance, always), so a
-// target keeps its real purchasing power rather than being read as that many of today’s smaller
-// dollars. There is no way to decline the scaling: reading a target stated at an older Ref CPI date
-// as though it were stated at the settlement date silently cuts it by the inflation in between,
-// which is the whole failure this exists to prevent.
-let _daraLiteralFromFile = null;   // the file’s own DARA values, kept so a date supplied later can scale them
-let _daraFileRefCpiDate = null;    // the Ref CPI date the file was stated at, once known
-
-function _restateDaraToActiveBasis(map, recordedDate) {
-  const none = { map, factor: 1, fromDate: null, toDate: null };
-  if (!map || map.size === 0 || !recordedDate || !refCpiRows) return none;
-  const activeDate = _defaultRefCpiDateStr;
-  if (!activeDate || activeDate === recordedDate) return none;
-  const rcFrom = lookupRefCpi(refCpiRows, recordedDate);
-  const rcTo   = lookupRefCpi(refCpiRows, activeDate);
-  if (!(rcFrom > 0) || !(rcTo > 0)) return none;
-  const factor = rcTo / rcFrom;
-  if (Math.abs(factor - 1) < 1e-9) return none;
-  const out = new Map();
-  for (const [y, v] of map) out.set(y, v * factor);
-  return { map: out, factor, fromDate: recordedDate, toDate: activeDate };
-}
-
-// Scales a freshly parsed DARA map to the Ref CPI date in effect and says so in the status strip.
-// Returns the map to use. A file that records no Ref CPI date is used as written (exactly the
-// behavior before this existed) and offered the chance to supply one.
-function _applyDaraBasis(map, params) {
-  _daraLiteralFromFile = map ? new Map(map) : null;
-  _daraFileRefCpiDate = null;
-  if (!map || map.size === 0) return map;
-  const recorded = params?.refCpiDate ?? null;
-  if (!recorded) {
-    setStatusHTML('This file records no Ref CPI date, so its DARA values are used as written. '
-      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Set the file’s Ref CPI date</a>');
-    return map;
-  }
-  _daraFileRefCpiDate = recorded;
-  const { map: restated, factor, fromDate, toDate } = _restateDaraToActiveBasis(map, recorded);
-  if (!fromDate) return map;
-  setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
-    + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}).`);
-  return restated;
-}
-
-// Re-applies the imported DARA map (scaled or as written) to the panel, for the Ref CPI date picker
-// offered when a file records no date of its own.
-function _reapplyImportedDara(map) {
-  currentImportedDaraByYear = new Map(map);
-  _daraByYearStore = new Map(map);
-  _daraLoadedSnapshot = new Map(map);
-  const vals = [...map.values()].sort((a, b) => a - b);
-  _daraByYearPanelDefault = Math.round(vals[Math.floor(vals.length / 2)]);
-  document.getElementById('dara').value = _daraByYearPanelDefault;
-  _clearOutput();
-  renderDaraByYearPanel();
-  updateDaraInput(true);
-}
-
-document.getElementById('status').addEventListener('click', e => {
-  const setBasis = e.target.closest('#dara-set-basis');
-  if (setBasis) {
-    e.preventDefault();
-    const pop = document.getElementById('dara-basis-popover');
-    const input = document.getElementById('dara-basis-date');
-    input.value = _daraFileRefCpiDate ?? _defaultRefCpiDateStr ?? '';
-    const r = setBasis.getBoundingClientRect();
-    pop.hidden = false;
-    pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
-    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
-  }
-});
-
-document.getElementById('dara-basis-cancel').addEventListener('click', () => {
-  document.getElementById('dara-basis-popover').hidden = true;
-});
-document.getElementById('dara-basis-apply').addEventListener('click', () => {
-  const pop = document.getElementById('dara-basis-popover');
-  const v = document.getElementById('dara-basis-date').value;
-  pop.hidden = true;
-  if (!v || !_daraLiteralFromFile) return;
-  _daraFileRefCpiDate = v;
-  const { map, factor, fromDate, toDate } = _restateDaraToActiveBasis(_daraLiteralFromFile, v);
-  if (!fromDate) {
-    _reapplyImportedDara(_daraLiteralFromFile);
-    setStatusHTML('That is the date already in effect, so the DARA values are used as written. '
-      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>');
-    return;
-  }
-  _reapplyImportedDara(map);
-  setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
-    + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}). `
-    + `<a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>`);
-});
+let currentImportedDaraByYear = null; // explicit per-year DARA from our own export's #fundedYear,dara block (null for broker/legacy)
+// ─── DARA basis date (3.0 §DARA Basis Date) ──────────────────────────────────────────────────
+// DARA is a real amount stated at a Ref CPI date, so a saved ladder’s bare DARA numbers mean
+// nothing without the date they were stated at. Our exports record that date; on import the values
+// are scaled from it to the date now in effect (the settlement date in Rebalance, always), so a
+// target keeps its real purchasing power rather than being read as that many of today’s smaller
+// dollars. There is no way to decline the scaling: reading a target stated at an older Ref CPI date
+// as though it were stated at the settlement date silently cuts it by the inflation in between,
+// which is the whole failure this exists to prevent.
+let _daraLiteralFromFile = null;   // the file’s own DARA values, kept so a date supplied later can scale them
+let _daraFileRefCpiDate = null;    // the Ref CPI date the file was stated at, once known
+
+function _restateDaraToActiveBasis(map, recordedDate) {
+  const none = { map, factor: 1, fromDate: null, toDate: null };
+  if (!map || map.size === 0 || !recordedDate || !refCpiRows) return none;
+  const activeDate = _defaultRefCpiDateStr;
+  if (!activeDate || activeDate === recordedDate) return none;
+  const rcFrom = lookupRefCpi(refCpiRows, recordedDate);
+  const rcTo   = lookupRefCpi(refCpiRows, activeDate);
+  if (!(rcFrom > 0) || !(rcTo > 0)) return none;
+  const factor = rcTo / rcFrom;
+  if (Math.abs(factor - 1) < 1e-9) return none;
+  const out = new Map();
+  for (const [y, v] of map) out.set(y, v * factor);
+  return { map: out, factor, fromDate: recordedDate, toDate: activeDate };
+}
+
+// Scales a freshly parsed DARA map to the Ref CPI date in effect and says so in the status strip.
+// Returns the map to use. A file that records no Ref CPI date is used as written (exactly the
+// behavior before this existed) and offered the chance to supply one.
+function _applyDaraBasis(map, params) {
+  _daraLiteralFromFile = map ? new Map(map) : null;
+  _daraFileRefCpiDate = null;
+  if (!map || map.size === 0) return map;
+  const recorded = params?.refCpiDate ?? null;
+  if (!recorded) {
+    setStatusHTML('This file records no Ref CPI date, so its DARA values are used as written. '
+      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Set the file’s Ref CPI date</a>');
+    return map;
+  }
+  _daraFileRefCpiDate = recorded;
+  const { map: restated, factor, fromDate, toDate } = _restateDaraToActiveBasis(map, recorded);
+  if (!fromDate) return map;
+  setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
+    + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}).`);
+  return restated;
+}
+
+// Re-applies the imported DARA map (scaled or as written) to the panel, for the Ref CPI date picker
+// offered when a file records no date of its own.
+function _reapplyImportedDara(map) {
+  currentImportedDaraByYear = new Map(map);
+  _daraByYearStore = new Map(map);
+  _daraLoadedSnapshot = new Map(map);
+  const vals = [...map.values()].sort((a, b) => a - b);
+  _daraByYearPanelDefault = Math.round(vals[Math.floor(vals.length / 2)]);
+  document.getElementById('dara').value = _daraByYearPanelDefault;
+  _clearOutput();
+  renderDaraByYearPanel();
+  updateDaraInput(true);
+}
+
+document.getElementById('status').addEventListener('click', e => {
+  const setBasis = e.target.closest('#dara-set-basis');
+  if (setBasis) {
+    e.preventDefault();
+    const pop = document.getElementById('dara-basis-popover');
+    const input = document.getElementById('dara-basis-date');
+    input.value = _daraFileRefCpiDate ?? _defaultRefCpiDateStr ?? '';
+    const r = setBasis.getBoundingClientRect();
+    pop.hidden = false;
+    pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
+    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
+  }
+});
+
+document.getElementById('dara-basis-cancel').addEventListener('click', () => {
+  document.getElementById('dara-basis-popover').hidden = true;
+});
+document.getElementById('dara-basis-apply').addEventListener('click', () => {
+  const pop = document.getElementById('dara-basis-popover');
+  const v = document.getElementById('dara-basis-date').value;
+  pop.hidden = true;
+  if (!v || !_daraLiteralFromFile) return;
+  _daraFileRefCpiDate = v;
+  const { map, factor, fromDate, toDate } = _restateDaraToActiveBasis(_daraLiteralFromFile, v);
+  if (!fromDate) {
+    _reapplyImportedDara(_daraLiteralFromFile);
+    setStatusHTML('That is the date already in effect, so the DARA values are used as written. '
+      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>');
+    return;
+  }
+  _reapplyImportedDara(map);
+  setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
+    + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}). `
+    + `<a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>`);
+});
 
 let currentImportedParams = null; // construction params from our own export's #params line ({preLadderInterest, maturityPref}); null for broker/legacy
 // Generation token guarding the #holdings-file 'change' handler's single await (file.text()). The
