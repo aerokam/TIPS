@@ -806,18 +806,28 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
     { html: 'Loading a ladder stated at an older Ref CPI date means a stretch of this year has passed since, and the ladder has been paid during it. That money is assumed kept toward this year&rsquo;s Amount, so the box is filled with what has been received since that date and marked amber.' },
     { html: 'Two things count. <b>Coupons</b> already paid on every holding. And <b>maturity proceeds</b>: a rung that has matured paid out its inflation-adjusted principal along with its final coupon, which is this year&rsquo;s Amount arriving. Rebalancing in August, a ladder holding January, April and July rungs has already collected three of them &mdash; and the later in the year, the more of the rung is already in hand.' },
     { html: 'A ladder stated as of today has collected nothing since, so nothing is filled in. A broker file names no date, so the whole year to date counts.' },
-    { html: 'Type over the figure at any time; the amber mark clears and your number is used as entered.' },
+    { sep: true },
+    { heading: 'The coupon half follows the Coupons setting' },
+    { html: 'Whether this year&rsquo;s coupons were kept toward this year or reinvested is one decision, and it is asked on the settlement year&rsquo;s <b>Coupons</b> control. This box follows it rather than asking again, and moves the moment you change it:' },
+    { html: '<b>All remaining</b> &mdash; coupons are kept, so every one already paid is counted here.<br><b>Only last</b> &mdash; every coupon but the final one is reinvested, and each one already paid is earlier than the last still to arrive, so none are counted.<br><b>None</b> &mdash; all are reinvested, so none are counted.' },
+    { html: '<b>Maturity proceeds do not follow it.</b> Returned principal is not coupon income, and a rung exists to mature and be spent, so it counts whichever setting is in force.' },
+    { sep: true },
+    { html: 'Type over the figure at any time, or clear it. The amber mark goes, your number is used as entered, and the app stops changing it &mdash; including when you change the Coupons setting afterwards.' },
   ];
   if (auto) {
-    const r = _settlementYearCashReceivedSince(currentHoldingsArray, currentImportedParams?.refCpiDate ?? null);
-    const since = currentImportedParams?.refCpiDate ? ' since ' + esc(_fmtMDY(currentImportedParams.refCpiDate)) : ' this year';
+    const r = _settlementYearCashReceivedSince(currentHoldingsArray, _receivedCashSince);
+    const since = _receivedCashSince ? ' since ' + esc(_fmtMDY(_receivedCashSince)) : ' this year';
+    const countedCoupons = _rmdCouponMode === 'all' ? r.coupons : 0;
     const bits = [];
-    if (r.coupons > 0) bits.push('$' + Math.round(r.coupons).toLocaleString() + ' in coupons');
+    if (countedCoupons > 0) bits.push('$' + Math.round(countedCoupons).toLocaleString() + ' in coupons');
     if (r.principal > 0) bits.push('$' + Math.round(r.principal).toLocaleString() + ' from '
       + r.matured.length + (r.matured.length === 1 ? ' rung that has' : ' rungs that have') + ' matured');
     sections.push({ sep: true },
       { html: '<b>Now showing $' + Math.round(_availableCash).toLocaleString() + '</b> received' + since
         + (bits.length ? ' &mdash; ' + bits.join(' and ') : '') + '.' });
+    if (_rmdCouponMode !== 'all' && r.coupons > 0) sections.push({ html: '$'
+      + Math.round(r.coupons).toLocaleString() + ' in coupons was received but is not counted, because '
+      + 'the Coupons setting is <b>' + (_rmdCouponMode === 'none' ? 'None' : 'Only last') + '</b>.' });
     if (r.matured.length > 0) sections.push({ html: r.matured
       .map(x => esc(x.cusip) + ', ' + x.qty + ' &times; matured ' + esc(_fmtMDY(_isoDate(x.maturity))))
       .join('<br>') });
@@ -973,8 +983,8 @@ const _infoPopups = {};
 // began filling it in from coupons already received (2.0 §Available Cash), which is a statement
 // about a HELD portfolio: letting that figure follow the user into Build would size a from-scratch
 // ladder down against coupons no one has been paid.
-let _availableCashBuild = 0, _availableCashAutoBuild = false;
-let _availableCashRebal = 0, _availableCashAutoRebal = false;
+let _availableCashBuild = 0, _availableCashAutoBuild = false, _availableCashUserSetBuild = false;
+let _availableCashRebal = 0, _availableCashAutoRebal = false, _availableCashUserSetRebal = false;
 let _rebalDurationRows = null, _buildDurationRows = null;
 let _rebalFuture30yDurationRows = null, _buildFuture30yDurationRows = null;
 
@@ -1001,7 +1011,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _yearMaturityOverridesBuild = _yearMaturityOverrides;
       _yearMaturityOverrides = _yearMaturityOverridesRebal;
       _availableCashBuild = _availableCash; _availableCashAutoBuild = _availableCashAuto;
+      _availableCashUserSetBuild = _availableCashUserSet;
       _availableCash = _availableCashRebal; _availableCashAuto = _availableCashAutoRebal;
+      _availableCashUserSet = _availableCashUserSetRebal;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
       _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
@@ -1017,7 +1029,9 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _yearMaturityOverridesRebal = _yearMaturityOverrides;
       _yearMaturityOverrides = _yearMaturityOverridesBuild;
       _availableCashRebal = _availableCash; _availableCashAutoRebal = _availableCashAuto;
+      _availableCashUserSetRebal = _availableCashUserSet;
       _availableCash = _availableCashBuild; _availableCashAuto = _availableCashAutoBuild;
+      _availableCashUserSet = _availableCashUserSetBuild;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
       _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
@@ -1993,18 +2007,41 @@ function _couponEventCalc(bond, d, activeRc, activeDateIso) {
     refCpiDateDisplay: _fmtLongDate(localDate(isActual ? dIso : activeDateIso)) };
 }
 
-// Offers the settlement year's received cash as Available Cash, marked amber so it reads as the
-// app's figure rather than the holder's. A file that stated its own Available Cash has already said
-// what it holds and is left alone. A ladder stated as of today has collected nothing since, so the
-// total comes back zero on its own and the box stays empty — no special case for the same-day round
-// trip. Called from both load paths (holdings file / account selection, and a standalone DARA plan),
-// so the two can never disagree about the figure.
+// Offers the settlement year's received cash as Available Cash at load, marked amber so it reads as
+// the app's figure rather than the holder's. A file that stated its own Available Cash has already
+// said what it holds and is left alone. A ladder stated as of today has collected nothing since, so
+// the total comes back zero on its own and the box stays empty — no special case for the same-day
+// round trip. Called from both load paths (holdings file / account selection, and a standalone DARA
+// plan), so the two can never disagree about the figure.
 function _offerReceivedCouponsAsCash(params) {
-  if (!(params?.availableCash > 0) && currentMode === 'rebalance') {
-    const { total } = _settlementYearCashReceivedSince(currentHoldingsArray, params?.refCpiDate ?? null);
-    _availableCash = total > 0 ? total : 0;
-    _availableCashAuto = total > 0;
-  }
+  if (params?.availableCash > 0 || currentMode !== 'rebalance') { _syncAvailableCashInput(); return; }
+  _receivedCashSince = params?.refCpiDate ?? null;
+  _availableCashUserSet = false;
+  _applyReceivedCashOffer();
+}
+
+// Recomputes the offered figure against the coupon-counting choice in force, and is re-run whenever
+// that choice changes (2.0 §Available Cash §Cash already received). Whether this year's coupons were
+// kept toward this year or reinvested is ONE decision, asked once on the settlement year's Coupons
+// control; this box follows it rather than asking again:
+//
+//   'all'  — coupons are kept, so every one already paid is offered
+//   'last' — every coupon but the final one is reinvested, and each already-paid coupon is by
+//            definition earlier than the last one still to arrive, so none are offered
+//   'none' — all are reinvested, so none are offered
+//
+// Maturity proceeds do NOT follow it. Returned principal is not coupon income, and a rung exists to
+// mature and be spent, so it counts under every setting.
+//
+// Silent once the holder has typed a figure of their own (`_availableCashUserSet`), including
+// clearing the box to nothing: their number is theirs, and a later change to the coupon control must
+// not overwrite it.
+function _applyReceivedCashOffer() {
+  if (_availableCashUserSet || currentMode !== 'rebalance') return;
+  const r = _settlementYearCashReceivedSince(currentHoldingsArray, _receivedCashSince);
+  const total = (_rmdCouponMode === 'all' ? r.coupons : 0) + r.principal;
+  _availableCash = total > 0 ? total : 0;
+  _availableCashAuto = total > 0;
   _syncAvailableCashInput();
 }
 
@@ -2510,6 +2547,8 @@ function _initRebalDaraFromPortfolio() {
   _daraLoadedSnapshot = null;
   _availableCash = 0;
   _availableCashAuto = false;
+  _availableCashUserSet = false;
+  _receivedCashSince = null;
   _rmdCouponMode = 'all';
   // A CUSIP/Qty file's own #params line (currentImportedParams, set before this runs — see the
   // holdings-file change handler) carries Available Cash and coupon counting the same way it carries preLadderInterest/
@@ -2724,9 +2763,11 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   const vals = [...daraMap.values()].sort((a, b) => a - b);
   _availableCash = importedParams?.availableCash ?? 0;
   _availableCashAuto = false;
-  // A plan restates the ladder at its own Ref CPI date, so the received-coupon window moves with it.
-  _offerReceivedCouponsAsCash(importedParams);
+  // The coupon-counting choice is restored FIRST: the offer below is computed against it, so
+  // offering before restoring would credit coupons a plan saved with 'none' says were reinvested.
   _rmdCouponMode = importedParams?.rmdCouponMode ?? 'all';
+  // A plan restates the ladder at its own Ref CPI date, so the received-cash window moves with it.
+  _offerReceivedCouponsAsCash(importedParams);
 
   _daraByYearStore = new Map(daraMap);
   // A loaded plan supplies its own explicit value for every year it covers, superseding whatever
@@ -2889,6 +2930,8 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   _daraLoadedSnapshot = null;
   _availableCash = 0;
   _availableCashAuto = false;
+  _availableCashUserSet = false;
+  _receivedCashSince = null;
   _syncAvailableCashInput();
   _rmdCouponMode = 'all';
   _clearSelection();
@@ -3103,6 +3146,12 @@ let _availableCash = 0;   // 2.0 §Available Cash — ladder-wide, consumed earl
 // than one the user typed (2.0 §Available Cash §Received settlement-year coupons). Marks the
 // control amber; cleared by any edit, and by any reset that zeroes the figure.
 let _availableCashAuto = false;
+// True once the holder has typed (or cleared) the figure themselves. The app then stops touching the
+// box entirely — no recompute when the coupon-counting choice changes.
+let _availableCashUserSet = false;
+// The date the loaded ladder was stated at, kept so the offer can be recomputed later without the
+// file's params in hand. Null means the file stated none, and the whole year to date counts.
+let _receivedCashSince = null;
 
 // Mirrors `_availableCash` into its Row 1 input; called after an import or a reset sets the state
 // behind the control's back.
@@ -3120,6 +3169,7 @@ document.getElementById('available-cash').addEventListener('change', e => {
   _availableCash = (isNaN(v) || v < 0) ? 0 : v;
   if (isNaN(v) || v < 0) e.target.value = '';
   _availableCashAuto = false;
+  _availableCashUserSet = true;
   _syncAvailableCashInput();
   // Same commit rule as the per-rung DARA inputs: live for the pre-Run rebalance preview and an
   // already-run Build, deferred to the next Run otherwise.
@@ -3522,6 +3572,8 @@ function getDaraByYear() {
     r.addEventListener('change', () => {
       if (!r.checked) return;
       _rmdCouponMode = r.value;
+      // One decision, two places it shows: the offered Available Cash follows this control.
+      _applyReceivedCashOffer();
       commitAndMaybeRecompute();
     });
   });

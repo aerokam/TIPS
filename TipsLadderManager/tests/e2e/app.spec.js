@@ -1402,6 +1402,55 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 // recorded, and any hand-written plan). The app cannot know the date and does not guess: the values
 // are used as written, and the status strip offers to supply one. Supplying an earlier date scales
 // the values from it to the settlement date (3.0 §DARA Basis Date).
+// Whether this year's coupons were kept toward this year or reinvested is one decision, asked on the
+// settlement year's Coupons control. The offered Available Cash follows it live. Maturity proceeds do
+// not: returned principal is not coupon income. And once the holder types a figure of their own, the
+// app stops touching the box, including when the Coupons setting changes afterwards.
+test('Available Cash follows the Coupons setting, and stops once the holder sets it', async ({ page }) => {
+  test.setTimeout(20_000);
+  const cash = page.locator('#available-cash');
+  const mark = page.locator('#available-cash-auto');
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  // Sample holdings: a broker-style file, so the offer is coupons only (a broker never lists a
+  // matured bond). That makes it the clean case for watching the coupon half switch off.
+  const withAll = Number(await cash.inputValue());
+  expect(withAll, 'coupons received this year are offered by default').toBeGreaterThan(0);
+  await expect(mark).toBeVisible();
+
+  const firstYear = await page.locator('#simple-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const link = page.locator(`#simple-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  const pop = page.locator('#rmd-options-popover');
+
+  // None: every coupon is reinvested, so none of the ones already paid are counted either.
+  await link.click();
+  await pop.locator('input[name="rmd-coupon-mode"][value="none"]').check();
+  await page.locator('#rmd-options-close').click();
+  await expect(cash).toHaveValue('');
+
+  // Only last: same reasoning — every already-paid coupon is earlier than the last still to arrive.
+  await link.click();
+  await pop.locator('input[name="rmd-coupon-mode"][value="last"]').check();
+  await page.locator('#rmd-options-close').click();
+  await expect(cash).toHaveValue('');
+
+  // Back to All remaining and the offer returns, unchanged.
+  await link.click();
+  await pop.locator('input[name="rmd-coupon-mode"][value="all"]').check();
+  await page.locator('#rmd-options-close').click();
+  await expect(cash).toHaveValue(String(withAll));
+  await expect(mark).toBeVisible();
+
+  // A figure the holder types is theirs: the Coupons control must not overwrite it afterwards.
+  await cash.fill('7500');
+  await cash.blur();
+  await expect(mark).toBeHidden();
+  await link.click();
+  await pop.locator('input[name="rmd-coupon-mode"][value="none"]').check();
+  await page.locator('#rmd-options-close').click();
+  await expect(cash).toHaveValue('7500');
+});
+
 // A rung that has matured paid out its principal along with its final coupon, and that money is the
 // year's Amount arriving. The bond is no longer quoted, so it is absent from tipsMap and the rung
 // would otherwise read as unfunded -- the app would buy principal to replace cash already spent.
