@@ -50,11 +50,20 @@ function exportText(res, params) {
   return rows.join('\n');
 }
 
+// 'last' holds one TIPS per year, the latest-maturing; 'all' holds every maturity month in the
+// year. The second matters for the settlement year: with all four 2026 months held, three of them
+// have already matured by late August, which is what exercises maturity proceeds as received cash
+// (2.0 §Available Cash). 'first' is the opposite extreme -- its settlement-year rung matured in
+// January, so the whole rung is cash before the rebalance even starts.
 const cases = [
-  { name: 'ladder-2026-2040-dara40k',  dara: 40000,  firstYear: 2026, lastYear: 2040 },
-  { name: 'ladder-2026-2055-dara40k',  dara: 40000,  firstYear: 2026, lastYear: 2055 },
-  { name: 'ladder-2026-2045-dara100k', dara: 100000, firstYear: 2026, lastYear: 2045 },
-  { name: 'ladder-2027-2050-dara60k',  dara: 60000,  firstYear: 2027, lastYear: 2050 },
+  { name: 'ladder-2026-2040-dara40k',      dara: 40000,  firstYear: 2026, lastYear: 2040, maturityPref: 'last' },
+  { name: 'ladder-2026-2055-dara40k',      dara: 40000,  firstYear: 2026, lastYear: 2055, maturityPref: 'last' },
+  { name: 'ladder-2026-2045-dara100k',     dara: 100000, firstYear: 2026, lastYear: 2045, maturityPref: 'last' },
+  { name: 'ladder-2027-2050-dara60k',      dara: 60000,  firstYear: 2027, lastYear: 2050, maturityPref: 'last' },
+  { name: 'ladder-2026-2040-dara40k-all',  dara: 40000,  firstYear: 2026, lastYear: 2040, maturityPref: 'all' },
+  { name: 'ladder-2026-2055-dara40k-all',  dara: 40000,  firstYear: 2026, lastYear: 2055, maturityPref: 'all' },
+  { name: 'ladder-2026-2045-dara100k-all', dara: 100000, firstYear: 2026, lastYear: 2045, maturityPref: 'all' },
+  { name: 'ladder-2026-2040-dara40k-first',dara: 40000,  firstYear: 2026, lastYear: 2040, maturityPref: 'first' },
 ];
 
 for (const c of cases) {
@@ -62,10 +71,10 @@ for (const c of cases) {
   for (let y = c.firstYear; y <= c.lastYear; y++) daraByYear.set(y, c.dara);
   const res = build.runBuild({
     dara: c.dara, firstYear: c.firstYear, lastYear: c.lastYear, tipsMap, refCPI, settlementDate,
-    maturityPref: 'last', couponPref: 'higher', preLadderInterest: false, daraByYear,
+    maturityPref: c.maturityPref, couponPref: 'higher', preLadderInterest: false, daraByYear,
     yearOverrides: null, bondHolidays, availableCash: 0, rmdCouponMode: 'all', tradeDate: settlementDate,
   });
-  const text = exportText(res, { pli: false, maturityPref: 'last', couponPref: 'higher' });
+  const text = exportText(res, { pli: false, maturityPref: c.maturityPref, couponPref: 'higher' });
   const file = `${OUT}/${c.name}.csv`;
   writeFileSync(file, text);
   const positions = text.split('\n').filter(l => /^[0-9A-Z]{9},/.test(l)).length;

@@ -221,17 +221,54 @@ per-CUSIP prices for a past date (3.1 §4.0).
   exported that day — written in the CUSIP/Qty export format, so they load in Rebalance like any
   other export.
 
-  | file | ladder | DARA | reload today |
-  |---|---|---|---|
-  | `ladder-2026-2040-dara40k.csv` | 2026–2040 | 40,000 | +204, ARA −1.4% |
-  | `ladder-2026-2055-dara40k.csv` | 2026–2055 | 40,000 | +95, ARA −0.8% |
-  | `ladder-2026-2045-dara100k.csv` | 2026–2045 | 100,000 | +399, ARA −0.8% |
-  | `ladder-2027-2050-dara60k.csv` | 2027–2050 | 60,000 | +228, ARA **+0.8%** |
+  | file | ladder | DARA | maturities | reload today |
+  |---|---|---|---|---|
+  | `ladder-2026-2040-dara40k.csv` | 2026–2040 | 40,000 | latest | +204, ARA −1.4% |
+  | `ladder-2026-2055-dara40k.csv` | 2026–2055 | 40,000 | latest | +95, ARA −0.8% |
+  | `ladder-2026-2045-dara100k.csv` | 2026–2045 | 100,000 | latest | +399, ARA −0.8% |
+  | `ladder-2027-2050-dara60k.csv` | 2027–2050 | 60,000 | latest | +228, ARA **+0.8%** |
+  | `ladder-2026-2040-dara40k-all.csv` | 2026–2040 | 40,000 | all months | +1,208, ARA −0.3% |
+  | `ladder-2026-2055-dara40k-all.csv` | 2026–2055 | 40,000 | all months | +364, ARA −0.5% |
+  | `ladder-2026-2045-dara100k-all.csv` | 2026–2045 | 100,000 | all months | +917, ARA −0.4% |
+  | `ladder-2026-2040-dara40k-first.csv` | 2026–2040 | 40,000 | earliest | +640, ARA −0.8% |
+
+  The all-months and earliest ladders are the ones that exercise matured rungs: by late August their
+  2026 rungs for January, April and July have been paid out. A latest-maturity ladder holds the
+  October 2026 TIPS, which has not matured, so it never sees the case at all.
 
   The last one gains: its first funded year is 2027, so the settlement year is outside the ladder
   and the coupons received during 2026 are pure surplus rather than income the 2026 rung was
   counting on.
 
+### A matured rung was bought back, because a matured TIPS is invisible
+
+- **Fixed:** 2026-08-27.
+- **Symptom:** a rung that had already matured read as unfunded, and the rebalance bought principal
+  to replace cash the holder had been paid and was in the middle of spending.
+- **Cause:** a matured TIPS is no longer quoted, so it is absent from the market data the app builds
+  its bond map from, and the holding was silently dropped. Nothing then represented the money it had
+  paid out. The reference series (`TipsRef.csv`) carries every TIPS ever issued, which is enough to
+  value what a matured position paid — maturity, coupon and base CPI — and it was not being
+  consulted.
+- **Fix:** maturity proceeds join coupons as settlement-year cash already received, over the same
+  window (from the date the file states its DARA at, to today). The final coupon date *is* the
+  maturity date, so the existing coupon walk finds it; the principal is added there.
+- **Why it grows through the year:** the later the rebalance, the more rungs have matured. A ladder
+  holding every maturity month has collected its January, April and July 2026 rungs by late August.
+- **Measured** on `tests/fixtures/yearago/`, reloading against 2026-08-28:
+
+  | fixture | maturity preference | matured rungs | proceeds | ARA cost without | with |
+  |---|---|---|---|---|---|
+  | `ladder-2026-2040-dara40k-all` | all months | 3 | 25,246 | −4.6% | **−0.3%** |
+  | `ladder-2026-2040-dara40k-first` | earliest | 1 | 32,743 | −7.1% | **−0.8%** |
+  | `ladder-2026-2040-dara40k` | latest | 0 | 0 | −1.4% | −1.4% |
+
+  The latest-maturity ladder is unaffected because its 2026 rung is the October TIPS, which has not
+  matured. That is why the fixtures now cover all three preferences: the default hides this entirely.
+- **Covered by:** `Available Cash counts maturity proceeds from rungs that have already matured`
+  (`tests/e2e/app.spec.js`).
+- **Spec:** 2.0 §Available Cash.
+
 ### The settlement year bought principal against coupons it had already been paid
 
 - **Fixed:** 2026-08-27.

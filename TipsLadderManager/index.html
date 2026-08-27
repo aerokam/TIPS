@@ -802,13 +802,25 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
     { html: 'Cash you mean to put <i>into</i> the ladder is not entered here. Leave the box empty, and Net Cash comes back negative by whatever the purchases cost.' },
     { sep: true },
     { heading: 'When the app fills it in' },
-    { html: 'Loading a ladder stated at an older Ref CPI date means a stretch of this year has passed since, and its coupons have been paid. That money is assumed kept toward this year&rsquo;s Amount, so the box is filled with the coupons received since that date and marked amber.' },
+    { html: 'Loading a ladder stated at an older Ref CPI date means a stretch of this year has passed since, and the ladder has been paid during it. That money is assumed kept toward this year&rsquo;s Amount, so the box is filled with what has been received since that date and marked amber.' },
+    { html: 'Two things count. <b>Coupons</b> already paid on every holding. And <b>maturity proceeds</b>: a rung that has matured paid out its inflation-adjusted principal along with its final coupon, which is this year&rsquo;s Amount arriving. Rebalancing in August, a ladder holding January, April and July rungs has already collected three of them &mdash; and the later in the year, the more of the rung is already in hand.' },
     { html: 'A ladder stated as of today has collected nothing since, so nothing is filled in. A broker file names no date, so the whole year to date counts.' },
     { html: 'Type over the figure at any time; the amber mark clears and your number is used as entered.' },
   ];
-  if (auto) sections.push({ sep: true },
-    { html: '<b>Now showing $' + Math.round(_availableCash).toLocaleString() + '</b> in coupons received'
-      + (currentImportedParams?.refCpiDate ? ' since ' + esc(_fmtMDY(currentImportedParams.refCpiDate)) : ' this year') + '.' });
+  if (auto) {
+    const r = _settlementYearCashReceivedSince(currentHoldingsArray, currentImportedParams?.refCpiDate ?? null);
+    const since = currentImportedParams?.refCpiDate ? ' since ' + esc(_fmtMDY(currentImportedParams.refCpiDate)) : ' this year';
+    const bits = [];
+    if (r.coupons > 0) bits.push('$' + Math.round(r.coupons).toLocaleString() + ' in coupons');
+    if (r.principal > 0) bits.push('$' + Math.round(r.principal).toLocaleString() + ' from '
+      + r.matured.length + (r.matured.length === 1 ? ' rung that has' : ' rungs that have') + ' matured');
+    sections.push({ sep: true },
+      { html: '<b>Now showing $' + Math.round(_availableCash).toLocaleString() + '</b> received' + since
+        + (bits.length ? ' &mdash; ' + bits.join(' and ') : '') + '.' });
+    if (r.matured.length > 0) sections.push({ html: r.matured
+      .map(x => esc(x.cusip) + ', ' + x.qty + ' &times; matured ' + esc(_fmtMDY(_isoDate(x.maturity))))
+      .join('<br>') });
+  }
   showPopup(e.currentTarget, 'Available Cash', sections);
 });
 document.getElementById('bracket-mode-help').addEventListener('click', e => {
@@ -1987,54 +1999,78 @@ function _couponEventCalc(bond, d, activeRc, activeDateIso) {
     refCpiDateDisplay: _fmtLongDate(localDate(isActual ? dIso : activeDateIso)) };
 }
 
-// Settlement-year coupons this portfolio has ALREADY RECEIVED — the money the holder collected
-// during the current year and, per 2.0 §Settlement-Year Coupon Treatment, is assumed to have kept
-// toward this year's Amount rather than reinvested.
-//
-// Counted only from `sinceDateStr` onward: the date the loaded ladder was stated at (its Ref CPI
-// date). A ladder built moments ago has a basis of today and has received nothing, so this returns
-// zero and the round trip is undisturbed; a ladder stated a year ago has collected every payment
-// since, and that is the money that funds its rebalance. A file stating no date at all is a real
-// broker position, held all along, so the whole year to date counts.
-// Offers the received-coupon total as Available Cash, marked amber so it reads as the app's figure
-// rather than the holder's. A file that stated its own Available Cash has already said what it
-// holds and is left alone. A ladder stated as of today has collected nothing since, so the total
-// comes back zero on its own and the box stays empty — no special case for the same-day round trip.
-// Called from both load paths (holdings file / account selection, and a standalone DARA plan), so
-// the two can never disagree about the figure.
-// A file's `availableCash=0` is not a statement: the CUSIP/Qty export writes the key unconditionally,
-// so every ladder that never had cash entered carries a zero — including the aged exports this offer
-// exists for. Only a positive figure means the holder said what they hold.
+// Offers the settlement year's received cash as Available Cash, marked amber so it reads as the
+// app's figure rather than the holder's. A file that stated its own Available Cash has already said
+// what it holds and is left alone. A ladder stated as of today has collected nothing since, so the
+// total comes back zero on its own and the box stays empty — no special case for the same-day round
+// trip. Called from both load paths (holdings file / account selection, and a standalone DARA plan),
+// so the two can never disagree about the figure.
 function _offerReceivedCouponsAsCash(params) {
   if (!(params?.availableCash > 0) && currentMode === 'rebalance') {
-    const { total } = _settlementYearCouponsReceivedSince(currentHoldingsArray, params?.refCpiDate ?? null);
+    const { total } = _settlementYearCashReceivedSince(currentHoldingsArray, params?.refCpiDate ?? null);
     _availableCash = total > 0 ? total : 0;
     _availableCashAuto = total > 0;
   }
   _syncAvailableCashInput();
 }
 
-function _settlementYearCouponsReceivedSince(holdingsArr, sinceDateStr) {
-  if (!holdingsArr || !tipsMap || !refCpiRows || !settlementDate) return { total: 0, from: null };
+// A TIPS that has matured is no longer quoted, so it is absent from tipsMap. TipsRef carries every
+// TIPS ever issued, which is enough to value what a matured position paid out: maturity, coupon and
+// base CPI. Returns a bond in the shape the rest of this file uses, with no price — a matured bond
+// has no market value left, only the cash it has already paid.
+function _bondOrMatured(cusip) {
+  const quoted = tipsMap?.get(cusip);
+  if (quoted?.maturity) return quoted;
+  const r = tipsRefMap?.get(cusip);
+  if (!r?.maturity) return null;
+  return { cusip, maturity: localDate(r.maturity), coupon: r.coupon, baseCpi: r.baseCpi, price: null, yield: null };
+}
+
+// Settlement-year cash this portfolio has ALREADY RECEIVED — money the holder collected during the
+// current year and, per 2.0 §Settlement-Year Coupon Treatment, is assumed to have kept toward this
+// year's Amount rather than reinvested. Two sources, both of them cash in hand:
+//
+//   - Coupons already paid, on every holding.
+//   - Maturity proceeds. A rung that has matured paid out its indexed principal along with its final
+//     coupon, which IS that year's Amount arriving. Rebalancing in August, a ladder holding January,
+//     April and July rungs has already been paid three of them. Without this the year reads as
+//     unfunded and the app buys principal to replace cash the holder is already spending. The later
+//     in the year the rebalance runs, the more of the rung has already been collected.
+//
+// Counted only from `sinceDateStr` onward: the date the loaded ladder was stated at (its Ref CPI
+// date). A ladder built moments ago has a basis of today and has received nothing, so this returns
+// zero and the round trip is undisturbed; a ladder stated a year ago has collected every payment
+// since, and that is the money that funds its rebalance. A file stating no date at all is a real
+// broker position, held all along, so the whole year to date counts.
+function _settlementYearCashReceivedSince(holdingsArr, sinceDateStr) {
+  const none = { total: 0, coupons: 0, principal: 0, matured: [], from: null };
+  if (!holdingsArr || !tipsMap || !refCpiRows || !settlementDate) return none;
   const activeDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
   const activeRc = lookupRefCpi(refCpiRows, activeDateIso);
   const today = localDate(_tradeDateStr);
-  if (!activeRc || !today) return { total: 0, from: null };
+  if (!activeRc || !today) return none;
   const year = settlementDate.getFullYear();
   const yearStart = new Date(year, 0, 1);
   const since = sinceDateStr ? localDate(sinceDateStr) : yearStart;
   const from = since > yearStart ? since : yearStart;
-  let total = 0;
+  let coupons = 0, principal = 0;
+  const matured = [];
   for (const h of holdingsArr) {
-    const b = tipsMap.get(h.cusip);
+    const b = _bondOrMatured(h.cusip);
     if (!b?.maturity || !h.qty) continue;
     for (const d of couponSchedule(from, b.maturity)) {
       const paid = _actualPaymentDate(d);
       if (paid >= today || paid.getFullYear() !== year || paid < from) continue;
-      total += _couponEventCalc(b, d, activeRc, activeDateIso).couponPerBond * h.qty;
+      const ev = _couponEventCalc(b, d, activeRc, activeDateIso);
+      coupons += ev.couponPerBond * h.qty;
+      // The final coupon date IS the maturity date, so principal lands with it.
+      if (d.getTime() === b.maturity.getTime()) {
+        principal += ev.principalPerBond * h.qty;
+        matured.push({ cusip: h.cusip, qty: h.qty, maturity: b.maturity });
+      }
     }
   }
-  return { total, from };
+  return { total: coupons + principal, coupons, principal, matured, from };
 }
 
 // holdingsArr: the portfolio to walk. Before = currentHoldingsArray (what's actually held today,

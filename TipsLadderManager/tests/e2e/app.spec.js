@@ -50,6 +50,9 @@ function fidelityWithTodayDownloadDate() {
 
 // Holdings CSV for rebalance tests (Format 3: cusip,qty) — single canonical copy in data/
 const HOLDINGS_PATH = path.join(ROOT, 'data', 'SampleHoldings.csv');
+// Built on real market data from a year ago with every maturity month held, so its 2026 rungs for
+// January, April and July have since matured (tests/fixtures/yearago/build-fixtures.mjs).
+const YEARAGO_ALL_PATH = path.join(ROOT, 'tests', 'fixtures', 'yearago', 'ladder-2026-2040-dara40k-all.csv');
 
 // The #dara box shows a literal number for a flat scalar, or is blank with a "by year" placeholder
 // whenever the shape is custom per-year (a single number would be misleading there).
@@ -1456,6 +1459,30 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 // recorded, and any hand-written plan). The app cannot know the date and does not guess: the values
 // are used as written, and the status strip offers to supply one. Supplying an earlier date scales
 // the values from it to the settlement date (3.0 §DARA Basis Date).
+// A rung that has matured paid out its principal along with its final coupon, and that money is the
+// year's Amount arriving. The bond is no longer quoted, so it is absent from tipsMap and the rung
+// would otherwise read as unfunded -- the app would buy principal to replace cash already spent.
+// The fixture holds every 2026 maturity month, three of which have matured by late August.
+test('Available Cash counts maturity proceeds from rungs that have already matured', async ({ page }) => {
+  test.setTimeout(20_000);
+  const cash = page.locator('#available-cash');
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('#holdings-file').setInputFiles(YEARAGO_ALL_PATH);
+  await expect(page.locator('#available-cash-auto')).toBeVisible({ timeout: 4_000 });
+  const offered = Number(await cash.inputValue());
+
+  // The help popup breaks the figure down, and names the rungs that matured.
+  await page.locator('#available-cash-help').click();
+  const text = await page.locator('body').innerText();
+  expect(text).toContain('matured');
+
+  // Maturity proceeds dwarf the coupons here: three whole rungs against half a year of coupons.
+  const proceeds = (text.match(/from (\d+) rungs that have matured/) ?? [])[1];
+  expect(Number(proceeds), 'three 2026 rungs have matured by late August').toBe(3);
+  expect(offered, 'three matured rungs plus coupons is a large figure').toBeGreaterThan(20000);
+});
+
 // Coupons a held ladder has already collected this year are money in hand (2.0 §Available Cash),
 // so the app offers that total in Available Cash, marked amber. The window starts at the date the
 // loaded ladder was stated at: a plan stated as of today has collected nothing since, which is what
