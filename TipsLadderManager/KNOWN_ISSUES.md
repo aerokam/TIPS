@@ -166,17 +166,46 @@ production impact go here.
   resolves last year 2055, engages no Future 30Y years, and proposes no trade in any 2056 or later
   maturity. (It still carries the funding gap above, net cash −17,112.)
 
-### New issuance can swap which bond fills a rung, changing its size sharply
+### Maturity preference must never cause churn inside a funded year
 
-- **Found:** 2026-08-26, investigating why the 2030 rung wanted 7 more bonds (27 → 34) when its
-  coupon income had *risen*, which should have meant fewer.
-- **Cause, and it is correct behavior:** an Oct 2030 TIPS (91282CPH8) was issued in Oct 2025 and now
-  wins "last to mature" for that rung, displacing the Jul 2030 (912828ZZ6). The new issue has barely
-  any accrued inflation — index ratio near 1.0 against roughly 1.3 for the 2020-issued bond it
-  replaces — so each bond carries far less principal and more of them are needed, at proportionally
-  lower cost per bond.
-- **Worth knowing** because the quantity change looks alarming and has nothing to do with the ladder
-  being wrong. Same family as a gap year closing: the universe changed, not the target.
+- **Rule:** a rebalance must not sell one maturity to buy another within the same funded year. The
+  maturity preference is a preference, not a dictum: it decides what to buy when something is being
+  bought, never a reason to replace a holding that is already doing its job.
+- **Not currently violated, as far as this scenario shows.** The year-over-year reload traded only
+  2026, 2027, 2033, 2035, 2036 and 2040 — no 2030 trade at all, even though the preferred bond for
+  2030 changed during the year.
+- **Correction to an earlier note here:** a "2030 rung wanted 7 more bonds" figure recorded on
+  2026-08-26 came from comparing two *independent builds*, one in each world, not from a rebalance.
+  An Oct 2030 TIPS (91282CPH8) issued in Oct 2025 wins "last to mature" over the Jul 2030
+  (912828ZZ6) that a year-ago build picked, and because the new issue has almost no accrued
+  inflation — index ratio near 1.0 against roughly 1.3 — each of its bonds carries far less
+  principal, so a fresh build needs more of them at proportionally lower cost per bond. That is a
+  fact about building from scratch today, and says nothing about what a rebalance does.
+- **Still to verify:** whether any path *could* produce within-year churn — the target bond set is
+  selected from the preference at Run, so it is worth confirming that a held bond is never displaced
+  merely because a newer one now matches the preference better.
+### A CUSIP/Qty file should be assumed to describe a self-financing ladder
+
+- **Position:** any CUSIP/Qty file represents a ladder that carries no cash, so nothing about the
+  file alone should disable self-financing. The current exemption keys off the file (see the funding
+  entry above): the moment a loaded file carries per-year DARA values, the shape-preserving scale is
+  skipped. In plain terms, the app currently reasons "this file states its own targets, so honor
+  them exactly and do not rescale" — and that is the wrong trigger.
+- **Where the exemption does belong:** DARA values the user typed in *after* loading are a stated
+  intent and should be honored as-is. That is a different condition from the file having carried
+  values in the first place, and the two are currently conflated.
+- **Status:** open, no work started.
+
+### Available Cash does not belong in Build
+
+- **Found:** 2026-08-27.
+- **Symptom:** the Available Cash field shows in both modes (`#field-available-cash` is never
+  hidden on the mode switch, unlike Brackets and Allocation policy).
+- **Why it is wrong:** a Build starts from all cash and the app reports what the ladder costs, so
+  stating cash on hand is redundant there. It earns its place only in Rebalance, where the holder
+  may have kept coupons or maturing principal rather than spending them (the default assumption is
+  that they were spent) and wants that deployed in the rebalance.
+- **Status:** open, no work started.
 ### Reproducing the year-over-year scenario
 
 `scripts/getFedInvestPricesForDate.js <YYYY-MM-DD>` writes a `YieldsFromFedInvestPrices.csv` for any
