@@ -1505,7 +1505,7 @@ test('DARA plan with no Ref CPI date: used as written, then scaled once a date i
 });
 
 // Regression: runFundedRebalance only applies its self-financing scale (3.0 §Funding the rebalance)
-// when isPristineMirror -- index.html's _storeIsPristineMirror() decides that from whether
+// when the DARA plan is unedited -- index.html's _daraPlanUnedited() decides that from whether
 // currentImportedDaraByYear is set, NOT from how the store was actually populated. The DARA Plan
 // card's file-Import handler set _daraByYearStore AND _daraLoadedSnapshot to the imported values but
 // never set currentImportedDaraByYear, so an imported plan on a ladder with a gap/Future-30Y block to

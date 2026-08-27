@@ -519,8 +519,11 @@ export function parseParamsBlock(rawLines) {
 // `flat = true` makes the in-scope solve target a SINGLE flat DARA across every in-scope rung
 // (even real income — the liability-matching use case) instead of the proportionally-scaled
 // natural-ARA shape; the binary search then finds the one flat level that self-finances the segment.
-export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, bracketMode = '2bracket', lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, scopeYears = null, fixedDaraByYear = null, pinnedDaraByYear = null, flat = false, bondHolidays = new Set(), availableCash = 0, rmdCouponMode = 'all', tradeDate = settlementDate }) {
-  // Cover-year income correction: build's per-year DARA identity is
+export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, bracketMode = '2bracket', lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, scopeYears = null, fixedDaraByYear = null, pinnedDaraByYear = null, flat = false, bondHolidays = new Set(), availableCash = 0, rmdCouponMode = 'all', tradeDate = settlementDate, maturityPref = 'last', allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null, correctCoverIncome = true }) {
+  // Cover-year income correction (skipped when the map is already a stated per-year plan rather
+  // than one recovered from holdings — `correctCoverIncome: false`; the plan states each year's
+  // true DARA, so adding the cover terms to it would count that income twice):
+  // build's per-year DARA identity is
   //   DARA_y = (P+I)_y + LMI_y + ownExcessCoupon_y + AMD_y
   // but computePortfolioARAByYear recovers only (P+I)+LMI. Add the two cover terms back so the
   // recovered map matches build at the covers. (Coupon-bearing 2056 earns ownExcessCoupon;
@@ -570,7 +573,7 @@ export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holding
     }
   }
 
-  daraMap = new Map([...daraMap.entries()].map(([y, v]) => [y, v + (ownExcessCoupon[y] ?? 0) + (amdByYear.get(y) ?? 0) + (rollByYear.get(y) ?? 0)]));
+  if (correctCoverIncome) daraMap = new Map([...daraMap.entries()].map(([y, v]) => [y, v + (ownExcessCoupon[y] ?? 0) + (amdByYear.get(y) ?? 0) + (rollByYear.get(y) ?? 0)]));
 
   const inScope = scopeYears ? (y => scopeYears.has(y)) : (() => true);
 
@@ -629,6 +632,13 @@ export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holding
     return s;
   };
 
+  // Every trial below runs the ladder the CALLER will execute — same maturity preference, same
+  // within-year allocation policy, same per-year overrides (3.0 §Target CUSIP resolution). Those
+  // choices decide which CUSIP each year buys and therefore what each trade costs, so a search run
+  // under the defaults solves for a ladder the caller never builds: the level it returns can be
+  // self-financing under 'equal'/'last' and still land thousands of dollars short once executed
+  // under the user's actual settings.
+  //
   // Binary-search the DARA level at which the per-year map (flat or proportional) is self-financing.
   // A trial may be INFEASIBLE: pushing this segment's DARA high floods later-maturity interest into a
   // downstream (out-of-scope) year until it can't fund one bond → sizeLadder throws (err.daraTooLowYear).
@@ -639,7 +649,7 @@ export function inferScaledDARAFromPortfolio({ daraMap, median: _median, holding
     const mid = Math.floor((lo + hi) / 2);
     let result;
     try {
-      result = runRebalance({ dara: mid, bracketMode, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear: buildMap(mid), lastYearOverride, firstYearOverride, preLadderInterest, bondHolidays, availableCash, rmdCouponMode, tradeDate });
+      result = runRebalance({ dara: mid, bracketMode, holdings: holdingsRaw, tipsMap, refCPI, settlementDate, daraByYear: buildMap(mid), lastYearOverride, firstYearOverride, preLadderInterest, bondHolidays, availableCash, rmdCouponMode, tradeDate, maturityPref, allocationPolicy, yearRankOverrides, yearOverrides });
     } catch (e) {
       if (e && e.daraTooLowYear != null && sweepable(e.daraTooLowYear)) lo = mid + 1;
       else hi = mid - 1;
@@ -1913,14 +1923,14 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
 //   1. Run the rebalance on the given per-year DARA map directly. This honors the map as-is —
 //      including intentional empty rungs (a year the user holds none of stays a hole) and any
 //      user-reshaped / our-export shape.
-//   2. ONLY if that map is the untouched load mirror (`isPristineMirror`) AND the ladder actually
+//   2. ONLY if that map is still exactly as loaded (`daraPlanUnedited`) AND the ladder actually
 //      has a gap-year / Future-30Y block to duration-match (learned from the engine's own
 //      `summary.gapYears` / `summary.future30yYears`), re-run with the shape-preserving scaled map so
 //      the funded rungs sell down to fund the bracket excess. With no such block there is nothing to
 //      buy — the direct run already nets to ≈0 and is returned unchanged (no spurious sell-down).
 //
 // REGRESSION HISTORY: this scale-application step was accidentally deleted in commit c0d233b
-// (2026-07-16, an unrelated Ref CPI/Index Ratio rounding refactor) — `isPristineMirror` kept being
+// (2026-07-16, an unrelated Ref CPI/Index Ratio rounding refactor) — the flag kept being
 // computed and passed in from index.html, but this function silently stopped acting on it, so every
 // default-mirror Run with a gap/Future-30Y block produced large non-self-financing net cash (funded
 // years weren't sold down at all). It went undetected for 9 days because the only unit test covering
@@ -1928,7 +1938,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
 // paired test below ("runFundedRebalance — gap/Future-30Y block: scale actually applies").
 export function runFundedRebalance({
   dara, bracketMode = '2bracket', holdings, tipsMap, refCPI, settlementDate,
-  daraByYear = null, isPristineMirror = false,
+  daraByYear = null, daraPlanUnedited = false, daraPlanIsStated = false,
   lastYearOverride = null, firstYearOverride = null, preLadderInterest = false, maturityPref = 'last',
   allocationPolicy = 'equal', yearRankOverrides = null, yearOverrides = null, bondHolidays = new Set(),
   availableCash = 0, rmdCouponMode = 'all', tradeDate = settlementDate,
@@ -1938,13 +1948,27 @@ export function runFundedRebalance({
     allocationPolicy, yearRankOverrides, yearOverrides, bondHolidays, availableCash, rmdCouponMode, tradeDate };
   let result = runRebalance({ ...base, daraByYear });
   const needsFunding = result.summary.gapYears.length > 0 || result.summary.future30yYears.length > 0;
-  if (isPristineMirror && needsFunding) {
-    const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
-    const { daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap, result.summary.lastYear));
+  if (daraPlanUnedited && needsFunding) {
+    // WHICH shape gets scaled depends on where the plan came from. A file that states a per-year
+    // DARA for each year IS the shape — scale it directly, and take it at face value (no cover
+    // correction). Only when the plan was auto-derived from holdings (broker/legacy file, which
+    // states nothing) is the shape recovered from the portfolio's own ARA and corrected.
+    // Re-deriving in both cases was the bug behind a same-day reload of our own export proposing
+    // trades across the whole ladder: the stated plan was discarded and replaced by a mirror.
+    let daraMap, correctCoverIncome;
+    if (daraPlanIsStated && daraByYear && daraByYear.size > 0) {
+      daraMap = new Map(daraByYear);
+      correctCoverIncome = false;
+    } else {
+      const rawARA = computePortfolioARAByYear(holdings, tipsMap, refCPI);
+      ({ daraMap } = derivePerYearDara(rawARA, getGapYearBracketCandidates(tipsMap, result.summary.lastYear)));
+      correctCoverIncome = true;
+    }
     const { scaledMap, scaledMedian } = inferScaledDARAFromPortfolio({
       daraMap, holdings, tipsMap, refCPI, settlementDate,
       bracketMode, lastYearOverride, firstYearOverride, preLadderInterest, flat: false, bondHolidays,
       availableCash, rmdCouponMode, tradeDate,
+      maturityPref, allocationPolicy, yearRankOverrides, yearOverrides, correctCoverIncome,
     });
     result = runRebalance({ ...base, dara: scaledMedian, daraByYear: scaledMap });
   }

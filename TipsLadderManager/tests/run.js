@@ -1557,7 +1557,7 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
 
   const res = runFundedRebalance({
     dara: median, holdings: rawHoldings, tipsMap, refCPI, settlementDate,
-    daraByYear: mirror, isPristineMirror: true,
+    daraByYear: mirror, daraPlanUnedited: true,
   });
   assert('gap-free: engine reports no gap years', res.summary.gapYears.length, 0);
   const maxAbsDelta = Math.max(0, ...res.details.map(d => Math.abs((d.qtyAfter ?? 0) - (d.qtyBefore ?? 0))));
@@ -1567,12 +1567,12 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
 
 // ── Test: runFundedRebalance — gap/Future-30Y block: scale actually applies ─────────────────────
 // Companion to the gap-free no-op test above: a portfolio that DOES have a gap-year/Future-30Y
-// block to duration-match, so isPristineMirror must trigger the scale (not skip it). This is the
+// block to duration-match, so daraPlanUnedited must trigger the scale (not skip it). This is the
 // exact reproduction the user found manually (2026-07-25): load the app with the pre-populated
 // SampleHoldings.csv and click Rebalance Ladder — net cash came back a large negative number instead
 // of ~0, because the whole scale-application branch had been silently deleted from
 // runFundedRebalance in commit c0d233b (2026-07-16, an unrelated Ref CPI/Index Ratio refactor) —
-// isPristineMirror kept getting computed and passed in from index.html, but nothing acted on it
+// the flag kept getting computed and passed in from index.html, but nothing acted on it
 // anymore, so funded years were never sold down to fund the bracket excess. The gap-free no-op
 // test above didn't catch this because it only exercises the branch where the scale is correctly
 // SKIPPED — it can't tell "skipped because gap-free" apart from "skipped because deleted". This
@@ -1597,7 +1597,7 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
 
     const res = runFundedRebalance({
       dara: median, holdings: rawHoldings, tipsMap, refCPI, settlementDate,
-      daraByYear: mirror, isPristineMirror: true,
+      daraByYear: mirror, daraPlanUnedited: true,
     });
     const hasFundingBlock = res.summary.gapYears.length > 0 || res.summary.future30yYears.length > 0;
     assert('SampleHoldings: portfolio actually has a gap/Future-30Y block to fund (else this test proves nothing)', hasFundingBlock, true);
@@ -1605,6 +1605,55 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
       res.summary.costDeltaSum >= -50 && res.summary.costDeltaSum <= 3000, true);
     console.log(`        net cash: ${Math.round(res.summary.costDeltaSum).toLocaleString()}`);
   }
+}
+
+// ── Test: a stated per-year plan is SCALED to self-finance, not discarded ──────────────────────
+// A file that carries its own #fundedYear,dara block used to be exempt from the self-financing scale
+// entirely, so an aged export — one whose DARA values were restated upward to a newer Ref CPI date —
+// reloaded as a ladder that could not pay for itself (measured at -12,745 on a real year-over-year
+// scenario). It is now scaled like any other unedited plan, with two things that must both hold:
+//   1. the plan's own SHAPE is what gets scaled (`daraPlanIsStated`), not a mirror re-derived from
+//      holdings — re-deriving discards the user's stated per-year targets;
+//   2. a plan that already funds itself is left where it is, so the same-day build → export → import
+//      round trip stays zero-trade.
+{
+  const lastYear = 2040, dara = 100000;
+  const b = runBuild({ dara, firstYear: 2026, lastYear, tipsMap, refCPI, settlementDate });
+  const holdings = b.details
+    .map(d => ({ cusip: d.cusip, qty: (d.fundedYearQty || 0) + (d.excessQty || 0), excessQty: d.excessQty || 0 }))
+    .filter(h => h.qty > 0);
+  const plan = new Map();
+  for (let y = 2026; y <= lastYear; y++) plan.set(y, dara);
+
+  console.log('\nrunFundedRebalance — stated per-year plan: scaled to self-finance, shape kept');
+
+  // 1. The plan as built already funds itself: nothing should move.
+  const same = runFundedRebalance({
+    dara, holdings, tipsMap, refCPI, settlementDate,
+    daraByYear: plan, daraPlanUnedited: true, daraPlanIsStated: true,
+    firstYearOverride: 2026, lastYearOverride: lastYear,
+  });
+  assert('stated plan has a gap block to fund (else this test proves nothing)', same.summary.gapYears.length > 0, true);
+  const moved = same.details.filter(d => Math.round((d.qtyAfter ?? 0) - (d.qtyBefore ?? 0)) !== 0).length;
+  assert('stated plan, unchanged: round trip stays zero-trade', moved, 0);
+  assert('stated plan, unchanged: net cash exactly 0', Math.round(same.summary.costDeltaSum), 0);
+
+  // 2. Restated upward, as an aged export is on import: cannot fund itself at the stated level, so
+  //    the whole shape scales down to the level that can.
+  const aged = new Map();
+  for (const [y, v] of plan) aged.set(y, v * 1.05);
+  const res = runFundedRebalance({
+    dara: Math.round(dara * 1.05), holdings, tipsMap, refCPI, settlementDate,
+    daraByYear: aged, daraPlanUnedited: true, daraPlanIsStated: true,
+    firstYearOverride: 2026, lastYearOverride: lastYear,
+  });
+  assert('aged stated plan: net cash is non-negative (scale applied)', res.summary.costDeltaSum >= 0, true);
+  assert('aged stated plan: net cash stays small relative to the ladder',
+    res.summary.costDeltaSum < b.summary.totalBuyCost * 0.01, true);
+  const solved = res.summary.daraByYearResolved;
+  assert('aged stated plan: solved level sits between the stated level and the original',
+    solved.get(2030) <= dara * 1.05 && solved.get(2030) > dara * 0.9, true);
+  console.log(`        stated ${Math.round(dara * 1.05).toLocaleString()} -> solved ${Math.round(solved.get(2030)).toLocaleString()}, net cash ${Math.round(res.summary.costDeltaSum).toLocaleString()}`);
 }
 
 // ── Test: Infer LMP DARA when lastYear lands inside the gap — orphaned bracket trade ────────────
@@ -2327,7 +2376,7 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
     .map(d => ({ cusip: d.cusip, qty: (d.fundedYearQty ?? 0) + (d.excessQty ?? 0), excessQty: d.excessQty ?? 0 }));
   const rebDara = new Map(years.map(y => [y, dara]));
   const reb = runFundedRebalance({ dara, holdings, tipsMap, refCPI, settlementDate,
-    daraByYear: rebDara, isPristineMirror: false, lastYearOverride: lastYear, availableCash: dara * 2.25 });
+    daraByYear: rebDara, daraPlanUnedited: false, lastYearOverride: lastYear, availableCash: dara * 2.25 });
   const rebFirst = reb.details.filter(d => d.fundedYear === y0).reduce((t, d) => t + (d.fundedYearQtyAfter ?? 0), 0);
   assert('Available Cash: Rebalance sizes the earliest rung down too', rebFirst, 0);
 }

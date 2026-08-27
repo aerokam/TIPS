@@ -2605,12 +2605,8 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   // of explicit override, just applied to every year at once instead of one rung at a time).
   _bracketAutoCapYears = new Set();
   // Mark this an explicit #fundedYear,dara import, same as one carried by the holdings file itself
-  // -- this is the SAME block format, just imported as its own file. Without this,
-  // _storeIsPristineMirror() (which only checks currentImportedDaraByYear, not how the store got
-  // populated) can't tell this import apart from the default auto-derived mirror, so a Rebalance
-  // Ladder run on a ladder with a gap/Future-30Y block would silently discard the imported plan and
-  // overwrite it with a freshly self-financing-scaled map derived from the portfolio's natural
-  // ARA shape.
+  // -- this is the SAME block format, just imported as its own file. A later re-derivation of the
+  // per-year store reads this map rather than re-mirroring the portfolio's natural ARA shape.
   currentImportedDaraByYear = new Map(daraMap);
   // NOT marked manual — an imported plan is a loaded baseline, honored as-is at Run.
   _daraManualYears = new Set();
@@ -3241,6 +3237,8 @@ function _inferYearsFlat(scopeYears) {
     preLadderInterest: ctx.preLadderInterest, scopeYears, fixedDaraByYear: _daraByYearStore, pinnedDaraByYear, flat: true,
     bondHolidays: _bondHolidays, availableCash: _availableCash, rmdCouponMode: _rmdCouponMode,
     tradeDate: localDate(_tradeDateStr),
+    maturityPref: document.getElementById('build-maturity').value,
+    allocationPolicy: _allocationPolicy, yearRankOverrides: _yearRankOverrides, yearOverrides: _yearMaturityOverrides,
   });
   for (const y of scopeYears) if (scaledMap.has(y)) _daraByYearStore.set(y, scaledMap.get(y));
   return true;
@@ -3278,12 +3276,15 @@ document.getElementById('selection-set-btn').addEventListener('click', () => {
 });
 document.getElementById('selection-infer-btn').addEventListener('click', _runSelectionInfer);
 
-// True when the per-year store is still the as-loaded mirror (no per-rung edits / selection Infer /
-// Set DARA since load) AND the file carried no explicit #fundedYear,dara block.
-// Only this default-mirror shape is self-finance-scaled at Run (3.0 §Funding the rebalance); an
-// explicitly reshaped store, or an our-export DARA block, is honored as-is.
-function _storeIsPristineMirror() {
-  if (currentImportedDaraByYear && currentImportedDaraByYear.size > 0) return false;
+// True when the per-year DARA plan on the form is still exactly what was loaded — no per-rung
+// edits, no selection Infer / Set DARA since. Only an unedited plan is self-finance-scaled at Run
+// (3.0 §Funding the rebalance); a shape the user typed is a stated intent and is honored as-is.
+//
+// Provenance is deliberately NOT part of this test. A file carrying its own #fundedYear,dara block
+// used to disqualify itself here, which meant our own exports — the one kind of file that always
+// carries one — were the only files that could never be funded. A CUSIP/Qty file describes a ladder
+// holding no cash, so nothing about the file alone should switch self-financing off.
+function _daraPlanUnedited() {
   if (!_daraLoadedSnapshot || _daraByYearStore.size === 0) return false;
   if (_daraByYearStore.size !== _daraLoadedSnapshot.size) return false;
   for (const [y, v] of _daraByYearStore) {
@@ -3541,7 +3542,8 @@ document.getElementById('run-btn').addEventListener('click', async () => {
         bracketMode: document.getElementById('bracket-mode').value,
         holdings: currentHoldingsArray, tipsMap, refCPI, settlementDate,
         daraByYear: getDaraByYear(),
-        isPristineMirror: _storeIsPristineMirror(),
+        daraPlanUnedited: _daraPlanUnedited(),
+        daraPlanIsStated: !!(currentImportedDaraByYear && currentImportedDaraByYear.size > 0),
         lastYearOverride: picked ? picked.lastYear : parseInt(document.getElementById('rebal-last-year').value),
         firstYearOverride: picked ? picked.firstYear : parseInt(document.getElementById('rebal-first-year').value),
         preLadderInterest: document.getElementById('pre-ladder-interest').checked,

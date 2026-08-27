@@ -61,29 +61,34 @@ production impact go here.
   `#fundedYear,dara` block (our own exports) from the run-time self-financing scale, because the
   build→export→import round trip used to be zero-trade by construction. Once a year of real change
   separates the two ends, that exemption leaves nothing enforcing the funding rule.
-- **The shape-preserving fallback still exists, but is switched off here.** 3.0 §Funding the
-  rebalance scales the whole per-year shape down to the highest level that funds itself. It runs
-  only when the store is the untouched load mirror, and `_storeIsPristineMirror()` (`index.html`)
-  returns false as soon as a file carries a `#fundedYear,dara` block — which our own exports always
-  do. So the one case that needs the fallback is the one case excluded from it.
+- **The shape-preserving fallback still exists, but was switched off here.** 3.0 §Funding the
+  rebalance scales the whole per-year shape down to the highest level that funds itself, and it used
+  to run only for a file that stated no DARA values of its own — which our own exports always do. So
+  the one case that needed the fallback was the one case excluded from it. **Fixed 2026-08-27**, with
+  two further defects found on the way: the scale re-derived the shape from holdings instead of
+  scaling the plan the file stated, and the search trialled a different ladder from the one it then
+  executed. See §FIXED below.
 - **Measured, on this scenario:**
+
+- **Measured, on this scenario** (re-measured 2026-08-27 against live prices, so the figures move a
+  little from day to day; the shape of the result does not):
 
   | setting | net cash | resulting DARA |
   |---|---|---|
-  | as shipped | −12,743 | 41,459 |
-  | shape-preserving scale on | −166 | 40,440 (−2.5%) |
-  | settlement-year coupons counted | −5,434 | 41,459 |
-  | both | **+977** | 41,001 (−1.1%) |
+  | before the fix | −12,745 | 41,454 |
+  | shape-preserving scale on | **+757** | 40,446 (−2.4%) |
+  | settlement-year coupons counted, scale off | −5,435 | 41,454 |
+  | both | **+204** | 40,862 (−1.4%) |
 
-  Counting the settlement year’s already-paid coupons (6,988 here) removes the 2026 buy outright.
-  With both, the rebalance funds itself and costs about 1.1% of ARA rather than 2.5%.
-- **Note:** the scale landed at −166, slightly negative, where the documented search targets the
-  largest level with net cash ≥ 0. Small, but it means the search is not quite meeting its own
-  stated guarantee — worth a look when this is implemented.
-- **Direction (stated, not yet implemented):** every coupon of the settlement year is assumed
-  retained toward that year’s target, already-paid ones included; on that basis rebalancing must be
-  self-financing, falling back to preserving the shape and reducing ARA when it cannot be.
-- **Status:** open. Scenario is reproducible — see §Reproducing the year-over-year scenario below.
+  The scale alone now makes the rebalance self-financing, at a cost of 2.4% of ARA. Counting the
+  settlement year's already-paid coupons (6,987 here) removes the 2026 buy outright and brings the
+  cost down to 1.4%.
+- **Remaining:** counting the settlement year's already-paid coupons. Every coupon of the settlement
+  year is assumed retained toward that year's target, already-paid ones included; today only the
+  *remaining* ones count (2.0 §Settlement-Year Coupon Treatment), and the already-paid ones reach
+  the ladder only if the holder types them into Available Cash by hand.
+- **Status:** open on the settlement-year coupons only. The funding rule itself is enforced again.
+  Scenario is reproducible — see §Reproducing the year-over-year scenario below.
 
 ### The settlement-year rung buys on reload, for a reason unrelated to duration matching
 
@@ -184,18 +189,6 @@ production impact go here.
 - **Still to verify:** whether any path *could* produce within-year churn — the target bond set is
   selected from the preference at Run, so it is worth confirming that a held bond is never displaced
   merely because a newer one now matches the preference better.
-### A CUSIP/Qty file should be assumed to describe a self-financing ladder
-
-- **Position:** any CUSIP/Qty file represents a ladder that carries no cash, so nothing about the
-  file alone should disable self-financing. The current exemption keys off the file (see the funding
-  entry above): the moment a loaded file carries per-year DARA values, the shape-preserving scale is
-  skipped. In plain terms, the app currently reasons "this file states its own targets, so honor
-  them exactly and do not rescale" — and that is the wrong trigger.
-- **Where the exemption does belong:** DARA values the user typed in *after* loading are a stated
-  intent and should be honored as-is. That is a different condition from the file having carried
-  values in the first place, and the two are currently conflated.
-- **Status:** open, no work started.
-
 ### Available Cash does not belong in Build
 
 - **Found:** 2026-08-27.
@@ -222,6 +215,38 @@ per-CUSIP prices for a past date (3.1 §4.0).
   it out of the displayed P+I: 1,014.38 implies 2 × 14.38 = 2.876%, against an actual 2.875%.
 - **Status:** open.
 ## FIXED
+
+### Self-financing was switched off for exactly the files that needed it
+
+- **Fixed:** 2026-08-27.
+- **Symptom:** a year-old export, reloaded, came back 12,745 short and the app said nothing.
+- **Cause 1 — provenance was treated as intent.** The run-time self-financing scale ran only when
+  the per-year plan came from nowhere in particular. A file that stated its own DARA values
+  disqualified itself, on the reasoning that a stated plan is a stated intent. But our own exports
+  are the only files that always carry one, so the exemption applied to precisely the ladders the
+  scale exists to protect. A CUSIP/Qty file describes a ladder holding no cash; only values the
+  user types after loading are a statement that overrides funding.
+- **Cause 2 — the scale threw away the plan it was meant to preserve.** When it did run, it
+  discarded the loaded per-year plan and rebuilt the shape from the portfolio’s own ARA. On a
+  broker file that is right (there is nothing else to go on); on a stated plan it replaces the
+  user’s targets with a mirror. Enabling the scale without fixing this turned a same-day round
+  trip from zero trades into trades across the whole ladder, including 25 more bonds at the
+  settlement year. The stated plan is now scaled directly, and taken at face value — no
+  cover-income correction, which exists only to repair what cannot be recovered from holdings.
+- **Cause 3 — the search solved a different ladder than it executed.** Trial runs inside the
+  binary search used the default maturity preference and allocation policy rather than the
+  caller’s. Those choices decide which CUSIP each year buys and so what each trade costs: the
+  level returned satisfied net cash ≥ 0 for a ladder that was never built, then landed at −620
+  once executed under the user’s actual settings. Every trial now carries the caller’s own
+  settings.
+- **Result on the year-over-year scenario:** net cash −12,745 → **+757**, at a DARA of 40,446
+  against 41,454 stated (−2.4%). The same-day build → export → import round trip stays exactly
+  zero-trade, now because such a plan already funds itself and the search leaves it alone.
+- **Covered by:** `runFundedRebalance — stated per-year plan: scaled to self-finance, shape kept`
+  (`tests/run.js`), which asserts both halves — an unchanged plan does not move, an aged one is
+  scaled until it funds itself.
+- **Spec:** 3.0 §Funding the rebalance rewritten (scope, which shape is scaled, and the
+  trial-the-caller’s-ladder rule).
 
 ### Ref CPI date in Rebalance: stale basis carried in, no re-scale on change, no notice
 
