@@ -214,7 +214,7 @@ per-CUSIP prices for a past date (3.1 §4.0).
 
 ### Test ladders built on real year-ago market data
 
-- **Added:** 2026-08-27, in `data/yearago/`.
+- **Added:** 2026-08-27, in `tests/fixtures/yearago/`.
 - **Why:** a ladder stated at an older Ref CPI date cannot be produced in the app from live data,
   and building one against today’s prices with an old Ref CPI would mix two dates. These are built
   entirely on FedInvest prices, yields and Ref CPI for 2025-08-26 — what the app would have
