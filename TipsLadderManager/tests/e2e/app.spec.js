@@ -1456,6 +1456,57 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 // recorded, and any hand-written plan). The app cannot know the date and does not guess: the values
 // are used as written, and the status strip offers to supply one. Supplying an earlier date scales
 // the values from it to the settlement date (3.0 §DARA Basis Date).
+// Coupons a held ladder has already collected this year are money in hand (2.0 §Available Cash),
+// so the app offers that total in Available Cash, marked amber. The window starts at the date the
+// loaded ladder was stated at: a plan stated as of today has collected nothing since, which is what
+// keeps a same-day build → export → import round trip at zero trades.
+test('Available Cash is offered from coupons already received, and only for a ladder stated in the past', async ({ page }) => {
+  test.setTimeout(20_000);
+  const cash = page.locator('#available-cash');
+  const mark = page.locator('#available-cash-auto');
+
+  // The auto-loaded sample holdings state no date at all — a real position, held all year.
+  await expect(page.locator('.fy-dara-input[data-year]').first()).toBeVisible({ timeout: 4_000 });
+  const offered = Number(await cash.inputValue());
+  expect(offered, 'a held portfolio has received some of this year’s coupons').toBeGreaterThan(0);
+  await expect(mark).toBeVisible();
+  await expect(cash).toHaveClass(/auto-filled/);
+
+  // Typing over it hands the figure back to the user.
+  await cash.fill('1234');
+  await cash.blur();
+  await expect(mark).toBeHidden();
+  await expect(cash).not.toHaveClass(/auto-filled/);
+
+  // A plan stated as of today: nothing has been paid since, so nothing is offered.
+  const years = await page.locator('.fy-dara-input[data-year]').evaluateAll(
+    els => els.slice(0, 4).map(e => e.dataset.year)
+  );
+  // The trade date the app is actually running against, off the info strip, so the test is not
+  // guessing at "today" from its own clock.
+  const strip = (await page.locator('#info-source').textContent()) ?? '';
+  const md = strip.match(/Trade:\s*(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  expect(md, 'info strip names the trade date').not.toBeNull();
+  const todayIso = md[3] + '-' + md[1].padStart(2, '0') + '-' + md[2].padStart(2, '0');
+  const planToday = test.info().outputPath('plan-stated-today.csv');
+  writeFileSync(planToday, ['#params,refCpiDate=' + todayIso,
+    '#fundedYear,dara', ...years.map(y => y + ',40000')].join('\n') + '\n');
+  await chooseMenu(page, 'import-menu', 'dara-plan');
+  await page.locator('#dara-plan-import-file').setInputFiles(planToday);
+  await expect(cash).toHaveValue('');
+  await expect(mark).toBeHidden();
+
+  // The same plan stated a year ago: every coupon paid since counts, and the offer returns.
+  const planAged = test.info().outputPath('plan-stated-a-year-ago.csv');
+  const lastYear = new Date(); lastYear.setFullYear(lastYear.getFullYear() - 1);
+  writeFileSync(planAged, ['#params,refCpiDate=' + lastYear.toISOString().slice(0, 10),
+    '#fundedYear,dara', ...years.map(y => y + ',40000')].join('\n') + '\n');
+  await chooseMenu(page, 'import-menu', 'dara-plan');
+  await page.locator('#dara-plan-import-file').setInputFiles(planAged);
+  await expect(mark).toBeVisible();
+  expect(Number(await cash.inputValue())).toBeGreaterThan(0);
+});
+
 test('DARA plan with no Ref CPI date: used as written, then scaled once a date is supplied', async ({ page }) => {
   test.setTimeout(20_000);
   await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);

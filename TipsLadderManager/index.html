@@ -58,6 +58,9 @@
   .field label { font-size: 10px; font-weight: 800; color: var(--portal-card-text); text-transform: uppercase; letter-spacing: .08em; white-space: normal; line-height: 1.1; height: 2.2em; display: flex; align-items: flex-end; }
   .field input, .field select { padding: 7px 10px; background: var(--portal-header-bg); border: 1px solid var(--portal-header-bg); border-radius: 4px; font-size: 13px; color: var(--portal-text-on-dark); width: 100%; }
   .field input::placeholder { color: rgba(255,255,255,0.4); }
+  /* A figure the app supplied rather than the user: same amber language as the auto-set-to-median
+     DARA marker. Cleared the moment the user types over it. */
+  .field input.auto-filled { border-color: #f59e0b; box-shadow: inset 0 0 0 1px rgba(245,158,11,.45); }
   .field input:focus, .field select:focus { outline: none; border-color: var(--tab-active-bg); box-shadow: 0 0 0 2px rgba(91,164,164,0.4); }
   .field select:disabled { opacity: .55; cursor: not-allowed; }
   .field input[type="file"] { display: none; }
@@ -536,7 +539,7 @@
         <select id="last-year"><option value="">—</option></select>
       </div>
       <div class="field" id="field-available-cash">
-        <label style="white-space:nowrap" title="Cash on hand you will spend rather than invest. Applied to the earliest funded year first, spilling up the ladder as each year is covered.">Available cash</label>
+        <label style="white-space:nowrap;gap:4px" title="Cash on hand you will spend rather than invest. Applied to the earliest funded year first, spilling up the ladder as each year is covered.">Available cash<span id="available-cash-auto" style="display:none;color:#f59e0b" title="Filled in from the coupons this ladder has already received this year. Type over it to use your own figure.">&#9888;</span><button id="available-cash-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Available cash help">?</button></label>
         <input type="number" id="available-cash" min="0" step="100" placeholder="0" style="width:90px">
       </div>
     </div>
@@ -791,6 +794,23 @@ document.getElementById('alloc-policy-help').addEventListener('click', e => {
   ]);
 });
 
+document.getElementById('available-cash-help').addEventListener('click', e => {
+  e.stopPropagation();
+  const auto = _availableCashAuto && _availableCash > 0;
+  const sections = [
+    { html: 'Cash on hand you will <b>spend</b> rather than invest. The earliest funded year is covered from it first, and whatever is left spills up the ladder year by year. A rung that cash already covers needs fewer TIPS, or none at all.' },
+    { html: 'Cash you mean to put <i>into</i> the ladder is not entered here. Leave the box empty, and Net Cash comes back negative by whatever the purchases cost.' },
+    { sep: true },
+    { heading: 'When the app fills it in' },
+    { html: 'Loading a ladder stated at an older Ref CPI date means a stretch of this year has passed since, and its coupons have been paid. That money is assumed kept toward this year&rsquo;s Amount, so the box is filled with the coupons received since that date and marked amber.' },
+    { html: 'A ladder stated as of today has collected nothing since, so nothing is filled in. A broker file names no date, so the whole year to date counts.' },
+    { html: 'Type over the figure at any time; the amber mark clears and your number is used as entered.' },
+  ];
+  if (auto) sections.push({ sep: true },
+    { html: '<b>Now showing $' + Math.round(_availableCash).toLocaleString() + '</b> in coupons received'
+      + (currentImportedParams?.refCpiDate ? ' since ' + esc(_fmtMDY(currentImportedParams.refCpiDate)) : ' this year') + '.' });
+  showPopup(e.currentTarget, 'Available Cash', sections);
+});
 document.getElementById('bracket-mode-help').addEventListener('click', e => {
   e.stopPropagation();
   showPopup(e.currentTarget, 'Bracket Mode', [
@@ -941,6 +961,12 @@ const _infoPopups = {};
 // the way into Build. Parked rather than discarded so a Build result rendered under an override
 // stays consistent with the date it was computed at after a round trip through Rebalance.
 let _refCpiOverrideBuild = null;
+// Available Cash is per-mode, like every other figure on this card. It was shared until the app
+// began filling it in from coupons already received (2.0 §Available Cash), which is a statement
+// about a HELD portfolio: letting that figure follow the user into Build would size a from-scratch
+// ladder down against coupons no one has been paid.
+let _availableCashBuild = 0, _availableCashAutoBuild = false;
+let _availableCashRebal = 0, _availableCashAutoRebal = false;
 let _rebalDurationRows = null, _buildDurationRows = null;
 let _rebalFuture30yDurationRows = null, _buildFuture30yDurationRows = null;
 
@@ -966,6 +992,8 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _maturityPrefBuild = document.getElementById('build-maturity').value;
       _yearMaturityOverridesBuild = _yearMaturityOverrides;
       _yearMaturityOverrides = _yearMaturityOverridesRebal;
+      _availableCashBuild = _availableCash; _availableCashAutoBuild = _availableCashAuto;
+      _availableCash = _availableCashRebal; _availableCashAuto = _availableCashAutoRebal;
       daraEl.value = _daraRebal;
       _daraByYearStore = _daraByYearStoreRebal; _daraByYearPanelDefault = _daraByYearPanelDefaultRebal;
       _daraLoadedSnapshot = _daraLoadedSnapshotRebal;
@@ -981,6 +1009,8 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
       _maturityPrefRebal = document.getElementById('build-maturity').value;
       _yearMaturityOverridesRebal = _yearMaturityOverrides;
       _yearMaturityOverrides = _yearMaturityOverridesBuild;
+      _availableCashRebal = _availableCash; _availableCashAutoRebal = _availableCashAuto;
+      _availableCash = _availableCashBuild; _availableCashAuto = _availableCashAutoBuild;
       daraEl.value = _daraBuild || '10000';
       _daraByYearStore = _daraByYearStoreBuild; _daraByYearPanelDefault = _daraByYearPanelDefaultBuild;
       _daraLoadedSnapshot = _daraLoadedSnapshotBuild;
@@ -1023,6 +1053,7 @@ document.querySelectorAll('.tab-bar .tab-btn').forEach(btn => {
     _updateAllocPolicyLock();
 
 
+    _syncAvailableCashInput();
     document.getElementById('run-btn').textContent = isRebalance ? 'Rebalance Ladder' : 'Build Ladder';
 
     document.getElementById('output').style.display     = isRebalance && (rebalanceRendered || _rebalBeforeStateShown) ? 'block' : 'none';
@@ -1935,6 +1966,70 @@ function _actualPaymentDate(d) {
   return actualPaymentDate(d, _bondHolidays);
 }
 
+// One coupon payment's per-bond value on its own payment date. The Ref CPI series is published
+// ~2 months ahead of the active Ref CPI date, so a payment usually already has its own published
+// Ref CPI — use that when present, else fall back to the active Ref CPI, same as every other
+// Amount figure in this app (5.0 §Cash Flow Calendar). Shared by the Cash Flow Calendar (payments
+// still to come) and the settlement-year received-coupon total (payments already made), so the two
+// can never value the same payment differently.
+function _couponEventCalc(bond, d, activeRc, activeDateIso) {
+  const dIso = _isoDate(d);
+  const actualRc = lookupRefCpi(refCpiRows, dIso);
+  const isActual = actualRc != null;
+  const eventRc = isActual ? actualRc : activeRc;
+  const { principalPerBond, indexRatio } = bondCalcs(bond, eventRc);
+  return { eventRc, isActual, principalPerBond, indexRatio,
+    couponPerBond: principalPerBond * (bond.coupon ?? 0) / 2,
+    refCpiDateDisplay: _fmtLongDate(localDate(isActual ? dIso : activeDateIso)) };
+}
+
+// Settlement-year coupons this portfolio has ALREADY RECEIVED — the money the holder collected
+// during the current year and, per 2.0 §Settlement-Year Coupon Treatment, is assumed to have kept
+// toward this year's Amount rather than reinvested.
+//
+// Counted only from `sinceDateStr` onward: the date the loaded ladder was stated at (its Ref CPI
+// date). A ladder built moments ago has a basis of today and has received nothing, so this returns
+// zero and the round trip is undisturbed; a ladder stated a year ago has collected every payment
+// since, and that is the money that funds its rebalance. A file stating no date at all is a real
+// broker position, held all along, so the whole year to date counts.
+// Offers the received-coupon total as Available Cash, marked amber so it reads as the app's figure
+// rather than the holder's. A file that stated its own Available Cash has already said what it
+// holds and is left alone. A ladder stated as of today has collected nothing since, so the total
+// comes back zero on its own and the box stays empty — no special case for the same-day round trip.
+// Called from both load paths (holdings file / account selection, and a standalone DARA plan), so
+// the two can never disagree about the figure.
+function _offerReceivedCouponsAsCash(params) {
+  if (params?.availableCash == null && currentMode === 'rebalance') {
+    const { total } = _settlementYearCouponsReceivedSince(currentHoldingsArray, params?.refCpiDate ?? null);
+    _availableCash = total > 0 ? total : 0;
+    _availableCashAuto = total > 0;
+  }
+  _syncAvailableCashInput();
+}
+
+function _settlementYearCouponsReceivedSince(holdingsArr, sinceDateStr) {
+  if (!holdingsArr || !tipsMap || !refCpiRows || !settlementDate) return { total: 0, from: null };
+  const activeDateIso = activeRefCpiDateStr ?? _defaultRefCpiDateStr;
+  const activeRc = lookupRefCpi(refCpiRows, activeDateIso);
+  const today = localDate(_tradeDateStr);
+  if (!activeRc || !today) return { total: 0, from: null };
+  const year = settlementDate.getFullYear();
+  const yearStart = new Date(year, 0, 1);
+  const since = sinceDateStr ? localDate(sinceDateStr) : yearStart;
+  const from = since > yearStart ? since : yearStart;
+  let total = 0;
+  for (const h of holdingsArr) {
+    const b = tipsMap.get(h.cusip);
+    if (!b?.maturity || !h.qty) continue;
+    for (const d of couponSchedule(from, b.maturity)) {
+      const paid = _actualPaymentDate(d);
+      if (paid >= today || paid.getFullYear() !== year || paid < from) continue;
+      total += _couponEventCalc(b, d, activeRc, activeDateIso).couponPerBond * h.qty;
+    }
+  }
+  return { total, from };
+}
+
 // holdingsArr: the portfolio to walk. Before = currentHoldingsArray (what's actually held today,
 // the only source of real cash flow); After = _afterRebalHoldings() (the rebalance's target
 // portfolio, for previewing what the calendar looks like once the trades settle).
@@ -1955,19 +2050,12 @@ function buildCashFlowData(holdingsArr) {
     if (!b?.maturity || !h.qty) continue;
     for (const d of couponSchedule(walkFrom, b.maturity)) {
       if (_actualPaymentDate(d) < today) continue;
-      // The Ref CPI series is published ~2 months ahead of the active Ref CPI date, so near-dated
-      // payments usually already have their own published Ref CPI — use it directly when present;
-      // otherwise fall back to the active Ref CPI date, same as every other Amount figure in this
-      // app. 5.0 §Cash Flow Calendar.
-      const dIso = _isoDate(d);
-      const actualRc = lookupRefCpi(refCpiRows, dIso);
-      const isActual = actualRc != null;
-      const eventRc = isActual ? actualRc : activeRc;
-      const { principalPerBond, indexRatio } = bondCalcs(b, eventRc);
-      const couponPerBond = principalPerBond * (b.coupon ?? 0) / 2;
+      const ev = _couponEventCalc(b, d, activeRc, activeDateIso);
+      const { principalPerBond, couponPerBond } = ev;
       const calc = {
-        qty: h.qty, refCPI: eventRc, baseCpi: b.baseCpi, indexRatio, principalPerBond, coupon: b.coupon ?? 0,
-        isActual, refCpiDateDisplay: _fmtLongDate(localDate(isActual ? dIso : activeDateIso)),
+        qty: h.qty, refCPI: ev.eventRc, baseCpi: b.baseCpi, indexRatio: ev.indexRatio,
+        principalPerBond, coupon: b.coupon ?? 0,
+        isActual: ev.isActual, refCpiDateDisplay: ev.refCpiDateDisplay,
       };
       events.push({ date: d, cusip: h.cusip, type: 'coupon', amount: couponPerBond * h.qty, ...calc });
       if (d.getTime() === b.maturity.getTime()) {
@@ -2384,6 +2472,7 @@ function _initRebalDaraFromPortfolio() {
   _bracketAutoCapYears = new Set();
   _daraLoadedSnapshot = null;
   _availableCash = 0;
+  _availableCashAuto = false;
   _rmdCouponMode = 'all';
   // A CUSIP/Qty file's own #params line (currentImportedParams, set before this runs — see the
   // holdings-file change handler) carries Available Cash and coupon counting the same way it carries preLadderInterest/
@@ -2399,6 +2488,8 @@ function _initRebalDaraFromPortfolio() {
   }
   const rc = lookupRefCpi(refCpiRows, activeRefCpiDateStr ?? _defaultRefCpiDateStr);
   if (!(rc > 0)) { renderDaraByYearPanel(); return; }
+
+  _offerReceivedCouponsAsCash(currentImportedParams);
 
   // Our own export carries explicit per-year DARA (#fundedYear,dara). Honor it directly — no
   // inference — so the round-trip reproduces the ladder exactly for any shape (flat/variable/PLI).
@@ -2595,7 +2686,9 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   const yrs = [...daraMap.keys()].sort((a, b) => a - b);
   const vals = [...daraMap.values()].sort((a, b) => a - b);
   _availableCash = importedParams?.availableCash ?? 0;
-  _syncAvailableCashInput();
+  _availableCashAuto = false;
+  // A plan restates the ladder at its own Ref CPI date, so the received-coupon window moves with it.
+  _offerReceivedCouponsAsCash(importedParams);
   _rmdCouponMode = importedParams?.rmdCouponMode ?? 'all';
 
   _daraByYearStore = new Map(daraMap);
@@ -2758,6 +2851,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   _bracketAutoCapYears = new Set();
   _daraLoadedSnapshot = null;
   _availableCash = 0;
+  _availableCashAuto = false;
   _syncAvailableCashInput();
   _rmdCouponMode = 'all';
   _clearSelection();
@@ -2968,17 +3062,28 @@ let _daraAutoInferred = false;      // true when DARA field was populated by inf
 // re-render/re-run the same way _daraByYearStore does; reset only by a fresh holdings/DARA-plan load
 // (see the DARA-plan import handler and _clearOutput()).
 let _availableCash = 0;   // 2.0 §Available Cash — ladder-wide, consumed earliest rung first
+// True while the figure above is the app's own count of coupons already received this year rather
+// than one the user typed (2.0 §Available Cash §Received settlement-year coupons). Marks the
+// control amber; cleared by any edit, and by any reset that zeroes the figure.
+let _availableCashAuto = false;
 
-// Mirrors `_availableCash` into its Row 2 input; called after an import or a reset sets the state
+// Mirrors `_availableCash` into its Row 1 input; called after an import or a reset sets the state
 // behind the control's back.
 function _syncAvailableCashInput() {
   const el = document.getElementById('available-cash');
-  if (el) el.value = _availableCash ? Math.round(_availableCash) : '';
+  if (el) {
+    el.value = _availableCash ? Math.round(_availableCash) : '';
+    el.classList.toggle('auto-filled', _availableCashAuto && _availableCash > 0);
+  }
+  const mark = document.getElementById('available-cash-auto');
+  if (mark) mark.style.display = (_availableCashAuto && _availableCash > 0) ? '' : 'none';
 }
 document.getElementById('available-cash').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
   _availableCash = (isNaN(v) || v < 0) ? 0 : v;
   if (isNaN(v) || v < 0) e.target.value = '';
+  _availableCashAuto = false;
+  _syncAvailableCashInput();
   // Same commit rule as the per-rung DARA inputs: live for the pre-Run rebalance preview and an
   // already-run Build, deferred to the next Run otherwise.
   if (currentMode === 'rebalance' && !rebalanceRendered) _renderBeforeStatePreview();

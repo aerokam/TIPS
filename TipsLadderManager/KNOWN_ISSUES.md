@@ -83,28 +83,10 @@ production impact go here.
   The scale alone now makes the rebalance self-financing, at a cost of 2.4% of ARA. Counting the
   settlement year's already-paid coupons (6,987 here) removes the 2026 buy outright and brings the
   cost down to 1.4%.
-- **Remaining:** counting the settlement year's already-paid coupons. Every coupon of the settlement
-  year is assumed retained toward that year's target, already-paid ones included; today only the
-  *remaining* ones count (2.0 §Settlement-Year Coupon Treatment), and the already-paid ones reach
-  the ladder only if the holder types them into Available Cash by hand.
-- **Status:** open on the settlement-year coupons only. The funding rule itself is enforced again.
-  Scenario is reproducible — see §Reproducing the year-over-year scenario below.
-
-### The settlement-year rung buys on reload, for a reason unrelated to duration matching
-
-- **Found:** 2026-08-26, same scenario.
-- **Symptom:** the first rung (2026) buys 6 bonds, −7,309, the single largest non-bracket trade.
-  Its Amount Before is 34,018 against a target of 41,355.
-- **Cause:** a year has passed, so 2026 is now the settlement year and only its *remaining* coupons
-  count toward that rung (2.0 §Settlement-Year Coupon Treatment). The rung looks underfunded and
-  buys principal to close the difference.
-- **Stated intent:** for this scenario every 2026 coupon should count toward the 2026 target,
-  already-paid ones included. The coupon-counting choice is secondary; what matters is that the
-  ladder finances itself one way or another, counting coupons received during the year.
-- **Measured:** the already-paid 2026 coupons on the held bonds come to 6,988. Supplying that as
-  Available Cash removes the 2026 buy entirely and takes net cash from −12,743 to −5,434, so this
-  is more than half the funding gap on its own.
-- **Status:** open. Bears directly on the funding question above rather than being separate from it.
+- **Status: fixed 2026-08-27**, in two parts — the self-financing scale runs for these files again,
+  and coupons already received are offered as Available Cash. Together they land this scenario at
+  **+204** net cash for a 1.4% reduction in ARA. See §FIXED below. Scenario is reproducible — see
+  §Reproducing the year-over-year scenario.
 
 ### Ref CPI basis change contributes a bond or two of its own
 
@@ -198,7 +180,10 @@ production impact go here.
   stating cash on hand is redundant there. It earns its place only in Rebalance, where the holder
   may have kept coupons or maturing principal rather than spending them (the default assumption is
   that they were spent) and wants that deployed in the rebalance.
-- **Status:** open, no work started.
+- **Partly addressed 2026-08-27:** the figure is now per-mode, because the received-coupon offer is
+  a statement about a held portfolio and must not follow the user into a from-scratch build. The
+  field itself is still shown in Build; whether to remove it outright is still open.
+- **Status:** open — the control is still there in Build, it just no longer shares its value.
 ### Reproducing the year-over-year scenario
 
 `scripts/getFedInvestPricesForDate.js <YYYY-MM-DD>` writes a `YieldsFromFedInvestPrices.csv` for any
@@ -215,6 +200,34 @@ per-CUSIP prices for a past date (3.1 §4.0).
   it out of the displayed P+I: 1,014.38 implies 2 × 14.38 = 2.876%, against an actual 2.875%.
 - **Status:** open.
 ## FIXED
+
+### The settlement year bought principal against coupons it had already been paid
+
+- **Fixed:** 2026-08-27.
+- **Symptom:** on a year-over-year reload the 2026 rung bought 6 bonds, −7,309 — the largest
+  non-bracket trade, and nothing to do with duration matching. Amount Before read 34,018 against a
+  target of 41,355.
+- **Cause:** only a settlement year’s *remaining* coupons counted toward its rung (2.0
+  §Settlement-Year Coupon Treatment). By late August most of the year’s coupons have been paid, so
+  the rung looked underfunded by exactly the money already sitting in the account, and bought
+  principal to replace it.
+- **Fix:** Available Cash is now offered from the coupons the loaded ladder has already received
+  this year, counted from the date the file states its DARA values at, and marked amber as the
+  app’s figure rather than the holder’s.
+- **Why the window matters.** Crediting every coupon paid this year regardless would be wrong for a
+  ladder built minutes ago: it never owned the bonds in February. Measured on a same-day build →
+  export → import, crediting the whole year turned a zero-trade round trip into selling 25 bonds of
+  2026 and buying across 24 other rungs. Counting only from the file’s own stated date gives zero
+  for a same-day file, so the round trip is untouched, and the full amount for a year-old one.
+- **Result:** removes the 2026 buy outright. Combined with the self-financing scale, the
+  year-over-year scenario lands at **+204** net cash and a 1.4% reduction in ARA, against 2.4% for
+  the scale alone.
+- **Also:** Available Cash became per-mode. The offer is a statement about a held portfolio, so it
+  must not follow the user into Build, which starts from cash by definition.
+- **Covered by:** `Available Cash is offered from coupons already received, and only for a ladder
+  stated in the past` (`tests/e2e/app.spec.js`).
+- **Spec:** 2.0 §Available Cash gains §Coupons already received; 6.0 §Row 1 records the marker and
+  help button.
 
 ### Self-financing was switched off for exactly the files that needed it
 
