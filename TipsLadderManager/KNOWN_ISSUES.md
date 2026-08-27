@@ -225,16 +225,24 @@ per-CUSIP prices for a past date (3.1 §4.0).
   |---|---|---|---|---|
   | `ladder-2026-2040-dara40k.csv` | 2026–2040 | 40,000 | latest | +204, ARA −1.4% |
   | `ladder-2026-2055-dara40k.csv` | 2026–2055 | 40,000 | latest | +95, ARA −0.8% |
-  | `ladder-2026-2045-dara100k.csv` | 2026–2045 | 100,000 | latest | +399, ARA −0.8% |
+  | `ladder-2026-2045-dara100k.csv` | 2026–2045 | 100,000 | latest | +190, ARA −0.9% |
   | `ladder-2027-2050-dara60k.csv` | 2027–2050 | 60,000 | latest | +228, ARA **+0.8%** |
-  | `ladder-2026-2040-dara40k-all.csv` | 2026–2040 | 40,000 | all months | +1,208, ARA −0.3% |
-  | `ladder-2026-2055-dara40k-all.csv` | 2026–2055 | 40,000 | all months | +364, ARA −0.5% |
-  | `ladder-2026-2045-dara100k-all.csv` | 2026–2045 | 100,000 | all months | +917, ARA −0.4% |
+  | `ladder-2026-2040-dara40k-all.csv` | 2026–2040 | 40,000 | all months | +72, ARA −1.3% |
+  | `ladder-2026-2055-dara40k-all.csv` | 2026–2055 | 40,000 | all months | +347, ARA −0.8% |
+  | `ladder-2026-2045-dara100k-all.csv` | 2026–2045 | 100,000 | all months | +491, ARA −0.7% |
   | `ladder-2026-2040-dara40k-first.csv` | 2026–2040 | 40,000 | earliest | +640, ARA −0.8% |
 
   The all-months and earliest ladders are the ones that exercise matured rungs: by late August their
   2026 rungs for January, April and July have been paid out. A latest-maturity ladder holds the
   October 2026 TIPS, which has not matured, so it never sees the case at all.
+
+  Every figure here is measured under the **Maturity order** allocation policy, which is what the app
+  actually runs. The policy is locked to Maturity order whenever the maturity preference is Last or
+  First (`_updateAllocPolicyLock()`), so the Equal split listed first in the dropdown is never in
+  force by default. It changes nothing for a funded year holding a single TIPS, and moves net cash
+  materially for one holding several — an all-months year, or a bracket year carrying a retained
+  older leg: the 2026–2040 all-months ladder lands at +72 under Maturity order against +1,208 under
+  Equal split.
 
   The last one gains: its first funded year is 2027, so the settlement year is outside the ladder
   and the coupons received during 2026 are pure surplus rather than income the 2026 rung was
@@ -277,7 +285,7 @@ per-CUSIP prices for a past date (3.1 §4.0).
 
   | fixture | maturity preference | matured rungs | proceeds | ARA cost without | with |
   |---|---|---|---|---|---|
-  | `ladder-2026-2040-dara40k-all` | all months | 3 | 25,246 | −4.6% | **−0.3%** |
+  | `ladder-2026-2040-dara40k-all` | all months | 3 | 25,246 | −6.1% | **−1.3%** |
   | `ladder-2026-2040-dara40k-first` | earliest | 1 | 32,743 | −7.1% | **−0.8%** |
   | `ladder-2026-2040-dara40k` | latest | 0 | 0 | −1.4% | −1.4% |
 
