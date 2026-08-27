@@ -40,15 +40,31 @@ function truncateThenRound(x, truncDp = 6, roundDp = 5) {
   if (x == null) return x;
   // IEEE754 doubles can represent an exact n-decimal value as e.g.
   // 1.1500349999999999 instead of 1.150035, which silently truncates/rounds
-  // one digit low. Nudge by an epsilon far smaller than the 6th/5th decimal
-  // place (1e-6/1e-5) but far larger than double representation error
-  // (~1e-13 relative) so exact boundary values land on their true value.
-  const eps = 1e-9;
-  const sign = x < 0 ? -1 : 1;
+  // one digit low. Nudge by an epsilon before each trunc/round step so an
+  // exact boundary value lands on its true value.
+  //
+  // The nudge must be RELATIVE (proportional to the scaled magnitude), not a
+  // fixed absolute amount: a fixed 1e-9 nudge is ~4 ulps at index-ratio
+  // magnitude (~1e6 after scaling) but ~0.01 ulps at Ref CPI magnitude
+  // (~3e8 after scaling) -- a no-op there. That silently mis-rounded 28 real
+  // dates in the published RefCPI.csv series (e.g. 2019-08-02: true value
+  // 256.093645 -> must round up to 256.09365, absolute-nudge version gave
+  // 256.09364). At 1e-12 relative this is ~4500 ulps at any magnitude this
+  // function is used at -- far above representation noise, far below one
+  // unit in the 6th/5th decimal place. Verified against TreasuryDirect's
+  // published Ref CPI series: 0 mismatches (was 28) -- see
+  // shared/tests/ref-cpi.test.js.
+  //
+  // Note: nudging by sign(x)*epsilon shifts negative half-way values from
+  // round-half-up to round-half-away-from-zero (a real but unrequested
+  // semantic change vs. plain Math.round). Moot in practice -- Ref CPI and
+  // Index Ratio are always positive -- but be aware if this function is ever
+  // reused for a signed quantity.
+  const nudge = v => v === 0 ? v : v + Math.sign(v) * Math.max(1e-9, Math.abs(v) * 1e-12);
   const truncFactor = 10 ** truncDp;
-  const truncated = Math.trunc(x * truncFactor + sign * eps) / truncFactor;
+  const truncated = Math.trunc(nudge(x * truncFactor)) / truncFactor;
   const roundFactor = 10 ** roundDp;
-  return Math.round(truncated * roundFactor + sign * eps) / roundFactor;
+  return Math.round(nudge(truncated * roundFactor)) / roundFactor;
 }
 
 // ─── Calculated (31 CFR §356 Appendix B) ─────────────────────────────────────
