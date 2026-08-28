@@ -266,6 +266,29 @@ per-CUSIP prices for a past date (3.1 §4.0).
 - **Spec:** 3.0 §RefCPI Date Override rewritten as §Ref CPI Date; cross-references in 3.1, 5.0 and
   6.0 follow.
 
+### SA yields shifted slightly when the Ref CPI rounding fix landed
+
+- **When:** 2026-08-27. Not a defect in this app; a record of a value change reaching it from
+  upstream, so a later "why did this move" has an answer.
+- **Cause:** `shared/src/ref-cpi.js` `truncateThenRound()` carried a magnitude-dependent rounding
+  bug that mis-rounded 28 dates in the published Ref CPI series by 1e-5 (see that file and
+  `shared/tests/ref-cpi.test.js` for the analysis). Fixed, then `TIPS/RefCpiNsaSa.csv` and
+  `TIPS/YieldsSaSao.csv` were regenerated. This app reads the latter for its SA yields.
+- **Measured impact here:** isolating the SA adjustment itself (SA yield minus ask yield, the part
+  the correction touches, as opposed to same-day market movement in the ask), the largest change
+  across 53 CUSIPs was **2.38e-5, or 0.238 basis points**.
+- **Visible, barely.** SA yield renders as `(x * 100).toFixed(3)`, so the display resolves to 0.1
+  basis points and a quarter of a basis point can move the last digit by a unit or two. It cannot
+  change a rung or a trade.
+- **Correction to an estimate made at the time:** this was first called negligible at any displayed
+  precision, reasoning from the relative size of the input error (1e-5 on a Ref CPI near 256 is
+  ~4e-8 relative). That understated it. The error reaches the SA yield **amplified**, because the
+  adjustment is a ratio of two nearby quantities, so relative error in the inputs does not carry
+  through as relative error in the result.
+- **Method note:** the first before/after comparison looked alarming (3.85e-3 on every CUSIP) purely
+  because it spanned a market move. Ask yields had shifted by the same order over the same window.
+  Any comparison of this file across time has to isolate the adjustment from the underlying yield.
+
 ### The offered Available Cash ignored the coupon-counting choice
 
 - **Found:** 2026-08-27, first hands-on test of the offer, hours after it shipped.
