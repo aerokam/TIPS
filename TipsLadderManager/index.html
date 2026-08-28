@@ -810,12 +810,12 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
     { prose: 'Cash intended for reinvestment in the ladder is not entered here. Leave the box empty; Net Cash then reports the cost of the purchases as a negative figure.' },
     { sep: true },
     { heading: 'When the app enters a figure' },
-    { prose: 'A ladder loaded in Rebalance has been held over some part of the settlement year and has been paid during it. Settlement-year income is assumed retained toward that year&rsquo;s Amount rather than reinvested, so it is cash on hand and belongs here. The app values what has been received, enters it, and marks the box amber to show the figure is the app&rsquo;s rather than yours.' },
+    { prose: 'A ladder loaded in Rebalance has been held over part of the settlement year, and the cash flows it generated over that part have been received. Settlement-year income is assumed retained toward that year&rsquo;s Amount rather than reinvested or spent, so it is cash on hand and belongs here. The app values what has been received, enters it, and marks the box amber to show the figure is the app&rsquo;s rather than yours.' },
     { prose: 'How much of the year is counted depends on what the loaded file records.' },
-    { prose: '<b>A file this app saved</b> records the Ref CPI date the ladder was stated at, and payments made after that date are counted. One saved today has been paid nothing since, so no figure is entered, which is what holds a same-day export and reimport at no trades.' },
+    { prose: '<b>A file this app saved</b> records the settlement Ref CPI date in effect when it was saved, and payments made after that date are counted. A file saved today has no payments after it, so no figure is entered, which is what holds a same-day export and reimport at no trades.' },
     { prose: '<b>A position file from a broker</b> records no date at all. The whole settlement year is counted, which is right for a position held all along, and the status strip says so and offers the alternatives.' },
     { prose: 'The window is stated as a coupon payment date to count <i>after</i>, chosen from the dates this portfolio was actually paid on. Every choice is exclusive of the date it names: the payment made on that date is not counted, every later one is. Money arrives only on those dates, so no other boundary would change the figure.' },
-    { prose: 'That choice bounds this figure alone. It is not a Ref CPI date and restates nothing. Scaling per-year amounts to a Ref CPI date is a separate entry, offered where a loaded DARA plan carries amounts but records no date they were stated at; a position file carries holdings alone, so there is nothing there to restate.' },
+    { prose: 'That choice bounds this figure alone. It is not a Ref CPI date and restates nothing. Scaling per-year amounts to a Ref CPI date is a separate entry, offered where a loaded DARA plan carries amounts but records no Ref CPI date; a position file carries holdings alone, so there is nothing there to restate.' },
     { sep: true },
     { heading: 'What is counted' },
     { prose: '<b>Coupons</b> already paid on every holding.' },
@@ -2983,8 +2983,9 @@ document.getElementById('status').addEventListener('click', e => {
       + 'This does not scale DARA. Scaling per-year amounts to a Ref CPI date requires a loaded '
       + 'DARA plan, which is what carries the amounts to restate; a position file carries '
       + 'holdings alone.'
-    : 'The Ref CPI date these DARA values were stated at. Supplying it restates them at the '
-      + 'settlement date, so the ladder keeps the same real target.';
+    : 'The settlement Ref CPI date in effect when these DARA values were saved. Supplying it '
+      + 'restates them at the current settlement Ref CPI date, so the ladder keeps the same real '
+      + 'target.';
   input.hidden = isCash;
   document.getElementById('cash-since-select').hidden = !isCash;
   if (isCash) _renderCashAfterOptions();

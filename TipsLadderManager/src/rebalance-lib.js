@@ -980,6 +980,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const partialCreditYear   = _sl.partialCreditYear;
   const partialCredit       = _sl.partialCredit;
   const cashCreditByFundedYear = _sl.cashCreditByFundedYear ?? {};
+  const creditByFundedYear  = _sl.creditByFundedYear ?? {};
   const preLadderPool       = _sl.preLadderPool;
   const preLadderCouponPool = _sl.preLadderCouponPool;
   const preLadderAmdPool    = _sl.preLadderAmdPool;
@@ -1561,7 +1562,14 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
     const { credit: pliCredit, amount: _postAmt } = fundedYearAmount({
       principal: pA, ownCoupon: cA, laterMatInt: lAfter, ownExcessCoupon: exIntA, amd: amdAfter, rollCoupon: rollAfter,
       dara: yearDaraDisp, isZeroed: zeroedFundedYears.has(year),
-      partialCredit: pliCreditByFundedYear[year] ?? 0,
+      // The WHOLE credit the year took, cash and pre-ladder interest alike. A year the pool
+      // covers in full is zeroed and topped up to DARA above, which carries its cash implicitly;
+      // the one year the pool runs out partway through takes what is left as a partial credit,
+      // and passing only the pre-ladder half there dropped the cash from the year's Amount. The
+      // rung was sized down for that cash, so omitting it reported a year delivering less than
+      // its target when nothing of the sort had happened. Build passes the whole credit here, so
+      // this is also what keeps After identical to a build of the same ladder.
+      partialCredit: creditByFundedYear[year] ?? 0,
     });
     postARAByYear[year] = _postAmt;
     postARABreakdown[year] = { principal: pA, ownCoupon: cA, laterMatInt: lAfter, holdings: holdingsAfter, pliCredit, future30yUpperAnnualAmd: amdAfter, future30yRollCoupon: rollAfter, availableCashCredit: cashCreditByFundedYear[year] ?? 0 };
@@ -1812,7 +1820,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
       araAfterOwnCoupon: bst.targetFundedYearQty * 1000 * ir * tb.coupon * (m < 7 ? 0.5 : 1.0),
       araAfterLaterMatInt: yearLaterMatIntSnapshot[bYear] ?? 0,
       araAfterHoldings: holdingsAfterSyn,
-      preLadderCreditForYear: pliCreditByFundedYear[bYear] ?? 0,
+      preLadderCreditForYear: postARABreakdown[bYear]?.pliCredit ?? 0,
       preLadderCreditForYearBefore: beforeARABreakdown[bYear]?.pliCredit ?? 0,
       future30yUpperAnnualAmd:       postARABreakdown[bYear]?.future30yUpperAnnualAmd ?? 0,
       future30yUpperAnnualAmdBefore: beforeARABreakdown[bYear]?.future30yUpperAnnualAmd ?? 0,

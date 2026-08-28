@@ -2379,6 +2379,33 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
     daraByYear: rebDara, daraPlanUnedited: false, lastYearOverride: lastYear, availableCash: dara * 2.25 });
   const rebFirst = reb.details.filter(d => d.fundedYear === y0).reduce((t, d) => t + (d.fundedYearQtyAfter ?? 0), 0);
   assert('Available Cash: Rebalance sizes the earliest rung down too', rebFirst, 0);
+
+  // A rung sized down for cash still delivers its full Amount: the cash covers what the TIPS no
+  // longer do. The build/rebalance parity test above runs at zero cash, so the year the pool ran
+  // out partway through reported an Amount short by exactly the cash it had been given, and
+  // nothing caught it. Compared against build, which is the same ladder by construction.
+  const buildWithCash = runBuild({ dara, lastYear, tipsMap, refCPI, settlementDate, availableCash: dara * 2.25 });
+  const buildAmt = new Map();
+  for (const d of buildWithCash.details) if (d.fundedYear) buildAmt.set(d.fundedYear, d.fundedYearAmt);
+  let worstAmt = 0, worstAmtY = null;
+  for (const d of reb.details) {
+    if (d.fundedYear == null || d.araAfterTotal == null || !buildAmt.has(d.fundedYear)) continue;
+    const diff = Math.abs(d.araAfterTotal - buildAmt.get(d.fundedYear));
+    if (diff > worstAmt) { worstAmt = diff; worstAmtY = d.fundedYear; }
+  }
+  assert(`Available Cash: Amount After counts the cash credit, matching build (worst $${Math.round(worstAmt)}`
+    + `${worstAmtY ? ' @' + worstAmtY : ''})`, worstAmt < 2, true);
+
+  // The partial-credit year is the one that regressed: fully covered years are topped up to DARA
+  // by a different path, so a test that only looked at those would pass through this defect.
+  const partialY = years.find(y => (reb.details.filter(d => d.fundedYear === y)
+    .reduce((s, d) => s + (d.fundedYearQtyAfter ?? 0), 0)) > 0 && (reb.details.find(d => d.fundedYear === y)?.availableCashCredit ?? 0) > 0);
+  assert('Available Cash: the pool does run out partway through a rung here', partialY != null, true);
+  if (partialY != null) {
+    const row = reb.details.find(d => d.fundedYear === partialY && d.araAfterTotal != null);
+    assert(`Available Cash: the partial-credit year (${partialY}) counts its cash`,
+      Math.abs(row.araAfterTotal - buildAmt.get(partialY)) < 2, true);
+  }
 }
 // ── Summary ───────────────────────────────────────────────────────────────────
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
