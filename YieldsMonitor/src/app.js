@@ -965,8 +965,8 @@ function computeSaSeries(sym, data) {
       metaByDate.set(tradeDateStr, bondMeta);
     }
     const saY = saYieldForQuote(p.y, tradeDateStr, bondMeta, saHolidaySet, refCpiSaRows);
-    return saY == null ? null : { x: p.x, y: saY };
-  }).filter(Boolean);
+    return { x: p.x, y: saY };
+  });
 }
 
 // Refreshes the SA overlay line + sidebar reading on every SA-eligible chart from the
@@ -1237,7 +1237,7 @@ function rescaleYToVisible(chart, sym) {
   const data = (SA_SYMBOLS.has(sym) && !showQuotedYield) ? [] : raw;
   const saData = (showSaYield && chart.data.datasets[1]) ? chart.data.datasets[1].data : [];
   const allPoints = data.concat(saData);
-  const visible = allPoints.filter(p => { const t = +p.x; return t >= xMin && t <= xMax; }); if (visible.length === 0) return;
+  const visible = allPoints.filter(p => { const t = +p.x; return p.y != null && t >= xMin && t <= xMax; }); if (visible.length === 0) return;
   const bounds = snapYBounds(Math.min(...visible.map(p=>p.y)), Math.max(...visible.map(p=>p.y)));
   chart.options.scales.y.min = bounds.min; chart.options.scales.y.max = bounds.max; chart.options.scales.y.ticks.stepSize = bounds.step; chart.update('none');
 }
