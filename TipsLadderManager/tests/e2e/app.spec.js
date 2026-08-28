@@ -1414,10 +1414,12 @@ test('a file with no date says which window its received cash was counted over, 
   const wholeYear = Number(await cash.inputValue());
   expect(wholeYear).toBeGreaterThan(0);
   await expect(page.locator('#status')).toContainText('counted from the start of the settlement year');
-  await expect(page.locator('#dara-set-basis')).toBeVisible();
+  await expect(page.locator('#cash-set-since')).toBeVisible();
 
-  // Setting a date partway through the year narrows the window, so less has been collected.
-  await page.locator('#dara-set-basis').click();
+  // The cash window has its own date entry, separate from the Ref CPI date that restates per-year
+  // amounts. Setting a date partway through the year narrows the window, so less has been collected.
+  await page.locator('#cash-set-since').click();
+  await expect(page.locator('#dara-basis-title')).toHaveText('Cash received since');
   const settleYear = new Date().getFullYear();
   await page.locator('#dara-basis-date').fill(settleYear + '-07-01');
   await page.locator('#dara-basis-apply').click();
@@ -1428,7 +1430,7 @@ test('a file with no date says which window its received cash was counted over, 
   // A date before the settlement year cannot narrow the window, since only settlement-year
   // payments are counted. The figure returns to the whole year and the strip says so, rather than
   // reporting a window the count did not run over.
-  await page.locator('#dara-set-basis').click();
+  await page.locator('#cash-set-since').click();
   await page.locator('#dara-basis-date').fill((settleYear - 1) + '-08-26');
   await page.locator('#dara-basis-apply').click();
   await expect(page.locator('#status')).toContainText('the start of the settlement year');

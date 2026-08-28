@@ -363,10 +363,16 @@
 
 <div id="bracket-tooltip"></div>
 
-<!-- DARA basis-date popover (3.0 §DARA Basis Date) — offered when an imported DARA block records
-     no Ref CPI date, so the app cannot know what basis its numbers were stated in. -->
+<!-- Date popover, shared frame for the two separate date entries (3.0 §DARA Basis Date):
+     - File’s Ref CPI date, which restates per-year DARA amounts and nothing else. Offered only
+       where the loaded file carries those amounts but records no date they were stated at.
+     - Cash received since, a plain date bounding the window Available Cash is counted over
+       (2.0 §Available Cash). Offered wherever the app filled that figure in from a file that
+       records no date. It is not a Ref CPI date and scales nothing.
+     They were one entry until 2026-08-28, which read as though supplying a date to a position file
+     would restate amounts that file never carried. -->
 <div id="dara-basis-popover" class="menu-dropdown" hidden style="position:fixed;min-width:240px;max-width:280px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
-  <div style="font-weight:700;margin-bottom:6px">File’s Ref CPI date</div>
+  <div id="dara-basis-title" style="font-weight:700;margin-bottom:6px">File’s Ref CPI date</div>
   <div id="dara-basis-note" style="font-size:11px;line-height:1.4;margin-bottom:8px"></div>
   <input type="date" id="dara-basis-date" class="date-picker" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:12px;border:1px solid #94a3b8;border-radius:3px">
   <div style="text-align:right;margin-top:8px">
@@ -806,7 +812,8 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
     { html: 'A ladder loaded in Rebalance was stated at a Ref CPI date and has been held since. Settlement-year income received over that interval is assumed retained toward that year&rsquo;s Amount rather than reinvested, so it is cash on hand and belongs here. The app values it, enters it, and marks the box amber to show the figure is the app&rsquo;s rather than yours.' },
     { html: 'Two sources are counted:' },
     { html: '<b>Coupons</b> already paid on every holding.<br><b>Maturity proceeds:</b> a rung that has matured paid out its inflation-adjusted principal together with its final coupon, which is that year&rsquo;s Amount arriving. A ladder holding January, April and July rungs, rebalanced in August, has received three of them; the later in the year, the larger the share of the rung already in hand.' },
-    { html: 'A ladder stated as of today has received nothing since, so no figure is entered. A file that records no Ref CPI date is counted over the settlement year to date.' },
+    { html: 'A ladder stated as of today has received nothing since, so no figure is entered. A file that records no date is counted over the settlement year to date, and the status strip offers a date to count from instead. That date bounds this window only: it is not a Ref CPI date and restates nothing. Only a date within the settlement year narrows the window, since only settlement-year payments are counted.' },
+    { html: 'Scaling per-year amounts to a Ref CPI date is the separate entry, offered where a loaded DARA plan carries amounts but records no date they were stated at. A position file carries holdings alone, so there is nothing there to restate.' },
     { html: 'Maturity proceeds are recoverable only from a file this app saved. A broker position file lists current holdings, and a matured rung is no longer held, so it is absent from the file and its proceeds are yours to enter.' },
     { sep: true },
     { heading: 'The coupon half follows the Coupons setting' },
@@ -939,6 +946,14 @@ function setStatus(msg, isError = false) {
 function setStatusHTML(html) {
   const el = document.getElementById('status');
   el.innerHTML = html; el.className = 'notice';
+}
+
+// Adds a second notice without displacing the first. The Ref CPI date and the cash-window date are
+// separate entries, and a file that records neither is owed both offers.
+function appendStatusHTML(html) {
+  const el = document.getElementById('status');
+  el.innerHTML = el.innerHTML ? el.innerHTML + ' ' + html : html;
+  el.className = 'notice';
 }
 
 
@@ -2021,15 +2036,15 @@ function _offerReceivedCouponsAsCash(params) {
   _availableCashUserSet = false;
   _applyReceivedCashOffer();
 
-  // A file that records no date is counted from the start of the year. That is the right default for
-  // a broker position, which is held all along, but it is an assumption the holder cannot see and it
-  // now moves trades — so say it, and offer the date. Only for a file with no DARA values of its own:
-  // one that has them already carries the basis notice (§DARA Basis Date), which must not be
-  // overwritten, and its own date is what the window uses.
-  if (!_receivedCashSince && !_daraLiteralFromFile && _availableCash > 0) {
-    setStatusHTML('Cash already received is counted from the start of the settlement year, since '
-      + 'this file records no Ref CPI date. '
-      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Set Ref CPI date</a>');
+  // A file that records no date is counted from the start of the settlement year. That is the right
+  // default for a position held all along, but it is an assumption the holder cannot see and it
+  // moves trades, so say it and offer the date. Appended rather than set: a file carrying per-year
+  // amounts but no Ref CPI date has its own notice here already (§DARA Basis Date), and the two
+  // dates are separate entries, so both offers must stand.
+  if (!_receivedCashSince && _availableCash > 0) {
+    appendStatusHTML('Cash already received is counted from the start of the settlement year, since '
+      + 'this file records no date. '
+      + '<a href="#" id="cash-set-since" style="color:#93c5fd">Set date</a>');
   }
 }
 
@@ -2823,6 +2838,7 @@ let currentImportedDaraByYear = null; // explicit per-year DARA from our own exp
 // which is the whole failure this exists to prevent.
 let _daraLiteralFromFile = null;   // the file’s own DARA values, kept so a date supplied later can scale them
 let _daraFileRefCpiDate = null;    // the Ref CPI date the file was stated at, once known
+let _basisPopoverMode = 'refcpi'; // which of the two date entries the shared popover is open for
 
 function _restateDaraToActiveBasis(map, recordedDate) {
   const none = { map, factor: 1, fromDate: null, toDate: null };
@@ -2875,27 +2891,30 @@ function _reapplyImportedDara(map) {
 }
 
 document.getElementById('status').addEventListener('click', e => {
-  const setBasis = e.target.closest('#dara-set-basis');
-  if (setBasis) {
-    e.preventDefault();
-    const pop = document.getElementById('dara-basis-popover');
-    const input = document.getElementById('dara-basis-date');
-    // Two separate jobs, and which ones apply depends on what the file carried (3.0 §DARA Basis
-    // Date). A file with no per-year amounts has nothing to restate, so it is told only what the
-    // date does do there: bound the window cash already received is counted over.
-    document.getElementById('dara-basis-note').innerHTML = _daraLiteralFromFile
-      ? 'The Ref CPI date these DARA values were stated at. Supplying it restates them at the '
-        + 'settlement date, so the ladder keeps the same real target, and counts cash already '
-        + 'received from that date forward.'
-      : 'This file records no DARA values, so there is nothing to restate. The date sets when '
-        + 'cash already received is counted from, and only a date within the settlement year '
-        + 'narrows that window.';
-    input.value = _daraFileRefCpiDate ?? _receivedCashSince ?? _defaultRefCpiDateStr ?? '';
-    const r = setBasis.getBoundingClientRect();
-    pop.hidden = false;
-    pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
-    pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
-  }
+  const link = e.target.closest('#dara-set-basis, #cash-set-since');
+  if (!link) return;
+  e.preventDefault();
+  _basisPopoverMode = link.id === 'cash-set-since' ? 'cash' : 'refcpi';
+  const pop = document.getElementById('dara-basis-popover');
+  const input = document.getElementById('dara-basis-date');
+  const isCash = _basisPopoverMode === 'cash';
+  document.getElementById('dara-basis-title').textContent = isCash ? 'Cash received since' : 'File’s Ref CPI date';
+  // The cash note carries the two facts the single combined entry used to hide: that this date is
+  // not a Ref CPI date and restates nothing, and that a date before the settlement year cannot
+  // narrow the window because only settlement-year payments are counted.
+  document.getElementById('dara-basis-note').innerHTML = isCash
+    ? 'The date cash already received is counted from. Only a date within the settlement year '
+      + 'narrows the window, since only settlement-year payments are counted.<br><br>'
+      + 'This date does not scale DARA. Scaling per-year amounts to a Ref CPI date requires a '
+      + 'loaded DARA plan, which is what carries the amounts to restate; a position file carries '
+      + 'holdings alone.'
+    : 'The Ref CPI date these DARA values were stated at. Supplying it restates them at the '
+      + 'settlement date, so the ladder keeps the same real target.';
+  input.value = (isCash ? _receivedCashSince : _daraFileRefCpiDate) ?? _defaultRefCpiDateStr ?? '';
+  const r = link.getBoundingClientRect();
+  pop.hidden = false;
+  pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
+  pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
 });
 
 document.getElementById('dara-basis-cancel').addEventListener('click', () => {
@@ -2906,24 +2925,24 @@ document.getElementById('dara-basis-apply').addEventListener('click', () => {
   const v = document.getElementById('dara-basis-date').value;
   pop.hidden = true;
   if (!v) return;
-  // A file with no DARA values of its own has nothing to restate, but the date still says when the
-  // holder started collecting, which is the window the received-cash offer is counted over.
-  if (!_daraLiteralFromFile) {
+  // The cash entry bounds the window Available Cash is counted over and restates nothing. A date
+  // before the settlement year cannot narrow it, so report the window the figure was counted over
+  // rather than the date entered.
+  if (_basisPopoverMode === 'cash') {
     _receivedCashSince = v;
     _applyReceivedCashOffer();
     const r = _settlementYearCashReceivedSince(currentHoldingsArray, v);
     const usedIso = r.from ? _isoDate(r.from) : v;
     setStatusHTML('Cash already received is counted from ' + esc(_fmtMDY(usedIso))
-      + (usedIso === v ? '' : ', the start of the settlement year: a Ref CPI date before it does '
-          + 'not narrow the window')
-      + '. <a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>');
+      + (usedIso === v ? '' : ', the start of the settlement year: an earlier date does not narrow '
+          + 'the window')
+      + '. <a href="#" id="cash-set-since" style="color:#93c5fd">Change</a>');
     return;
   }
+  // The Ref CPI entry restates per-year amounts and nothing else. A file carrying none has nothing
+  // for it to act on, so it is never offered there.
+  if (!_daraLiteralFromFile) return;
   _daraFileRefCpiDate = v;
-  // The same date governs both: what the per-year amounts are stated at, and how far back cash
-  // received counts.
-  _receivedCashSince = v;
-  _applyReceivedCashOffer();
   const { map, factor, fromDate, toDate } = _restateDaraToActiveBasis(_daraLiteralFromFile, v);
   if (!fromDate) {
     _reapplyImportedDara(_daraLiteralFromFile);
@@ -2972,6 +2991,8 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
   _availableCashAuto = false;
   _availableCashUserSet = false;
   _receivedCashSince = null;
+  _daraLiteralFromFile = null;
+  _daraFileRefCpiDate = null;
   _syncAvailableCashInput();
   _rmdCouponMode = 'all';
   _clearSelection();
