@@ -1418,7 +1418,7 @@ test("the received-cash window is chosen from this portfolio's own payment dates
   // Auto-loaded sample holdings: broker-style, no #params line, so no date of its own.
   const wholeYear = Number(await cash.inputValue());
   expect(wholeYear).toBeGreaterThan(0);
-  await expect(page.locator('#status')).toContainText('every settlement-year cash flow this ladder has generated');
+  await expect(page.locator('#status')).toContainText('the settlement-year coupons this file carries');
   await expect(page.locator('#cash-set-since')).toBeVisible();
 
   // The choices live in a popup the Available Cash field itself opens, alongside a plain amount.

@@ -388,7 +388,7 @@
      second control beside the box crowded the row it sits in. -->
 <div id="available-cash-popover" class="menu-dropdown" hidden style="position:fixed;min-width:250px;max-width:300px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
   <div style="font-weight:700;margin-bottom:6px">Available Cash</div>
-  <div style="font-size:11px;line-height:1.4;margin-bottom:8px;color:#334155">Settlement-year cash flows this ladder has already generated.</div>
+  <div style="font-size:11px;line-height:1.4;margin-bottom:8px;color:#334155">Coupons and maturity proceeds this ladder has generated in the settlement year.</div>
   <div id="available-cash-choices"></div>
   <label style="display:flex;align-items:center;gap:6px;font-size:12px;padding:4px 0;border-top:1px solid #e2e8f0;margin-top:6px">
     <input type="radio" name="available-cash-choice" value="manual">
@@ -851,9 +851,9 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
       + Math.round(_availableCash).toLocaleString() + '</td></tr>';
     sections.push({ html: '<table style="border-collapse:collapse;width:100%">' + rows + '</table>' });
     const win = _cashAfterDate
-      ? 'Includes every payment after the ' + esc(_shortDay(_cashAfterDate))
-        + ' coupon payment date.'
-      : 'Includes every settlement-year payment.';
+      ? 'Every payment after the ' + esc(_shortDay(_cashAfterDate))
+        + ' coupon payment date is included; earlier ones are not.'
+      : 'Every payment above is included.';
     const cpn = couponsCount ? ''
       : ' Coupons are excluded, the <b>Coupons</b> setting being <b>'
         + (_rmdCouponMode === 'none' ? 'None' : 'Only last') + '</b>.';
@@ -871,8 +871,8 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
     { heading: 'When the app enters a figure' },
     { prose: 'A ladder loaded in Rebalance has been held over part of the settlement year, and the cash flows it generated over that part have been received. Settlement-year income is assumed applied toward that year&rsquo;s Amount rather than reinvested, so it is cash on hand and belongs here. The app values what has been received, enters it, and marks the box amber to show the figure is the app&rsquo;s rather than yours.' },
     { prose: 'Which of the year&rsquo;s payments are included depends on what the loaded file records.' },
-    { prose: '<b>A CUSIP/Qty file this app saved</b> records the settlement Ref CPI date in effect when it was saved. Settlement-year payments received after that date are included. Payments from an earlier year never are, however far back the recorded date falls: a rung funds its own year, and money received in an earlier year was applied toward that year. A file saved today has no settlement-year payments after its date, so nothing is entered, and exporting a ladder and loading it back the same day proposes no trades.' },
-    { prose: '<b>A position file from a broker</b> records no date at all. Every settlement-year payment is included, which is right for a position held all along. The status strip says so on load, and the starting point can be moved at any time from the control beside the box.' },
+    { prose: '<b>A CUSIP/Qty file this app saved</b> records the settlement Ref CPI date in effect when it was saved. Settlement-year coupons and maturity proceeds after that date are included. Anything from an earlier year never is, however far back the recorded date falls: a rung funds its own year, and money received in an earlier year was applied toward that year. A file saved today has nothing after its date, so nothing is entered, and exporting a ladder and loading it back the same day proposes no trades.' },
+    { prose: '<b>A position file from a broker</b> records no date at all. Every settlement-year coupon it carries is included, which is right for a position held all along; it carries no matured rung, so there are no maturity proceeds to include. The status strip says so on load, and the starting point can be moved at any time from the chooser the box opens.' },
     { prose: 'The starting point is a coupon payment date to count <i>after</i>, chosen from the dates this portfolio was actually paid on. Cash reaches the holder only on those dates, so no other starting point would produce a different figure.' },
     { prose: 'That choice governs this figure only. It is not a Ref CPI date and restates nothing. Scaling per-year amounts to a Ref CPI date is a separate entry, offered where a loaded DARA plan carries amounts but records no Ref CPI date; a position file carries holdings alone, so there is nothing there to restate.' },
     { sep: true },
@@ -2106,8 +2106,8 @@ function _offerReceivedCouponsAsCash(params) {
   // Ref CPI date has its own notice here already (§DARA Basis Date), and the two are separate
   // entries, so both offers must stand.
   if (!_cashFileRefCpiDate && _availableCash > 0) {
-    appendStatusHTML('Available Cash includes every settlement-year cash flow this ladder has '
-      + 'generated, since this file records no date. '
+    appendStatusHTML('Available Cash includes the settlement-year ' + _cashComponentsLabel()
+      + ' this file carries, since it records no date. '
       + '<a href="#" id="cash-set-since" style="color:#93c5fd">Change</a>');
   }
 }
@@ -2261,6 +2261,20 @@ function _cashAfterFromRefCpiDate(refCpiDate) {
   if (!refCpiDate) return null;
   const prior = _settlementYearPaymentDates(currentHoldingsArray).filter(d => d < refCpiDate);
   return prior.length ? prior[prior.length - 1] : null;
+}
+
+// What Available Cash is made of, named the way 2.0 §Available Cash names it: coupons already
+// paid, and maturity proceeds from rungs that have matured. Which of the two are in play is not
+// fixed — the coupon half answers to the coupon-counting choice, and a file of current positions
+// carries no matured rung to draw proceeds from — so every string that says what the figure
+// includes asks here rather than asserting both.
+function _cashComponentsLabel() {
+  const r = _settlementYearCashReceivedSince(currentHoldingsArray, _cashAfterDate);
+  const coupons = _rmdCouponMode === 'all' && r.coupons > 0;
+  const principal = r.principal > 0;
+  if (coupons && principal) return 'coupons and maturity proceeds';
+  if (principal) return 'maturity proceeds';
+  return 'coupons';
 }
 
 function _shortDay(iso) {
@@ -3355,9 +3369,9 @@ function _syncAvailableCashInput() {
   if (mark) mark.style.display = (_availableCashAuto && _availableCash > 0) ? '' : 'none';
   const box = document.getElementById('available-cash');
   if (box) box.title = _availableCashAuto && _availableCash > 0
-    ? (_cashAfterDate
-        ? 'Every payment after the ' + _shortDay(_cashAfterDate) + ' coupon payment date.'
-        : 'Every settlement-year payment.') + ' Click to change.'
+    ? 'Settlement-year ' + _cashComponentsLabel()
+      + (_cashAfterDate ? ' after the ' + _shortDay(_cashAfterDate) + ' coupon payment date' : '')
+      + '. Click to change.'
     : 'Click to choose which payments are included, or to state an amount.';
 }
 
@@ -3447,10 +3461,10 @@ document.getElementById('available-cash-apply').addEventListener('click', () => 
   if (document.getElementById('cash-set-since')) {
     setStatusHTML('Available Cash includes ' + (_availableCashUserSet
         ? 'the amount you stated'
-        : (_cashAfterDate
-            ? 'every cash flow this ladder has generated after the '
-              + esc(_shortDay(_cashAfterDate)) + ' coupon payment date'
-            : 'every settlement-year cash flow this ladder has generated'))
+        : 'the settlement-year ' + _cashComponentsLabel()
+          + (_cashAfterDate
+              ? ' after the ' + esc(_shortDay(_cashAfterDate)) + ' coupon payment date'
+              : ' this file carries'))
       + '. <a href="#" id="cash-set-since" style="color:#93c5fd">Change</a>');
   }
   _commitAvailableCash();
