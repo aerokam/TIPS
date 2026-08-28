@@ -1402,39 +1402,64 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 // recorded, and any hand-written plan). The app cannot know the date and does not guess: the values
 // are used as written, and the status strip offers to supply one. Supplying an earlier date scales
 // the values from it to the settlement date (3.0 §DARA Basis Date).
-// A broker file records no date, so cash already received is counted from the start of the year.
-// That is the right default for a position held all along, but it is an assumption the holder cannot
-// otherwise see, and it moves trades -- so the strip says so and offers the date.
-test('a file with no date says which window its received cash was counted over, and the date can be set', async ({ page }) => {
+// A broker file records no date, so the whole settlement year is counted. That is the right default
+// for a position held all along, but it is an assumption the holder cannot otherwise see, and it
+// moves trades, so the strip says so and offers the alternatives.
+//
+// The window is chosen from the coupon payment dates this portfolio was actually paid on, exclusive
+// of the date named. Cash arrives only on those dates, so a free calendar offered a year of days of
+// which at most six differed, and could not say whether the date picked was itself counted.
+test("the received-cash window is chosen from this portfolio's own payment dates, exclusive of the one named", async ({ page }) => {
   test.setTimeout(20_000);
   const cash = page.locator('#available-cash');
+  const sel = page.locator('#cash-since-select');
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
 
   // Auto-loaded sample holdings: broker-style, no #params line, so no date of its own.
   const wholeYear = Number(await cash.inputValue());
   expect(wholeYear).toBeGreaterThan(0);
-  await expect(page.locator('#status')).toContainText('counted from the start of the settlement year');
+  await expect(page.locator('#status')).toContainText('counted over the whole settlement year');
   await expect(page.locator('#cash-set-since')).toBeVisible();
 
-  // The cash window has its own date entry, separate from the Ref CPI date that restates per-year
-  // amounts. Setting a date partway through the year narrows the window, so less has been collected.
+  // The cash window is its own entry, separate from the Ref CPI date that restates per-year amounts,
+  // and it offers a list rather than a calendar.
   await page.locator('#cash-set-since').click();
   await expect(page.locator('#dara-basis-title')).toHaveText('Cash received since');
-  const settleYear = new Date().getFullYear();
-  await page.locator('#dara-basis-date').fill(settleYear + '-07-01');
-  await page.locator('#dara-basis-apply').click();
-  await expect(page.locator('#status')).toContainText('counted from 07/01/');
-  const fromJuly = Number(await cash.inputValue() || 0);
-  expect(fromJuly, 'a July start collects less than a full year').toBeLessThan(wholeYear);
+  await expect(page.locator('#dara-basis-date')).toBeHidden();
+  await expect(sel).toBeVisible();
 
-  // A date before the settlement year cannot narrow the window, since only settlement-year
-  // payments are counted. The figure returns to the whole year and the strip says so, rather than
-  // reporting a window the count did not run over.
-  await page.locator('#cash-set-since').click();
-  await page.locator('#dara-basis-date').fill((settleYear - 1) + '-08-26');
+  const opts = await sel.locator('option').evaluateAll(
+    els => els.map(e => ({ value: e.value, label: e.textContent }))
+  );
+  expect(opts.length, 'the whole year plus one choice per payment date already made').toBeGreaterThan(1);
+  expect(opts[0].value, 'the whole settlement year is the first choice').toBe('');
+  expect(opts[0].label).toContain('Whole settlement year');
+  const settleYear = new Date().getFullYear();
+  for (const o of opts.slice(1)) {
+    expect(o.label, 'every other choice names a coupon payment date').toContain('coupon payment date');
+    expect(o.value, 'and is a settlement-year date').toContain(String(settleYear) + '-');
+  }
+
+  // Counting after the first payment date drops that payment, so less is on hand.
+  await sel.selectOption(opts[1].value);
   await page.locator('#dara-basis-apply').click();
-  await expect(page.locator('#status')).toContainText('the start of the settlement year');
-  await expect(page.locator('#status')).not.toContainText('counted from 08/26/' + (settleYear - 1));
+  await expect(page.locator('#status')).toContainText('from after the');
+  await expect(page.locator('#status')).toContainText('coupon payment date');
+  const afterFirst = Number(await cash.inputValue() || 0);
+  expect(afterFirst, 'excluding a payment leaves less').toBeLessThan(wholeYear);
+
+  // Nothing is received after the last payment date already made.
+  await page.locator('#cash-set-since').click();
+  await expect(sel).toHaveValue(opts[1].value);
+  await sel.selectOption(opts[opts.length - 1].value);
+  await page.locator('#dara-basis-apply').click();
+  expect(Number(await cash.inputValue() || 0)).toBe(0);
+
+  // Back to the whole year, and the figure returns.
+  await page.locator('#cash-set-since').click();
+  await sel.selectOption('');
+  await page.locator('#dara-basis-apply').click();
+  await expect(page.locator('#status')).toContainText('over the whole settlement year');
   expect(Number(await cash.inputValue() || 0)).toBeCloseTo(wholeYear, 2);
 
   // The offer is still the app's, so it still follows the Coupons control.

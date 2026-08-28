@@ -7,6 +7,8 @@
 //   { sep: true }                      — horizontal divider
 //   { heading: string }                — section heading (no value)
 //   { html: string }                   — raw HTML row (e.g. an embedded sub-table or visual)
+//   { prose: string }                  — a paragraph of explanatory text, wrapped to a readable
+//                                        measure rather than the popup's full width
 //
 // Two instances, both draggable/resizable per the app-wide standard (modal.js):
 // `primary` opens from table cells / info-links; `secondary` opens when the triggering
@@ -49,6 +51,15 @@ function _renderTable(rows) {
     }
     if (r.html) {
       trs += '<tr><td colspan="2" style="padding:4px 0">' + r.html + '</td></tr>';
+      continue;
+    }
+    // Prose sets its own measure. The popup is width:max-content, so without a bound a paragraph
+    // lays out as one long line and pushes the popup to its 560px maximum; 34em at this font size
+    // is roughly 70 characters, the width prose is comfortable to read at.
+    if (r.prose) {
+      trs += '<tr><td colspan="2" style="padding:4px 0">' +
+             '<div style="max-width:34em;line-height:1.5;white-space:normal">' + r.prose +
+             '</div></td></tr>';
       continue;
     }
     const ts  = r.total
