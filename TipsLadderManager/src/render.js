@@ -219,12 +219,14 @@ function daraInputHTML(fy, daraByYear, flaggedYears) {
 function rmdOptionsTipHTML() {
   return '<b>Coupon Counting:</b>'
     + '<ul>'
-    + '<li><b>Count remaining coupons</b> — the assumption about this year’s '
-    + 'not-yet-paid coupons: <b>None</b> assumes every remaining coupon gets reinvested into the '
-    + 'ladder; <b>All remaining</b> assumes every remaining coupon stays as cash; <b>Only last</b> '
-    + 'assumes earlier remaining coupons get reinvested but the final one this year stays as cash.</li>'
+    + '<li><b>Count remaining coupons</b> — whether this year’s not-yet-paid coupons are '
+    + 'retained toward this year’s Amount or reinvested into the ladder. <b>All remaining</b>: '
+    + 'every one is retained. <b>None</b>: every one is reinvested. <b>Only last</b>: the final '
+    + 'coupon of the year is retained and the earlier ones are reinvested.</li>'
     + '<li>Only the settlement year has both already-paid and not-yet-paid coupons in the same '
-    + 'calendar year, so this setting only applies to that one row.</li>'
+    + 'calendar year, so this setting applies to that row alone.</li>'
+    + '<li>Coupons already paid are the other side of the same year, and are counted in '
+    + '<b>Available Cash</b>.</li>'
     + '</ul>';
 }
 

@@ -383,7 +383,7 @@
 </div>
 
 <!-- Coupon Counting popover (2.0 §Settlement-Year Coupon Treatment; 5.0 §Coupon Counting link) -->
-<div id="rmd-options-popover" class="menu-dropdown" hidden style="position:fixed;min-width:230px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
+<div id="rmd-options-popover" class="menu-dropdown" hidden style="position:fixed;min-width:230px;max-width:280px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
   <div style="font-weight:700;margin-bottom:8px" id="rmd-options-title">Coupon Counting</div>
   <div style="font-size:10px;font-weight:800;text-transform:uppercase;color:#64748b;margin-bottom:2px">Count remaining coupons</div>
   <label style="display:block;font-size:12px;font-weight:500;padding:2px 0"><input type="radio" name="rmd-coupon-mode" value="none"> None</label>
@@ -547,8 +547,9 @@
         <select id="last-year"><option value="">—</option></select>
       </div>
       <div class="field" id="field-available-cash">
-        <label style="white-space:nowrap;gap:4px" title="Cash on hand you will spend rather than invest. Applied to the earliest funded year first, spilling up the ladder as each year is covered.">Available cash<span id="available-cash-auto" style="display:none;color:#f59e0b" title="Filled in from the coupons this ladder has already received this year. Type over it to use your own figure.">&#9888;</span><button id="available-cash-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Available cash help">?</button></label>
+        <label style="white-space:nowrap;gap:4px" title="Cash available to apply toward the annual real amount of the earliest funded years. Applied to the earliest funded year first, moving up the ladder as each year is covered.">Available cash<span id="available-cash-auto" style="display:none;color:#f59e0b" title="Entered by the app, from the payments this ladder has already received this settlement year. Type over it to use your own figure.">&#9888;</span><button id="available-cash-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Available cash help">?</button></label>
         <input type="number" id="available-cash" min="0" step="100" placeholder="0" style="width:90px">
+        <a href="#" id="available-cash-window" style="display:none;font-size:10px;color:#2563eb;white-space:nowrap;text-decoration:none"></a>
       </div>
     </div>
     <!-- Row 2: construction/computation policy — Brackets / Pre-ladder int. / Maturity preference /
@@ -805,51 +806,79 @@ document.getElementById('alloc-policy-help').addEventListener('click', e => {
 
 document.getElementById('available-cash-help').addEventListener('click', e => {
   e.stopPropagation();
-  const auto = _availableCashAuto && _availableCash > 0;
-  const sections = [
+  const sections = [];
+
+  // What has arrived, before anything about what it means. This is the figure being questioned when
+  // the help is opened, and it was previously at the bottom under everything explaining it.
+  const ledger = _settlementYearPaymentLedger(currentHoldingsArray);
+  if (ledger.length > 0) {
+    const money = v => v > 0 ? '$' + Math.round(v).toLocaleString() : '—';
+    const couponsCount = _rmdCouponMode === 'all';
+    const cell = (v, on) => '<td style="text-align:right;padding:2px 0 2px 14px;font-variant-numeric:tabular-nums'
+      + (on ? '' : ';color:#94a3b8;text-decoration:line-through') + '">' + money(v) + '</td>';
+    let rows = '<tr style="font-size:10px;color:#64748b;text-transform:uppercase">'
+      + '<td style="padding:0 0 3px">Paid</td>'
+      + '<td style="text-align:right;padding:0 0 3px 14px">Coupons</td>'
+      + '<td style="text-align:right;padding:0 0 3px 14px">Principal</td></tr>';
+    for (const e of ledger) {
+      rows += '<tr><td style="padding:2px 0">' + esc(_shortDay(e.date))
+        + (e.counted ? '' : ' <span style="font-size:10px;color:#94a3b8">not counted</span>') + '</td>'
+        + cell(e.coupons, e.counted && couponsCount)
+        + cell(e.principal, e.counted) + '</tr>';
+    }
+    rows += '<tr><td colspan="3" style="padding:3px 0 0"><hr style="border:none;border-top:1px solid #cbd5e1;margin:0"></td></tr>'
+      + '<tr style="font-weight:700"><td style="padding:3px 0">Available Cash</td>'
+      + '<td colspan="2" style="text-align:right;padding:3px 0;font-variant-numeric:tabular-nums">$'
+      + Math.round(_availableCash).toLocaleString() + '</td></tr>';
+    sections.push({ html: '<table style="border-collapse:collapse;width:100%">' + rows + '</table>' });
+    const win = _cashAfterDate
+      ? 'Counting payments made after the ' + esc(_shortDay(_cashAfterDate)) + ' coupon payment date.'
+      : 'Counting every payment made this settlement year.';
+    const cpn = couponsCount ? ''
+      : ' Coupons are not counted at all, the <b>Coupons</b> setting being <b>'
+        + (_rmdCouponMode === 'none' ? 'None' : 'Only last') + '</b>.';
+    sections.push({ prose: '<span style="font-size:11px;color:#334155">' + win + cpn + '</span>' });
+    if (!_availableCashAuto && _availableCash > 0) sections.push({ prose:
+      '<span style="font-size:11px;color:#334155">The box holds your own figure, so the total above is '
+      + 'what the app would otherwise have entered.</span>' });
+    sections.push({ sep: true });
+  }
+
+  sections.push(
     { prose: 'Cash available to apply toward the annual real amount of the earliest funded year or years. The pool is applied to the earliest funded year first and moves up the ladder until it is exhausted, so a year it covers in full buys no TIPS.' },
     { prose: 'Cash intended for reinvestment in the ladder is not entered here. Leave the box empty; Net Cash then reports the cost of the purchases as a negative figure.' },
     { sep: true },
     { heading: 'When the app enters a figure' },
-    { prose: 'A ladder loaded in Rebalance has been held over part of the settlement year, and the cash flows it generated over that part have been received. Settlement-year income is assumed retained toward that year&rsquo;s Amount rather than reinvested or spent, so it is cash on hand and belongs here. The app values what has been received, enters it, and marks the box amber to show the figure is the app&rsquo;s rather than yours.' },
+    { prose: 'A ladder loaded in Rebalance has been held over part of the settlement year, and the cash flows it generated over that part have been received. Settlement-year income is assumed retained toward that year&rsquo;s Amount rather than reinvested, so it is cash on hand and belongs here. The app values what has been received, enters it, and marks the box amber to show the figure is the app&rsquo;s rather than yours.' },
     { prose: 'How much of the year is counted depends on what the loaded file records.' },
-    { prose: '<b>A file this app saved</b> records the settlement Ref CPI date in effect when it was saved, and payments made after that date are counted. A file saved today has no payments after it, so no figure is entered, which is what holds a same-day export and reimport at no trades.' },
-    { prose: '<b>A position file from a broker</b> records no date at all. The whole settlement year is counted, which is right for a position held all along, and the status strip says so and offers the alternatives.' },
-    { prose: 'The window is stated as a coupon payment date to count <i>after</i>, chosen from the dates this portfolio was actually paid on. Every choice is exclusive of the date it names: the payment made on that date is not counted, every later one is. Money arrives only on those dates, so no other boundary would change the figure.' },
-    { prose: 'That choice bounds this figure alone. It is not a Ref CPI date and restates nothing. Scaling per-year amounts to a Ref CPI date is a separate entry, offered where a loaded DARA plan carries amounts but records no Ref CPI date; a position file carries holdings alone, so there is nothing there to restate.' },
+    { prose: '<b>A CUSIP/Qty file this app saved</b> records the settlement Ref CPI date in effect when it was saved. Settlement-year payments made after that date are counted. Payments from an earlier year are never counted, however far back the recorded date falls: a rung funds its own year, and money received in an earlier year funded that year. A file saved today has no settlement-year payments after its date, so nothing is entered, and exporting a ladder and loading it back the same day proposes no trades.' },
+    { prose: '<b>A position file from a broker</b> records no date at all. The whole settlement year is counted, which is right for a position held all along. The status strip says so on load, and the window can be narrowed at any time from the control beside the box.' },
+    { prose: 'The window is a coupon payment date to count <i>after</i>, chosen from the dates this portfolio was actually paid on. Every choice excludes the date it names: the payment made on that date is not counted, every later one is. Cash reaches the holder only on those dates, so no other boundary would produce a different figure.' },
+    { prose: 'That choice governs this figure only. It is not a Ref CPI date and restates nothing. Scaling per-year amounts to a Ref CPI date is a separate entry, offered where a loaded DARA plan carries amounts but records no Ref CPI date; a position file carries holdings alone, so there is nothing there to restate.' },
     { sep: true },
     { heading: 'What is counted' },
     { prose: '<b>Coupons</b> already paid on every holding.' },
-    { prose: '<b>Maturity proceeds.</b> A rung that has matured paid out its inflation-adjusted principal together with its final coupon, which is that year&rsquo;s Amount arriving. A ladder holding January, April and July rungs, rebalanced in August, has received three of them; the later in the year, the larger the share of the rung already in hand.' },
-    { prose: 'Maturity proceeds are recoverable only from a file this app saved. A position file from a broker lists current holdings, and a matured rung is no longer held, so it is absent from the file and its proceeds are yours to enter.' },
+    { prose: '<b>Maturity proceeds.</b> A rung that has matured paid out its inflation-adjusted principal together with its final coupon, which is that year&rsquo;s Amount arriving. A ladder holding January, April and July rungs and rebalanced in August has been paid all three; the later in the year, the more of the settlement year&rsquo;s rungs have already paid out.' },
+    { prose: 'Maturity proceeds are recoverable only from a CUSIP/Qty file this app saved, which keeps the matured rung and its quantity. A position file from a broker lists current holdings, and a matured rung is no longer held, so it is absent from the file and its proceeds are yours to enter.' },
     { sep: true },
     { heading: 'The coupon half follows the Coupons setting' },
-    { prose: 'Whether the settlement year&rsquo;s coupons are retained toward that year or reinvested is a single question, stated on the settlement year&rsquo;s <b>Coupons</b> control. This figure answers to that control rather than restating the question, and is recomputed when it changes:' },
+    { prose: 'Whether the settlement year&rsquo;s coupons are retained toward that year or reinvested is a single question, stated on the settlement year&rsquo;s <b>Coupons</b> control. This figure follows that control rather than asking again, and is recomputed when it changes:' },
     { prose: '<b>All remaining:</b> coupons are retained, so every coupon already paid is counted.<br><b>Only last:</b> every coupon but the final one is reinvested, and each coupon already paid precedes the last one still to arrive, so none are counted.<br><b>None:</b> all are reinvested, so none are counted.' },
     { prose: '<b>Maturity proceeds do not follow it.</b> Returned principal is not coupon income, and a rung exists to mature and be spent, so it is counted under every setting.' },
-    { prose: 'Coupons still to arrive this year are the other half of the settlement year and are not counted here. They are income to the settlement year&rsquo;s own rung, and the <b>Coupons</b> control is where they are governed.' },
+    { prose: 'Coupons still to arrive this year are not counted here. They have not been received, so they are not cash on hand; they are income to the settlement year&rsquo;s own rung, governed by the <b>Coupons</b> control.' },
     { sep: true },
-    { prose: 'Entering a figure ends the offer, as does clearing the box. The amber mark clears, the entered value is used as stated, and the app does not revise it, including on a later change to the Coupons setting.' },
-  ];
-  if (auto) {
-    const r = _settlementYearCashReceivedSince(currentHoldingsArray, _cashAfterDate);
-    const since = _cashAfterDate
-      ? ' after the ' + esc(_cashAfterLabel(_cashAfterDate).replace('After ', ''))
-      : ' over the whole settlement year';
-    const countedCoupons = _rmdCouponMode === 'all' ? r.coupons : 0;
-    const bits = [];
-    if (countedCoupons > 0) bits.push('$' + Math.round(countedCoupons).toLocaleString() + ' in coupons');
-    if (r.principal > 0) bits.push('$' + Math.round(r.principal).toLocaleString() + ' from '
-      + r.matured.length + (r.matured.length === 1 ? ' rung that has' : ' rungs that have') + ' matured');
+    { prose: 'Entering a figure ends the offer, as does clearing the box. The amber mark clears, the entered value is used as stated, and the app does not revise it, including on a later change to the Coupons setting. Choosing a window again asks for the app&rsquo;s figure back.' },
+  );
+
+  // Which rungs the principal came from, named at the end rather than in the table above, where a
+  // CUSIP per row would crowd out the figures.
+  const maturedAll = ledger.flatMap(e => e.matured);
+  if (maturedAll.length > 0) {
     sections.push({ sep: true },
-      { prose: '<b>Currently $' + Math.round(_availableCash).toLocaleString() + '</b>, counted' + since
-        + (bits.length ? ': ' + bits.join(' and ') : '') + '.' });
-    if (_rmdCouponMode !== 'all' && r.coupons > 0) sections.push({ prose: '$'
-      + Math.round(r.coupons).toLocaleString() + ' in coupons was received and is not counted, the '
-      + 'Coupons setting being <b>' + (_rmdCouponMode === 'none' ? 'None' : 'Only last') + '</b>.' });
-    if (r.matured.length > 0) sections.push({ prose: r.matured
-      .map(x => esc(x.cusip) + ', ' + x.qty + ' &times; matured ' + esc(_fmtMDY(_isoDate(x.maturity))))
-      .join('<br>') });
+      { heading: 'Rungs that have matured' },
+      { prose: maturedAll
+        .map(x => esc(x.cusip) + ', ' + x.qty + ' &times; matured ' + esc(_fmtMDY(_isoDate(x.maturity))))
+        .join('<br>') });
   }
   showPopup(e.currentTarget, 'Available Cash', sections);
 });
@@ -1328,13 +1357,11 @@ function _setBracketGroupsExpanded(expanded, tbl = _activeTable()) {
   _updateExpandCollapseLabels();
 }
 
-// Default state after a (re)render: bracket/cover-year groups expanded (excess holdings visible
-// at a glance), regular funded-year groups collapsed.
-function _setDefaultGroupsExpanded(tbl) {
-  tbl.querySelectorAll('tr.fy-group-header').forEach(hdr => {
-    _setGroupExpanded(tbl, hdr.dataset.fy, hdr.classList.contains('bracket'));
-  });
-  _updateExpandCollapseLabels();
+// Default state for one group, where nothing is carried over: bracket/cover-year groups expanded
+// (excess holdings visible at a glance), regular funded-year groups collapsed. Stated once here
+// rather than in each caller, so the rule cannot drift between the paths that apply it.
+function _defaultGroupExpanded(hdr) {
+  return hdr.classList.contains('bracket');
 }
 
 // Snapshot of which funded years are currently expanded, taken right before a table's innerHTML
@@ -1348,14 +1375,19 @@ function _captureExpandedState(tbl) {
   return state;
 }
 
-// Re-applies a snapshot from _captureExpandedState after a rebuild, so re-running Rebalance keeps
+// Re-applies a snapshot from _captureExpandedState after a rebuild, so every re-render keeps
 // whatever years the user had open -- letting a Maturity preference/Allocation policy change be
 // compared before/after without re-expanding anything. A funded year absent from the snapshot
-// (e.g. the range grew) falls back to the normal bracket/cover-year default.
+// (e.g. the range grew) falls back to the normal bracket/cover-year default, and a table that had
+// no rows at all (a fresh load) snapshots nothing, so it opens at the default throughout.
+//
+// Every path that rebuilds a ladder table goes through this. Changing a parameter on the top card
+// is the reason to be looking at an expanded year in the first place, so collapsing the table on
+// the way to showing the effect defeats the change being made (6.0 §Expand/Collapse State).
 function _restoreOrDefaultGroupsExpanded(tbl, prevState) {
   tbl.querySelectorAll('tr.fy-group-header').forEach(hdr => {
     const fy = hdr.dataset.fy;
-    const expanded = prevState.has(fy) ? prevState.get(fy) : hdr.classList.contains('bracket');
+    const expanded = prevState.has(fy) ? prevState.get(fy) : _defaultGroupExpanded(hdr);
     _setGroupExpanded(tbl, fy, expanded);
   });
   _updateExpandCollapseLabels();
@@ -2097,6 +2129,33 @@ function _bondOrMatured(cusip) {
   return { cusip, maturity: localDate(r.maturity), coupon: r.coupon, baseCpi: r.baseCpi, price: null, yield: null };
 }
 
+// Every settlement-year payment this portfolio has already received, one entry per payment date,
+// with what arrived on it: coupons, and principal where a rung matured that day. Whether a date is
+// counted toward Available Cash depends on the window and, for the coupon half, on the coupon-
+// counting choice, so each entry carries that rather than leaving the reader to work out why the
+// figures do not add up to the total.
+function _settlementYearPaymentLedger(holdingsArr) {
+  const out = [];
+  const dates = _settlementYearPaymentDates(holdingsArr);
+  if (dates.length === 0) return out;
+  let prev = null;
+  let runningCoupons = 0, runningPrincipal = 0;
+  // Each date’s own figures are the difference between counting after the date before it and
+  // counting after this one, so the arithmetic behind the total is the arithmetic on show.
+  for (const d of dates) {
+    const upToPrev = _settlementYearCashReceivedSince(holdingsArr, prev);
+    const upToThis = _settlementYearCashReceivedSince(holdingsArr, d);
+    const coupons = upToPrev.coupons - upToThis.coupons;
+    const principal = upToPrev.principal - upToThis.principal;
+    const matured = upToPrev.matured.filter(m => !upToThis.matured.some(x => x.cusip === m.cusip));
+    const counted = !_cashAfterDate || d > _cashAfterDate;
+    out.push({ date: d, coupons, principal, matured, counted });
+    runningCoupons += coupons; runningPrincipal += principal;
+    prev = d;
+  }
+  return out;
+}
+
 // Settlement-year cash this portfolio has ALREADY RECEIVED — money the holder collected during the
 // current year and, per 2.0 §Settlement-Year Coupon Treatment, is assumed to have kept toward this
 // year's Amount rather than reinvested. Two sources, both of them cash in hand:
@@ -2494,8 +2553,9 @@ function renderBuildOutput({ results, HDR, summary, details }) {
   buildSummary  = summary;
 
   const { headerHTML: bHdr, bodyHTML: bBody, tfootHTML: bFoot } = renderTable({ details, mode: 'build', summary, daraByYear: _daraByYearStore, flaggedYears: _bracketAutoCapYears });
+  const _prevBuildExpandState = _captureExpandedState(tableEl);
   tableEl.innerHTML = bHdr + bBody + bFoot;
-  _setDefaultGroupsExpanded(tableEl);
+  _restoreOrDefaultGroupsExpanded(tableEl, _prevBuildExpandState);
 
     buildRendered = true;
   document.getElementById('build-output').style.display = 'block';
@@ -2802,8 +2862,9 @@ function _renderBeforeStatePreview() {
   const { headerHTML: rHdr, bodyHTML: rBody, tfootHTML: rFoot } = renderTable({
     details: rows, mode: 'rebal', summary, daraByYear: _daraByYearStore, flaggedYears: _bracketAutoCapYears,
   });
+  const _prevPreviewExpandState = _captureExpandedState(simpleEl);
   simpleEl.innerHTML = rHdr + rBody + rFoot;
-  _setDefaultGroupsExpanded(simpleEl);
+  _restoreOrDefaultGroupsExpanded(simpleEl, _prevPreviewExpandState);
 
   _rebalBeforeStateShown = true;
   document.getElementById('output').style.display = 'block';
@@ -2973,7 +3034,13 @@ document.getElementById('status').addEventListener('click', e => {
   const link = e.target.closest('#dara-set-basis, #cash-set-since');
   if (!link) return;
   e.preventDefault();
-  _basisPopoverMode = link.id === 'cash-set-since' ? 'cash' : 'refcpi';
+  _openBasisPopover(link, link.id === 'cash-set-since' ? 'cash' : 'refcpi');
+});
+
+const _openCashWindowPicker = (anchorEl) => _openBasisPopover(anchorEl, 'cash');
+
+function _openBasisPopover(anchorEl, mode) {
+  _basisPopoverMode = mode;
   const pop = document.getElementById('dara-basis-popover');
   const input = document.getElementById('dara-basis-date');
   const isCash = _basisPopoverMode === 'cash';
@@ -2982,9 +3049,9 @@ document.getElementById('status').addEventListener('click', e => {
   // not a Ref CPI date and restates nothing, and that a date before the settlement year cannot
   // narrow the window because only settlement-year payments are counted.
   document.getElementById('dara-basis-note').innerHTML = isCash
-    ? 'Which payments this portfolio has already received are counted. Each choice is exclusive '
-      + 'of the payment date it names: the payment made on that date is not counted, every later '
-      + 'one is.<br><br>'
+    ? 'Chooses which of the payments this portfolio has already received are counted. Each '
+      + 'choice excludes the payment date it names: the payment made on that date is not counted, '
+      + 'every later one is.<br><br>'
       + 'This does not scale DARA. Scaling per-year amounts to a Ref CPI date requires a loaded '
       + 'DARA plan, which is what carries the amounts to restate; a position file carries '
       + 'holdings alone.'
@@ -2995,11 +3062,11 @@ document.getElementById('status').addEventListener('click', e => {
   document.getElementById('cash-since-select').hidden = !isCash;
   if (isCash) _renderCashAfterOptions();
   else input.value = _daraFileRefCpiDate ?? _defaultRefCpiDateStr ?? '';
-  const r = link.getBoundingClientRect();
+  const r = anchorEl.getBoundingClientRect();
   pop.hidden = false;
   pop.style.top = Math.max(8, Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8)) + 'px';
   pop.style.left = Math.max(8, Math.min(r.left, window.innerWidth - pop.offsetWidth - 8)) + 'px';
-});
+}
 
 document.getElementById('dara-basis-cancel').addEventListener('click', () => {
   document.getElementById('dara-basis-popover').hidden = true;
@@ -3010,6 +3077,9 @@ document.getElementById('dara-basis-apply').addEventListener('click', () => {
   // The cash entry bounds which received payments are counted and restates nothing.
   if (_basisPopoverMode === 'cash') {
     _cashAfterDate = document.getElementById('cash-since-select').value || null;
+    // Picking a window is asking for the figure that window produces, so it takes the box back from
+    // a typed-over figure. Typing is still the way to state something the payment dates cannot.
+    _availableCashUserSet = false;
     _applyReceivedCashOffer();
     setStatusHTML('Cash already received is counted ' + (_cashAfterDate
         ? 'from after the ' + esc(_cashAfterLabel(_cashAfterDate).replace('After ', ''))
@@ -3310,7 +3380,29 @@ function _syncAvailableCashInput() {
   }
   const mark = document.getElementById('available-cash-auto');
   if (mark) mark.style.display = (_availableCashAuto && _availableCash > 0) ? '' : 'none';
+  _syncCashWindowLink();
 }
+
+// The window the figure was counted over, shown under the box and clickable to change it. It lives
+// here rather than only in the status strip because the strip is transient: it carries whatever the
+// last action said, and the window outlives that. Hidden outside Rebalance, and hidden when this
+// portfolio has no settlement-year payment dates to choose between.
+function _syncCashWindowLink() {
+  const link = document.getElementById('available-cash-window');
+  if (!link) return;
+  const dates = currentMode === 'rebalance' ? _settlementYearPaymentDates(currentHoldingsArray) : [];
+  if (dates.length === 0) { link.style.display = 'none'; return; }
+  link.style.display = '';
+  link.textContent = (_cashAfterDate ? 'after ' + _shortDay(_cashAfterDate) : 'whole year') + ' ▾';
+  link.title = _cashAfterDate
+    ? 'Counting payments made after the ' + _shortDay(_cashAfterDate) + ' coupon payment date. Click to change.'
+    : 'Counting every payment made this settlement year. Click to change.';
+}
+
+document.getElementById('available-cash-window').addEventListener('click', e => {
+  e.preventDefault();
+  _openCashWindowPicker(e.currentTarget);
+});
 document.getElementById('available-cash').addEventListener('change', e => {
   const v = parseFloat(e.target.value);
   _availableCash = (isNaN(v) || v < 0) ? 0 : v;

@@ -1466,6 +1466,71 @@ test("the received-cash window is chosen from this portfolio's own payment dates
   await expect(page.locator('#available-cash-auto')).toBeVisible();
 });
 
+// Changing a control on the top card is the reason to be looking at an expanded year: the point is to
+// see what the change did to that year. Collapsing the table on the way to showing the effect hides
+// the effect, so expansion state survives every re-render (6.0 §Expand/Collapse State).
+test('the ladder table keeps its expansion state when a top-card control changes', async ({ page }) => {
+  test.setTimeout(20_000);
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  // Allocation policy is locked to maturity order under the default Last to mature preference
+  // (2.0 §Within-Year Allocation Policy), so unlock it first. Its change handler is the one that
+  // rebuilds the Before-state preview from scratch.
+  await page.locator('#build-maturity').selectOption({ value: 'all' });
+  await expect(page.locator('#rebal-alloc-policy')).toBeEnabled();
+
+  await page.locator('#expand-collapse-all-btn').click();
+  const headers = page.locator('#simple-table tr.fy-group-header');
+  const before = await headers.evaluateAll(els => els.map(e => e.dataset.expanded));
+  expect(before.length).toBeGreaterThan(1);
+  expect(before.every(v => v === 'true'), 'Expand All expanded every group').toBe(true);
+
+  await page.locator('#rebal-alloc-policy').selectOption({ value: 'saYield' });
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible();
+  const after = await headers.evaluateAll(els => els.map(e => e.dataset.expanded));
+  expect(after.length, 'the table was rebuilt, not left alone').toBe(before.length);
+  expect(after.every(v => v === 'true'), 'still expanded after the change').toBe(true);
+
+  // And a collapsed table stays collapsed: the state is carried, not forced open.
+  await page.locator('#expand-collapse-all-btn').click();
+  await page.locator('#rebal-alloc-policy').selectOption({ value: 'equal' });
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible();
+  const collapsed = await headers.evaluateAll(els => els.map(e => e.dataset.expanded));
+  expect(collapsed.every(v => v === 'false'), 'still collapsed after the change').toBe(true);
+});
+
+// The received-cash window sits beside the figure it produces, not only in the status strip, which
+// carries whatever the last action said (2.0 §Available Cash).
+test('the received-cash window can be changed from the control beside Available Cash', async ({ page }) => {
+  test.setTimeout(20_000);
+  const cash = page.locator('#available-cash');
+  const link = page.locator('#available-cash-window');
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await expect(link).toBeVisible();
+  await expect(link).toContainText('whole year');
+  const wholeYear = Number(await cash.inputValue());
+
+  await link.click();
+  const sel = page.locator('#cash-since-select');
+  await expect(sel).toBeVisible();
+  const values = await sel.locator('option').evaluateAll(els => els.map(e => e.value));
+  await sel.selectOption(values[1]);
+  await page.locator('#dara-basis-apply').click();
+  expect(Number(await cash.inputValue() || 0)).toBeLessThan(wholeYear);
+  await expect(link).toContainText('after');
+
+  // A typed figure stands, and choosing a window asks for the app's figure back.
+  await cash.fill('1234');
+  await cash.blur();
+  await expect(page.locator('#available-cash-auto')).toBeHidden();
+  await link.click();
+  await sel.selectOption('');
+  await page.locator('#dara-basis-apply').click();
+  expect(Number(await cash.inputValue() || 0)).toBeCloseTo(wholeYear, 2);
+  await expect(page.locator('#available-cash-auto')).toBeVisible();
+});
+
 // Whether this year's coupons were kept toward this year or reinvested is one decision, asked on the
 // settlement year's Coupons control. The offered Available Cash follows it live. Maturity proceeds do
 // not: returned principal is not coupon income. And once the holder types a figure of their own, the
@@ -1528,14 +1593,17 @@ test('Available Cash counts maturity proceeds from rungs that have already matur
   await expect(page.locator('#available-cash-auto')).toBeVisible({ timeout: 4_000 });
   const offered = Number(await cash.inputValue());
 
-  // The help popup breaks the figure down, and names the rungs that matured.
+  // The help popup leads with what arrived on each payment date, and names the rungs that matured.
   await page.locator('#available-cash-help').click();
   const text = await page.locator('body').innerText();
-  expect(text).toContain('matured');
+  // The table header is uppercased by CSS, and innerText reflects that.
+  expect(text).toMatch(/coupons/i);
+  expect(text).toMatch(/principal/i);
+  expect(text).toMatch(/rungs that have matured/i);
 
   // Maturity proceeds dwarf the coupons here: three whole rungs against half a year of coupons.
-  const proceeds = (text.match(/from (\d+) rungs that have matured/) ?? [])[1];
-  expect(Number(proceeds), 'three 2026 rungs have matured by late August').toBe(3);
+  const matured = text.match(/matured \d{2}\/\d{2}\/\d{4}/g) ?? [];
+  expect(matured.length, 'three 2026 rungs have matured by late August').toBe(3);
   expect(offered, 'three matured rungs plus coupons is a large figure').toBeGreaterThan(20000);
 });
 
