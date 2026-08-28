@@ -8,6 +8,63 @@ production impact go here.
 
 ## OPEN
 
+### The vocabulary for what a ladder does, and what happens to its cash flows
+
+- **Found:** 2026-08-28, reviewing the Available Cash help and 2.0 §Available Cash. Repeatedly, over
+  one session: "spent", "counted over", "retained toward", "the ladder has received", and a stated
+  purpose for a ladder that it does not have.
+- **The definition, in the user’s own words**, to be applied to the specs and to every user-facing
+  string rather than paraphrased:
+
+  > A ladder generates real cash flows, consisting of interest and principal payments. The goal is
+  > for the annual real amount of these cash flows (ARA) to be as close to DARA as possible, given
+  > that TIPS are issued in par amounts of 1,000.
+  >
+  > These real cash flows can be consumed (i.e., spent), retained as cash in the account, or
+  > reinvested in the ladder. This applies to all cash flows. The underlying assumption of a TIPS
+  > ladder is that the cash flows will be consumed, but that may not be the case, so we should
+  > account for the other alternatives.
+
+  Three terms for what becomes of a cash flow, and only three: **consumed**, **retained**,
+  **reinvested**. Anything that seems to need a fourth is to be raised rather than invented.
+- **What this settles.** Available Cash is the *retained* case. The Coupons control is *reinvested*
+  versus retained, for the settlement year’s not-yet-paid coupons. *Consumed* is the default
+  assumption everywhere else, which is why a matured rung’s principal is not carried forward as
+  available funds.
+- **Still to do.** §Maturity Proceeds Are Spent (2.0) needs rewriting under this vocabulary,
+  heading included. Its second paragraph is currently wrong: "A holder who has **not** applied it"
+  describes the holder not having applied money that Available Cash exists to apply, where the
+  point is that the money is still on hand rather than drawn down. The first paragraph opens with a
+  purpose a ladder does not have. Both were introduced 2026-08-28; the "spent" wording they replaced
+  was the pre-existing text.
+- **Left alone deliberately:** 2.0 §AMD’s "turns the accrued discount into spendable cash", where
+  the word means realizable, not applied toward an Amount.
+- **Status:** open, and the next thing to pick up.
+
+### Help text is not covered by any test
+
+- Every wording defect found on 2026-08-28 was found by reading, not by a failing test, and a
+  handful of status-strip assertions pin phrases only incidentally. The defects were not stylistic:
+  "Includes every settlement-year payment" claimed both of Available Cash’s components when a
+  broker file can only ever have one, and "retained toward that year’s Amount rather than
+  reinvested or spent" contradicted the definition of the figure three paragraphs above it.
+- **Worth knowing** because the natural response is to add tests, and tests are not what would catch
+  this. What would: reading each user-facing statement against what the code does, on every pass,
+  rather than only the statement that was flagged.
+- **Status:** open, no mechanism proposed.
+
+### A broker file cannot name a rung that has already matured
+
+- A file of current positions lists what is held now, so a rung that matured earlier in the
+  settlement year is simply absent, and its principal cannot be counted toward that year’s Amount.
+- **Handled** by the Available Cash chooser: for a file this app did not save, it says so and the
+  holder states the total under **Amount**. Our own CUSIP/Qty export keeps the matured rung, so the
+  choices already count it there.
+- **Not verified:** a second consequence, raised 2026-08-28 and not measured. For a broker file the
+  per-year DARA is mirrored from the holdings, so a missing matured rung does not make the
+  settlement year read as underfunded — it makes that year’s *target* read low. The distortion is
+  in the ladder’s shape rather than in a spurious purchase, and would only become a purchase if the
+  holder then levelled DARA across the years. Measurable against the year-ago all-months fixture.
 ### Spec/code discrepancy audit (from CLAUDE.md cleanup)
 
 - **Found:** 2026-07-31, during a CLAUDE.md audit that removed content duplicated from specs.
@@ -189,6 +246,81 @@ per-CUSIP prices for a past date (3.1 §4.0).
 - **Status:** open.
 ## FIXED
 
+### Amount After left out the cash credit on the rung the pool ran out in
+
+- **Found:** 2026-08-28, from a report that raising Available Cash *lowered* Amount After.
+- **Cause.** Available Cash is consumed earliest rung first. A rung the pool covers in full is
+  zeroed and topped up to its DARA, which carries the cash implicitly and was correct. The one rung
+  the pool runs out partway through takes what is left as a partial credit, and `runRebalance`
+  passed `fundedYearAmount` only the pre-ladder-interest half of that credit
+  (`pliCreditByFundedYear`), so the row reported a year delivering less than its target by exactly
+  the cash it had just been given. The rung had been sized down for that cash; the cash then went
+  unreported.
+- **Measured.** 2026–2040 at DARA 40,000 with 60,000 cash: 2027 read **19,349.90** against the
+  **40,514.54** a build of the same ladder reports. Now 40,514.54.
+- **Why nothing caught it.** `build-lib` passes the whole credit, so Build was right and Rebalance
+  wrong, and the test whose stated purpose is "rebal After == build amount per year" ran only at
+  zero cash. It now runs with cash, and fails by 16,742 without the fix.
+- **Fixed** by passing `creditByFundedYear` (cash + pre-ladder interest). The bracket row’s
+  `preLadderCreditForYear` now reads from `postARABreakdown` so the drill’s split matches the total
+  it explains.
+
+### The ladder table collapsed whenever a top-card control changed
+
+- **Found:** 2026-08-28. Changing Allocation policy reset every expanded funded year.
+- **Why it is backwards:** expanding a year is what you do in order to see what a change does to
+  it, so collapsing on the way to showing the effect hides the effect.
+- **Cause.** Only Rebalance’s own re-run captured and restored `data-expanded`; Build’s render and
+  the pre-Run Before-state preview called `_setDefaultGroupsExpanded`. 6.0 scoped it that way
+  explicitly, so the spec was wrong too, and is rewritten as the general rule.
+- **Fixed:** all three paths capture and restore. A fresh load renders into an empty table, which
+  snapshots nothing, so it opens at the default without a special case. The regression test drives
+  the allocation-policy path and fails without the fix; an earlier version of it drove maturity
+  preference, passed with the fix reverted, and proved nothing.
+
+### The received-cash window was a free date where only six days differ
+
+- **Found:** 2026-08-28. Applying a Ref CPI date of one year ago changed nothing at all, with no
+  indication why.
+- **Two causes, both now addressed.** The count covers settlement-year payments, so a date before
+  January 1 was clamped away and could not narrow anything; and the strip echoed the entered date,
+  naming a window the figure was never counted over.
+- **Fixed by removing the date.** Cash reaches a holder only on the 15th of January, February,
+  April, July, August and October (verified: all 109 TIPS ever issued mature on the 15th of Jan,
+  Feb, Apr, Jul or Oct), so the choices are now the payment dates this portfolio was actually paid
+  on, each labelled with the amount it produces, each **exclusive** of the date it names. A file’s
+  own recorded Ref CPI date maps onto one of them, and is the earliest offered.
+- **And the two dates were separated.** One entry had served both the Ref CPI basis and the cash
+  window, so a position file — which carries no per-year amounts to restate — was told its amounts
+  would be restated. The Ref CPI entry is now offered only where the file carries amounts.
+
+### Available Cash and the payments behind it were two controls
+
+- **Found:** 2026-08-28. A link beside the box crowded the card row and was too small to read.
+- **Fixed:** clicking the box opens a chooser listing every starting point with the amount it
+  produces, and last a plain amount to state outright; the box displays the result and takes no
+  typing. The payment dates are what make the counted figure, so offering them anywhere other than
+  where the figure is set splits one decision across two controls.
+- **The help now leads with the figures**: one row per settlement-year payment date already made,
+  its coupons and its principal, and the total. Rows before the starting point, and the coupon
+  column when the coupon-counting choice excludes it, are struck through rather than dropped.
+
+### Coupon Counting showed in Build, and never mentioned Available Cash
+
+- **Found:** 2026-08-28, from "I still don’t see a linkage between coupon counting and available
+  cash, but there should be", and "I’m not sure there’s value at all in having coupon counting in
+  Build mode".
+- **Build:** the choice divides a settlement year into coupons already paid and coupons still to
+  arrive, and a Build has no first half — the ladder is bought on the build date, so every coupon
+  from that date forward is its own income. Build now sizes at `all` unconditionally and the control
+  is not rendered there.
+- **Rebalance:** all three settings kept. The received-cash window cannot express what they express:
+  the remaining question is about payments not yet made. Measured 2026–2040 at DARA 40,000, `none`
+  costs one more bond in the 2026 rung and $1,218.
+- **The linkage** is now stated in the popover, live: which coupons have already been paid, that they
+  are counted in Available Cash rather than there, and how many payment dates remain — because that
+  is what decides whether the choices still differ. With one date left, `all` and `last` name the
+  same coupon, which holds from mid-August until January.
 ### Available Cash showed in Build, where it has nothing to mean
 
 - **Fixed:** 2026-08-27.
