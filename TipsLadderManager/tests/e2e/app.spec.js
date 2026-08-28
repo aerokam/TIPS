@@ -1785,28 +1785,34 @@ test('build: a blanked per-year DARA field builds that rung at 0, not the scalar
   }, rungYear), { timeout: 4_000 }).toBe('0');
 });
 
-// RMD Options (2.0 §RMD Options; 5.0 §Funded Year Group Header Row §RMD Options): the settlement
-// year's group header row — and only that row — carries a "RMD Options" link that opens a small
-// popover for the two settlement-year-only inputs (cash override, coupon-count mode).
-test('Coupon Counting: link appears only on the settlement year row, and the popover round-trips values', async ({ page }) => {
+// Coupon Counting (2.0 §Settlement-Year Coupon Treatment; 5.0 §Funded Year Group Header Row): the
+// settlement year's group header row — and only that row — carries a "Coupons" link opening a small
+// popover for the settlement-year coupon-count mode.
+//
+// Rebalance only. The choice divides the settlement year into coupons already received and coupons
+// still to arrive, and a Build has no first half: every coupon from the build date forward is the
+// ladder's own income, so Build sizes at 'all' with nothing to choose.
+test('Coupon Counting: link appears only on the settlement year row, in Rebalance only, and round-trips values', async ({ page }) => {
   test.setTimeout(20_000);
-  await _buildSetup(page);
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
 
-  const firstYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
-  const otherYear = await page.locator('#build-table .fy-dara-input[data-year]').nth(1).getAttribute('data-year');
-  await expect(page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`)).toBeVisible();
-  await expect(page.locator(`#build-table tr.fy-group-header[data-fy="${otherYear}"] .fy-rmd-link`)).toHaveCount(0);
+  const firstYear = await page.locator('#simple-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const otherYear = await page.locator('#simple-table .fy-dara-input[data-year]').nth(1).getAttribute('data-year');
+  await expect(page.locator(`#simple-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`)).toBeVisible();
+  await expect(page.locator(`#simple-table tr.fy-group-header[data-fy="${otherYear}"] .fy-rmd-link`)).toHaveCount(0);
 
-  const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  const link = page.locator(`#simple-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
   await expect(link).toHaveText('Coupons');
   await link.click();
   const pop = page.locator('#rmd-options-popover');
   await expect(pop).toBeVisible();
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('all');
-  // Available Cash is ladder-wide, so it lives in Row 1 rather than in this per-year popover --
-  // and it is Rebalance-only, since a Build starts from cash by definition (2.0 §Available Cash).
+  // Available Cash is ladder-wide, so it lives in Row 1 rather than in this per-year popover.
   await expect(pop.locator('#rmd-cash-override')).toHaveCount(0);
-  await expect(page.locator('#field-available-cash')).toBeHidden();
+
+  // The two controls are the two halves of one settlement year, and each says what the other does.
+  await expect(page.locator('#rmd-linkage-note')).toContainText('Available Cash');
+  await expect(page.locator('#rmd-linkage-note')).toContainText('payment');
 
   await pop.locator('input[name="rmd-coupon-mode"][value="last"]').check();
   await page.locator('#rmd-options-close').click();
@@ -1817,6 +1823,11 @@ test('Coupon Counting: link appears only on the settlement year row, and the pop
   await link.click();
   await expect(pop.locator('input[name="rmd-coupon-mode"]:checked')).toHaveValue('last');
   await page.locator('#rmd-options-close').click();
+
+  // Build offers no such choice, and the Rebalance side's 'last' must not follow it there.
+  await _buildSetup(page);
+  await expect(page.locator('#build-table .fy-rmd-link')).toHaveCount(0);
+  await expect(page.locator('#field-available-cash')).toBeHidden();
 });
 
 // The hover explainer reuses the funded-year bracket label's existing [data-tip-html]/
@@ -1825,10 +1836,10 @@ test('Coupon Counting: link appears only on the settlement year row, and the pop
 // opens the popover, the same way any link can carry a tooltip without it competing with its click.
 test('Coupon Counting: hovering the link shows an explainer without opening the popover', async ({ page }) => {
   test.setTimeout(20_000);
-  await _buildSetup(page);
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
 
-  const firstYear = await page.locator('#build-table .fy-dara-input[data-year]').first().getAttribute('data-year');
-  const link = page.locator(`#build-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
+  const firstYear = await page.locator('#simple-table .fy-dara-input[data-year]').first().getAttribute('data-year');
+  const link = page.locator(`#simple-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
   const tooltip = page.locator('#bracket-tooltip');
   await expect(tooltip).toBeHidden();
 
@@ -1838,7 +1849,7 @@ test('Coupon Counting: hovering the link shows an explainer without opening the 
   await expect(page.locator('#rmd-options-popover')).toBeHidden();
 
   // Hovering off hides it again.
-  await page.locator('#build-table').hover({ position: { x: 5, y: 5 } });
+  await page.locator('#simple-table').hover({ position: { x: 5, y: 5 } });
   await expect(tooltip).toBeHidden();
 
   // Clicking the link (still hovered, since a click starts with the cursor already over it) opens

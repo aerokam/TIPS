@@ -234,7 +234,12 @@ function rmdOptionsTipHTML() {
 // input — no new column. A trailing "*" marks a non-default choice so it's visible without opening
 // the popover. Hovering the link shows the explainer (data-tip-html); clicking it opens the popover
 // — the two gestures don't conflict, same as any link that also carries a tooltip.
-function rmdOptionsLinkHTML(fy, settlementYear, rmdCouponMode) {
+//
+// Rebalance only. The choice divides a settlement year into coupons already received and coupons
+// still to arrive, and a Build has no first half: the ladder is bought today, so every coupon from
+// the build date forward is its own income. Build sizes at 'all' unconditionally.
+function rmdOptionsLinkHTML(fy, settlementYear, rmdCouponMode, mode) {
+  if (mode !== 'rebal') return '';
   if (settlementYear == null || fy !== settlementYear) return '';
   const isDefault = (rmdCouponMode === 'all' || rmdCouponMode == null);
   return ` <a href="#" class="fy-rmd-link" data-year="${fy}" `
@@ -252,7 +257,7 @@ function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraBy
     : future30ySet.has(fy) ? ' <span style="opacity:0.6;font-style:italic;font-size:10px">(30Y)</span>' : '';
   const label = String(fy) + (isBracketGroup ? '*' : '');
   const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears);
-  const rmdHTML = rmdOptionsLinkHTML(fy, summary?.settlementYear, summary?.rmdCouponMode);
+  const rmdHTML = rmdOptionsLinkHTML(fy, summary?.settlementYear, summary?.rmdCouponMode, mode);
   const labelTd = isBracketGroup
     ? `<td colspan="${labelCount}"><span class="formula-var bracket-tip-target" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}">${esc(label)}</span>${suffix}${daraHTML}${rmdHTML}</td>`
     : `<td colspan="${labelCount}">${esc(label)}${suffix}${daraHTML}${rmdHTML}</td>`;

@@ -389,6 +389,7 @@
   <label style="display:block;font-size:12px;font-weight:500;padding:2px 0"><input type="radio" name="rmd-coupon-mode" value="none"> None</label>
   <label style="display:block;font-size:12px;font-weight:500;padding:2px 0"><input type="radio" name="rmd-coupon-mode" value="all"> All remaining</label>
   <label style="display:block;font-size:12px;font-weight:500;padding:2px 0"><input type="radio" name="rmd-coupon-mode" value="last"> Only last</label>
+  <div id="rmd-linkage-note" style="font-size:11px;line-height:1.45;margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;color:#334155"></div>
   <div style="text-align:right;margin-top:8px">
     <button type="button" id="rmd-options-close" class="menu-select" style="padding:3px 10px;font-size:11px">Close</button>
   </div>
@@ -826,6 +827,7 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
     { prose: 'Whether the settlement year&rsquo;s coupons are retained toward that year or reinvested is a single question, stated on the settlement year&rsquo;s <b>Coupons</b> control. This figure answers to that control rather than restating the question, and is recomputed when it changes:' },
     { prose: '<b>All remaining:</b> coupons are retained, so every coupon already paid is counted.<br><b>Only last:</b> every coupon but the final one is reinvested, and each coupon already paid precedes the last one still to arrive, so none are counted.<br><b>None:</b> all are reinvested, so none are counted.' },
     { prose: '<b>Maturity proceeds do not follow it.</b> Returned principal is not coupon income, and a rung exists to mature and be spent, so it is counted under every setting.' },
+    { prose: 'Coupons still to arrive this year are the other half of the settlement year and are not counted here. They are income to the settlement year&rsquo;s own rung, and the <b>Coupons</b> control is where they are governed.' },
     { sep: true },
     { prose: 'Entering a figure ends the offer, as does clearing the box. The amber mark clears, the entered value is used as stated, and the app does not revise it, including on a later change to the Coupons setting.' },
   ];
@@ -2151,7 +2153,7 @@ function _settlementYearCashReceivedSince(holdingsArr, afterDateStr) {
 // July or October, so payments land on the 15th of those months and August; the list is derived
 // from the holdings’ own schedules rather than from that fact, so it names only the dates this
 // portfolio was actually paid on.
-function _settlementYearPaymentDates(holdingsArr) {
+function _settlementYearPaymentDates(holdingsArr, which = 'paid') {
   if (!holdingsArr || !settlementDate) return [];
   const today = localDate(_tradeDateStr);
   if (!today) return [];
@@ -2162,7 +2164,9 @@ function _settlementYearPaymentDates(holdingsArr) {
     const b = _bondOrMatured(h.cusip);
     if (!b?.maturity || !h.qty) continue;
     for (const d of couponSchedule(yearStart, b.maturity)) {
-      if (d.getFullYear() !== year || _actualPaymentDate(d) >= today) continue;
+      if (d.getFullYear() !== year) continue;
+      const made = _actualPaymentDate(d) < today;
+      if (which === 'paid' ? !made : made) continue;
       seen.add(_isoDate(d));
     }
   }
@@ -2180,11 +2184,12 @@ function _cashAfterFromRefCpiDate(refCpiDate) {
   return prior.length ? prior[prior.length - 1] : null;
 }
 
+function _shortDay(iso) {
+  return localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 function _cashAfterLabel(iso) {
-  return iso
-    ? 'After ' + localDate(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      + ' coupon payment date'
-    : 'Whole settlement year';
+  return iso ? 'After ' + _shortDay(iso) + ' coupon payment date' : 'Whole settlement year';
 }
 
 // Every distinct window this portfolio can have, each labelled with what it counts. A free date
@@ -3689,9 +3694,35 @@ function getDaraByYear() {
 {
   const pop = document.getElementById('rmd-options-popover');
   const closePop = () => { pop.hidden = true; };
+  // The settlement year has two halves, and this control governs one of them. Saying so here, with
+  // the other half’s actual figure, is the whole point: the two were separate screens describing one
+  // year, and nothing on either said the other existed.
+  const linkageNoteHTML = () => {
+    const bits = [];
+    const remaining = _settlementYearPaymentDates(currentHoldingsArray, 'remaining');
+    if (remaining.length === 1) {
+      bits.push('Only the ' + esc(_shortDay(remaining[0])) + ' payment is left this year, so '
+        + '<b>All remaining</b> and <b>Only last</b> count the same coupon.');
+    } else if (remaining.length > 1) {
+      bits.push(remaining.length + ' payment dates are left this year ('
+        + remaining.map(d => esc(_shortDay(d))).join(', ') + ').');
+    } else {
+      bits.push('No payment dates are left this year, so all three choices count the same: nothing.');
+    }
+    const r = _settlementYearCashReceivedSince(currentHoldingsArray, _cashAfterDate);
+    if (r.coupons > 0) {
+      const amt = '$' + Math.round(r.coupons).toLocaleString();
+      bits.push('Coupons already received are counted in <b>Available Cash</b>, not here. '
+        + '<b>All remaining</b> counts them (' + amt + '); <b>None</b> and <b>Only last</b> do not, '
+        + 'treating them as reinvested.');
+    }
+    return bits.join('<br><br>');
+  };
+
   const openPop = (linkEl) => {
     _hideBracketTip(); // the link's own hover explainer must not linger once its click popover is open
     pop.querySelectorAll('input[name="rmd-coupon-mode"]').forEach(r => { r.checked = (r.value === _rmdCouponMode); });
+    document.getElementById('rmd-linkage-note').innerHTML = linkageNoteHTML();
     const r = linkEl.getBoundingClientRect();
     pop.hidden = false;
     const top = Math.min(r.bottom + 4, window.innerHeight - pop.offsetHeight - 8);
@@ -3716,6 +3747,7 @@ function getDaraByYear() {
       _rmdCouponMode = r.value;
       // One decision, two places it shows: the offered Available Cash follows this control.
       _applyReceivedCashOffer();
+      document.getElementById('rmd-linkage-note').innerHTML = linkageNoteHTML();
       commitAndMaybeRecompute();
     });
   });
@@ -3828,8 +3860,12 @@ function _runBuildFromForm() {
     yearOverrides: _yearMaturityOverrides,
     bondHolidays: _bondHolidays,
     // Build never spends down against cash on hand — the field is Rebalance-only, and a DARA plan
-    // carrying a figure from the mode that does use it must not apply here unseen.
-    availableCash: 0, rmdCouponMode: _rmdCouponMode,
+    // carrying a figure from the mode that does use it must not apply here unseen. Coupon counting
+    // is Rebalance-only on the same grounds: it divides a settlement year into coupons already
+    // received and coupons still to arrive, and a Build has no first half, so every coupon from the
+    // build date forward is the ladder's own income. That is 'all', unconditionally, whatever a
+    // loaded file or the Rebalance side of this session happens to hold.
+    availableCash: 0, rmdCouponMode: 'all',
     tradeDate: localDate(_tradeDateStr),
   });
   _lastKnownDara = dara;
