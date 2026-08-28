@@ -1413,7 +1413,7 @@ test('a file with no date says which window its received cash was counted over, 
   // Auto-loaded sample holdings: broker-style, no #params line, so no date of its own.
   const wholeYear = Number(await cash.inputValue());
   expect(wholeYear).toBeGreaterThan(0);
-  await expect(page.locator('#status')).toContainText('counted from the start of the year');
+  await expect(page.locator('#status')).toContainText('counted from the start of the settlement year');
   await expect(page.locator('#dara-set-basis')).toBeVisible();
 
   // Setting a date partway through the year narrows the window, so less has been collected.
@@ -1424,6 +1424,16 @@ test('a file with no date says which window its received cash was counted over, 
   await expect(page.locator('#status')).toContainText('counted from 07/01/');
   const fromJuly = Number(await cash.inputValue() || 0);
   expect(fromJuly, 'a July start collects less than a full year').toBeLessThan(wholeYear);
+
+  // A date before the settlement year cannot narrow the window, since only settlement-year
+  // payments are counted. The figure returns to the whole year and the strip says so, rather than
+  // reporting a window the count did not run over.
+  await page.locator('#dara-set-basis').click();
+  await page.locator('#dara-basis-date').fill((settleYear - 1) + '-08-26');
+  await page.locator('#dara-basis-apply').click();
+  await expect(page.locator('#status')).toContainText('the start of the settlement year');
+  await expect(page.locator('#status')).not.toContainText('counted from 08/26/' + (settleYear - 1));
+  expect(Number(await cash.inputValue() || 0)).toBeCloseTo(wholeYear, 2);
 
   // The offer is still the app's, so it still follows the Coupons control.
   await expect(page.locator('#available-cash-auto')).toBeVisible();

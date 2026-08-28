@@ -365,9 +365,9 @@
 
 <!-- DARA basis-date popover (3.0 §DARA Basis Date) — offered when an imported DARA block records
      no Ref CPI date, so the app cannot know what basis its numbers were stated in. -->
-<div id="dara-basis-popover" class="menu-dropdown" hidden style="position:fixed;min-width:240px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
+<div id="dara-basis-popover" class="menu-dropdown" hidden style="position:fixed;min-width:240px;max-width:280px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
   <div style="font-weight:700;margin-bottom:6px">File’s Ref CPI date</div>
-  <div style="font-size:11px;line-height:1.4;margin-bottom:8px">The Ref CPI date these DARA values were stated at. Supplying it scales them to the settlement date, so the ladder keeps the same real target.</div>
+  <div id="dara-basis-note" style="font-size:11px;line-height:1.4;margin-bottom:8px"></div>
   <input type="date" id="dara-basis-date" class="date-picker" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:12px;border:1px solid #94a3b8;border-radius:3px">
   <div style="text-align:right;margin-top:8px">
     <button type="button" id="dara-basis-cancel" class="menu-select" style="padding:3px 10px;font-size:11px">Cancel</button>
@@ -776,7 +776,7 @@ _updateAllocPolicyLock(); // reflects the default maturityPref='last' on first p
 document.getElementById('coupon-pick-help').addEventListener('click', e => {
   e.stopPropagation();
   showPopup(e.currentTarget, 'Coupon Pick', [
-    { html: 'Some maturity months carry two TIPS issues with different coupons (Jan 2027/28/29, Apr 2028/29). Choose which one this ladder buys when one of the selected maturities lands on one of those months (tip: it doesn\'t really matter which you choose).' },
+    { html: 'Some maturity months carry two TIPS issues with different coupons (Jan 2027/28/29, Apr 2028/29). This selects which of the two the ladder buys when one of the selected maturities falls in such a month. Under the default <b>Last to mature</b> preference the tie-break is never reached, neither January nor April being the latest month in its year.' },
   ]);
 });
 
@@ -785,7 +785,7 @@ document.getElementById('alloc-policy-help').addEventListener('click', e => {
   showPopup(e.currentTarget, 'Allocation Policy', [
     { html: 'When a funded year holds more than one maturity (2.0 §Maturity Selection Within a Funded Year), this decides which one a trade favors first.' },
     { heading: 'Equal split' },
-    { html: 'Buys into whichever maturity currently holds the least value first — including one not held at all, which ranks ahead of any held maturity until it catches up. Sells the largest holding first if the year needs to shrink. The goal is to level all of the year’s maturities off, not to prefer any one of them.' },
+    { html: 'Buys into whichever maturity currently holds the least value first — including one not held at all, which ranks ahead of any held maturity until it catches up. Sells the largest holding first where the year is to be reduced. The result is an even distribution of value across the year’s maturities.' },
     { heading: 'Maturity order' },
     { html: 'Follows the top-level Maturity preference: latest-maturing wins first when set to “Last to mature”, earliest-maturing wins first when set to “First to mature.”' },
     { heading: 'SA-Yield order' },
@@ -799,35 +799,37 @@ document.getElementById('available-cash-help').addEventListener('click', e => {
   e.stopPropagation();
   const auto = _availableCashAuto && _availableCash > 0;
   const sections = [
-    { html: 'Cash on hand you will <b>spend</b> rather than invest. The earliest funded year is covered from it first, and whatever is left spills up the ladder year by year. A rung that cash already covers needs fewer TIPS, or none at all.' },
-    { html: 'Cash you mean to put <i>into</i> the ladder is not entered here. Leave the box empty, and Net Cash comes back negative by whatever the purchases cost.' },
+    { html: 'Cash available to apply toward the annual real amount of the earliest funded year or years. The pool is applied to the earliest funded year first and moves up the ladder until it is exhausted, so a year it covers in full buys no TIPS.' },
+    { html: 'Cash intended for reinvestment in the ladder is not entered here. Leave the box empty; Net Cash then reports the cost of the purchases as a negative figure.' },
     { sep: true },
-    { heading: 'When the app fills it in' },
-    { html: 'Loading a ladder stated at an older Ref CPI date means a stretch of this year has passed since, and the ladder has been paid during it. That money is assumed kept toward this year&rsquo;s Amount, so the box is filled with what has been received since that date and marked amber.' },
-    { html: 'Two things count. <b>Coupons</b> already paid on every holding. And <b>maturity proceeds</b>: a rung that has matured paid out its inflation-adjusted principal along with its final coupon, which is this year&rsquo;s Amount arriving. Rebalancing in August, a ladder holding January, April and July rungs has already collected three of them &mdash; and the later in the year, the more of the rung is already in hand.' },
-    { html: 'A ladder stated as of today has collected nothing since, so nothing is filled in. A broker file names no date, so the whole year to date counts.' },
+    { heading: 'When the app enters a figure' },
+    { html: 'A ladder loaded in Rebalance was stated at a Ref CPI date and has been held since. Settlement-year income received over that interval is assumed retained toward that year&rsquo;s Amount rather than reinvested, so it is cash on hand and belongs here. The app values it, enters it, and marks the box amber to show the figure is the app&rsquo;s rather than yours.' },
+    { html: 'Two sources are counted:' },
+    { html: '<b>Coupons</b> already paid on every holding.<br><b>Maturity proceeds:</b> a rung that has matured paid out its inflation-adjusted principal together with its final coupon, which is that year&rsquo;s Amount arriving. A ladder holding January, April and July rungs, rebalanced in August, has received three of them; the later in the year, the larger the share of the rung already in hand.' },
+    { html: 'A ladder stated as of today has received nothing since, so no figure is entered. A file that records no Ref CPI date is counted over the settlement year to date.' },
+    { html: 'Maturity proceeds are recoverable only from a file this app saved. A broker position file lists current holdings, and a matured rung is no longer held, so it is absent from the file and its proceeds are yours to enter.' },
     { sep: true },
     { heading: 'The coupon half follows the Coupons setting' },
-    { html: 'Whether this year&rsquo;s coupons were kept toward this year or reinvested is one decision, and it is asked on the settlement year&rsquo;s <b>Coupons</b> control. This box follows it rather than asking again, and moves the moment you change it:' },
-    { html: '<b>All remaining</b> &mdash; coupons are kept, so every one already paid is counted here.<br><b>Only last</b> &mdash; every coupon but the final one is reinvested, and each one already paid is earlier than the last still to arrive, so none are counted.<br><b>None</b> &mdash; all are reinvested, so none are counted.' },
-    { html: '<b>Maturity proceeds do not follow it.</b> Returned principal is not coupon income, and a rung exists to mature and be spent, so it counts whichever setting is in force.' },
+    { html: 'Whether the settlement year&rsquo;s coupons are retained toward that year or reinvested is a single question, stated on the settlement year&rsquo;s <b>Coupons</b> control. This figure answers to that control rather than restating the question, and is recomputed when it changes:' },
+    { html: '<b>All remaining:</b> coupons are retained, so every coupon already paid is counted.<br><b>Only last:</b> every coupon but the final one is reinvested, and each coupon already paid precedes the last one still to arrive, so none are counted.<br><b>None:</b> all are reinvested, so none are counted.' },
+    { html: '<b>Maturity proceeds do not follow it.</b> Returned principal is not coupon income, and a rung exists to mature and be spent, so it is counted under every setting.' },
     { sep: true },
-    { html: 'Type over the figure at any time, or clear it. The amber mark goes, your number is used as entered, and the app stops changing it &mdash; including when you change the Coupons setting afterwards.' },
+    { html: 'Entering a figure ends the offer, as does clearing the box. The amber mark clears, the entered value is used as stated, and the app does not revise it, including on a later change to the Coupons setting.' },
   ];
   if (auto) {
     const r = _settlementYearCashReceivedSince(currentHoldingsArray, _receivedCashSince);
-    const since = _receivedCashSince ? ' since ' + esc(_fmtMDY(_receivedCashSince)) : ' this year';
+    const since = r.from ? ' since ' + esc(_fmtMDY(_isoDate(r.from))) : ' this settlement year';
     const countedCoupons = _rmdCouponMode === 'all' ? r.coupons : 0;
     const bits = [];
     if (countedCoupons > 0) bits.push('$' + Math.round(countedCoupons).toLocaleString() + ' in coupons');
     if (r.principal > 0) bits.push('$' + Math.round(r.principal).toLocaleString() + ' from '
       + r.matured.length + (r.matured.length === 1 ? ' rung that has' : ' rungs that have') + ' matured');
     sections.push({ sep: true },
-      { html: '<b>Now showing $' + Math.round(_availableCash).toLocaleString() + '</b> received' + since
-        + (bits.length ? ' &mdash; ' + bits.join(' and ') : '') + '.' });
+      { html: '<b>Currently $' + Math.round(_availableCash).toLocaleString() + '</b>, received' + since
+        + (bits.length ? ': ' + bits.join(' and ') : '') + '.' });
     if (_rmdCouponMode !== 'all' && r.coupons > 0) sections.push({ html: '$'
-      + Math.round(r.coupons).toLocaleString() + ' in coupons was received but is not counted, because '
-      + 'the Coupons setting is <b>' + (_rmdCouponMode === 'none' ? 'None' : 'Only last') + '</b>.' });
+      + Math.round(r.coupons).toLocaleString() + ' in coupons was received and is not counted, the '
+      + 'Coupons setting being <b>' + (_rmdCouponMode === 'none' ? 'None' : 'Only last') + '</b>.' });
     if (r.matured.length > 0) sections.push({ html: r.matured
       .map(x => esc(x.cusip) + ', ' + x.qty + ' &times; matured ' + esc(_fmtMDY(_isoDate(x.maturity))))
       .join('<br>') });
@@ -841,7 +843,7 @@ document.getElementById('bracket-mode-help').addEventListener('click', e => {
     { html: '<b>Lower bracket:</b> always the most recently issued 10-year TIPS before the gap — the latest maturity available in the market quotes, whether it falls in January or July.<br>Any older lower bracket holdings become regular funded years: their excess is sold and the bracket role moves to that latest maturity.' },
     { sep: true },
     { heading: '3-bracket (default)' },
-    { html: 'Lower bracket excess is kept in both the older maturity and the current one, managed with a priority rule:<br><b>Over-allocated:</b> sell only as much of the older excess as restoring the duration match requires (a partial sale, not a full one, unless the match still needs more); sell from the current lower bracket only if the older maturity is fully depleted and still over target.<br><b>Under-allocated:</b> buy the current lower bracket; the older maturity is frozen at its current excess and never increased or bought back.<br>Use when you hold an older lower bracket you want to keep until duration math forces a sell.<br><i>Note:</i> a very small follow-up trade (at most about one bond) can appear after reloading an exported ladder — a whole-bond-rounding artifact of the partial-sell target, not an error.' },
+    { html: 'Lower bracket excess is kept in both the older maturity and the current one, managed with a priority rule:<br><b>Over-allocated:</b> sell only as much of the older excess as restoring the duration match requires (a partial sale, not a full one, unless the match still needs more); sell from the current lower bracket only if the older maturity is fully depleted and still over target.<br><b>Under-allocated:</b> buy the current lower bracket; the older maturity is frozen at its current excess and never increased or bought back.<br>Applies where an older lower bracket holding is to be retained until the duration match requires a sale.<br><i>Note:</i> reloading an exported ladder can produce a small follow-up trade of at most about one bond, a whole-bond rounding artifact of the partial-sell target.' },
   ]);
 });
 document.getElementById('help-close').addEventListener('click', () => {
@@ -2025,8 +2027,9 @@ function _offerReceivedCouponsAsCash(params) {
   // one that has them already carries the basis notice (§DARA Basis Date), which must not be
   // overwritten, and its own date is what the window uses.
   if (!_receivedCashSince && !_daraLiteralFromFile && _availableCash > 0) {
-    setStatusHTML('Cash already received is counted from the start of the year, since this file '
-      + 'records no date. <a href="#" id="dara-set-basis" style="color:#93c5fd">Set the date</a>');
+    setStatusHTML('Cash already received is counted from the start of the settlement year, since '
+      + 'this file records no Ref CPI date. '
+      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Set Ref CPI date</a>');
   }
 }
 
@@ -2846,7 +2849,7 @@ function _applyDaraBasis(map, params) {
   const recorded = params?.refCpiDate ?? null;
   if (!recorded) {
     setStatusHTML('This file records no Ref CPI date, so its DARA values are used as written. '
-      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Set the file’s Ref CPI date</a>');
+      + '<a href="#" id="dara-set-basis" style="color:#93c5fd">Set Ref CPI date</a>');
     return map;
   }
   _daraFileRefCpiDate = recorded;
@@ -2877,6 +2880,16 @@ document.getElementById('status').addEventListener('click', e => {
     e.preventDefault();
     const pop = document.getElementById('dara-basis-popover');
     const input = document.getElementById('dara-basis-date');
+    // Two separate jobs, and which ones apply depends on what the file carried (3.0 §DARA Basis
+    // Date). A file with no per-year amounts has nothing to restate, so it is told only what the
+    // date does do there: bound the window cash already received is counted over.
+    document.getElementById('dara-basis-note').innerHTML = _daraLiteralFromFile
+      ? 'The Ref CPI date these DARA values were stated at. Supplying it restates them at the '
+        + 'settlement date, so the ladder keeps the same real target, and counts cash already '
+        + 'received from that date forward.'
+      : 'This file records no DARA values, so there is nothing to restate. The date sets when '
+        + 'cash already received is counted from, and only a date within the settlement year '
+        + 'narrows that window.';
     input.value = _daraFileRefCpiDate ?? _receivedCashSince ?? _defaultRefCpiDateStr ?? '';
     const r = setBasis.getBoundingClientRect();
     pop.hidden = false;
@@ -2898,7 +2911,11 @@ document.getElementById('dara-basis-apply').addEventListener('click', () => {
   if (!_daraLiteralFromFile) {
     _receivedCashSince = v;
     _applyReceivedCashOffer();
-    setStatusHTML('Cash already received is counted from ' + esc(_fmtMDY(v))
+    const r = _settlementYearCashReceivedSince(currentHoldingsArray, v);
+    const usedIso = r.from ? _isoDate(r.from) : v;
+    setStatusHTML('Cash already received is counted from ' + esc(_fmtMDY(usedIso))
+      + (usedIso === v ? '' : ', the start of the settlement year: a Ref CPI date before it does '
+          + 'not narrow the window')
       + '. <a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>');
     return;
   }
