@@ -150,7 +150,7 @@ export function buildDrillHTML(d, colKey, summary) {
     const longerDatedInt = d.longerDatedLMI ?? d.fundedYearLaterMatInt; // use separated if available, else combined legacy
     const _amd = d.future30yUpperAnnualAmd || 0;
     const _roll = d.future30yRollCoupon || 0;
-    // The credit pass spends Available Cash first, so a year's credit and its cash are the same
+    // The credit pass applies Available Cash first, so a year's credit and its cash are the same
     // dollars — shown as two lines that split the credit, never added on top of it
     // (2.0 §Available Cash).
     const _creditTotal = d.preLadderCreditForYear || 0;

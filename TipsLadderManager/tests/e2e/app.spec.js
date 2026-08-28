@@ -1412,54 +1412,49 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 test("the received-cash window is chosen from this portfolio's own payment dates, exclusive of the one named", async ({ page }) => {
   test.setTimeout(20_000);
   const cash = page.locator('#available-cash');
-  const sel = page.locator('#cash-since-select');
+  const pop = page.locator('#available-cash-popover');
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
 
   // Auto-loaded sample holdings: broker-style, no #params line, so no date of its own.
   const wholeYear = Number(await cash.inputValue());
   expect(wholeYear).toBeGreaterThan(0);
-  await expect(page.locator('#status')).toContainText('counted over the whole settlement year');
+  await expect(page.locator('#status')).toContainText('every settlement-year cash flow this ladder has generated');
   await expect(page.locator('#cash-set-since')).toBeVisible();
 
-  // The cash window is its own entry, separate from the Ref CPI date that restates per-year amounts,
-  // and it offers a list rather than a calendar.
+  // The choices live in a popup the Available Cash field itself opens, alongside a plain amount.
   await page.locator('#cash-set-since').click();
-  await expect(page.locator('#dara-basis-title')).toHaveText('Cash received since');
-  await expect(page.locator('#dara-basis-date')).toBeHidden();
-  await expect(sel).toBeVisible();
+  await expect(pop).toBeVisible();
 
-  const opts = await sel.locator('option').evaluateAll(
-    els => els.map(e => ({ value: e.value, label: e.textContent }))
+  const opts = await pop.locator('input[name="available-cash-choice"]').evaluateAll(
+    els => els.map(e => ({ value: e.value, label: e.closest('label').textContent }))
   );
-  expect(opts.length, 'the whole year plus one choice per payment date already made').toBeGreaterThan(1);
-  expect(opts[0].value, 'the whole settlement year is the first choice').toBe('');
-  expect(opts[0].label).toContain('Whole settlement year');
+  expect(opts.length, 'every settlement-year payment, each later starting point, and an amount').toBeGreaterThan(2);
+  expect(opts[0].value, 'every settlement-year payment is the first choice').toBe('');
+  expect(opts[0].label).toContain('Every settlement-year payment');
+  expect(opts[opts.length - 1].value, 'a stated amount is the last').toBe('manual');
   const settleYear = new Date().getFullYear();
-  for (const o of opts.slice(1)) {
-    expect(o.label, 'every other choice names a coupon payment date').toContain('coupon payment date');
+  for (const o of opts.slice(1, -1)) {
+    expect(o.label, 'every other choice names a payment date').toContain('After');
     expect(o.value, 'and is a settlement-year date').toContain(String(settleYear) + '-');
   }
 
   // Counting after the first payment date drops that payment, so less is on hand.
-  await sel.selectOption(opts[1].value);
-  await page.locator('#dara-basis-apply').click();
-  await expect(page.locator('#status')).toContainText('from after the');
-  await expect(page.locator('#status')).toContainText('coupon payment date');
+  await pop.locator(`input[value="${opts[1].value}"]`).check();
+  await page.locator('#available-cash-apply').click();
   const afterFirst = Number(await cash.inputValue() || 0);
   expect(afterFirst, 'excluding a payment leaves less').toBeLessThan(wholeYear);
 
   // Nothing is received after the last payment date already made.
-  await page.locator('#cash-set-since').click();
-  await expect(sel).toHaveValue(opts[1].value);
-  await sel.selectOption(opts[opts.length - 1].value);
-  await page.locator('#dara-basis-apply').click();
+  await cash.click();
+  await expect(pop.locator(`input[value="${opts[1].value}"]`)).toBeChecked();
+  await pop.locator(`input[value="${opts[opts.length - 2].value}"]`).check();
+  await page.locator('#available-cash-apply').click();
   expect(Number(await cash.inputValue() || 0)).toBe(0);
 
-  // Back to the whole year, and the figure returns.
-  await page.locator('#cash-set-since').click();
-  await sel.selectOption('');
-  await page.locator('#dara-basis-apply').click();
-  await expect(page.locator('#status')).toContainText('over the whole settlement year');
+  // Back to every payment, and the figure returns.
+  await cash.click();
+  await pop.locator('input[value=""]').check();
+  await page.locator('#available-cash-apply').click();
   expect(Number(await cash.inputValue() || 0)).toBeCloseTo(wholeYear, 2);
 
   // The offer is still the app's, so it still follows the Coupons control.
@@ -1499,36 +1494,45 @@ test('the ladder table keeps its expansion state when a top-card control changes
   expect(collapsed.every(v => v === 'false'), 'still collapsed after the change').toBe(true);
 });
 
-// The received-cash window sits beside the figure it produces, not only in the status strip, which
-// carries whatever the last action said (2.0 §Available Cash).
-test('the received-cash window can be changed from the control beside Available Cash', async ({ page }) => {
+// The figure is either one the app counts from the payments already received or one the holder
+// states outright, and both are chosen in the popup the field opens (2.0 §Available Cash). Clicking
+// the field does not put a cursor in it: the chooser is where the figure is set.
+test('Available Cash takes either a set of received payments or a stated amount', async ({ page }) => {
   test.setTimeout(20_000);
   const cash = page.locator('#available-cash');
-  const link = page.locator('#available-cash-window');
+  const pop = page.locator('#available-cash-popover');
   await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
 
-  await expect(link).toBeVisible();
-  await expect(link).toContainText('whole year');
   const wholeYear = Number(await cash.inputValue());
+  expect(wholeYear).toBeGreaterThan(0);
+  await expect(page.locator('#available-cash-auto')).toBeVisible();
 
-  await link.click();
-  const sel = page.locator('#cash-since-select');
-  await expect(sel).toBeVisible();
-  const values = await sel.locator('option').evaluateAll(els => els.map(e => e.value));
-  await sel.selectOption(values[1]);
-  await page.locator('#dara-basis-apply').click();
-  expect(Number(await cash.inputValue() || 0)).toBeLessThan(wholeYear);
-  await expect(link).toContainText('after');
-
-  // A typed figure stands, and choosing a window asks for the app's figure back.
-  await cash.fill('1234');
-  await cash.blur();
+  // A stated amount stands, and the amber mark clears: the figure is no longer the app's.
+  await cash.click();
+  await expect(pop).toBeVisible();
+  await pop.locator('input[value="manual"]').check();
+  await page.locator('#available-cash-manual').fill('1234');
+  await page.locator('#available-cash-apply').click();
+  await expect(pop).toBeHidden();
+  await expect(cash).toHaveValue('1234');
   await expect(page.locator('#available-cash-auto')).toBeHidden();
-  await link.click();
-  await sel.selectOption('');
-  await page.locator('#dara-basis-apply').click();
+
+  // Reopening shows the stated amount, and choosing payments again asks for the app's figure back.
+  await cash.click();
+  await expect(pop.locator('input[value="manual"]')).toBeChecked();
+  await expect(page.locator('#available-cash-manual')).toHaveValue('1234');
+  await pop.locator('input[value=""]').check();
+  await page.locator('#available-cash-apply').click();
   expect(Number(await cash.inputValue() || 0)).toBeCloseTo(wholeYear, 2);
   await expect(page.locator('#available-cash-auto')).toBeVisible();
+
+  // Cancel leaves the figure alone.
+  await cash.click();
+  await pop.locator('input[value="manual"]').check();
+  await page.locator('#available-cash-manual').fill('99');
+  await page.locator('#available-cash-cancel').click();
+  await expect(pop).toBeHidden();
+  expect(Number(await cash.inputValue() || 0)).toBeCloseTo(wholeYear, 2);
 });
 
 // Whether this year's coupons were kept toward this year or reinvested is one decision, asked on the
@@ -1570,9 +1574,11 @@ test('Available Cash follows the Coupons setting, and stops once the holder sets
   await expect(cash).toHaveValue(String(withAll));
   await expect(mark).toBeVisible();
 
-  // A figure the holder types is theirs: the Coupons control must not overwrite it afterwards.
-  await cash.fill('7500');
-  await cash.blur();
+  // A figure the holder states is theirs: the Coupons control must not overwrite it afterwards.
+  await cash.click();
+  await page.locator('#available-cash-popover input[value="manual"]').check();
+  await page.locator('#available-cash-manual').fill('7500');
+  await page.locator('#available-cash-apply').click();
   await expect(mark).toBeHidden();
   await link.click();
   await pop.locator('input[name="rmd-coupon-mode"][value="none"]').check();
@@ -1624,8 +1630,10 @@ test('Available Cash is offered from coupons already received, and only for a la
   await expect(cash).toHaveClass(/auto-filled/);
 
   // Typing over it hands the figure back to the user.
-  await cash.fill('1234');
-  await cash.blur();
+  await cash.click();
+  await page.locator('#available-cash-popover input[value="manual"]').check();
+  await page.locator('#available-cash-manual').fill('1234');
+  await page.locator('#available-cash-apply').click();
   await expect(mark).toBeHidden();
   await expect(cash).not.toHaveClass(/auto-filled/);
 
@@ -1941,8 +1949,10 @@ test('Available Cash and coupon mode round-trip through the DARA-plan file', asy
   const firstYear = await page.locator('#simple-table .fy-dara-input[data-year]').first().getAttribute('data-year');
   const link = page.locator(`#simple-table tr.fy-group-header[data-fy="${firstYear}"] .fy-rmd-link`);
   await expect(page.locator('#field-available-cash')).toBeVisible();
-  await page.locator('#available-cash').fill('4200');
-  await page.locator('#available-cash').blur();
+  await page.locator('#available-cash').click();
+  await page.locator('#available-cash-popover input[value="manual"]').check();
+  await page.locator('#available-cash-manual').fill('4200');
+  await page.locator('#available-cash-apply').click();
   await link.click();
   const pop = page.locator('#rmd-options-popover');
   await pop.locator('input[name="rmd-coupon-mode"][value="none"]').check();

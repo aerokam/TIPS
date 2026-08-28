@@ -512,7 +512,7 @@ export function sizeLadder({
   }
 
   // Available cash and pre-ladder interest are one pool consumed earliest-rung-first
-  // (2.0 §Available Cash). Cash spends first — money in hand ahead of coupons still to arrive —
+  // (2.0 §Available Cash). Cash applies first — money in hand ahead of coupons still to arrive —
   // and each year records the split so the drill can attribute it.
   const creditPool = availableCash + preLadderPool;
   if (creditPool > 0) {
