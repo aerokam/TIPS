@@ -17,7 +17,7 @@
 
 - **[Quantity](./DATA_DICTIONARY.md#quantity):** Number of TIPS held; qty 1 = $1,000 face value (e.g., qty 50 = $50,000 face value).
 - **[Face Value](./DATA_DICTIONARY.md#face-value):** Quantity × $1,000 (e.g., $50,000).
-- **[Par Value (Adjusted Principal)](./DATA_DICTIONARY.md#par-value-adjusted):** The principal value after being adjusted for inflation/deflation.
+- **[Inflation-Adjusted Principal](./DATA_DICTIONARY.md#inflation-adjusted-principal):** The principal value after being adjusted for inflation/deflation. Par itself is never adjusted.
   - `Par Value = Face Value × Index Ratio`
   - This is the value used to calculate interest payments and the redemption amount at maturity.
 

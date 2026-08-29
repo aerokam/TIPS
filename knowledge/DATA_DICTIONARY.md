@@ -115,6 +115,12 @@
 ### Maturity Date
 `Maturity_Date` = *Date on which principal is repaid to the bondholder*
 
+<a id="dated-date"></a>
+### Dated Date
+`Dated_Date` = *For a TIPS, the 15th of the month of issue, and the date inflation indexation is stated relative to: the [Index Ratio](#index-ratio) is 1.00000 on the dated date, because the [Ref CPI](#ref-cpi) of that date is the ratio’s denominator. The issue date is the last business day of the month, so for a TIPS the dated date and the issue date never coincide.*
+
+For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from which interest accrues for notes and bonds. The dated date and issue date are usually the same."* That sense governs auction accrued interest. For TIPS the reg’s exception is the rule, the dated date always falling before the issue date.
+
 <a id="coupon-rate"></a>
 ### Coupon Rate
 `Coupon_Rate` = *Fixed annual interest rate paid by the security, expressed as a decimal*
@@ -122,6 +128,17 @@
 <a id="yield"></a>
 ### Yield
 `Yield` = *Yield-to-Maturity (YTM): the discount rate equating present value of all future cash flows to the current price. Computed with Actual/Actual day count, semi-annual compounding (Excel `YIELD(settlement, maturity, rate, pr, redemption, 2, 1)` convention) for every coupon-bearing security regardless of remaining time to maturity — frequency is always 2, never a separate near-maturity simple-discounting case. Zero-coupon Treasury Bills are the one exception: priced via the simple investment-rate convention (`365/days-to-maturity`), since they have no coupon schedule to apply frequency/day-count to in the first place.*
+
+<a id="yield-curve"></a>
+### Yield Curve
+`Yield_Curve` = *A plot of yield against term or maturity.*
+
+<a id="ask"></a>
+<a id="bid"></a>
+### Ask / Bid
+`Ask` = *The price or yield at which a security may be bought; the side a buyer transacts on.*
+`Bid` = *The price or yield at which a security may be sold.*
+*Broker quote files carry both ([S7](#s7)).*
 
 <a id="tips"></a>
 ### TIPS
@@ -177,7 +194,7 @@
 <a id="ref-cpi"></a>
 ### Ref CPI
 `Ref_CPI` = *Daily interpolated Consumer Price Index (CPI-U NSA) value used for TIPS calculations. Authority: 31 CFR § 356 Appendix B.* One value per **specific calendar day** (not "nearest" — see lookup rule below).
-- **Dated:** `Ref_CPI_dated` — Reference CPI on the TIPS Dated Date (constant for the bond's lifetime)
+- **Dated:** `Ref_CPI_dated` — Reference CPI on the TIPS [Dated Date](#dated-date) (constant for the bond's lifetime). Carried as `DatedDateCPI` in [S1](#s1) and as `BaseCPI` in [S2](#s2), two column spellings for one value, with code translating between them. **Dated date CPI** is the term; *base CPI* survives only as the S2 column name.
 - **Settle:** `Ref_CPI_settle` — Reference CPI on the Settlement Date
 
 **Two derivations — retrieved is authoritative, calculated is the fallback:**
@@ -222,9 +239,29 @@
 
 **Ladder & Portfolio Elements**
 
+<a id="bond-ladder"></a>
+### Bond Ladder
+`Bond_Ladder` = *A portfolio of securities with staggered maturities that produces a consistent cash flow at regular intervals. In these applications each rung is one calendar year. Specified in [1.0 Bond Ladders](../TipsLadderManager/knowledge/1.0_Bond_Ladders.md).*
+
+<a id="tips-ladder"></a>
+### TIPS Ladder
+`TIPS_Ladder` = *A [Bond Ladder](#bond-ladder) built from TIPS, so that the cash flow targeted and produced is real rather than nominal: [DARA](#dara) and [ARA](#ara) take the place of [DAA](#daa) and [AA](#aa). Specified in [2.0 TIPS Ladders](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md), which builds on 1.0.*
+
+<a id="ladder"></a>
+### Ladder
+`Ladder` = *[Bond Ladder](#bond-ladder), or [TIPS Ladder](#tips-ladder) in a TIPS context. A TIPS ladder is a subset of bond ladders.*
+
+<a id="maturity-year"></a>
+### Maturity Year
+`Maturity_Year` = *A calendar year in which outstanding TIPS mature. Maturity years are the superset from which [Funded Years](#funded-year) are drawn: a maturity year becomes a funded year when a [DARA](#dara) is specified for it.*
+
 <a id="funded-year"></a>
 ### Funded Year
-`Funded_Year` = *Calendar year (rung) in the ladder for which total cash flow is calculated*
+`Funded_Year` = *A [Maturity Year](#maturity-year) for which a [DARA](#dara) is specified, and for which total cash flow is calculated. A maturity year lying inside the [Ladder Period](#ladder-period) with no DARA specified is a **missing rung**, the ladder analogy holding: the step is absent. Term adopted from tipsladder.com, so that users moving between the two applications meet the same one.*
+
+<a id="rung"></a>
+### Rung
+`Rung` = *Synonym for [Funded Year](#funded-year). From the ladder metaphor: each rung is one calendar year (1.0 Bond Ladders §Bond Ladder Concepts).*
 
 <a id="ladder-period"></a>
 ### Ladder Period
@@ -245,6 +282,8 @@
 <a id="ara"></a>
 ### ARA
 `ARA` = `Funded_PI + LMI + Same_Year_Excess_Interest` *(Annual Real Amount: total real cash flow produced for a Funded Year)*
+
+Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The header drops *Annual* because it applies to each funded year while the totals row beneath is not annual, and drops *Real* because every principal and interest value in a TIPS ladder is inflation-adjusted, so real is implied throughout (2.0 §TIPS Ladder Terminology). The Cost and Quantity headers drop *Annual* for the same reason.
 
 <a id="lmi"></a>
 ### LMI
@@ -279,6 +318,38 @@
 <a id="retained-bracket-excess"></a>
 ### Retained Bracket Excess
 `Retained_Bracket_Excess` = *Excess held in a lower-bracket maturity older than the [Active Lower Bracket](#active-lower-bracket), carried forward from an earlier rebalance when that maturity was itself active. A rebalance **never increases** it. It is sold **only** when total lower-side excess exceeds the duration-matched target, **oldest maturity first**, and only until the overage is absorbed. Any number of older maturities may accumulate as successive maturities become active — the count is not fixed, so the structure is never named by how many brackets it contains.*
+
+<a id="available-cash"></a>
+### Available Cash
+`Available_Cash` = *Cash on hand applied toward the [ARA](#ara) of the earliest [Funded Years](#funded-year). A pool, applied to the earliest funded year first and moving up the ladder until exhausted, so a year it covers in full needs no TIPS. Stated by the holder rather than detected: cash intended for reinvestment in the ladder is simply not entered (2.0 §Available Cash).*
+
+<a id="net-cash"></a>
+### Net Cash
+`Net_Cash` = *The cash credit or debit left after a rebalance: the per-row cost deltas summed across the run. Negative when the rebalance buys more than it sells. Rebalance’s counterpart to [Total Cost](#total-cost).*
+
+<a id="total-cost"></a>
+### Total Cost
+`Total_Cost` = *The cost of every TIPS a build says to buy: the [Funded Year](#funded-year) rung holdings, together with the bracket and cover excess held in lieu of the missing gap-year and Future 30Y TIPS. That excess is held to cover a missing block rather than to fund the maturity year it falls in, so its principal is not applied toward that year’s ARA, although its coupon interest is (see [Same-Year Excess Interest](#same-year-excess-interest)). Build’s counterpart to [Net Cash](#net-cash).*
+
+<a id="reference-date"></a>
+### Reference Date
+`Reference_Date` = *The date a calculation is stated relative to. Restating per-year amounts to a Ref CPI uses that Ref CPI’s date as the reference date (3.0 §DARA Reference Date). In the two specific contexts of auction accrued interest and TIPS indexation, the term is [Dated Date](#dated-date).*
+
+<a id="last-year-interest"></a>
+### Last-Year Interest
+`Last_Year_Interest` = *Interest paid in a funded year by securities maturing in that year. Treasuries pay semiannually, so a January–June maturity pays one coupon in its final year and a July–December maturity pays two (1.0 Bond Ladders §Bond Ladder Concepts).*
+
+<a id="duration-matching"></a>
+### Duration Matching
+`Duration_Matching` = *Covering a missing block of maturities, whether [Gap Years](#gap-years) or Future 30Y years, with additional holdings in a bracket pair or cover pair, weighted so that the excess changes in value as the missing block would under a rate move. Modified duration throughout (2.0 §Duration Matching).*
+
+<a id="within-year-allocation-policy"></a>
+### Within-Year Allocation Policy
+`Within_Year_Allocation_Policy` = *Which candidate TIPS a rebalance trades for a [Funded Year](#funded-year) when more than one is in play. Rebalance only: a build splits its need evenly across every candidate (2.0 §Within-Year Allocation Policy).*
+
+<a id="cash-flow-calendar"></a>
+### Cash Flow Calendar
+`Cash_Flow_Calendar` = *When a portfolio’s current holdings pay, and how much, by date. Independent of funded years, DARA, brackets, gaps and covers: a fact about the held CUSIPs and quantities rather than a ladder-construction result (5.0 §Cash Flow Calendar).*
 
 ---
 

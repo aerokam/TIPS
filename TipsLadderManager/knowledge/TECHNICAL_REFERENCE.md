@@ -19,7 +19,7 @@ This document maps conceptual definitions from the [Master Glossary](../../knowl
 | Concept ID | Code Symbol (rebalance-lib.js) | Code Symbol (build-lib.js) |
 |---|---|---|
 | [Index Ratio](../../knowledge/DATA_DICTIONARY.md#index-ratio) | `d.indexRatio` | `d.indexRatio` |
-| [Par Value (Adjusted)](../../knowledge/DATA_DICTIONARY.md#par-value-adjusted) | `d.principalPerBond` | `d.principalPerBond` |
+| [Inflation-Adjusted Principal](../../knowledge/DATA_DICTIONARY.md#inflation-adjusted-principal) | `d.principalPerBond` | `d.principalPerBond` |
 | [Cost per TIPS](../../knowledge/DATA_DICTIONARY.md#cost-per-tips) | `d.costPerBond` | `d.costPerBond` |
 | [P+I per TIPS](../../knowledge/DATA_DICTIONARY.md#pi-per-tips) | `d.piPerBond` | `d.fundedYearPi` |
 | [DARA](../../knowledge/DATA_DICTIONARY.md#dara) | `d.DARA` | `summary.dara` |

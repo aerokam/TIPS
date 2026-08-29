@@ -1401,7 +1401,7 @@ test('per-year DARA: standalone plan file exports and re-imports per-year values
 // A DARA plan that records no Ref CPI date of its own (every export written before the date was
 // recorded, and any hand-written plan). The app cannot know the date and does not guess: the values
 // are used as written, and the status strip offers to supply one. Supplying an earlier date scales
-// the values from it to the settlement date (3.0 §DARA Basis Date).
+// the values from it to the settlement date (3.0 §DARA Reference Date).
 // A broker file records no date, so the whole settlement year is counted. That is the right default
 // for a position held all along, but it is an assumption the holder cannot otherwise see, and it
 // moves trades, so the strip says so and offers the alternatives.
@@ -1695,7 +1695,7 @@ test('DARA plan with no Ref CPI date: used as written, then scaled once a date i
   // Supply an earlier date.
   await page.locator('#dara-set-basis').click();
   await expect(page.locator('#dara-basis-popover')).toBeVisible();
-  await page.locator('#dara-basis-date').fill('2025-08-27');
+  await page.locator('#dara-reference-date').fill('2025-08-27');
   await page.locator('#dara-basis-apply').click();
   await expect(page.locator('#dara-basis-popover')).toBeHidden();
 
@@ -1714,7 +1714,7 @@ test('DARA plan with no Ref CPI date: used as written, then scaled once a date i
   // The offer stays available so a wrong date can be corrected, and reopens on the date supplied.
   await expect(page.locator('#dara-set-basis')).toBeVisible();
   await page.locator('#dara-set-basis').click();
-  await expect(page.locator('#dara-basis-date')).toHaveValue('2025-08-27');
+  await expect(page.locator('#dara-reference-date')).toHaveValue('2025-08-27');
 });
 
 // Regression: runFundedRebalance only applies its self-financing scale (3.0 §Funding the rebalance)
@@ -1966,7 +1966,7 @@ test('Available Cash and coupon mode round-trip through the DARA-plan file', asy
   const planText = readFileSync(planPath, 'utf8');
   expect(planText).toContain('availableCash=4200');
   // A saved plan always records the Ref CPI basis its DARA values are stated at, so reloading it
-  // later restates rather than silently re-denominating them (3.0 §DARA Basis Date).
+  // later restates rather than silently re-denominating them (3.0 §DARA Reference Date).
   expect(planText).toMatch(/refCpiDate=\d{4}-\d{2}-\d{2}/);
   expect(planText).toContain('rmdCouponMode=none');
 

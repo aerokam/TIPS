@@ -263,7 +263,7 @@ export function inferFirstYearFromHoldings({ holdings, tipsMap, refCPI, settleme
 // candidate lastYear, predict the upper-cover weight via the SAME future30yParamsCore + bracketWeights
 // the build uses, and return the year whose predicted split matches the file. Returns null when there
 // is no cover excess (ladder ends at the last actual TIPS) or the covers are missing — leaving the
-// contiguous-holdings derivation in place. A simple excess/DARA ratio (as the gap uses) does NOT work
+// derivation from the held maturity years in place. A simple excess/DARA ratio (as the gap uses) does NOT work
 // here: the 2052 cover is deep-discount and a long Future-30Y block carries a large LMI cascade.
 export function inferLastYearFromHoldings({ holdings, tipsMap, refCPI, settlementDate }) {
   const MAX_LAST_YEAR = 2066;   // longest fundable Future-30Y rung (30Y TIPS issued Feb, max 10 past 2056)
@@ -391,7 +391,7 @@ export function computePortfolioARAByYear(holdingsArr, tipsMap, refCPI, range = 
   return ara;
 }
 
-// Structural gap years: contiguous run of years (counting down from 2039) for which NO TIPS
+// Gap years: the run of years (counting down from 2039) for which NO TIPS
 // have been issued (currently 2037-2039). These rungs cannot be held directly; they are funded
 // by bracket excess at the adjacent years. Single source for "which years are gap years".
 export function getGapYears(tipsMap) {
@@ -492,7 +492,7 @@ export function parseParamsBlock(rawLines) {
       // written before Available Cash went ladder-wide keep working (2.1 §`#params` line).
       else if (/^(availablecash|rmdcashoverride)$/i.test(k)) { const n = parseFloat(v); if (!isNaN(n) && n >= 0) out.availableCash = n; }
       else if (/^rmdcouponmode$/i.test(k)) out.rmdCouponMode = /^(none|last)$/i.test(v) ? v.toLowerCase() : 'all';
-      // The Ref CPI date the file's DARA values are denominated at (3.0 §DARA Basis Date).
+      // The Ref CPI date the file's DARA values are denominated at (3.0 §DARA Reference Date).
       else if (/^refcpidate$/i.test(k)) { if (/^\d{4}-\d{2}-\d{2}$/.test(v)) out.refCpiDate = v; }
     }
     return Object.keys(out).length > 0 ? out : null;

@@ -393,7 +393,7 @@ per-CUSIP prices for a past date (3.1 §4.0).
   CUSIP/Qty file into Rebalance prices what they actually own at today’s market, which is both more
   accurate and what Rebalance is for.
 - **What stays:** the file-side basis machinery. A year-old export legitimately records an older Ref
-  CPI date, and both the DARA restatement (3.0 §DARA Basis Date) and the received-cash window read
+  CPI date, and both the DARA restatement (3.0 §DARA Reference Date) and the received-cash window read
   it. The date arrives in a file; it is not something the user sets.
 - **Spec:** 3.0 §RefCPI Date Override rewritten as §Ref CPI Date; cross-references in 3.1, 5.0 and
   6.0 follow.
@@ -552,7 +552,7 @@ per-CUSIP prices for a past date (3.1 §4.0).
 
 ### Ref CPI date in Rebalance: stale basis carried in, no re-scale on change, no notice
 
-- **Found:** 2026-08-26, first hands-on review of the DARA basis-date feature. Three reported
+- **Found:** 2026-08-26, first hands-on review of the DARA reference-date feature. Three reported
   symptoms, one mechanism.
 - **Repro:** Build tab, DARA 100,000, Ref CPI overridden to 2025-08-27. Build, export CUSIP/Qty,
   switch to Rebalance, load the exported file.

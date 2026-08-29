@@ -1309,7 +1309,7 @@ console.log('\nparseParamsBlock — #params line');
   const pRmdBad = parseParamsBlock(['#params,availableCash=-5,rmdCouponMode=bogus']);
   assert('params availableCash rejects negative', pRmdBad?.availableCash, undefined);
 
-  // The Ref CPI basis a file's DARA values were stated at (3.0 §DARA Basis Date). Without it a
+  // The Ref CPI basis a file's DARA values were stated at (3.0 §DARA Reference Date). Without it a
   // saved ladder's bare DARA numbers are silently re-denominated when reloaded at a later date.
   const pBasis = parseParamsBlock(['#params,refCpiDate=2026-08-26,availableCash=0']);
   assert('params refCpiDate parses', pBasis?.refCpiDate, '2026-08-26');

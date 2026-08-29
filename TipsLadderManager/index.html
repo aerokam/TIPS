@@ -364,7 +364,7 @@
 
 <div id="bracket-tooltip"></div>
 
-<!-- Date popover, shared frame for the two separate date entries (3.0 §DARA Basis Date):
+<!-- Date popover, shared frame for the two separate date entries (3.0 §DARA Reference Date):
      - File’s Ref CPI date, which restates per-year DARA amounts and nothing else. Offered only
        where the loaded file carries those amounts but records no date they were stated at.
      - Cash received since, which payments Available Cash includes
@@ -375,7 +375,7 @@
 <div id="dara-basis-popover" class="menu-dropdown" hidden style="position:fixed;min-width:240px;max-width:280px;padding:10px 12px;font-size:12px;color:var(--portal-text-main)">
   <div style="font-weight:700;margin-bottom:6px">File’s Ref CPI date</div>
   <div id="dara-basis-note" style="font-size:11px;line-height:1.4;margin-bottom:8px"></div>
-  <input type="date" id="dara-basis-date" class="date-picker" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:12px;border:1px solid #94a3b8;border-radius:3px">
+  <input type="date" id="dara-reference-date" class="date-picker" style="width:100%;box-sizing:border-box;padding:3px 6px;font-size:12px;border:1px solid #94a3b8;border-radius:3px">
 
   <div style="text-align:right;margin-top:8px">
     <button type="button" id="dara-basis-cancel" class="menu-select" style="padding:3px 10px;font-size:11px">Cancel</button>
@@ -1001,7 +1001,7 @@ function setStatus(msg, isError = false) {
   el.textContent = msg; el.className = isError ? 'error' : '';
 }
 
-// Status text that carries a control (the DARA basis-date notices, 3.0 §DARA Basis Date). Only ever
+// Status text that carries a control (the DARA reference-date notices, 3.0 §DARA Reference Date). Only ever
 // called with app-composed markup — nothing from a loaded file reaches it unescaped.
 function setStatusHTML(html) {
   const el = document.getElementById('status');
@@ -2104,7 +2104,7 @@ function _offerReceivedCouponsAsCash(params) {
   // A file that records no date has its whole settlement year counted. That is the right default for
   // a position held all along, but it is an assumption the holder cannot see and it moves trades, so
   // say it and offer the choice. Appended rather than set: a file carrying per-year amounts but no
-  // Ref CPI date has its own notice here already (§DARA Basis Date), and the two are separate
+  // Ref CPI date has its own notice here already (§DARA Reference Date), and the two are separate
   // entries, so both offers must stand.
   if (!_cashFileRefCpiDate && _availableCash > 0) {
     appendStatusHTML('Available Cash includes the settlement-year ' + _cashComponentsLabel()
@@ -2905,7 +2905,7 @@ function _exportDaraPlan() {
   // Available Cash + coupon counting (2.0 §Available Cash) — only when non-default, so a plan saved
   // without ever touching either round-trips as a plain #fundedYear,dara file, unchanged from before this feature.
   // The basis date always rides along: bare DARA numbers are meaningless without the Ref CPI date
-  // they were stated at (3.0 §DARA Basis Date).
+  // they were stated at (3.0 §DARA Reference Date).
   {
     const parts = [`refCpiDate=${_defaultRefCpiDateStr}`];
     if (_availableCash) parts.push(`availableCash=${Math.round(_availableCash)}`);
@@ -2938,7 +2938,7 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
   // wiped that notice before it could be read. The holdings handler clears at entry for the same
   // reason.
   setStatus('');
-  // Scale the file’s DARA to the Ref CPI date in effect (3.0 §DARA Basis Date).
+  // Scale the file’s DARA to the Ref CPI date in effect (3.0 §DARA Reference Date).
   const daraMap = _applyDaraBasis(daraMapRaw, importedParams);
 
   const yrs = [...daraMap.keys()].sort((a, b) => a - b);
@@ -2982,7 +2982,7 @@ document.getElementById('dara-plan-import-file').addEventListener('change', asyn
 // ─── File Parsing & State ─────────────────────────────────────────────────────
 let currentHoldingsArray = null;
 let currentImportedDaraByYear = null; // explicit per-year DARA from our own export's #fundedYear,dara block (null for broker/legacy)
-// ─── DARA basis date (3.0 §DARA Basis Date) ──────────────────────────────────────────────────
+// ─── DARA reference date (3.0 §DARA Reference Date) ──────────────────────────────────────────────────
 // DARA is a real amount stated at a Ref CPI date, so a saved ladder’s bare DARA numbers mean
 // nothing without the date they were stated at. Our exports record that date; on import the values
 // are scaled from it to the date now in effect (the settlement date in Rebalance, always), so a
@@ -3057,7 +3057,7 @@ document.getElementById('status').addEventListener('click', e => {
 
 function _openBasisPopover(anchorEl) {
   const pop = document.getElementById('dara-basis-popover');
-  const input = document.getElementById('dara-basis-date');
+  const input = document.getElementById('dara-reference-date');
   document.getElementById('dara-basis-note').innerHTML =
     'The settlement Ref CPI date in effect when these DARA values were saved. Supplying it '
     + 'restates them at the current settlement Ref CPI date, so the ladder keeps the same real '
@@ -3075,7 +3075,7 @@ document.getElementById('dara-basis-cancel').addEventListener('click', () => {
 document.getElementById('dara-basis-apply').addEventListener('click', () => {
   const pop = document.getElementById('dara-basis-popover');
   pop.hidden = true;
-  const v = document.getElementById('dara-basis-date').value;
+  const v = document.getElementById('dara-reference-date').value;
   if (!v) return;
   // The Ref CPI entry restates per-year amounts and nothing else. A file carrying none has nothing
   // for it to act on, so it is never offered there.
@@ -3229,7 +3229,7 @@ document.getElementById('holdings-file').addEventListener('change', async (e) =>
         _updateMaturityOptionLabel('Select maturities…');
         _maturityListOpenPending = false;
       }
-      // Restate the file's DARA into the Ref CPI basis now in effect (3.0 §DARA Basis Date).
+      // Restate the file's DARA into the Ref CPI basis now in effect (3.0 §DARA Reference Date).
       currentImportedDaraByYear = _applyDaraBasis(currentImportedDaraByYear, currentImportedParams);
     } else if (acctNames.length === 1) {
       currentHoldingsArray = parsedAccounts[acctNames[0]];
