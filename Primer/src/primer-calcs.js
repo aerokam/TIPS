@@ -2,14 +2,14 @@
 // inputs, event wiring). No page prose lives here — every calculator page's
 // intro text is a block in content/deck.md, rendered by deck-manager.js
 // before the matching function below mounts its widget into the page.
-import { lookupRefCpi, pickFeaturedTips, baseCpiFor, fmtDate, pickFeaturedNote } from './primer-data.js';
+import { lookupRefCpi, pickFeaturedTips, datedDateRefCpiFor, fmtDate, pickFeaturedNote } from './primer-data.js';
 import { priceFromYield } from '../../shared/src/bond-math.js';
 
 function wireIndexRatioCalc(el, data) {
   const rows = data.refCpiRows;
   const minDate = rows[0].date, maxDate = rows[rows.length - 1].date;
   const tipsOptions = data.tipsRefRows
-    .filter(r => r.baseCpi)
+    .filter(r => r.datedDateRefCpi)
     .sort((a, b) => a.maturity < b.maturity ? -1 : 1);
   const defaultTips = pickFeaturedTips(data, 10);
 
@@ -44,16 +44,16 @@ function wireIndexRatioCalc(el, data) {
   function recompute() {
     const cusip = sel.value;
     const tips = data.tipsRefRows.find(t => t.cusip === cusip);
-    const baseCpi = baseCpiFor(data, cusip);
+    const datedDateRefCpi = datedDateRefCpiFor(data, cusip);
     const dateStr = dateInp.value;
     const refCpiDate = lookupRefCpi(rows, dateStr);
-    if (refCpiDate == null || !baseCpi) {
+    if (refCpiDate == null || !datedDateRefCpi) {
       out.innerHTML = `<p class="err">No Ref CPI data for that date.</p>`;
       return;
     }
-    const ratio = refCpiDate / baseCpi;
+    const ratio = refCpiDate / datedDateRefCpi;
     out.innerHTML = `
-      <div class="row"><span>Dated Date Ref CPI (${fmtDate(tips.datedDate)})</span><b>${baseCpi.toFixed(5)}</b></div>
+      <div class="row"><span>Dated Date Ref CPI (${fmtDate(tips.datedDate)})</span><b>${datedDateRefCpi.toFixed(5)}</b></div>
       <div class="row"><span>Ref CPI on ${dateStr}</span><b>${refCpiDate.toFixed(5)}</b></div>
       <div class="row"><span>Index Ratio</span><b>${ratio.toFixed(5)}</b></div>
       <div class="row"><span>$1,000 par → inflation-adjusted</span><b>$${(1000 * ratio).toFixed(2)}</b></div>
@@ -67,10 +67,10 @@ function wireIndexRatioCalc(el, data) {
 
 function wireInflAdjPrincipal(el, data) {
   const tips = pickFeaturedTips(data, 10);
-  const baseCpi = baseCpiFor(data, tips.cusip);
+  const datedDateRefCpi = datedDateRefCpiFor(data, tips.cusip);
   const settle = data.settlementDate;
   const refCpi = lookupRefCpi(data.refCpiRows, settle) ?? lookupRefCpi(data.refCpiRows, data.refCpiRows[data.refCpiRows.length - 1].date);
-  const ratio = refCpi && baseCpi ? refCpi / baseCpi : null;
+  const ratio = refCpi && datedDateRefCpi ? refCpi / datedDateRefCpi : null;
 
   el.innerHTML = `
     <div class="calc">
@@ -78,7 +78,7 @@ function wireInflAdjPrincipal(el, data) {
         <label>Par amount</label>
         <input id="iapPar" type="number" value="1000" min="100" step="100"/>
         <div class="aside" style="margin-top:14px">Using live data for <b>${tips.cusip}</b>
-        (matures ${fmtDate(tips.maturity)}): dated date Ref CPI ${baseCpi ? baseCpi.toFixed(5) : '—'}, Ref CPI
+        (matures ${fmtDate(tips.maturity)}): dated date Ref CPI ${datedDateRefCpi ? datedDateRefCpi.toFixed(5) : '—'}, Ref CPI
         ${refCpi ? refCpi.toFixed(5) : '—'} as of ${settle}.</div>
       </div>
       <div class="outputs" id="iapOut"></div>

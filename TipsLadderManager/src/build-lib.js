@@ -159,7 +159,7 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
         yield: r.bond.yield ?? 0,
         saYield: r.bond.saYield ?? null,
         price: r.bond.price ?? 0,
-        baseCpi: r.bond.baseCpi ?? refCPI,
+        datedDateRefCpi: r.bond.datedDateRefCpi ?? refCPI,
         refCPI,
         indexRatio: r.ir,
         halfOrFull: hof,

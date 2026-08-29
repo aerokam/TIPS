@@ -2147,7 +2147,7 @@ function _bondOrMatured(cusip) {
   if (quoted?.maturity) return quoted;
   const r = tipsRefMap?.get(cusip);
   if (!r?.maturity) return null;
-  return { cusip, maturity: localDate(r.maturity), coupon: r.coupon, baseCpi: r.baseCpi, price: null, yield: null };
+  return { cusip, maturity: localDate(r.maturity), coupon: r.coupon, datedDateRefCpi: r.datedDateRefCpi, price: null, yield: null };
 }
 
 // Every settlement-year payment this portfolio has already generated, one entry per payment date,
@@ -2307,7 +2307,7 @@ function buildCashFlowData(holdingsArr) {
       const ev = _couponEventCalc(b, d, activeRc, activeDateIso);
       const { principalPerBond, couponPerBond } = ev;
       const calc = {
-        qty: h.qty, refCPI: ev.eventRc, baseCpi: b.baseCpi, indexRatio: ev.indexRatio,
+        qty: h.qty, refCPI: ev.eventRc, datedDateRefCpi: b.datedDateRefCpi, indexRatio: ev.indexRatio,
         principalPerBond, coupon: b.coupon ?? 0,
         isActual: ev.isActual, refCpiDateDisplay: ev.refCpiDateDisplay,
       };
@@ -4287,10 +4287,10 @@ async function _showTipsRefModal(type) {
     const matStr = type === 'Ref' ? r.maturity : _fmtMDY(toIso(r.maturity));
     html += '<tr><td>' + r.cusip + '</td><td>' + matStr + '</td><td' + R + '>' + (r.coupon * 100).toFixed(3) + '%</td>';
     if (type === 'Ref') {
-      html += '<td>' + (r.datedDate || '') + '</td><td' + R + '>' + (r.baseCpi != null ? r.baseCpi.toFixed(5) : '') + '</td>';
+      html += '<td>' + (r.datedDate || '') + '</td><td' + R + '>' + (r.datedDateRefCpi != null ? r.datedDateRefCpi.toFixed(5) : '') + '</td>';
     } else {
       const ref = tipsRefMap.get(r.cusip);
-      const ir = ref?.baseCpi ? refCpiSett / ref.baseCpi : null;
+      const ir = ref?.datedDateRefCpi ? refCpiSett / ref.datedDateRefCpi : null;
       const adjPrice = ir != null ? r.price * ir : null;
       html += '<td' + R + '>' + r.price.toFixed(3) + '</td>';
       html += '<td' + R + '>' + (ir != null ? ir.toFixed(5) : '—') + '</td>';

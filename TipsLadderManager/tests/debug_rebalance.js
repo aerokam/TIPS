@@ -8,7 +8,7 @@ const yieldsAllLines = yieldsText.trim().split('\n');
 const yieldsCsvSettle = yieldsAllLines[0].trim();
 const yieldsRows = yieldsAllLines.slice(2).map(line => {
     const p = line.split(',');
-    return { settlementDate: yieldsCsvSettle, cusip: p[1], maturity: p[2], coupon: parseFloat(p[3]), baseCpi: parseFloat(p[4]), price: parseFloat(p[5]), yield: parseFloat(p[6]) };
+    return { settlementDate: yieldsCsvSettle, cusip: p[1], maturity: p[2], coupon: parseFloat(p[3]), datedDateRefCpi: parseFloat(p[4]), price: parseFloat(p[5]), yield: parseFloat(p[6]) };
 });
 
 const tipsMap = buildTipsMapFromYields(yieldsRows);

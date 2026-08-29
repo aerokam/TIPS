@@ -245,7 +245,7 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 
 <a id="tips-ladder"></a>
 ### TIPS Ladder
-`TIPS_Ladder` = *A [Bond Ladder](#bond-ladder) built from TIPS, so that the cash flow targeted and produced is real rather than nominal: [DARA](#dara) and [ARA](#ara) take the place of [DAA](#daa) and [AA](#aa). Specified in [2.0 TIPS Ladders](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md), which builds on 1.0.*
+`TIPS_Ladder` = *A [Bond Ladder](#bond-ladder) built from TIPS, its targets and amounts stated in real terms: [DARA](#dara) and [ARA](#ara) take the place of [DAA](#daa) and [AA](#aa). Bond ladder is the generic term and carries no implication either way: a bond ladder may be built from nominal Treasuries or from TIPS. Specified in [2.0 TIPS Ladders](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md), which builds on 1.0.*
 
 <a id="ladder"></a>
 ### Ladder
@@ -349,7 +349,7 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 
 <a id="trade-ticket"></a>
 ### Trade Ticket
-`Trade_Ticket` = *The list of trades required to produce the ladder shown, in either Build or Rebalance.*
+`Trade_Ticket` = *The list of trades required to construct the ladder shown, in either Build or Rebalance. Build and Rebalance generate a model of a ladder; executing the trades in the trade ticket is what constructs it.*
 
 <a id="cash-flow-calendar"></a>
 ### Cash Flow Calendar

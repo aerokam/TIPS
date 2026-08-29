@@ -188,8 +188,8 @@ async function main() {
     .trim().split('\n').slice(1)               // skip header
     .filter(l => l.trim())
     .map(line => {
-      const [cusip, maturity, datedDate, coupon, baseCpi, term] = line.split(',');
-      return { cusip, maturity, datedDate, coupon: parseFloat(coupon), baseCpi: parseFloat(baseCpi), term };
+      const [cusip, maturity, datedDate, coupon, datedDateRefCpi, term] = line.split(',');
+      return { cusip, maturity, datedDate, coupon: parseFloat(coupon), datedDateRefCpi: parseFloat(datedDateRefCpi), term };
     });
 
   const refMap = new Map(refRows.map(r => [r.cusip, r]));
@@ -222,7 +222,7 @@ async function main() {
       if (!ref) continue; // no TipsRef metadata — skip
       maturity = ref.maturity;
       coupon = ref.coupon;
-      datedDateCpi = ref.baseCpi;
+      datedDateCpi = ref.datedDateRefCpi;
     } else {
       maturity = parseFedInvestDate(p.maturity);
       coupon = p.coupon;

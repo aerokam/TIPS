@@ -10,10 +10,10 @@ if (existsSync(_envPath)) {
   });
 }
 
-// Fetch per-bond base CPI (ref_cpi_on_dated_date) for all TIPS from Treasury FiscalData
+// Fetch per-bond dated date Ref CPI (ref_cpi_on_dated_date) for all TIPS from Treasury FiscalData
 // Usage: node fetchTipsRef.js [CUSIP]
 //   No arg  → prints all TIPS sorted by maturity
-//   CUSIP   → prints just that bond's base CPI
+//   CUSIP   → prints just that bond's dated date Ref CPI
 
 // auctions_query with reopening:eq:No gives one row per unique TIPS (~107 bonds).
 // Excludes reopenings so each CUSIP appears once with its original ref_cpi_on_dated_date.
@@ -47,7 +47,7 @@ async function uploadToR2(key, body) {
 }
 
 async function fetchTipsRef() {
-  console.error('Fetching TIPS base CPI from Treasury FiscalData...');
+  console.error('Fetching TIPS dated date Ref CPI from Treasury FiscalData...');
   const res = await fetch(URL);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
@@ -58,7 +58,7 @@ async function fetchTipsRef() {
     maturity:    r.maturity_date,
     datedDate:   r.dated_date,
     coupon:      parseFloat(r.int_rate) / 100, // decimal (e.g. 0.00125)
-    baseCpi:     parseFloat(r.ref_cpi_on_dated_date),
+    datedDateRefCpi:     parseFloat(r.ref_cpi_on_dated_date),
     term:        r.security_term,
   }));
 }
@@ -78,12 +78,12 @@ async function main() {
     console.log(`Maturity:   ${row.maturity}`);
     console.log(`Dated date: ${row.datedDate}`);
     console.log(`Coupon:     ${(row.coupon * 100).toFixed(3)}%`);
-    console.log(`Base CPI:   ${row.baseCpi.toFixed(5)}`);
+    console.log(`Dated Date Ref CPI: ${row.datedDateRefCpi.toFixed(5)}`);
   } else {
     // Write TipsRef.csv to R2
     const header = 'cusip,maturity,datedDate,coupon,datedDateRefCpi,term';
     const lines = rows.map(r =>
-      `${r.cusip},${r.maturity},${r.datedDate},${r.coupon},${r.baseCpi},${r.term}`
+      `${r.cusip},${r.maturity},${r.datedDate},${r.coupon},${r.datedDateRefCpi},${r.term}`
     );
     const body = [header, ...lines].join('\n') + '\n';
     await uploadToR2('TIPS/TipsRef.csv', body);

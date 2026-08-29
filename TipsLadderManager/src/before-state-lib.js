@@ -214,7 +214,7 @@ export function computeBeforeState({ holdings, tipsMap, refCPI, firstYear, lastY
       // their coverage lives entirely in an adjacent bracket year's excess.
       rows.push({
         cusip: '', maturityStr: '', fundedYear: y, coupon: 0, yield: null, nPeriods: 2, principalPerBond: 0,
-        costPerBond: 0, price: null, refCPI, baseCpi: null, indexRatio: null,
+        costPerBond: 0, price: null, refCPI, datedDateRefCpi: null, indexRatio: null,
         fundedYearQtyBefore: 0, excessQtyBefore: 0, qtyBefore: 0, isBracketTarget: false,
         araBeforeTotal: gapYears.includes(y) ? null : rawARA,
         araBeforeLaterMatInt: rawARA, araBeforeHoldings: [], excessLMI_Before: 0, DARA: yearDara,
@@ -275,7 +275,7 @@ export function computeBeforeState({ holdings, tipsMap, refCPI, firstYear, lastY
       const row = {
         cusip, maturityStr: fmtDate(bond.maturity), fundedYear: y,
         coupon, yield: bond.yield ?? null, nPeriods, principalPerBond, costPerBond, piPerBond,
-        price: bond.price ?? null, refCPI, baseCpi: bond.baseCpi ?? refCPI, indexRatio,
+        price: bond.price ?? null, refCPI, datedDateRefCpi: bond.datedDateRefCpi ?? refCPI, indexRatio,
         // Qty/Cost Before are never split by the funded/excess guess for an ORDINARY year (3.0
         // §Before-State Preview) — the full held quantity is the funded-side figure. A FLAGGED
         // year's first row below overrides this with the actual split. `isBracketTarget` is a

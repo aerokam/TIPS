@@ -2299,10 +2299,10 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
 {
   console.log('\nActive lower bracket — latest-maturing pre-gap TIPS wins over the January one');
   const rows = [
-    { cusip: 'TEST35JUL', maturity: '2035-07-15', coupon: 0.01875, baseCpi: 321.09758, price: 97.06,  yield: 0.0224 },
-    { cusip: 'TEST36JAN', maturity: '2036-01-15', coupon: 0.01875, baseCpi: 324.93471, price: 96.28,  yield: 0.0232 },
-    { cusip: 'TEST36JUL', maturity: '2036-07-15', coupon: 0.02375, baseCpi: 333.96974, price: 100.44, yield: 0.0233 },
-    { cusip: 'TEST40FEB', maturity: '2040-02-15', coupon: 0.02125, baseCpi: 216.1395,  price: 94.98,  yield: 0.0257 },
+    { cusip: 'TEST35JUL', maturity: '2035-07-15', coupon: 0.01875, datedDateRefCpi: 321.09758, price: 97.06,  yield: 0.0224 },
+    { cusip: 'TEST36JAN', maturity: '2036-01-15', coupon: 0.01875, datedDateRefCpi: 324.93471, price: 96.28,  yield: 0.0232 },
+    { cusip: 'TEST36JUL', maturity: '2036-07-15', coupon: 0.02375, datedDateRefCpi: 333.96974, price: 100.44, yield: 0.0233 },
+    { cusip: 'TEST40FEB', maturity: '2040-02-15', coupon: 0.02125, datedDateRefCpi: 216.1395,  price: 94.98,  yield: 0.0257 },
   ];
   const map = buildTipsMapFromYields(rows);
   assert('fixture sanity: gap years are 2037-2039', getGapYears(map).sort().join(','), '2037,2038,2039');

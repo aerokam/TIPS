@@ -121,7 +121,7 @@ async function main() {
 
   // ── Regression: IEEE754 truncation bug reported against 91282CEZ0 (2026-08-27) ──
   // TreasuryDirect's own detail page shows Index Ratio 1.15004 for this CUSIP/date
-  // (baseCpi 290.54829, refCpi 334.14087). The raw quotient truncates cleanly to
+  // (datedDateRefCpi 290.54829, refCpi 334.14087). The raw quotient truncates cleanly to
   // 1.150035, whose 6th decimal is exactly 5 — a case where multiply/trunc/divide
   // float arithmetic silently lands on 1.1500349999999999 and rounds down to
   // 1.15003 instead of 1.15004. See shared/src/ref-cpi.js truncateThenRound.

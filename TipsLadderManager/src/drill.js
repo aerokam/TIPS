@@ -49,7 +49,7 @@ function bondVarRows(d, nPeriods, principalPerBond, couponPct) {
     nPerLbl = '2 (' + firstMonthName + ' + ' + matMonthName + ')';
   }
   return row('Ref CPI', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi')
-    + row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi')
+    + row('Dated Ref CPI', '', fd(d.datedDateRefCpi, 5), false, undefined, 'basecpi')
     + row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir')
     + row('Par Value per TIPS', '1,000 \xd7 <span class="formula-var" data-source="ir">index ratio</span>', fd(principalPerBond, 2), false, undefined, 'ppb')
     + row('Coupon per period', 'annual coupon \xf7 2', couponPct, false, undefined, 'cpp')
@@ -232,7 +232,7 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
+      row('Dated Ref CPI', '', fd(d.datedDateRefCpi, 5), false, undefined, 'basecpi') +
       row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
@@ -483,7 +483,7 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
+      row('Dated Ref CPI', '', fd(d.datedDateRefCpi, 5), false, undefined, 'basecpi') +
       row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
@@ -499,7 +499,7 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
+      row('Dated Ref CPI', '', fd(d.datedDateRefCpi, 5), false, undefined, 'basecpi') +
       row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> \xf7 <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
@@ -612,7 +612,7 @@ export function buildDrillHTML(d, colKey, summary) {
       sep() +
       row('Price (unadjusted)', '', fd(d.price, 4), false, undefined, 'price') +
       row('Ref CPI (settlement date)', '', fd(d.refCPI, 5), false, 'refCPI', 'refcpi') +
-      row('Dated Ref CPI', '', fd(d.baseCpi, 5), false, undefined, 'basecpi') +
+      row('Dated Ref CPI', '', fd(d.datedDateRefCpi, 5), false, undefined, 'basecpi') +
       row('Index ratio', '<span class="formula-var" data-source="refcpi">Ref CPI</span> ÷ <span class="formula-var" data-source="basecpi">Dated Ref CPI</span>', fd(d.indexRatio, 5), false, 'indexRatio', 'ir') +
       row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> × <span class="formula-var" data-source="ir">index ratio</span> × 1,000', fm2(d.costPerBond), false, undefined, 'cpb') +
       sep() +
@@ -643,7 +643,7 @@ export function buildPIPerBondDrill(h) {
 export function buildIndexRatioDrill(d) {
   return [
     { label: 'Settlement Ref CPI', value: fd(d.refCPI, 5) },
-    { label: 'Dated Ref CPI', value: fd(d.baseCpi, 5) },
+    { label: 'Dated Ref CPI', value: fd(d.datedDateRefCpi, 5) },
     { sep: true },
     { label: 'Index Ratio', note: 'Settlement Ref CPI / Dated Ref CPI', value: fd(d.indexRatio, 5), total: true },
     { sep: true },
@@ -693,7 +693,7 @@ export function buildTradeTicketTotalDrill(r, label) {
 }
 
 // ─── Cash Flow Calendar: per-date breakdown (5.0 §Cash Flow Calendar) ─────────
-// bucket: { date, coupon, principal, events: [{ cusip, type, amount, qty, refCPI, baseCpi, indexRatio, principalPerBond, coupon, isActual, refCpiDateDisplay }] }
+// bucket: { date, coupon, principal, events: [{ cusip, type, amount, qty, refCPI, datedDateRefCpi, indexRatio, principalPerBond, coupon, isActual, refCpiDateDisplay }] }
 // Ref CPI is a single national series, not per-bond, so every event sharing this date shares the
 // same refCPI/isActual/refCpiDateDisplay — shown once at the top rather than repeated per line.
 export function buildCashFlowDateDrill(bucket) {
@@ -722,7 +722,7 @@ export function buildCashFlowDateDrill(bucket) {
 export function buildCashFlowEventDrill(e) {
   const rows = [
     { label: 'Ref CPI', value: fd(e.refCPI, 5) },
-    { label: 'Dated Ref CPI', value: fd(e.baseCpi, 5) },
+    { label: 'Dated Ref CPI', value: fd(e.datedDateRefCpi, 5) },
     { label: 'Index ratio', note: 'Ref CPI \xf7 Dated Ref CPI', value: fd(e.indexRatio, 5) },
     { label: 'Par Value per TIPS', note: '1,000 \xd7 index ratio', value: fm2(e.principalPerBond) },
   ];

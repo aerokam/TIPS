@@ -106,8 +106,8 @@ export function monthlyCpiMap(rows, valueKey = 'value') {
 }
 
 // ─── Index ratio ─────────────────────────────────────────────────────────────
-export function indexRatio(refCpi, baseCpi) {
-  return (refCpi != null && baseCpi) ? truncateThenRound(refCpi / baseCpi) : null;
+export function indexRatio(refCpi, datedDateRefCpi) {
+  return (refCpi != null && datedDateRefCpi) ? truncateThenRound(refCpi / datedDateRefCpi) : null;
 }
 
 // ─── SA Factor lookup (RefCpiNsaSa.csv rows) ─────────────────────────────────

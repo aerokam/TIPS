@@ -32,7 +32,7 @@ export async function loadPrimerData() {
     cusip:    r.cusip,
     maturity: r.maturity,
     coupon:   parseFloat(r.coupon),
-    baseCpi:  parseFloat(r.datedDateCpi) || null,
+    datedDateRefCpi:  parseFloat(r.datedDateCpi) || null,
     price:    parseFloat(r.price) || null,
     yield:    parseFloat(r.yield) || null,
   })).filter(r => r.maturity && !isNaN(r.coupon));
@@ -47,7 +47,7 @@ export async function loadPrimerData() {
     maturity: r.maturity,
     datedDate: r.datedDate,
     coupon: parseFloat(r.coupon),
-    baseCpi: parseFloat(r.datedDateRefCpi ?? r.baseCpi),
+    datedDateRefCpi: parseFloat(r.datedDateRefCpi ?? r.baseCpi),
     term: r.term,
   }));
 
@@ -71,7 +71,7 @@ function closestByTerm(rows, settlementDate, targetYears) {
 }
 
 export function pickFeaturedTips(data, targetYears = 10) {
-  const rows = data.yieldsRows.filter(r => r.type === 'TIPS' && r.baseCpi);
+  const rows = data.yieldsRows.filter(r => r.type === 'TIPS' && r.datedDateRefCpi);
   return closestByTerm(rows, data.settlementDate, targetYears);
 }
 
@@ -82,11 +82,11 @@ export function pickFeaturedNote(data, targetYears = 10) {
 
 // Ref CPI on a given date for a given TIPS: base CPI at dated date, from
 // TipsRef.csv (authoritative dated-date CPI), falling back to the yields row.
-export function baseCpiFor(data, cusip) {
+export function datedDateRefCpiFor(data, cusip) {
   const ref = data.tipsRefRows.find(r => r.cusip === cusip);
-  if (ref && ref.baseCpi) return ref.baseCpi;
+  if (ref && ref.datedDateRefCpi) return ref.datedDateRefCpi;
   const y = data.yieldsRows.find(r => r.cusip === cusip);
-  return y ? y.baseCpi : null;
+  return y ? y.datedDateRefCpi : null;
 }
 
 export const fmtDate = iso => {

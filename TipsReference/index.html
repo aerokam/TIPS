@@ -202,7 +202,7 @@ var COLS = [
     fmt: function(v) { return v != null ? (v * 100).toFixed(3) + '%' : '—'; } },
   { key: 'datedDate',  label: 'Dated Date',         align: 'left',  sortType: 'str', isDate: true,
     fmt: function(v) { return v != null ? String(v) : ''; } },
-  { key: 'baseCpi',    label: 'Dated Date Ref CPI', align: 'right', sortType: 'num', wrapHeader: true,
+  { key: 'datedDateRefCpi',    label: 'Dated Date Ref CPI', align: 'right', sortType: 'num', wrapHeader: true,
     fmt: function(v) { return v != null ? v.toFixed(5) : '—'; } },
   { key: 'price',      label: 'Price',              align: 'right', sortType: 'num',
     fmt: function(v) { return v != null ? v.toFixed(3) : '—'; } },
@@ -277,7 +277,7 @@ function recomputeWithRefCpi(dateStr) {
     // CPI — that's the realized principal redemption, not a function of the globally
     // selected Ref CPI Date.
     var rowCpi = isMatured ? lookupRefCpi(refCpiRows, r.maturity) : cpi;
-    r.indexRatio = indexRatio(rowCpi, r.baseCpi);
+    r.indexRatio = indexRatio(rowCpi, r.datedDateRefCpi);
     r.adjPrice = (r.indexRatio != null && r.price != null) ? r.price * r.indexRatio : null;
 
     // Cpn Date / Cpn Date IR / Cpn $: if today is the effective (weekend/holiday-rolled)
@@ -299,7 +299,7 @@ function recomputeWithRefCpi(dateStr) {
     if (nextCpn) {
       r.nextCoupon = toIsoDate(nextCpn);
       r.cpnRefCpi = lookupRefCpi(refCpiRows, r.nextCoupon);
-      var cpnIR = indexRatio(r.cpnRefCpi, r.baseCpi);
+      var cpnIR = indexRatio(r.cpnRefCpi, r.datedDateRefCpi);
       r.cpnDateIR = cpnIR;
       r.cpnPayment = (cpnIR != null && r.coupon != null)
         ? (r.coupon / 2) * cpnIR * 1000
@@ -541,7 +541,7 @@ async function loadData() {
         maturity:    ref.maturity,
         coupon:      ref.coupon,
         datedDate:   ref.datedDate,
-        baseCpi:     ref.baseCpi,
+        datedDateRefCpi:     ref.datedDateRefCpi,
         price:       yields ? yields.price : null,
         indexRatio:  null,
         adjPrice:    null,

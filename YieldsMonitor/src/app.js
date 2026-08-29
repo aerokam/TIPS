@@ -875,7 +875,7 @@ async function fetchTipsBondMeta(force = false) {
   return tipsBondMetaPromise;
 }
 
-// TipsRef.csv: { cusip, maturity, datedDate, coupon, baseCpi, term } for every TIPS ever
+// TipsRef.csv: { cusip, maturity, datedDate, coupon, datedDateRefCpi, term } for every TIPS ever
 // auctioned — used to reconstruct which bond was actually behind a symbol on a past date.
 async function fetchTipsRefRows() {
   if (!tipsRefPromise) {

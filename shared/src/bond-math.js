@@ -86,11 +86,11 @@ export function calculateMDuration(settlement, maturity, coupon, yld) {
 
 // ─── Per-unit quantities ($1,000 face) ──────────────────────────────────────
 // Spec: 2.1 TIPS Basics, 5.0 §bondCalcs
-// security: { coupon, baseCpi, price, maturity: Date }
+// security: { coupon, datedDateRefCpi, price, maturity: Date }
 export function bondCalcs(bond, refCPI) {
   const coupon          = bond.coupon  ?? 0;
-  const baseCpi         = bond.baseCpi ?? refCPI;
-  const indexRatio      = calcIndexRatio(refCPI, baseCpi);
+  const datedDateRefCpi         = bond.datedDateRefCpi ?? refCPI;
+  const indexRatio      = calcIndexRatio(refCPI, datedDateRefCpi);
   const principalPerBond = 1000 * indexRatio;
   const costPerBond     = (bond.price ?? 0) / 100 * indexRatio * 1000;
   const nPeriods        = (bond.maturity.getMonth() + 1) < 7 ? 1 : 2;

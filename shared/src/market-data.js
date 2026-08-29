@@ -79,7 +79,7 @@ async function fetchAuxTipsData() {
     coupon:    parseFloat(r.coupon),
     // `baseCpi` is the pre-rename header; read both while R2 still carries files written
     // before the rename (DD S2, "dated date Ref CPI").
-    baseCpi:   parseFloat(r.datedDateRefCpi ?? r.baseCpi),
+    datedDateRefCpi:   parseFloat(r.datedDateRefCpi ?? r.baseCpi),
     term:      r.term,
   }));
 
@@ -117,7 +117,7 @@ export async function fetchTipsData() {
       cusip:    r.cusip,
       maturity: r.maturity,
       coupon:   parseFloat(r.coupon),
-      baseCpi:  parseFloat(r.datedDateCpi),
+      datedDateRefCpi:  parseFloat(r.datedDateCpi),
       price:    parseFloat(r.price)  || null,
       yield:    parseFloat(r.yield)  || null,
     }));
@@ -127,7 +127,7 @@ export async function fetchTipsData() {
 
 // Fetches FidelityTreasuriesTips.csv from R2 (ask price; yield is computed from that price
 // via the shared yieldFromPrice(), not read from Fidelity's own quoted yield column -- verified
-// more accurate than Fidelity's own figure, see 3.1_Data_Pipeline.md). baseCpi comes from
+// more accurate than Fidelity's own figure, see 3.1_Data_Pipeline.md). datedDateRefCpi comes from
 // TipsRef.csv (Fidelity's export doesn't carry it). Settlement is T+1 from Fidelity's download
 // date (real broker trade settlement), unlike FedInvest's T=0 (needed for its own price->yield
 // math) -- see 3.1_Data_Pipeline.md "Settlement Date Conventions".
@@ -196,7 +196,7 @@ export async function fetchFidelityTipsData() {
       cusip:    r.cusip,
       maturity,
       coupon:   r.coupon,
-      baseCpi:  ref?.baseCpi ?? null,
+      datedDateRefCpi:  ref?.datedDateRefCpi ?? null,
       price,
       yield:    yld,
     };

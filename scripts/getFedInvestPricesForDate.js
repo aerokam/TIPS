@@ -95,8 +95,8 @@ async function main() {
   const refMap = new Map((await refRes.text()).trim().split('\n').slice(1)
     .filter(l => l.trim())
     .map(line => {
-      const [cusip, maturity, datedDate, coupon, baseCpi] = line.split(',');
-      return [cusip, { maturity, coupon: parseFloat(coupon), baseCpi: parseFloat(baseCpi) }];
+      const [cusip, maturity, datedDate, coupon, datedDateRefCpi] = line.split(',');
+      return [cusip, { maturity, coupon: parseFloat(coupon), datedDateRefCpi: parseFloat(datedDateRefCpi) }];
     }));
 
   const got = await fetchPricesForDate(iso);
@@ -125,7 +125,7 @@ async function main() {
     if (!ref) { missing.push(c[0]); continue; }
     const price = parseFloat(c[5]) || parseFloat(c[6]) || parseFloat(c[7]) || null;
     const yld = price ? yieldFromPrice(price, ref.coupon, localDate(iso), localDate(ref.maturity)) : null;
-    rows.push(['TIPS', c[0], ref.maturity, ref.coupon, ref.baseCpi, price ?? '', yld ?? ''].join(','));
+    rows.push(['TIPS', c[0], ref.maturity, ref.coupon, ref.datedDateRefCpi, price ?? '', yld ?? ''].join(','));
   }
   if (!rows.length) throw new Error('No TIPS rows produced');
 
