@@ -15,7 +15,7 @@ This document provides the technical schemas and field-level specifications for 
 | `Type` | String | Security type (Bill, Note, Bond, TIPS). |
 | `Maturity` | Date | The maturity date of the security. |
 | `Coupon` | Number | The annual coupon rate (e.g., 0.125). |
-| `DatedDateCPI` | Number | For TIPS: The reference CPI on the bond's dated date (Base CPI). |
+| `DatedDateCPI` | Number | For TIPS: The Ref CPI on the bond's dated date. |
 | `Price` | Number | The raw price provided by the source. |
 | `Yield` | Number | The computed real YTM (Excel YIELD convention). |
 
@@ -33,7 +33,7 @@ This document provides the technical schemas and field-level specifications for 
 | `Maturity` | Date | Maturity date. |
 | `DatedDate` | Date | The dated date (start of interest accrual). |
 | `Coupon` | Number | The fixed real coupon rate. |
-| `BaseCPI` | Number | The reference CPI on the Dated Date. |
+| `DatedDateRefCpi` | Number | The Ref CPI on the Dated Date. |
 | `Term` | String | Original issuance term (5-year, 10-year, 30-year). |
 
 **Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/TipsRef.csv)

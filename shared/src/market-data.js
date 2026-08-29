@@ -77,7 +77,9 @@ async function fetchAuxTipsData() {
     maturity:  r.maturity,
     datedDate: r.datedDate,
     coupon:    parseFloat(r.coupon),
-    baseCpi:   parseFloat(r.baseCpi),
+    // `baseCpi` is the pre-rename header; read both while R2 still carries files written
+    // before the rename (DD S2, "dated date Ref CPI").
+    baseCpi:   parseFloat(r.datedDateRefCpi ?? r.baseCpi),
     term:      r.term,
   }));
 

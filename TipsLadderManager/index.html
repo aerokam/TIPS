@@ -4277,7 +4277,7 @@ async function _showTipsRefModal(type) {
   if (type === 'Mkt') rows.sort((a,b) => a.maturity - b.maturity);
 
   let html = '<thead><tr><th>CUSIP</th><th>Maturity</th><th>Coupon</th>';
-  if (type === 'Ref') html += '<th style="text-align:left">Dated Date</th><th>Base CPI</th>';
+  if (type === 'Ref') html += '<th style="text-align:left">Dated Date</th><th>Dated Date Ref CPI</th>';
   else html += '<th>Price</th><th>Index Ratio</th><th>Adj Price</th><th>Yield</th><th>SA Yield</th>';
   html += '</tr></thead><tbody>';
 

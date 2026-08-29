@@ -56,7 +56,7 @@
 
 - <a id="s1"></a>**S1: YieldsFromFedInvestPrices.csv** = `Settlement_Date + { @CUSIP + Type + Maturity + Coupon + DatedDateCPI + Price + Yield }`
   *Primary R2 key for daily FedInvest prices and yields. Legacy alias: `YieldsDerivedFromFedInvestPrices.csv`, `Yields.csv`.*
-- <a id="s2"></a>**S2: TipsRef.csv** = `{ @CUSIP + Maturity + DatedDate + Coupon + BaseCPI + Term }`
+- <a id="s2"></a>**S2: TipsRef.csv** = `{ @CUSIP + Maturity + DatedDate + Coupon + DatedDateRefCpi + Term }`
 - <a id="s3"></a>**S3: RefCPI.csv** = `{ @Date + Ref_CPI }` *— authoritative retrieved NSA Ref CPI (TreasuryDirect). Consumed by all apps.*
 - <a id="s4"></a>**S4: RefCpiNsaSa.csv** = `{ @Date + CPI_NSA + CPI_SA + SA_Factor }` *— calculated (App. B daily interpolation), built for the SA pipeline: `CPI_NSA` and `CPI_SA` interpolated daily so `SA_Factor = CPI_NSA / CPI_SA`. The daily SA series has no official or retrieved equivalent — this is its **sole source**.*
 - <a id="s5"></a>**S5: Auctions.csv** = `{ @CUSIP + @Auction_Date + Security_Type + High_Yield + Bid_to_Cover + Primary_Dealer_Accepted + ... }`
@@ -194,7 +194,7 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 <a id="ref-cpi"></a>
 ### Ref CPI
 `Ref_CPI` = *Daily interpolated Consumer Price Index (CPI-U NSA) value used for TIPS calculations. Authority: 31 CFR § 356 Appendix B.* One value per **specific calendar day** (not "nearest" — see lookup rule below).
-- **Dated:** `Ref_CPI_dated` — Reference CPI on the TIPS [Dated Date](#dated-date) (constant for the bond's lifetime). Carried as `DatedDateCPI` in [S1](#s1) and as `BaseCPI` in [S2](#s2), two column spellings for one value, with code translating between them. **Dated date CPI** is the term; *base CPI* survives only as the S2 column name.
+- **Dated:** `Ref_CPI_dated` — Reference CPI on the TIPS [Dated Date](#dated-date) (constant for the bond's lifetime). Carried as `DatedDateCPI` in [S1](#s1) and `DatedDateRefCpi` in [S2](#s2). **Dated date Ref CPI** is the term, matching the Treasury FiscalData field it is sourced from (`ref_cpi_on_dated_date`). *Base CPI* was the earlier name and is retired.
 - **Settle:** `Ref_CPI_settle` — Reference CPI on the Settlement Date
 
 **Two derivations — retrieved is authoritative, calculated is the fallback:**
@@ -283,7 +283,7 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 ### ARA
 `ARA` = `Funded_PI + LMI + Same_Year_Excess_Interest` *(Annual Real Amount: total real cash flow produced for a Funded Year)*
 
-Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The header drops *Annual* because it applies to each funded year while the totals row beneath is not annual, and drops *Real* because every principal and interest value in a TIPS ladder is inflation-adjusted, so real is implied throughout (2.0 §TIPS Ladder Terminology). The Cost and Quantity headers drop *Annual* for the same reason.
+Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The header drops *Annual* because it applies to each funded year while the totals row beneath is not annual, and drops *Real* because every principal and interest value in a TIPS ladder is inflation-adjusted, so real is implied throughout. The Cost and Quantity headers drop *Annual* for the same reason.
 
 <a id="lmi"></a>
 ### LMI
@@ -346,6 +346,10 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 <a id="within-year-allocation-policy"></a>
 ### Within-Year Allocation Policy
 `Within_Year_Allocation_Policy` = *Which candidate TIPS a rebalance trades for a [Funded Year](#funded-year) when more than one is in play. Rebalance only: a build splits its need evenly across every candidate (2.0 §Within-Year Allocation Policy).*
+
+<a id="trade-ticket"></a>
+### Trade Ticket
+`Trade_Ticket` = *The list of trades required to produce the ladder shown, in either Build or Rebalance.*
 
 <a id="cash-flow-calendar"></a>
 ### Cash Flow Calendar

@@ -53,7 +53,7 @@ function wireIndexRatioCalc(el, data) {
     }
     const ratio = refCpiDate / baseCpi;
     out.innerHTML = `
-      <div class="row"><span>Base CPI (dated ${fmtDate(tips.datedDate)})</span><b>${baseCpi.toFixed(5)}</b></div>
+      <div class="row"><span>Dated Date Ref CPI (${fmtDate(tips.datedDate)})</span><b>${baseCpi.toFixed(5)}</b></div>
       <div class="row"><span>Ref CPI on ${dateStr}</span><b>${refCpiDate.toFixed(5)}</b></div>
       <div class="row"><span>Index Ratio</span><b>${ratio.toFixed(5)}</b></div>
       <div class="row"><span>$1,000 par → inflation-adjusted</span><b>$${(1000 * ratio).toFixed(2)}</b></div>
@@ -78,7 +78,7 @@ function wireInflAdjPrincipal(el, data) {
         <label>Par amount</label>
         <input id="iapPar" type="number" value="1000" min="100" step="100"/>
         <div class="aside" style="margin-top:14px">Using live data for <b>${tips.cusip}</b>
-        (matures ${fmtDate(tips.maturity)}): base CPI ${baseCpi ? baseCpi.toFixed(5) : '—'}, Ref CPI
+        (matures ${fmtDate(tips.maturity)}): dated date Ref CPI ${baseCpi ? baseCpi.toFixed(5) : '—'}, Ref CPI
         ${refCpi ? refCpi.toFixed(5) : '—'} as of ${settle}.</div>
       </div>
       <div class="outputs" id="iapOut"></div>

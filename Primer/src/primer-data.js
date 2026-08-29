@@ -47,7 +47,7 @@ export async function loadPrimerData() {
     maturity: r.maturity,
     datedDate: r.datedDate,
     coupon: parseFloat(r.coupon),
-    baseCpi: parseFloat(r.baseCpi),
+    baseCpi: parseFloat(r.datedDateRefCpi ?? r.baseCpi),
     term: r.term,
   }));
 

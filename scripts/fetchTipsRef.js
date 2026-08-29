@@ -81,7 +81,7 @@ async function main() {
     console.log(`Base CPI:   ${row.baseCpi.toFixed(5)}`);
   } else {
     // Write TipsRef.csv to R2
-    const header = 'cusip,maturity,datedDate,coupon,baseCpi,term';
+    const header = 'cusip,maturity,datedDate,coupon,datedDateRefCpi,term';
     const lines = rows.map(r =>
       `${r.cusip},${r.maturity},${r.datedDate},${r.coupon},${r.baseCpi},${r.term}`
     );
