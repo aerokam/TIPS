@@ -152,11 +152,12 @@ function render() {
   if (state.displayMode === 'p2p') renderP2PResult(p2pResults);
 
   const tooltipFormat = state.dataSources.includes('ref-cpi') ? 'MMM d, yyyy' : 'MMM yyyy';
+  const zeroLine = state.displayMode !== 'index';
   const chart = getChart();
   if (!chart) {
-    createChart('cpiChart', { datasets, yLabel: yAxisLabel(), logScale: state.logScale, tooltipFormat });
+    createChart('cpiChart', { datasets, yLabel: yAxisLabel(), logScale: state.logScale, zeroLine, tooltipFormat });
   } else {
-    updateChart({ datasets, yLabel: yAxisLabel(), logScale: state.logScale, tooltipFormat });
+    updateChart({ datasets, yLabel: yAxisLabel(), logScale: state.logScale, zeroLine, tooltipFormat });
   }
 
   // Stats from primary (first) selected source

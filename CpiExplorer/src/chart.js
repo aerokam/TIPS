@@ -9,6 +9,28 @@ let _currentDatasets = null; // { label, labels, values }[]
 
 export const COLORS = ['#1a56db', '#ea580c', '#7c3aed', '#059669', '#dc2626'];
 
+// ── Zero line (percent modes) ───────────────────────────────────────────────────
+
+const zeroLinePlugin = {
+  id: 'zeroLine',
+  afterDraw(chart, args, opts) {
+    if (!opts?.enabled) return;
+    const { ctx, chartArea, scales } = chart;
+    const y = scales.y;
+    if (y.min > 0 || y.max < 0) return; // 0% not in visible range
+    const yPixel = y.getPixelForValue(0);
+    ctx.save();
+    ctx.strokeStyle = '#94a3b8';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(chartArea.left, yPixel);
+    ctx.lineTo(chartArea.right, yPixel);
+    ctx.stroke();
+    ctx.restore();
+  },
+};
+
 // ── Y rescaling ───────────────────────────────────────────────────────────────
 
 function rescaleYToVisible() {
@@ -78,7 +100,7 @@ function applyYBoundsFromData(datasets) {
  * @param {{ datasets: Array, yLabel: string, logScale: boolean }} config
  * @returns {Chart}
  */
-export function createChart(canvasId, { datasets, yLabel, logScale, tooltipFormat = 'MMM yyyy' }) {
+export function createChart(canvasId, { datasets, yLabel, logScale, zeroLine = false, tooltipFormat = 'MMM yyyy' }) {
   if (_chart) { _chart.destroy(); _chart = null; }
   _currentDatasets = datasets;
 
@@ -98,6 +120,7 @@ export function createChart(canvasId, { datasets, yLabel, logScale, tooltipForma
 
   _chart = new Chart(ctx, {
     type: 'line',
+    plugins: [zeroLinePlugin],
     data: {
       datasets: chartDatasets,
     },
@@ -107,6 +130,7 @@ export function createChart(canvasId, { datasets, yLabel, logScale, tooltipForma
       animation: false,
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
+        zeroLine: { enabled: zeroLine },
         legend: {
           display: datasets.length > 1,
           position: 'top',
@@ -192,13 +216,14 @@ export function createChart(canvasId, { datasets, yLabel, logScale, tooltipForma
  * Update the existing chart with new data and y-axis label.
  * @param {{ datasets: Array, yLabel: string, logScale: boolean }} config
  */
-export function updateChart({ datasets, yLabel, logScale, tooltipFormat = 'MMM yyyy' }) {
+export function updateChart({ datasets, yLabel, logScale, zeroLine = false, tooltipFormat = 'MMM yyyy' }) {
   if (!_chart) return;
   _currentDatasets = datasets;
 
   _chart.options.scales.y.type = logScale ? 'logarithmic' : 'linear';
   _chart.options.scales.y.title.text = yLabel;
   _chart.options.plugins.legend.display = datasets.length > 1;
+  _chart.options.plugins.zeroLine.enabled = zeroLine;
   _chart.options.scales.x.time.tooltipFormat = tooltipFormat;
 
   // Preserve current x bounds so adding/removing a series doesn't reset the zoom.
