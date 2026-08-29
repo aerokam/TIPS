@@ -3089,7 +3089,7 @@ document.getElementById('dara-basis-apply').addEventListener('click', () => {
     return;
   }
   _reapplyImportedDara(map);
-  setStatusHTML(`DARA values scaled from the file’s Ref CPI date of ${esc(_fmtMDY(fromDate))} `
+  setStatusHTML(`DARA values scaled from the supplied Ref CPI date of ${esc(_fmtMDY(fromDate))} `
     + `to ${esc(_fmtMDY(toDate))} (×${factor.toFixed(4)}). `
     + `<a href="#" id="dara-set-basis" style="color:#93c5fd">Change</a>`);
 });
