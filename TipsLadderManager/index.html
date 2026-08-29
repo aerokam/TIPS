@@ -92,6 +92,7 @@
   #run-btn { padding: 5px 18px; }
   #status { margin: 3px 0 0; font-size: 12px; color: #fff; font-weight: 500; }
   #status.error, #status.notice { color: #f87171; font-weight: 700; }
+  #status div + div { margin-top: 4px; }
 
   /* ── Main table ── */
   .table-wrap { padding: 12px 16px; }
@@ -1004,14 +1005,14 @@ function setStatus(msg, isError = false) {
 // called with app-composed markup — nothing from a loaded file reaches it unescaped.
 function setStatusHTML(html) {
   const el = document.getElementById('status');
-  el.innerHTML = html; el.className = 'notice';
+  el.innerHTML = '<div>' + html + '</div>'; el.className = 'notice';
 }
 
-// Adds a second notice without displacing the first. The Ref CPI date and the cash-window date are
-// separate entries, and a file that records neither is owed both offers.
+// Adds a second notice on its own row rather than displacing the first. The Ref CPI date and the
+// cash-window date are separate entries, and a file that records neither is owed both offers.
 function appendStatusHTML(html) {
   const el = document.getElementById('status');
-  el.innerHTML = el.innerHTML ? el.innerHTML + ' ' + html : html;
+  el.innerHTML += '<div>' + html + '</div>';
   el.className = 'notice';
 }
 
