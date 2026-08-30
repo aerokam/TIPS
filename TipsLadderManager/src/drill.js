@@ -38,6 +38,14 @@ function coverageAmtRows(label, grossPI, lmiAdd, finalAmt) {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+// Several popup notes carry more than one formula. Run together in a sentence they wrap into an
+// unreadable block, so they go in a list.
+function bullets(items) {
+  return '<ul style="margin:2px 0 0;padding-left:14px">'
+    + items.map(s => '<li style="margin:1px 0">' + s + '</li>').join('')
+    + '</ul>';
+}
+
 function bondVarRows(d, nPeriods, principalPerBond, couponPct) {
   const matMonthName = d.maturityStr.split(' ')[0];
   const matMonthIdx = MONTHS.indexOf(matMonthName);
@@ -896,12 +904,19 @@ export function buildDurationPopupRows(summary, mode) {
 
     rows.push(
       { label: 'Bracket modified duration',
-        note: 'retained lower: ' + lowerLabel + ', active lower: ' + activeLabel + ', upper: ' + upperLabel,
+        note: bullets([
+          'retained lower: ' + lowerLabel,
+          'active lower: ' + activeLabel,
+          'upper: ' + upperLabel,
+        ]),
         value: lowerDuration.toFixed(2) + ', ' + newLowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) },
       { sep: true },
       { label: 'Bracket weight (retained lower, active lower, upper)',
-        note: 'retained lower = held excess \u00f7 gap total cost, frozen: never increased, and sold down only as far as the duration match requires. '
-          + 'upper = ' + upperFml + '. active lower = (1 \u2212 retained) \u2212 upper',
+        note: bullets([
+          'retained lower = held excess \u00f7 gap total cost, frozen: never increased, and sold down only as far as the duration match requires',
+          'upper = ' + upperFml,
+          'active lower = (1 \u2212 retained) \u2212 upper',
+        ]),
         value: w1.toFixed(4) + ', ' + w2.toFixed(4) + ', ' + w3.toFixed(4) }
     );
     buckets.push({ dur: lowerDuration, weight: w1, label: String(lowerYear) });
@@ -930,10 +945,12 @@ export function buildDurationPopupRows(summary, mode) {
     const wFml = 'active lower = (upper dur \u2212 avg dur) \u00f7 (upper dur \u2212 active lower dur)';
     rows.push(
       { label: 'Bracket modified duration',
-        note: 'active lower: ' + lowerLabel + ', upper: ' + upperLabel,
+        note: bullets(['active lower: ' + lowerLabel, 'upper: ' + upperLabel]),
         value: lowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) },
       { sep: true },
-      { label: 'Bracket weight (active lower, upper)', note: wFml + '. upper = 1 \u2212 active lower', value: lowerWeight.toFixed(4) + ', ' + upperWeight.toFixed(4) }
+      { label: 'Bracket weight (active lower, upper)',
+        note: bullets([wFml, 'upper = 1 \u2212 active lower']),
+        value: lowerWeight.toFixed(4) + ', ' + upperWeight.toFixed(4) }
     );
     buckets.push({ dur: lowerDuration, weight: lowerWeight, label: lowerLabel });
     buckets.push({ dur: upperDuration, weight: upperWeight, label: upperLabel });

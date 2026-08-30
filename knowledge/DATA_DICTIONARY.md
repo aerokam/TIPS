@@ -264,6 +264,10 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 ### Funded Year
 `Funded_Year` = *A [Maturity Year](#maturity-year) for which a [DARA](#dara) is specified, and for which total cash flow is calculated. A maturity year lying inside the [Ladder](#ladder) with no DARA specified is a **missing rung**, the ladder analogy holding: the step is absent. Term adopted from tipsladder.com, so that users moving between the two applications meet the same one.*
 
+<a id="funded-year-tips"></a>
+### Funded Year TIPS
+`Funded_Year_TIPS` = *The TIPS that contribute to the [ARA](#ara) for a [Funded Year](#funded-year): the securities maturing in that year, whose principal at maturity applies toward it.*
+
 <a id="rung"></a>
 ### Rung
 `Rung` = *Synonym for [Funded Year](#funded-year). From the ladder metaphor: each rung is one calendar year (1.0 Bond Ladders §Bond Ladder Concepts).*
@@ -294,12 +298,12 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 <a id="same-year-excess-interest"></a>
 ### Same-Year Excess Interest
 `Same_Year_Excess_Interest` = `Σ Annual_Interest_Real for bracket or cover excess TIPS maturing in Current_Year`
-*Bracket or cover excess TIPS ([Duration Matching](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets)) are ordinary held bonds — their coupon interest behaves exactly like any other TIPS's: interest paid in their own maturity year counts toward that year's Amount (this term, credited only to the year the excess bonds themselves mature), and it also continues flowing down into [LMI](#lmi) for every shorter-maturity year, same as any other coupon. Bracket excess (the lower/upper gap brackets) covers [Gap Years](#gap-years), where 10-year TIPS have not yet been issued; cover excess (the Future 30Y cover pair) covers [Future 30Y Rungs](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#future-30y-rungs-section), where 30-year TIPS have not yet been issued — the two block types are covered by different excess holdings and should not be conflated. Example: excess TIPS held at the longest issued 30-year maturity, to cover the Future 30Y Rungs beyond it — their interest contributes to that maturity year's Amount as Same-Year Excess Interest, reducing its own rung's quantity, and the same coupon also flows down as ordinary LMI to every year below.*
+*Bracket or cover excess TIPS ([Duration Matching](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets)) are ordinary held bonds — their coupon interest behaves exactly like any other TIPS's: interest paid in their own maturity year counts toward that year's Amount (this term, credited only to the year the excess bonds themselves mature), and it also continues flowing down into [LMI](#lmi) for every shorter-maturity year, same as any other coupon. Bracket excess (the lower/upper gap brackets) covers [Gap Years](#gap-years), where 10-year TIPS have not yet been issued; cover excess (the Future 30Y cover pair) covers [Future 30Y Rungs](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#future-30y-rungs-section), where 30-year TIPS have not yet been issued — the two are covered by different excess holdings. Example: excess TIPS held at the longest issued 30-year maturity, to cover the Future 30Y Rungs beyond it — their interest contributes to that maturity year's Amount as Same-Year Excess Interest, reducing its own rung's quantity, and the same coupon also flows down as ordinary LMI to every year below.*
 
 
 <a id="gap-years"></a>
 ### Gap Years
-`Gap_Years` = *Years within the [Ladder](#ladder) for which no 10-year TIPS has yet been issued. The 10-year qualifier carries the definition: a ladder whose last year runs past the longest-dated issued 30-year TIPS also contains years with no issued TIPS, and those are Future 30Y Rungs rather than gap years, covered by different holdings.*
+`Gap_Years` = *Years within the [Ladder](#ladder) for which no 10-year TIPS have yet been issued. The 10-year qualifier carries the definition: a ladder whose last year runs past the longest-dated issued 30-year TIPS also contains years with no issued TIPS, and those are Future 30Y Rungs rather than gap years, covered by different holdings.*
 
 <a id="synthetic-tips"></a>
 ### Synthetic TIPS
@@ -309,22 +313,35 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 
 <a id="bracket-year"></a>
 ### Bracket Year
-`Bracket_Year` = *The maturity year whose excess TIPS contribute to matching the average duration of the [Gap Years](#gap-years).*
+`Bracket_Year` = *A maturity year holding TIPS dedicated to duration matching. The bracket years surround the [Gap Years](#gap-years) — lower bracket year, then the gap years, then the upper bracket year — which is where the name comes from.*
 
+*A bracket year that is also a [Funded Year](#funded-year) holds [Funded Year TIPS](#funded-year-tips) alongside its [Excess TIPS](#excess-tips). A bracket year whose DARA is 0 holds excess TIPS alone.*
+
+*Short forms: **lower bracket** and **upper bracket** where the context is clear, **lower bracket year** for the year, **lower bracket year TIPS** for the securities.*
+
+<a id="bracket-year-tips"></a>
 <a id="bracket-maturity"></a>
-### Bracket Maturity
-`Bracket_Maturity` = *The TIPS actually holding a bracket’s excess, named by month and year. A [Bracket Year](#bracket-year) may hold both a January and a July maturity, so the year alone does not identify the holding, and anything reporting a bracket names the maturity.*
+### Bracket Year TIPS
+`Bracket_Year_TIPS` = *The specific TIPS securities in a [Bracket Year](#bracket-year). Each distinct TIPS security has its own maturity date, so a bracket year may hold a January and a July maturity, and naming a bracket names the security.*
+
+<a id="excess-tips"></a>
+### Excess TIPS
+`Excess_TIPS` = *The TIPS a [Bracket Year](#bracket-year) holds for duration matching. The quantity follows from that bracket year’s [Bracket Weight](#bracket-weight), which the duration match determines. Named for the bracket year they serve: **excess lower bracket year TIPS**, **excess 2036 TIPS**.*
+
+<a id="cover-year"></a>
+### Cover Year
+`Cover_Year` = *The Future 30Y counterpart of a [Bracket Year](#bracket-year). Future 30Y rungs lie beyond the longest-dated issued TIPS, so the maturity that would serve as their upper bracket has yet to be issued and the years covering them sit on one side only. They are called cover years for that reason, and their holdings are cover excess.*
 
 <a id="bracket-weight"></a>
 ### Bracket Weight
-`Bracket_Weight` = *The share of a missing block’s total cost carried by one bracket. The weights across a block’s brackets sum to 1 and are solved so that the weighted mean of the bracket modified durations equals the block’s average duration:*
+`Bracket_Weight` = *The share of the [Gap Years](#gap-years)’ total cost carried by one [Bracket Year](#bracket-year). The weights across the bracket years sum to 1, solved so that the cost-weighted mean of the bracket year durations equals the average duration of the gap years:*
 
 ```
-Σ (bracketWeight_b × bracketDuration_b) = averageBlockDuration
-targetExcessCost_b = blockTotalCost × bracketWeight_b
+Σ (bracketWeight_b × bracketYearDuration_b) = average duration of the gap years
+excessCost_b = gap total cost × bracketWeight_b
 ```
 
-*So a bracket’s weight is what turns the block’s total cost into that bracket’s target excess cost. Solved by `bracketWeights` / `bracketWeightsN` (`gap-math.js`); see 2.0 §2-Bracket Weights and §Retained Bracket Excess for the two- and N-leg forms.*
+*A bracket year’s weight is what turns gap total cost into the cost of that bracket year’s [Excess TIPS](#excess-tips). Solved by `bracketWeights` / `bracketWeightsN` (`gap-math.js`); see 2.0 §2-Bracket Weights and §Retained Bracket Excess. The Future 30Y [Cover Years](#cover-year) use the same formula against their own years and total cost.*
 
 <a id="outstanding-tips"></a>
 <a id="ladder-eligible-tips"></a>
@@ -353,7 +370,7 @@ targetExcessCost_b = blockTotalCost × bracketWeight_b
 
 <a id="total-cost"></a>
 ### Total Cost
-`Total_Cost` = *The cost of every TIPS a build says to buy: the [Funded Year](#funded-year) rung holdings, together with the bracket and cover excess held in lieu of the missing gap-year and Future 30Y TIPS. That excess is held to cover a missing block rather than to fund the maturity year it falls in, so its principal is not applied toward that year’s ARA, although its coupon interest is (see [Same-Year Excess Interest](#same-year-excess-interest)). Build’s counterpart to [Net Cash](#net-cash).*
+`Total_Cost` = *The cost of every TIPS a build says to buy: the [Funded Year](#funded-year) rung holdings, together with the [Excess TIPS](#excess-tips) held in the [Bracket Years](#bracket-year) and the cover excess held in the [Cover Years](#cover-year). That excess is held to cover a missing gap years or the Future 30Y rungs rather than to fund the maturity year it falls in, so its principal applies toward duration matching while its coupon interest applies toward that year’s ARA (see [Same-Year Excess Interest](#same-year-excess-interest)). Build’s counterpart to [Net Cash](#net-cash).*
 
 <a id="reference-date"></a>
 ### Reference Date
@@ -365,7 +382,7 @@ targetExcessCost_b = blockTotalCost × bracketWeight_b
 
 <a id="duration-matching"></a>
 ### Duration Matching
-`Duration_Matching` = *Covering a missing block of maturities, whether [Gap Years](#gap-years) or Future 30Y years, with additional holdings in a bracket pair or cover pair, weighted so that the excess changes in value as the missing block would under a rate move. Modified duration throughout (2.0 §Duration Matching).*
+`Duration_Matching` = *Holding [Excess TIPS](#excess-tips) in the [Bracket Years](#bracket-year) that surround the [Gap Years](#gap-years), weighted by [Bracket Weight](#bracket-weight) so that the excess changes in value as the gap years would under a rate move. Modified duration throughout (2.0 §Duration Matching). The Future 30Y [Cover Years](#cover-year) work the same way.*
 
 <a id="within-year-allocation-policy"></a>
 ### Within-Year Allocation Policy
