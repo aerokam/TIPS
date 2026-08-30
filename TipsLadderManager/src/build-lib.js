@@ -195,7 +195,8 @@ export function runBuild({ dara, firstYear: firstYearOpt, lastYear, tipsMap, ref
     });
   }
 
-  const _mktCosts = details.map(d => (d.fundedYearQty + d.excessQty) * d.costPerBond);
+  details.forEach(d => { d.mktValue = (d.fundedYearQty + d.excessQty) * d.costPerBond; });
+  const _mktCosts = details.map(d => d.mktValue);
   const weightedAvgDuration = calcMktWtdAvg(details.map(d => d.mDuration), _mktCosts);
   const weightedAvgYield    = calcMktWtdAvg(details.map(d => d.yield),     _mktCosts);
   const weightedAvgSaYield  = calcMktWtdAvg(details.map(d => d.saYield),   _mktCosts);

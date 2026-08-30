@@ -1909,7 +1909,8 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const costForNewRungs = Object.values(buySellTargets).reduce((s, bst) => s + (bst.isBracket ? 0 : Math.max(0, bst.targetCost)), 0);
   const gapCoverageSurplus = totalPreviousExcessCost - costForNewRungs - (gapParams.totalCost || 0);
 
-  const _mktCosts = details.map(d => d.qtyAfter * d.costPerBond);
+  details.forEach(d => { d.mktValue = d.qtyAfter * d.costPerBond; });
+  const _mktCosts = details.map(d => d.mktValue);
   const weightedAvgDuration = calcMktWtdAvg(details.map(d => d.mDuration), _mktCosts);
   const weightedAvgYield    = calcMktWtdAvg(details.map(d => d.yield),     _mktCosts);
   const weightedAvgSaYield  = calcMktWtdAvg(details.map(d => d.saYield),   _mktCosts);

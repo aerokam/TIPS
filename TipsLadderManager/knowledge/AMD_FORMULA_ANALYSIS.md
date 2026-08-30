@@ -140,8 +140,8 @@ AMD(Y)         = q(Y) × gainPerBond(Y)
 ```
 
 - **Quantity** is a pure duration result; **gain** is a pure pricing result; AMD is their product. This is the decoupling MtnBiker pushed for: income realization is driven by accretion/duration drift, not by the purchase decision — yet it coincides with the "sell to buy the new 30Y" roll, which remains the founding paradigm (assume each new 30Y *is* bought).
-- **Closure is exact:** with the future-30Y block average duration computed **cost-weighted** (`Σ qty·dur / Σ qty`), `Σ q(Y) = future30yUpperExQty` identically — the schedule is a partition of the held excess, no residual. Verified empirically (a simple-mean block average left a ~4.66% residual; cost-weighting removes it).
-- **Cost-weighting also applies to the gap block** — required now that per-year DARA can be uneven (a heavier-funded rung must pull the average toward its duration). Simple mean is wrong under uneven funding.
+- **Closure is exact:** with the Future 30Y average duration computed **cost-weighted** (`Σ qty·dur / Σ qty`), `Σ q(Y) = future30yUpperExQty` identically — the schedule is a partition of the held excess, no residual. Verified empirically (a simple-mean average left a ~4.66% residual; cost-weighting removes it).
+- **Cost-weighting also applies to the gap years** — required now that per-year DARA can be uneven (a heavier-funded rung must pull the average toward its duration). Simple mean is wrong under uneven funding.
 - **`N`, `amdPerBondPerYear`, and the hardcoded `≤ 2036` cap are removed.** The sale-year range is exactly `{rung.year − 30}`, so a smaller `lastYear` shortens it automatically.
 
 ### Empirical shape (DARA $80k, 2027–2066, settlement 2026-05-29)
@@ -242,7 +242,7 @@ What changed vs Rev 3/4:
 - **Income basis is the full, undepleted excess**, not the depleting held pool. `AMD(Y) = future30yUpperExQty × a(Y)` — there is no `qRoll`, no `H(Y)`, no `wUpper` decomposition. Selling 2052s realizes cash but does **not** reduce the income basis; sale qty and income are fully decoupled, exactly as coupon income is earned on a whole position regardless of which bonds are later sold.
 - **Range is every year `settlementYear+1 → 2052 maturity`**, not the `{rung.year − 30}` sale window. AMD is credited to every funded year in ladder range, not just 2027–2036.
 - **Profile is even (gently back-loaded by convexity)**, not the front-loaded hump of Rev 3. Still conserving: `Σ a(Y) = par − cost`.
-- The Abel reconciliation (Rev 3) and the cost-weighted `Σ qRoll = exQty` closure (Rev 2) no longer apply to AMD — AMD does not use the roll partition at all. Cost-weighted block `avgDuration` is still used for the **duration match / cover split** that sizes `future30yUpperExQty`.
+- The Abel reconciliation (Rev 3) and the cost-weighted `Σ qRoll = exQty` closure (Rev 2) no longer apply to AMD — AMD does not use the roll partition at all. Cost-weighted `avgDuration` is still used for the **duration match / cover split** that sizes `future30yUpperExQty`.
 
 Single source of truth: `future30yUpperAmdSchedule()` in `gap-math.js`, consumed by `ladder-core.js`
 for both build and rebalance. Canonical spec: **2.0 §Future 30Y Upper Cover AMD** (rewritten to Option C);
@@ -268,7 +268,7 @@ Fix — the cover Amount mirrors the gap, with one extra term for the discount:
 excessAmt_b = excessQty_b × pi_b − amdLifetime_b + weight_b × future30yLMITotal
 ```
 - `− amdLifetime_b`: the bond's total AMD, delivered to earlier years, netted out (2052 only today).
-- `+ weight_b × future30yLMITotal`: the intra-block coupon (`Σ breakdown.laterMatInt`) that sized the
+- `+ weight_b × future30yLMITotal`: the intra-cover coupon (`Σ breakdown.laterMatInt`) that sized the
   synthetic rungs down — the analog of `gapLMITotal`.
 - Result (fixture): `2052 228,641 + 2056 177,329 = 405,970 ≈ 400,000`. The removed `175,366` is exactly
   the 2052 AMD on the 2027–2052 rows. **Conserved across the whole table, counted once.**
@@ -285,7 +285,7 @@ share, `future30yUpperWeight × future30ySeedLMI` (≈ `$5,104/yr` in the fixtur
 **Non-cascading** (years ≤ 2052 are credited via AMD; cascading below 2053 would double-count) — threaded
 exactly like AMD: combined into `calcFuture30yExtraIncome = AMD + rollCoupon` for `fyQty`/`fundedYearAmount`,
 shown as its own line item, summed into `preLadderRollCouponPool` for ladders starting after 2053. The lower
-cover (2056) needs no analog (no funded year between it and the block). The seamless AMD→roll hand-off is the
+cover (2056) needs no analog (no funded year between it and the Future 30Y years). The seamless AMD→roll hand-off is the
 "rough equivalence" of the excess TIPS' interest+AMD and the Future-30Y coupon that reinvestment buys.
 
 ### Generalized for future accountability
@@ -311,8 +311,8 @@ cover (2056) needs no analog (no funded year between it and the block). The seam
 
 Rev 6 built the generic hook but only the 2052 upper cover was wired in, so the 2056 lower cover still
 showed full par P+I with no AMD net-out. Reasonableness check (40K DARA, 2057–2066): cover total read
-`414,747` vs the correct `400,000` — the entire ~14.7K overage lived in the **2056 leg**, exactly its
-un-netted lifetime discount accretion. The 2052 leg already landed dead-on (`159,489 ≈ 4×DARA`). Gap
+`414,747` vs the correct `400,000` — the entire ~14.7K overage lived in the **2056 cover**, exactly its
+un-netted lifetime discount accretion. The 2052 cover already landed dead-on (`159,489 ≈ 4×DARA`). Gap
 brackets (2036/2040) were on-target because they are near par (negligible accretion) — that asymmetry
 *validated* the formula rather than contradicting it.
 

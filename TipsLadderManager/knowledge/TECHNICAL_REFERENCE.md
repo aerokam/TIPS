@@ -39,9 +39,9 @@ This document maps conceptual definitions from the [Master Glossary](../../knowl
 
 ---
 
-## Missing-Block Coverage & Ladder Bounds
+## Gap Year and Future 30Y Coverage & Ladder Bounds
 
-Concepts from 2.0 §Duration Matching and §Gap/Future-30Y, bound to code symbols. A *missing block* is a
+Concepts from 2.0 §Duration Matching and §Gap/Future-30Y, bound to code symbols. A run of years with no issued TIPS is a
 stretch of years whose TIPS have not yet been issued; each is duration-covered by a *pair* of real TIPS.
 
 | Concept | Code Symbol | Notes |

@@ -11,7 +11,7 @@ production impact go here.
 ### Only one retained lower bracket maturity is identified from holdings
 
 - **Scope, pinned 2026-08-30.** `bracketWeightsN` (`gap-math.js`) already solves the duration
-  match for any number of retained legs — they enter as frozen inputs and only the active lower
+  match for any number of retained lower brackets — they enter as frozen inputs and only the active lower
   and upper weights are solved. What stops at one generation is the code that works out *which*
   holdings are retained, and the Gap Dur popup, which names a single retained lower bracket.
 - **The scenario is realistic, not hypothetical.** A ladder can hold excess at Jan 2034 from when
@@ -388,7 +388,7 @@ per-CUSIP prices for a past date (3.1 §4.0).
   First (`_updateAllocPolicyLock()`), so the Equal split listed first in the dropdown is never in
   force by default. It changes nothing for a funded year holding a single TIPS, and moves net cash
   materially for one holding several — an all-months year, or a bracket year carrying a retained
-  older leg: the 2026–2040 all-months ladder lands at +72 under Maturity order against +1,208 under
+  older bracket: the 2026–2040 all-months ladder lands at +72 under Maturity order against +1,208 under
   Equal split.
 
   The last one gains: its first funded year is 2027, so the settlement year is outside the ladder
@@ -658,25 +658,25 @@ per-CUSIP prices for a past date (3.1 §4.0).
   Rebalance.
 - **Fix:** the active lower bracket year is now its own independent detection candidate, using the
   same median-based heuristic as the upper bracket / Future 30Y years — it flags on its own merits
-  and does not compete with the 2032–2035 retained-leg pool for a single slot, so it can flag
-  alongside a genuine retained-leg flag (e.g. 2034) instead of being excluded outright.
+  and does not compete with the 2032–2035 retained-bracket pool for a single slot, so it can flag
+  alongside a genuine retained-bracket flag (e.g. 2034) instead of being excluded outright.
 - **Files:** `src/before-state-lib.js`, `knowledge/3.0_TIPS_Ladder_Rebalancing.md`.
 
-### Retained bracket excess: wrong leg sold (active bracket sold instead of the older retained leg)
+### Retained bracket excess: wrong bracket sold (active bracket sold instead of the older retained lower bracket)
 
 - **Found:** 2026-07-29, branch `before-state-dara-redesign`, real Kevin IRA holdings
   (`~/Downloads/SchwabAllAccounts.csv`).
 - **Symptom:** loading a lumpy ladder with genuine retained bracket excess (e.g. Jan 2034) alongside
   the active lower bracket (Jan 2036), then running a full rebalance, sold ALL of the active
-  bracket's (2036) excess down to zero while leaving the older retained leg (2034) untouched — the
+  bracket's (2036) excess down to zero while leaving the older retained lower bracket (2034) untouched — the
   opposite of the documented rule (2.0 §Retained Bracket Excess: sell the oldest maturity first;
-  the active bracket is never sold to make room for an older retained leg).
+  the active bracket is never sold to make room for an older retained lower bracket).
 - **Root cause:** `gap-math.js`'s `bracketWeightsN` only triggered the sell-retained-first logic
   when the active bracket's duration-match weight went negative. A large, short-duration retained
-  leg could squeeze the active bracket's weight toward (but not below) zero without ever going
+  bracket could squeeze the active bracket's weight toward (but not below) zero without ever going
   negative, so the code never recognized the over-allocation and froze the wrong side.
 - **Fix:** added `activeFloorWeight` to `bracketWeightsN` — floors the active bracket at its own
-  currently-held excess; selling the retained leg(s) further now triggers off "would this shrink
+  currently-held excess; selling the retained lower bracket(s) further now triggers off "would this shrink
   active below its floor," not just "did the weight go negative." Default value `0` reproduces the
   exact old behavior for every other caller.
 - **Confirmed pre-existing:** verified this reproduces identically with or without any of this

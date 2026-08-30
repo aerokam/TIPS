@@ -38,12 +38,10 @@ function coverageAmtRows(label, grossPI, lmiAdd, finalAmt) {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// Several popup notes carry more than one formula. Run together in a sentence they wrap into an
-// unreadable block, so they go in a list.
-function bullets(items) {
-  return '<ul style="margin:2px 0 0;padding-left:14px">'
-    + items.map(s => '<li style="margin:1px 0">' + s + '</li>').join('')
-    + '</ul>';
+// Attaches a formula, and the arithmetic behind it, to whatever names the figure: the popup reads
+// at a glance and the derivation is one hover away.
+function hov(title, inner) {
+  return '<span title="' + title + '" style="border-bottom:1px dotted #94a3b8;cursor:help">' + inner + '</span>';
 }
 
 function bondVarRows(d, nPeriods, principalPerBond, couponPct) {
@@ -839,6 +837,32 @@ function renderDurationBeam(buckets, avgDur) {
     + '</div>';
 }
 
+// Portfolio Avg Mod Dur popup (4.0 §Weighted Modified Duration): each holding's own modified
+// duration (from its own market yield), weighted by market value. `details` carries `mktValue`
+// (single source, set alongside `mDuration` in build-lib.js / rebalance-lib.js) so this popup
+// can never drift from the number `wad` itself was computed from.
+export function buildWeightedDurationPopupRows(details, wad) {
+  const held = details.filter(d => d.mktValue > 0).sort((a, b) => a.fundedYear - b.fundedYear);
+  if (held.length === 0) return [{ label: 'No holdings', total: true }];
+  const mvSum = held.reduce((s, d) => s + d.mktValue, 0);
+
+  const rows = [{ heading: 'Holdings' }];
+  held.forEach(d => {
+    rows.push({
+      label: d.fundedYear + ' · ' + d.cusip,
+      note: d.maturityStr + ' — ' + fm(d.mktValue) + ' MV',
+      value: d.mDuration != null ? d.mDuration.toFixed(2) : '—',
+    });
+  });
+  rows.push(
+    { sep: true },
+    { label: 'Weighted by market value',
+      note: 'Σ(MV × Mod Dur) ÷ ' + fm(mvSum) + ' total MV',
+      value: wad.toFixed(2), total: true },
+  );
+  return rows;
+}
+
 export function buildDurationPopupRows(summary, mode) {
   if (mode === 'rebal' && (!summary.gapYears || summary.gapYears.length === 0)) {
     return [{ label: 'No gap years', note: 'Bracket duration matching not applicable for this ladder', total: true }];
@@ -902,22 +926,18 @@ export function buildDurationPopupRows(summary, mode) {
     const upperFml = '((avg dur \u2212 retained\u00d7retained dur) \u2212 (1\u2212retained)\u00d7active lower dur)'
       + ' \u00f7 (upper dur \u2212 active lower dur)';
 
+    const dv = (d, w) => d.toFixed(2) + '  \u00b7  ' + w.toFixed(4);
+    rows.push({ heading: 'Bracket Years (modified duration \u00b7 weight)' });
     rows.push(
-      { label: 'Bracket modified duration',
-        note: bullets([
-          'retained lower: ' + lowerLabel,
-          'active lower: ' + activeLabel,
-          'upper: ' + upperLabel,
-        ]),
-        value: lowerDuration.toFixed(2) + ', ' + newLowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) },
-      { sep: true },
-      { label: 'Bracket weight (retained lower, active lower, upper)',
-        note: bullets([
-          'retained lower = held excess \u00f7 gap total cost, frozen: never increased, and sold down only as far as the duration match requires',
-          'upper = ' + upperFml,
-          'active lower = (1 \u2212 retained) \u2212 upper',
-        ]),
-        value: w1.toFixed(4) + ', ' + w2.toFixed(4) + ', ' + w3.toFixed(4) }
+      { label: hov('retained lower = held excess \u00f7 gap total cost. Frozen: never increased, and sold down only as far as the duration match requires.',
+               'retained lower: ' + lowerLabel),
+        value: dv(lowerDuration, w1) },
+      { label: hov('active lower = (1 \u2212 retained) \u2212 upper = (1 \u2212 ' + w1.toFixed(4) + ') \u2212 ' + w3.toFixed(4) + ' = ' + w2.toFixed(4),
+               'active lower: ' + activeLabel),
+        value: dv(newLowerDuration, w2) },
+      { label: hov('upper = ' + upperFml + '  =  ((' + avg.toFixed(2) + ' \u2212 ' + w1.toFixed(4) + '\u00d7' + lowerDuration.toFixed(2) + ') \u2212 (1\u2212' + w1.toFixed(4) + ')\u00d7' + newLowerDuration.toFixed(2) + ') \u00f7 (' + upperDuration.toFixed(2) + ' \u2212 ' + newLowerDuration.toFixed(2) + ') = ' + w3.toFixed(4),
+               'upper: ' + upperLabel),
+        value: dv(upperDuration, w3) }
     );
     buckets.push({ dur: lowerDuration, weight: w1, label: String(lowerYear) });
     buckets.push({ dur: newLowerDuration, weight: w2, label: String(newLowerYear) });
@@ -933,24 +953,25 @@ export function buildDurationPopupRows(summary, mode) {
   } else if (lowerYear == null) {
     // No lower bracket (firstYear is inside the gap \u2014 all coverage on upper bracket alone)
     rows.push(
-      { label: 'Bracket modified duration',
-        note: 'upper: ' + upperLabel + ' \u2014 no lower bracket, the ladder starting inside the gap years', value: '\u2014, ' + upperDuration.toFixed(2) },
-      { sep: true },
-      { label: 'Bracket weight (active lower, upper)', note: 'all coverage on the upper bracket', value: '0.0000, ' + (upperWeight ?? 1).toFixed(4) }
+      { heading: 'Bracket Years (modified duration \u00b7 weight)' },
+      { label: 'upper: ' + upperLabel,
+        note: 'the ladder starts inside the gap years, so the upper bracket carries all the coverage',
+        value: upperDuration.toFixed(2) + '  \u00b7  ' + (upperWeight ?? 1).toFixed(4) }
     );
     buckets.push({ dur: upperDuration, weight: upperWeight ?? 1, label: upperLabel });
     const match = '0.0000 \u00d7 n/a + ' + (upperWeight ?? 1).toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2) + ' = ' + avg.toFixed(2);
     rows.push({ sep: true }, { label: 'Modified duration match', note: match, total: true });
   } else {
     const wFml = 'active lower = (upper dur \u2212 avg dur) \u00f7 (upper dur \u2212 active lower dur)';
+    const dv2 = (d, w) => d.toFixed(2) + '  \u00b7  ' + w.toFixed(4);
+    rows.push({ heading: 'Bracket Years (modified duration \u00b7 weight)' });
     rows.push(
-      { label: 'Bracket modified duration',
-        note: bullets(['active lower: ' + lowerLabel, 'upper: ' + upperLabel]),
-        value: lowerDuration.toFixed(2) + ', ' + upperDuration.toFixed(2) },
-      { sep: true },
-      { label: 'Bracket weight (active lower, upper)',
-        note: bullets([wFml, 'upper = 1 \u2212 active lower']),
-        value: lowerWeight.toFixed(4) + ', ' + upperWeight.toFixed(4) }
+      { label: hov(wFml + '  =  (' + upperDuration.toFixed(2) + ' \u2212 ' + avg.toFixed(2) + ') \u00f7 (' + upperDuration.toFixed(2) + ' \u2212 ' + lowerDuration.toFixed(2) + ') = ' + lowerWeight.toFixed(4),
+               'active lower: ' + lowerLabel),
+        value: dv2(lowerDuration, lowerWeight) },
+      { label: hov('upper = 1 \u2212 active lower = 1 \u2212 ' + lowerWeight.toFixed(4) + ' = ' + upperWeight.toFixed(4),
+               'upper: ' + upperLabel),
+        value: dv2(upperDuration, upperWeight) }
     );
     buckets.push({ dur: lowerDuration, weight: lowerWeight, label: lowerLabel });
     buckets.push({ dur: upperDuration, weight: upperWeight, label: upperLabel });
