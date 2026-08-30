@@ -5,9 +5,7 @@
 
 import { fmtDate } from './date-util.js';
 import { bondCalcs, calculateMDuration, rungAmount, calcMktWtdAvg } from '../../shared/src/bond-math.js';
-import { sizeLadder, selectLadderBonds, fundedYearAmount } from './ladder-core.js';
-
-export const MAX_LAST_YEAR = 2066;
+import { sizeLadder, selectLadderBonds, fundedYearAmount, maxLastYear } from './ladder-core.js';
 
 // ─── Main entry point ──────────────────────────────────────────────────────────
 // Inputs:

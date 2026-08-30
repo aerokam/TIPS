@@ -382,6 +382,12 @@ export function rmdCappedRemainingCoupons(maturity, settlementDate, bondHolidays
 }
 
 // ─── The shared sizing pipeline ─────────────────────────────────────────────────
+// A ladder reaches ten years past the longest-dated issued TIPS, which is always the most
+// recently issued 30-year. That supports a 40-year ladder: the thirty years of issued
+// maturities, plus ten years of Future 30Y rungs beyond them. Derived from the data rather
+// than fixed, so it advances as Treasury issues (DD 5.1 Issuance-Dependent Values).
+export const maxLastYear = (maxTipsYear) => (maxTipsYear || 0) + 10;
+
 export function sizeLadder({
   dara, daraByYear = null, firstYear, lastYear, optionalYears = null,
   rangeYears, gapYears, future30yYears,

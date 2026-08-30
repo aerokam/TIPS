@@ -223,6 +223,10 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 ### Annual Interest (Nominal)
 `Annual_Interest_Nominal` = `Par_Value_Adjusted × Coupon_Rate` *(coupon applied to inflation-adjusted principal)*
 
+<a id="pi"></a>
+### P+I
+`P+I` = *Principal + Last-Year Interest: the combined cash flow a [Funded Year](#funded-year) receives from the securities maturing in it, being their principal together with their [Last-Year Interest](#last-year-interest).*
+
 <a id="pi-per-tips"></a>
 ### P+I per TIPS
 `P+I_per_TIPS` = `Par_Value_Adjusted + (Annual_Interest_Nominal × [0.5 | 1.0])` *Total inflation-adjusted cash flow in the maturity year. See TIPS_Basics.md for half-year rule.*
@@ -416,6 +420,7 @@ Some values are true only until Treasury issues more TIPS. Left inline as approx
 | Multi-maturity boundary | Years below it may hold more than one maturity month; at/above, 30-year February issues only | 2040 | 10-year issuance extends past the current boundary |
 | Maturity-month pattern | Quarterly at the short end, January/July for 10-year, February for 30-year | quarterly ≤~2030, Jan/Jul ≤~2036, Feb 2040+ | Issuance calendar changes |
 | Longest issued maturity year | Maturity year of the longest-dated issued TIPS | 2056 | A new 30-year TIPS is issued |
+| Ladder’s last year, at most | Longest issued maturity year + 10, supporting a 40-year ladder (`maxLastYear`, `ladder-core.js`) | 2066 | A new 30-year TIPS is issued |
 | Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest outstanding maturity before the first gap year | Jul 2036 | The next pre-gap maturity is issued |
 
 `LOWEST_LOWER_BRACKET_YEAR` = 2032 *(floor of the holdings search range for [retained bracket excess](#retained-bracket-excess): only maturity years in `[LOWEST_LOWER_BRACKET_YEAR, minGapYear)` are considered. Matches `rebalance-lib.js`.)*

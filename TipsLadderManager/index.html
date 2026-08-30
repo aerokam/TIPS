@@ -701,7 +701,8 @@ import { buildTipsMapFromYields, localDate, runFundedRebalance, inferScaledDARAF
 // a holdings-valuation computation, architecturally decoupled from the runRebalance/
 // runFundedRebalance engine imported above. Never calls into it.
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, UPPER_BRACKET_YEAR, FUTURE30Y_COVER_YEARS } from './src/before-state-lib.js';
-import { runBuild, MAX_LAST_YEAR } from './src/build-lib.js';
+import { runBuild } from './src/build-lib.js';
+import { maxLastYear } from './src/ladder-core.js';
 import { renderTable, COLS } from './src/render.js';
 import { buildDrillHTML, buildDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill, buildGapYearDurationDrill, buildFuture30yYearDurationDrill, buildSyntheticPIDrill, buildSyntheticLMIDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
@@ -952,18 +953,18 @@ async function loadData() {
 
     const lastYearSel = document.getElementById('last-year');
     while (lastYearSel.options.length > 1) lastYearSel.remove(1);
-    for (let y = _bfsMinY; y <= MAX_LAST_YEAR; y++) {
+    for (let y = _bfsMinY, _maxLY = maxLastYear(_bfsMaxY); y <= _maxLY; y++) {
       const opt = document.createElement('option'); opt.value = y;
       opt.textContent = _bfsGapYears.has(y) ? `${y} (gap)` : y > _bfsMaxY ? `${y} (Future 30Y)` : String(y);
       lastYearSel.appendChild(opt);
     }
-    // 2056 = the last actual/coverable 30Y TIPS year (same assumption as the Future 30Y lower
-    // cover in ladder-core.js/rebalance-lib.js) — a real default, not an arbitrary year.
-    lastYearSel.value = _bfsYearSet.has(2056) ? 2056 : _bfsMaxY;
+    // The longest-dated issued TIPS maturity: the last year the ladder can hold a real bond in,
+    // and the same anchor the Future 30Y lower cover uses (ladder-core.js/rebalance-lib.js).
+    lastYearSel.value = _bfsMaxY;
 
     const firstYearSel = document.getElementById('first-year');
     while (firstYearSel.options.length > 1) firstYearSel.remove(1);
-    // Include gap years (2037–2039) so the user can start the ladder inside the gap block.
+    // Include gap years so the ladder can start inside the gap block.
     const _bfsFirstYearOptions = [...new Set([...bfsYears, ..._bfsGapYears])].sort((a, b) => a - b);
     _bfsFirstYearOptions.forEach(y => {
       const opt = document.createElement('option'); opt.value = y;
@@ -2701,7 +2702,7 @@ function updateRebalLastYearDropdown() {
 
   // Preserve current selection if valid, else use inferred default
   const _curVal = sel.value ? parseInt(sel.value, 10) : NaN;
-  const _maxDropY = Math.max(_maxTipsY, MAX_LAST_YEAR);
+  const _maxDropY = maxLastYear(_maxTipsY);
   const _selVal = (!isNaN(_curVal) && _curVal >= _firstY && _curVal <= _maxDropY) ? _curVal : _defaultLY;
 
   for (let y = _firstY; y <= _maxDropY; y++) {

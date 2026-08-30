@@ -5,7 +5,7 @@ import { bondCalcs, calculateMDuration, yieldFromPrice, calcMktWtdAvg } from '..
 import { indexRatio as calcIndexRatio } from '../../shared/src/ref-cpi.js';
 export { yieldFromPrice };
 import { interpolateYield, syntheticCoupon, bracketWeights, bracketWeightsN, excessAmdSchedule, gapParamsWithUpperFeedback, future30yParamsCore } from './gap-math.js';
-import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover, rmdCappedRemainingCoupons, latestRemainingCouponDate } from './ladder-core.js';
+import { sizeLadder, selectLadderBonds, fundedYearAmount, sizeFuture30yCover, rmdCappedRemainingCoupons, latestRemainingCouponDate, maxLastYear } from './ladder-core.js';
 import { localDate, fmtDate, fmtDateLong, toDateStr } from './date-util.js';
 import { rankForYear, levelValues } from './allocation-policy.js';
 import { parseCSVLine } from './broker-import.js';
@@ -266,7 +266,6 @@ export function inferFirstYearFromHoldings({ holdings, tipsMap, refCPI, settleme
 // derivation from the held maturity years in place. A simple excess/DARA ratio (as the gap uses) does NOT work
 // here: the 2052 cover is deep-discount and a long Future-30Y block carries a large LMI cascade.
 export function inferLastYearFromHoldings({ holdings, tipsMap, refCPI, settlementDate }) {
-  const MAX_LAST_YEAR = 2066;   // longest fundable Future-30Y rung (30Y TIPS issued Feb, max 10 past 2056)
   let cover2056 = null, cover2052 = null, maxTipsYear = 0;
   for (const b of tipsMap.values()) {
     if (!b.maturity) continue;
@@ -300,7 +299,7 @@ export function inferLastYearFromHoldings({ holdings, tipsMap, refCPI, settlemen
   const obsUW = (obsUp * cpb2052) / ((obsUp * cpb2052) + (obsLo * cpb2056));
   const NOMINAL_DARA = 100000;   // predicted upper weight is scale-invariant; any nominal DARA works
   let best = null;
-  for (let L = maxTipsYear + 1; L <= MAX_LAST_YEAR; L++) {
+  for (let L = maxTipsYear + 1, _maxL = maxLastYear(maxTipsYear); L <= _maxL; L++) {
     const years = [];
     for (let y = maxTipsYear + 1; y <= L; y++) years.push(y);
     const fp = future30yParamsCore({ future30yYears: years, coverBond2056: cover2056, settlementDate, dara: NOMINAL_DARA });
