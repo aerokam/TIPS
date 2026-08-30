@@ -309,7 +309,22 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 
 <a id="bracket-year"></a>
 ### Bracket Year
-`Bracket_Year` = *Existing TIPS maturity used to fund or bracket a Gap Year*
+`Bracket_Year` = *The maturity year whose excess TIPS contribute to matching the average duration of the [Gap Years](#gap-years).*
+
+<a id="bracket-maturity"></a>
+### Bracket Maturity
+`Bracket_Maturity` = *The TIPS actually holding a bracket’s excess, named by month and year. A [Bracket Year](#bracket-year) may hold both a January and a July maturity, so the year alone does not identify the holding, and anything reporting a bracket names the maturity.*
+
+<a id="bracket-weight"></a>
+### Bracket Weight
+`Bracket_Weight` = *The share of a missing block’s total cost carried by one bracket. The weights across a block’s brackets sum to 1 and are solved so that the weighted mean of the bracket modified durations equals the block’s average duration:*
+
+```
+Σ (bracketWeight_b × bracketDuration_b) = averageBlockDuration
+targetExcessCost_b = blockTotalCost × bracketWeight_b
+```
+
+*So a bracket’s weight is what turns the block’s total cost into that bracket’s target excess cost. Solved by `bracketWeights` / `bracketWeightsN` (`gap-math.js`); see 2.0 §2-Bracket Weights and §Retained Bracket Excess for the two- and N-leg forms.*
 
 <a id="outstanding-tips"></a>
 <a id="ladder-eligible-tips"></a>
@@ -319,6 +334,10 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 <a id="active-lower-bracket"></a>
 ### Active Lower Bracket
 `Active_Lower_Bracket` = *The latest-maturing [outstanding](#outstanding-tips) TIPS maturing before the first [Gap Year](#gap-years) — the only lower-side maturity a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower-side duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
+
+<a id="retained-lower-bracket"></a>
+### Retained Lower Bracket
+`Retained_Lower_Bracket` = *A lower-side [Bracket Maturity](#bracket-maturity) older than the [Active Lower Bracket](#active-lower-bracket), still held and still carrying part of the duration match. It was the active lower bracket at an earlier rebalance and kept its excess when a later maturity took that role. Named alongside the active lower bracket: **retained lower** and **active lower** are the two lower-side brackets, while the excess held in the retained one is [Retained Bracket Excess](#retained-bracket-excess) — the bracket is the maturity, the excess is the holding.*
 
 <a id="retained-bracket-excess"></a>
 ### Retained Bracket Excess

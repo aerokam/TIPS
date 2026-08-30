@@ -8,6 +8,21 @@ production impact go here.
 
 ## OPEN
 
+### Only one retained lower bracket maturity is identified from holdings
+
+- **Scope, pinned 2026-08-30.** `bracketWeightsN` (`gap-math.js`) already solves the duration
+  match for any number of retained legs — they enter as frozen inputs and only the active lower
+  and upper weights are solved. What stops at one generation is the code that works out *which*
+  holdings are retained, and the Gap Dur popup, which names a single retained lower bracket.
+- **The scenario is realistic, not hypothetical.** A ladder can hold excess at Jan 2034 from when
+  that was the active lower bracket, then add excess at Jan 2036 when that became active, and now
+  face Jul 2036 as the active lower bracket. Two retained lower maturities, one active.
+- **A bracket year is not a maturity.** A bracket year may hold both a January and a July
+  maturity, so identifying retained generations means identifying maturities, not years
+  (DD §Bracket Maturity). The popup now names every bracket by month and year for the same
+  reason.
+- **Status:** out of scope for now, deliberately. Nothing is wrong with the arithmetic when one
+  retained maturity is held, which is every case seen so far.
 ### The vocabulary for what a ladder does, and what happens to its cash flows
 
 - **Found:** 2026-08-28, reviewing the Available Cash help and 2.0 §Available Cash. Repeatedly, over

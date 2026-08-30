@@ -2151,3 +2151,26 @@ test('popup resize: west edge stops at the minimum width instead of sliding', as
   expect(Math.abs((after.x + after.width) - rightEdge)).toBeLessThan(3);
   expect(after.width).toBeGreaterThan(200);
 });
+
+// The Gap Dur popup names each bracket by the maturity holding its excess, not by the bracket year
+// alone: a bracket year can hold both a January and a July maturity (DD §Bracket Maturity). It also
+// uses the current vocabulary — active lower / retained lower, not the retired "new lower"/"orig
+// lower" (DD §Active Lower Bracket, §Retained Lower Bracket).
+test('Gap Dur popup: brackets are named by maturity, in current vocabulary', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('a.info-link-btn[data-popup="duration"]').click();
+  const popup = page.locator('#shared-popup');
+  await expect(popup).toBeVisible();
+
+  const text = await popup.innerText();
+  expect(text).toMatch(/active lower/i);
+  // Every bracket named on screen carries a month and a year, e.g. "Jul 2036".
+  expect(text).toMatch(/active lower:\s*[A-Z][a-z]{2}\s+\d{4}/i);
+  expect(text).toMatch(/upper:\s*[A-Z][a-z]{2}\s+\d{4}/i);
+  // Retired vocabulary must not come back.
+  expect(text).not.toMatch(/new lower/i);
+  expect(text).not.toMatch(/orig lower/i);
+});
