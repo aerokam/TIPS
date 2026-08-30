@@ -44,7 +44,7 @@ export function heldYearMedianExcluding(heldARAByYear, excludeYear) {
 }
 
 // The Active Lower Bracket (DATA_DICTIONARY.md §Active Lower Bracket; 3.0 §Bracket Identification
-// Rules): the latest-maturing ladder-eligible TIPS below minGapYear — the most recently issued
+// Rules): the latest-maturing outstanding TIPS below minGapYear — the most recently issued
 // 10-year. Computed from tipsMap only, the same search rebalance-lib.js's
 // `identifyBrackets`/`anchorBefore` use — holdings never consulted.
 export function getActiveLowerBracketYear(tipsMap) {

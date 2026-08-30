@@ -54,7 +54,7 @@ graph LR
 
 ### [1.0 Ladder Construction (Build Mode)](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md)
 The algorithm for building a new ladder from scratch.
-- **Inputs**: [DARA](../../knowledge/DATA_DICTIONARY.md#dara), Ladder Period, Current Market Yields.
+- **Inputs**: [DARA](../../knowledge/DATA_DICTIONARY.md#dara), First Year and Last Year, Current Market Yields.
 - **Key Constraints**: Longest-to-shortest construction, [Gap Year](../../knowledge/DATA_DICTIONARY.md#gap-years) handling via [Bracket Years](../../knowledge/DATA_DICTIONARY.md#bracket-year).
 
 ### [2.0 Ladder Rebalancing (Rebalance Mode)](../TipsLadderManager/knowledge/3.0_TIPS_Ladder_Rebalancing.md)

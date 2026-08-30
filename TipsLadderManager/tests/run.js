@@ -2291,7 +2291,7 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
 // ── Test: active lower bracket is the latest-maturing pre-gap TIPS, not the January one ──────
 // DATA_DICTIONARY.md §Active Lower Bracket / 2.0 §Synthetic TIPS for Gap Years: the lower-side
 // maturity a ladder buys and interpolates against is the most recently issued 10-year — the
-// latest-maturing ladder-eligible TIPS below the first gap year. Every pre-gap year carries both a
+// latest-maturing outstanding TIPS below the first gap year. Every pre-gap year carries both a
 // January and a July 10-year, so a rule that filtered to January silently picked the earlier of the
 // two: it chose Jan 2036 while Build put the rung and its bracket excess in Jul 2036, churning the
 // whole excess position on the next rebalance. The shared market-data fixture predates Jul 2036,

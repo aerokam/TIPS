@@ -248,8 +248,9 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 `TIPS_Ladder` = *A [Bond Ladder](#bond-ladder) built from TIPS, its targets and amounts stated in real terms: [DARA](#dara) and [ARA](#ara) take the place of [DAA](#daa) and [AA](#aa). Bond ladder is the generic term and carries no implication either way: a bond ladder may be built from nominal Treasuries or from TIPS. Specified in [2.0 TIPS Ladders](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md), which builds on 1.0.*
 
 <a id="ladder"></a>
+<a id="ladder-period"></a>
 ### Ladder
-`Ladder` = *[Bond Ladder](#bond-ladder), or [TIPS Ladder](#tips-ladder) in a TIPS context. A TIPS ladder is a subset of bond ladders.*
+`Ladder` = *[Bond Ladder](#bond-ladder), or [TIPS Ladder](#tips-ladder) in a TIPS context. A TIPS ladder is a subset of bond ladders. A ladder runs from its first year to its last year, so "in the ladder" states the range without a separate term for it.*
 
 <a id="maturity-year"></a>
 ### Maturity Year
@@ -257,15 +258,12 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 
 <a id="funded-year"></a>
 ### Funded Year
-`Funded_Year` = *A [Maturity Year](#maturity-year) for which a [DARA](#dara) is specified, and for which total cash flow is calculated. A maturity year lying inside the [Ladder Period](#ladder-period) with no DARA specified is a **missing rung**, the ladder analogy holding: the step is absent. Term adopted from tipsladder.com, so that users moving between the two applications meet the same one.*
+`Funded_Year` = *A [Maturity Year](#maturity-year) for which a [DARA](#dara) is specified, and for which total cash flow is calculated. A maturity year lying inside the [Ladder](#ladder) with no DARA specified is a **missing rung**, the ladder analogy holding: the step is absent. Term adopted from tipsladder.com, so that users moving between the two applications meet the same one.*
 
 <a id="rung"></a>
 ### Rung
 `Rung` = *Synonym for [Funded Year](#funded-year). From the ladder metaphor: each rung is one calendar year (1.0 Bond Ladders §Bond Ladder Concepts).*
 
-<a id="ladder-period"></a>
-### Ladder Period
-`Ladder_Period` = `First_Year + ... + Last_Year`
 
 <a id="daa"></a>
 ### DAA
@@ -292,28 +290,31 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 <a id="same-year-excess-interest"></a>
 ### Same-Year Excess Interest
 `Same_Year_Excess_Interest` = `Σ Annual_Interest_Real for bracket or cover excess TIPS maturing in Current_Year`
-*Bracket or cover excess TIPS ([Duration Matching](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets)) are ordinary held bonds — their coupon interest behaves exactly like any other TIPS's: interest paid in their own maturity year counts toward that year's Amount (this term, credited only to the year the excess bonds themselves mature), and it also continues flowing down into [LMI](#lmi) for every shorter-maturity year, same as any other coupon. Bracket excess (the lower/upper gap brackets) covers [Gap Years](#gap-years), where 10-year TIPS have not yet been issued; cover excess (the Future 30Y cover pair) covers [Future 30Y Rungs](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#future-30y-rungs-section), where 30-year TIPS have not yet been issued — the two block types are covered by different excess holdings and should not be conflated. Example: excess Feb 2056 TIPS held to cover Future 30Y Rungs (2057–2066) — their interest contributes to the 2056 funded year's Amount as Same-Year Excess Interest, reducing the 2056 rung's own quantity, and the same coupon also flows down as ordinary LMI to 2055, 2054, and every year below.*
+*Bracket or cover excess TIPS ([Duration Matching](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets)) are ordinary held bonds — their coupon interest behaves exactly like any other TIPS's: interest paid in their own maturity year counts toward that year's Amount (this term, credited only to the year the excess bonds themselves mature), and it also continues flowing down into [LMI](#lmi) for every shorter-maturity year, same as any other coupon. Bracket excess (the lower/upper gap brackets) covers [Gap Years](#gap-years), where 10-year TIPS have not yet been issued; cover excess (the Future 30Y cover pair) covers [Future 30Y Rungs](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#future-30y-rungs-section), where 30-year TIPS have not yet been issued — the two block types are covered by different excess holdings and should not be conflated. Example: excess TIPS held at the longest issued 30-year maturity, to cover the Future 30Y Rungs beyond it — their interest contributes to that maturity year's Amount as Same-Year Excess Interest, reducing its own rung's quantity, and the same coupon also flows down as ordinary LMI to every year below.*
 
 
 <a id="gap-years"></a>
 ### Gap Years
-`Gap_Years` = *Funded Years within the ladder period where no Treasury TIPS exist (currently 2037, 2038, 2039)*
+`Gap_Years` = *Years within the [Ladder](#ladder) for which no 10-year TIPS has yet been issued. The 10-year qualifier carries the definition: a ladder whose last year runs past the longest-dated issued 30-year TIPS also contains years with no issued TIPS, and those are Future 30Y Rungs rather than gap years, covered by different holdings.*
 
 <a id="synthetic-tips"></a>
 ### Synthetic TIPS
-`Synthetic_TIPS` = *Theoretical TIPS constructed for Gap Years. Yield interpolated from surrounding real maturities; index ratio = 1.0; price = 100.*
+`Synthetic_TIPS` = *A theoretical TIPS constructed for a [Gap Year](#gap-years), never purchased. Yield interpolated from the surrounding issued maturities; [Index Ratio](#index-ratio) taken as 1.00000; price computed from its own yield and coupon.*
+
+**The index ratio is an approximation.** A TIPS carries an index ratio of exactly 1.00000 on its [Dated Date](#dated-date), not on its issue date, and the two never coincide for a TIPS. A security modeled as issued today would therefore already be indexed by the days between them. 1.00000 is close enough for a rung that is never bought.
 
 <a id="bracket-year"></a>
 ### Bracket Year
 `Bracket_Year` = *Existing TIPS maturity used to fund or bracket a Gap Year*
 
+<a id="outstanding-tips"></a>
 <a id="ladder-eligible-tips"></a>
-### Ladder-Eligible TIPS
-`Ladder_Eligible_TIPS` = *A TIPS that has been **issued** and is tradable at the market-data source the ladder prices against. A TIPS is issued on the last trading day of the month in which it is auctioned; between auction and issuance it exists in reference data but cannot be bought, so it is excluded from ladder construction, rebalancing, and maturity selection. Eligibility is a property of the security, not of a mode — it applies identically to Build and Rebalance.*
+### Outstanding TIPS
+`Outstanding_TIPS` = *A TIPS that has been issued and has not yet matured. A TIPS is issued on the last trading day of the month in which it is auctioned; between auction and issuance it exists in reference data but cannot be bought, so it is not yet outstanding and takes no part in ladder construction, rebalancing, or maturity selection. This is a property of the security, not of a mode: it applies identically to Build and Rebalance.*
 
 <a id="active-lower-bracket"></a>
 ### Active Lower Bracket
-`Active_Lower_Bracket` = *The latest-maturing [ladder-eligible](#ladder-eligible-tips) TIPS maturing before the first [Gap Year](#gap-years) — the only lower-side maturity a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower-side duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
+`Active_Lower_Bracket` = *The latest-maturing [outstanding](#outstanding-tips) TIPS maturing before the first [Gap Year](#gap-years) — the only lower-side maturity a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower-side duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
 
 <a id="retained-bracket-excess"></a>
 ### Retained Bracket Excess
@@ -411,11 +412,11 @@ Some values are true only until Treasury issues more TIPS. Left inline as approx
 
 | Value | Rule | As of 2026-08-25 | Changes when |
 |---|---|---|---|
-| Gap years | Years in the ladder period with no issued TIPS | 2037, 2038, 2039 | A 10-year TIPS maturing in a gap year is issued |
+| Gap years | Years in the ladder with no issued 10-year TIPS | 2037, 2038, 2039 | A 10-year TIPS maturing in a gap year is issued |
 | Multi-maturity boundary | Years below it may hold more than one maturity month; at/above, 30-year February issues only | 2040 | 10-year issuance extends past the current boundary |
 | Maturity-month pattern | Quarterly at the short end, January/July for 10-year, February for 30-year | quarterly ≤~2030, Jan/Jul ≤~2036, Feb 2040+ | Issuance calendar changes |
 | Longest issued maturity year | Maturity year of the longest-dated issued TIPS | 2056 | A new 30-year TIPS is issued |
-| Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest ladder-eligible maturity before the first gap year | Jul 2036 | The next pre-gap maturity is issued |
+| Active lower bracket | [Active Lower Bracket](#active-lower-bracket) — latest outstanding maturity before the first gap year | Jul 2036 | The next pre-gap maturity is issued |
 
 `LOWEST_LOWER_BRACKET_YEAR` = 2032 *(floor of the holdings search range for [retained bracket excess](#retained-bracket-excess): only maturity years in `[LOWEST_LOWER_BRACKET_YEAR, minGapYear)` are considered. Matches `rebalance-lib.js`.)*
 `REFCPI_CUSIP` = "912810FD5" *(3.625% TIPS, issued 1998, matures 2028-04-15)* — CUSIP used to pull the authoritative daily Ref CPI from TreasuryDirect ([E2](#e2)).

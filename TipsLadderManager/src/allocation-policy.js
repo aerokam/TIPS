@@ -5,7 +5,7 @@
 // entirely untouched by this module; it is never called for a bracket year.
 
 // Returns an ordered array of { cusip, held } over the union of `candidates` (that year's
-// canonical yearTipsListMap[year] entries -- ladder-eligible TIPS for the year, from
+// canonical yearTipsListMap[year] entries -- outstanding TIPS for the year, from
 // selectLadderBonds/maturityPref) and `held` (that year's currently-held holdings, which may
 // include maturities no longer in `candidates`), highest buy/hold-priority first.
 //

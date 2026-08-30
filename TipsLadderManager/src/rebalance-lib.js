@@ -1044,7 +1044,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         }
       }
     }
-    if (!newLowerCUSIP) throw new Error('3-bracket: no ladder-eligible TIPS found before gap year ' + minGapYear);
+    if (!newLowerCUSIP) throw new Error('3-bracket: no outstanding TIPS found before gap year ' + minGapYear);
     const _nlBond = tipsMap.get(newLowerCUSIP);
     newLowerDuration = calculateMDuration(settlementDate, newLowerMaturity, _nlBond?.coupon ?? 0, _nlBond?.yield ?? 0);
     // When orig lower and new lower resolve to the same year, 3-bracket is a no-op:
