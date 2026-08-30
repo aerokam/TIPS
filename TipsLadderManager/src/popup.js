@@ -165,10 +165,20 @@ function _makeInstance(id, zIndex) {
 const primary   = _makeInstance('shared-popup', 400);
 const secondary = _makeInstance('shared-popup-l3', 401); // renders above primary when both are open
 
+// A drag or resize that starts on a popup and ends past its edge still fires a click, and that
+// click’s target is the nearest common ancestor of press and release — the document body. That
+// reads as an outside click and would close the popup mid-resize, so where the press started is
+// what decides, not where it ended.
+let _pressStartedInside = false;
+document.addEventListener('mousedown', e => {
+  _pressStartedInside = primary.el.contains(e.target) || secondary.el.contains(e.target);
+}, true);
+
 // Outside-click closes an instance, but a click landing in the *other* instance never counts
 // as "outside" — so clicking inside the nested (secondary) popup never closes the primary one
 // it drilled down from, and vice versa.
 document.addEventListener('click', e => {
+  if (_pressStartedInside) { _pressStartedInside = false; return; }
   if (secondary.el.style.display !== 'none' && !secondary.el.contains(e.target)
       && !primary.el.contains(e.target) && e.target !== secondary.openAnchor) secondary.hide();
   if (primary.el.style.display !== 'none' && !primary.el.contains(e.target)

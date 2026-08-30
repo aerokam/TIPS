@@ -2097,3 +2097,57 @@ test('build: Cash Flow Calendar shows the built ladder, not leftover Rebalance h
   }
   expect(Math.max(...totals)).toBeGreaterThan(30_000);
 });
+
+// ── Modal frame: resizing a popup ────────────────────────────────────────────
+// A resize drag that ends past the popup's own edge releases over the document body. The click
+// that follows targets the common ancestor of press and release, so an outside-click close that
+// looks at the release target closes the popup mid-resize. It has to look at the press instead.
+test('popup resize: dragging the east edge widens the popup and does not close it', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('a.info-link-btn[data-popup="duration"]').click();
+  const popup = page.locator('#shared-popup');
+  await expect(popup).toBeVisible();
+
+  const before = await popup.boundingBox();
+  const handle = popup.locator('.resize-handle.e');
+  await handle.hover();
+  await page.mouse.down();
+  // Well past the right edge, so the release lands on the body rather than on the popup.
+  await page.mouse.move(before.x + before.width + 260, before.y + before.height / 2, { steps: 12 });
+  await page.mouse.up();
+
+  await expect(popup).toBeVisible();
+  const after = await popup.boundingBox();
+  expect(after.width).toBeGreaterThan(before.width + 100);
+  // The west edge must not have moved: an east drag resizes, it does not slide the popup.
+  expect(Math.abs(after.x - before.x)).toBeLessThan(2);
+});
+
+// Dragging the west edge inward past the minimum width must stop, not slide the popup across the
+// screen: the east edge stays where it is once the width clamps.
+test('popup resize: west edge stops at the minimum width instead of sliding', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('a.info-link-btn[data-popup="duration"]').click();
+  const popup = page.locator('#shared-popup');
+  await expect(popup).toBeVisible();
+
+  const before = await popup.boundingBox();
+  const rightEdge = before.x + before.width;
+  const handle = popup.locator('.resize-handle.w');
+  await handle.hover();
+  await page.mouse.down();
+  // Far past the minimum width (260px), so the clamp is definitely reached.
+  await page.mouse.move(rightEdge - 40, before.y + before.height / 2, { steps: 12 });
+  await page.mouse.up();
+
+  await expect(popup).toBeVisible();
+  const after = await popup.boundingBox();
+  expect(Math.abs((after.x + after.width) - rightEdge)).toBeLessThan(3);
+  expect(after.width).toBeGreaterThan(200);
+});
