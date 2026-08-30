@@ -214,10 +214,14 @@ export function gapParamsCore({ gapYears, tipsMap, settlementDate, dara, daraByY
 
   // gapLMITotal "adds back" every income source used to size gap quantities down (laterMatInt + pli + amd).
   const gapLMITotal = breakdown.reduce((s, g) => s + g.laterMatInt + g.pliCredit + g.amd, 0);
-  // Cost-weighted avg duration (Σ qty·dur / Σ qty); fall back to simple mean when no synthetic qty exists.
-  const _qtySum = breakdown.reduce((s, g) => s + g.qty, 0);
-  const avgDuration = _qtySum > 0
-    ? breakdown.reduce((s, g) => s + g.qty * g.dur, 0) / _qtySum
+  // Cost-weighted average duration (2.0 §Average Block Duration is Cost-Weighted): each synthetic
+  // gap-year TIPS is weighted by what it would cost, qty × costPerBond. Not by quantity — the
+  // synthetics price near par but not at it, so the two differ, and they differ more as the
+  // per-year DARA varies across the gap years. Simple mean only when there is no quantity to
+  // weight by.
+  const _costSum = breakdown.reduce((s, g) => s + g.cost, 0);
+  const avgDuration = _costSum > 0
+    ? breakdown.reduce((s, g) => s + g.cost * g.dur, 0) / _costSum
     : (count > 0 ? totalDuration / count : 0);
   return { avgDuration, totalCost, breakdown, gapLMITotal, anchors: { before: anchorBefore, after: anchorAfter } };
 }
@@ -302,10 +306,11 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
     runningLMI += qty * 1000 * synCoupon;
     future30yTotalCost += cost;
   }
-  // Cost-weighted avg duration so the per-rung 2052 cover decomposition sums exactly to the block excess.
-  const _qtySum = breakdown.reduce((s, b) => s + b.qty, 0);
-  const avgDuration = _qtySum > 0
-    ? breakdown.reduce((s, b) => s + b.qty * b.dur, 0) / _qtySum
+  // Cost-weighted average duration, the same rule as the gap block (2.0 §Average Block Duration
+  // is Cost-Weighted): each hypothetical rung weighted by qty × costPerBond.
+  const _costSum = breakdown.reduce((s, b) => s + b.cost, 0);
+  const avgDuration = _costSum > 0
+    ? breakdown.reduce((s, b) => s + b.cost * b.dur, 0) / _costSum
     : (future30yYears.length > 0 ? totalDuration / future30yYears.length : 0);
   return { avgDuration, future30yTotalCost, breakdown, future30ySeedLMI: runningLMI, anchorBond: coverBond2056 };
 }

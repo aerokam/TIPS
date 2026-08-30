@@ -2408,5 +2408,30 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
   }
 }
 // ── Summary ───────────────────────────────────────────────────────────────────
+// ── Gap average duration is cost-weighted ───────────────────────────────────
+// 2.0 §Average Block Duration is Cost-Weighted. The two existing avgDuration assertions compare
+// the bracket blend against avgDuration itself, so they move with it and cannot see the
+// weighting change. This recomputes the expected value from qty and costPerBond independently,
+// and asserts the engine is not returning the quantity-weighted figure — which only differs
+// measurably once per-year DARA varies across the gap years, hence the deliberate spread.
+console.log('\nGap average duration — cost-weighted');
+{
+  const _d = new Map();
+  for (let y = 2026; y <= 2047; y++) _d.set(y, 40000);
+  _d.set(2037, 15000); _d.set(2039, 90000);
+  const { summary: _s } = runBuild({ dara: 40000, lastYear: 2047, tipsMap, refCPI, settlementDate, daraByYear: _d });
+  const _bd = _s.gapParams.breakdown;
+  const _costSum = _bd.reduce((a, g) => a + g.qty * g.costPerBond, 0);
+  const _byCost  = _bd.reduce((a, g) => a + g.qty * g.costPerBond * g.dur, 0) / _costSum;
+  const _byQty   = _bd.reduce((a, g) => a + g.qty * g.dur, 0) / _bd.reduce((a, g) => a + g.qty, 0);
+  assert('gap avg duration equals the cost-weighted mean', _s.gapParams.avgDuration, _byCost, 1e-12);
+  assert('cost and quantity weighting differ here (else this proves nothing)',
+    Math.abs(_byCost - _byQty) > 1e-5, true);
+  assert('cost weighting is not the simple mean either',
+    Math.abs(_byCost - _bd.reduce((a, g) => a + g.dur, 0) / _bd.length) > 1e-3, true);
+  console.log('        cost-wtd ' + _byCost.toFixed(6) + '   qty-wtd ' + _byQty.toFixed(6)
+    + '   simple ' + (_bd.reduce((a, g) => a + g.dur, 0) / _bd.length).toFixed(6));
+}
+
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

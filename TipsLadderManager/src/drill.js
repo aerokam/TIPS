@@ -845,20 +845,31 @@ export function buildDurationPopupRows(summary, mode) {
   const avg = gapParams.avgDuration;
 
   const rows = [
-    { label: 'Gap average modified duration', value: avg.toFixed(2) },
+    { label: 'Weighted average duration of synthetic gap year TIPS', value: avg.toFixed(2) },
     { sep: true },
   ];
 
   if (gapParams.breakdown?.length) {
-    rows.push({ heading: 'Gap Year Modified Durations' });
-    const durSum = gapParams.breakdown.reduce((s, b) => s + (b.dur ?? 0), 0);
+    rows.push({ heading: 'Synthetic Gap Year TIPS' });
+    // Each synthetic matures January 15 (2.0 §Synthetic TIPS for Gap Years, gap-math.js), and the
+    // average below is cost-weighted, so each row carries the cost that weights it: quantity times
+    // cost per bond. Without those the weighted figure cannot be checked against the rows.
+    const costSum = gapParams.breakdown.reduce((s, b) => s + (b.cost ?? 0), 0);
     gapParams.breakdown.forEach(b => {
+      const yr = b.year + ' (Jan 15)';
       const label = b.durDetail
-        ? '<span class="drill-l3" data-l3="gapdur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + b.year + ' (Feb 15)</span>'
-        : b.year + ' (Feb 15)';
-      rows.push({ label, value: b.dur != null ? b.dur.toFixed(2) : '\u2014' });
+        ? '<span class="drill-l3" data-l3="gapdur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + yr + '</span>'
+        : yr;
+      const note = b.qty != null && b.costPerBond != null
+        ? b.qty.toLocaleString() + ' \u00d7 ' + fd(b.costPerBond, 2) + ' = ' + fd(b.cost, 0) + ' cost'
+        : undefined;
+      rows.push({ label, note, value: b.dur != null ? b.dur.toFixed(2) : '\u2014' });
     });
-    rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + gapParams.breakdown.length + ')', value: avg.toFixed(2), total: true });
+    rows.push({
+      label: 'Weighted by cost',
+      note: '\u03a3(cost \u00d7 duration) \u00f7 ' + fd(costSum, 0),
+      value: avg.toFixed(2), total: true,
+    });
     rows.push({ sep: true });
   }
 
