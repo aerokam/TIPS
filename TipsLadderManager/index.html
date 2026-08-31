@@ -291,7 +291,7 @@
       <li><a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/5.0_UI_Schema.md#trade-ticket" target="_blank" style="color:#2563eb;text-decoration:none;"><b>Trade Ticket</b></a> lists the buys and sells the rebalance recommends, with cost and accrued interest per CUSIP.</li>
       <li><a href="../knowledge/viewer.html#/md/TipsLadderManager/knowledge/5.0_UI_Schema.md#cash-flow-calendar" target="_blank" style="color:#2563eb;text-decoration:none;"><b>Cash Flow</b></a> shows when your held TIPS actually pay you, and how much, by date.</li>
       <li><b>Gap Dur</b> (and <b>Future 30Y Dur</b>, once the ladder extends past 2056) shows the duration match with your ladder's own numbers.</li>
-      <li><b>Avg Mod Dur</b> shows the market-value-weighted breakdown behind the portfolio figure: each holding's own modified duration and market value, and the total.</li>
+      <li><b>Avg Mod Dur</b>, <b>Avg Yld</b>, and <b>Avg SA Yld</b> each show the market-value-weighted breakdown behind the portfolio figure: every holding's own value and market value, and the total.</li>
       <li><b>Export → Ladder CSV / CUSIP/Qty</b> become available (the latter is re-importable for your next rebalance).</li>
     </ul>
 
@@ -336,7 +336,7 @@
     <p><b>4. Click Build Ladder.</b> The app runs the build calculations and populates the table with each year's Quantity, Cost, and Amount, plus <b>Total Cost</b> for the full ladder.</p>
     <ul style="margin:0 0 10px 20px;padding:0">
       <li><b>Gap Dur</b> (and <b>Future 30Y Dur</b>, once the ladder extends past 2056) shows the duration match with your ladder's own numbers.</li>
-      <li><b>Avg Mod Dur</b> shows the market-value-weighted breakdown behind the portfolio figure: each holding's own modified duration and market value, and the total.</li>
+      <li><b>Avg Mod Dur</b>, <b>Avg Yld</b>, and <b>Avg SA Yld</b> each show the market-value-weighted breakdown behind the portfolio figure: every holding's own value and market value, and the total.</li>
       <li><b>Export → Ladder CSV / CUSIP/Qty</b> become available (the latter is re-importable into Rebalance).</li>
     </ul>
 
@@ -637,8 +637,8 @@
     </div>
     <!-- Row 4: post-run stats (Avg Yld / Avg SA Yld / Avg Mod Dur / Net Cash-Total Cost), side by side -->
     <div class="card-inputs" id="ladder-stats-display" style="display:none;margin-top:4px;flex-direction:row;gap:16px;align-items:center">
-      <span id="avg-yld-display" class="info-stat">Avg Yld <span id="avg-yld-val" class="info-stat-val"></span></span>
-      <span id="avg-sa-yld-display" class="info-stat">Avg SA Yld <span id="avg-sa-yld-val" class="info-stat-val"></span></span>
+      <span id="avg-yld-display" class="info-stat"><a class="info-link" data-popup="avgYld">Avg Yld</a> <span id="avg-yld-val" class="info-stat-val"></span></span>
+      <span id="avg-sa-yld-display" class="info-stat"><a class="info-link" data-popup="avgSaYld">Avg SA Yld</a> <span id="avg-sa-yld-val" class="info-stat-val"></span></span>
       <span id="wad-display" class="info-stat"><a class="info-link" data-popup="wad">Avg Mod Dur</a> <span id="wad-val" class="info-stat-val"></span></span>
       <div id="net-cash-inline">
         <span class="nc-label" id="nc-label">Net Cash</span>
@@ -706,7 +706,7 @@ import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, UPPER_
 import { runBuild } from './src/build-lib.js';
 import { maxLastYear } from './src/ladder-core.js';
 import { renderTable, COLS } from './src/render.js';
-import { buildDrillHTML, buildDurationPopupRows, buildWeightedDurationPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill, buildGapYearDurationDrill, buildFuture30yYearDurationDrill, buildSyntheticPIDrill, buildSyntheticLMIDrill } from './src/drill.js';
+import { buildDrillHTML, buildDurationPopupRows, buildWeightedDurationPopupRows, buildWeightedYieldPopupRows, buildWeightedSaYieldPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill, buildGapYearDurationDrill, buildFuture30yYearDurationDrill, buildSyntheticPIDrill, buildSyntheticLMIDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
 import { rankForYear } from './src/allocation-policy.js';
@@ -2588,9 +2588,13 @@ function _renderWAD(wad, way, waySa, details) {
     document.getElementById('avg-yld-val').textContent = way ? (way * 100).toFixed(2) + '%' : '—';
     document.getElementById('avg-sa-yld-val').textContent = waySa ? (waySa * 100).toFixed(2) + '%' : '—';
     _infoPopups.wad = details ? buildWeightedDurationPopupRows(details, wad) : null;
+    _infoPopups.avgYld = (details && way) ? buildWeightedYieldPopupRows(details, way) : null;
+    _infoPopups.avgSaYld = (details && waySa) ? buildWeightedSaYieldPopupRows(details, waySa) : null;
     wrap.style.display = 'flex';
   } else {
     _infoPopups.wad = null;
+    _infoPopups.avgYld = null;
+    _infoPopups.avgSaYld = null;
     wrap.style.display = 'none';
   }
 }

@@ -837,30 +837,43 @@ function renderDurationBeam(buckets, avgDur) {
     + '</div>';
 }
 
-// Portfolio Avg Mod Dur popup (4.0 §Weighted Modified Duration): each holding's own modified
-// duration (from its own market yield), weighted by market value. `details` carries `mktValue`
-// (single source, set alongside `mDuration` in build-lib.js / rebalance-lib.js) so this popup
-// can never drift from the number `wad` itself was computed from.
-export function buildWeightedDurationPopupRows(details, wad) {
+// Portfolio Avg Mod Dur / Avg Yld / Avg SA Yld popups (4.0 §Weighted Modified Duration): each
+// holding's own value (modified duration, or yield/SA yield from market data), weighted by market
+// value. `details` carries `mktValue` (single source, set alongside `mDuration`/`yield`/`saYield`
+// in build-lib.js / rebalance-lib.js) so no popup can ever drift from the number it explains.
+function _weightedAvgPopupRows(details, avg, { field, quantityLabel, fmtValue }) {
   const held = details.filter(d => d.mktValue > 0).sort((a, b) => a.fundedYear - b.fundedYear);
   if (held.length === 0) return [{ label: 'No holdings', total: true }];
   const mvSum = held.reduce((s, d) => s + d.mktValue, 0);
 
   const rows = [{ heading: 'Holdings' }];
   held.forEach(d => {
+    const v = d[field];
     rows.push({
       label: d.fundedYear + ' · ' + d.cusip,
       note: d.maturityStr + ' — ' + fm(d.mktValue) + ' MV',
-      value: d.mDuration != null ? d.mDuration.toFixed(2) : '—',
+      value: v != null ? fmtValue(v) : '—',
     });
   });
   rows.push(
     { sep: true },
     { label: 'Weighted by market value',
-      note: 'Σ(MV × Mod Dur) ÷ ' + fm(mvSum) + ' total MV',
-      value: wad.toFixed(2), total: true },
+      note: 'Σ(MV × ' + quantityLabel + ') ÷ ' + fm(mvSum) + ' total MV',
+      value: fmtValue(avg), total: true },
   );
   return rows;
+}
+
+export function buildWeightedDurationPopupRows(details, wad) {
+  return _weightedAvgPopupRows(details, wad, { field: 'mDuration', quantityLabel: 'Mod Dur', fmtValue: v => v.toFixed(2) });
+}
+
+export function buildWeightedYieldPopupRows(details, way) {
+  return _weightedAvgPopupRows(details, way, { field: 'yield', quantityLabel: 'Yield', fmtValue: v => (v * 100).toFixed(2) + '%' });
+}
+
+export function buildWeightedSaYieldPopupRows(details, waySa) {
+  return _weightedAvgPopupRows(details, waySa, { field: 'saYield', quantityLabel: 'SA Yield', fmtValue: v => (v * 100).toFixed(2) + '%' });
 }
 
 export function buildDurationPopupRows(summary, mode) {
