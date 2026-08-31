@@ -123,7 +123,14 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
   // durations. `feasible` stays as a signal for the degenerate inputs (coincident durations, dGap
   // outside the bracket span, or a floor too high for even zero retained to satisfy).
   const feasible = wAct >= floor - 1e-9 && wUp >= -1e-9;
-  return { retainedWeights: w, activeWeight: wAct, upperWeight: wUp, feasible, sold };
+  // Which condition blocked the solve, so a caller can say what happened rather than re-deriving
+  // the same three tests. Coincident durations report even when the weights come back inside
+  // their bounds, because the even split does not reproduce dGap.
+  const reason = degenerate ? 'coincidentDurations'
+    : feasible ? null
+    : wUp < -1e-9 ? 'upperWeightNegative'
+    : 'activeBelowFloor';
+  return { retainedWeights: w, activeWeight: wAct, upperWeight: wUp, feasible, reason, sold };
 }
 
 // ─── Bracket excess quantities ────────────────────────────────────────────────

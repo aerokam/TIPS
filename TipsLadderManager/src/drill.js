@@ -925,16 +925,31 @@ export function buildDurationPopupRows(summary, mode) {
     rows.push({ sep: true });
   }
 
+  // The row every branch ends on: the check that defines Bracket Weight (DATA_DICTIONARY
+  // §Bracket Weight) — the cost-weighted mean of the bracket year durations equals the average
+  // duration of the gap years. The mean is computed from the weights and durations shown rather
+  // than restated as `avg`, so a solve that does not reach the average shows it here.
+  const matchRow = (ws, ds) => {
+    const terms = ws.map((w, i) => w.toFixed(4) + '  \u00d7  ' + ds[i].toFixed(2)).join('   +   ');
+    const mean  = ws.reduce((s, w, i) => s + w * ds[i], 0);
+    const wSum  = ws.reduce((s, w) => s + w, 0);
+    return {
+      label: hov('The bracket weights sum to ' + wSum.toFixed(4) + ', and are solved so that this mean equals'
+               + ' the average duration of the gap years, ' + avg.toFixed(2) + '.',
+               'Cost-weighted mean of the bracket year durations'),
+      note: terms, value: mean.toFixed(2), total: true,
+    };
+  };
+
   const buckets = [];
   if (is3) {
     const { newLowerYear, newLowerDuration, origLowerWeight, newLowerWeight3 } = summary;
     const activeLabel = _my(summary.newLowerMaturity) ?? String(newLowerYear);
     const w1 = (origLowerWeight ?? 0), w2 = (newLowerWeight3 ?? 0), w3 = (summary.upperWeight3 ?? summary.upperWeight ?? 0);
-    const fellBack = !!summary.bracketFellBack3to2;
-    // bracketWeightsN (gap-math.js): retained leg (orig lower) is frozen at held excess/total
-    // cost; if the block is over-allocated it is sold down only as far as the duration match
-    // requires (earliest leg first, clamped to [0, currently held]) \u2014 never depleted outright
-    // when a partial sale would restore the match. Only active (new) lower and upper are solved
+    // bracketWeightsN (gap-math.js): the retained lower bracket is frozen at held excess/total
+    // cost; if the lower side is over-allocated it is sold down only as far as the duration match
+    // requires (earliest first, clamped to [0, currently held]) \u2014 never depleted outright
+    // when a partial sale would restore the match. Only the active lower and upper are solved
     // from the duration constraint, so this note must track that formula exactly.
     const upperFml = '((avg dur \u2212 retained\u00d7retained dur) \u2212 (1\u2212retained)\u00d7active lower dur)'
       + ' \u00f7 (upper dur \u2212 active lower dur)';
@@ -952,16 +967,21 @@ export function buildDurationPopupRows(summary, mode) {
                'upper: ' + upperLabel),
         value: dv(upperDuration, w3) }
     );
-    buckets.push({ dur: lowerDuration, weight: w1, label: String(lowerYear) });
-    buckets.push({ dur: newLowerDuration, weight: w2, label: String(newLowerYear) });
-    buckets.push({ dur: upperDuration, weight: w3, label: String(upperYear) });
+    buckets.push({ dur: lowerDuration, weight: w1, label: lowerLabel });
+    buckets.push({ dur: newLowerDuration, weight: w2, label: activeLabel });
+    buckets.push({ dur: upperDuration, weight: w3, label: upperLabel });
 
-    const match = w1.toFixed(4) + ' \u00d7 ' + lowerDuration.toFixed(2)
-                + ' + ' + w2.toFixed(4) + ' \u00d7 ' + newLowerDuration.toFixed(2)
-                + ' + ' + w3.toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2)
-                + ' = ' + avg.toFixed(2);
-    rows.push({ sep: true }, { label: 'Modified duration match', note: match, total: true });
-    if (fellBack) rows.push({ sep: true }, { label: 'Degenerate inputs', note: 'Bracket durations coincide, or the gap average falls outside the active-lower/upper span \u2014 the duration match has no ordinary solution.' });
+    rows.push({ sep: true }, matchRow([w1, w2, w3], [lowerDuration, newLowerDuration, upperDuration]));
+
+    // bracketWeightsN reports which condition blocked the solve; each is a different thing to tell
+    // the reader, and only the first leaves the mean above short of the gap average.
+    const solveNote = {
+      coincidentDurations: 'The active lower and upper bracket durations coincide, so the weight left after the retained lower bracket was split evenly between the two rather than solved. The mean above does not reach the average duration of the gap years.',
+      upperWeightNegative: 'The duration match solves to a negative upper bracket weight: the average duration of the gap years is shorter than the retained and active lower brackets alone produce.',
+      activeBelowFloor:    'The retained lower bracket has been sold down as far as the lower-side priority rule allows, and the duration match still calls for less excess in the active lower bracket than it currently holds.',
+    }[summary.bracketSolveReason];
+    if (solveNote) rows.push({ html:
+      '<div style="font-size:11px;color:#334155;line-height:1.6;padding:2px 0 0;">' + solveNote + '</div>' });
 
   } else if (lowerYear == null) {
     // No lower bracket (firstYear is inside the gap \u2014 all coverage on upper bracket alone)
@@ -972,8 +992,7 @@ export function buildDurationPopupRows(summary, mode) {
         value: upperDuration.toFixed(2) + '  \u00b7  ' + (upperWeight ?? 1).toFixed(4) }
     );
     buckets.push({ dur: upperDuration, weight: upperWeight ?? 1, label: upperLabel });
-    const match = '0.0000 \u00d7 n/a + ' + (upperWeight ?? 1).toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2) + ' = ' + avg.toFixed(2);
-    rows.push({ sep: true }, { label: 'Modified duration match', note: match, total: true });
+    rows.push({ sep: true }, matchRow([upperWeight ?? 1], [upperDuration]));
   } else {
     const wFml = 'active lower = (upper dur \u2212 avg dur) \u00f7 (upper dur \u2212 active lower dur)';
     const dv2 = (d, w) => d.toFixed(2) + '  \u00b7  ' + w.toFixed(4);
@@ -989,10 +1008,7 @@ export function buildDurationPopupRows(summary, mode) {
     buckets.push({ dur: lowerDuration, weight: lowerWeight, label: lowerLabel });
     buckets.push({ dur: upperDuration, weight: upperWeight, label: upperLabel });
 
-    const match = lowerWeight.toFixed(4) + ' \u00d7 ' + lowerDuration.toFixed(2)
-                + ' + ' + upperWeight.toFixed(4) + ' \u00d7 ' + upperDuration.toFixed(2)
-                + ' = ' + avg.toFixed(2);
-    rows.push({ sep: true }, { label: 'Modified duration match', note: match, total: true });
+    rows.push({ sep: true }, matchRow([lowerWeight, upperWeight], [lowerDuration, upperDuration]));
   }
 
   rows.push(

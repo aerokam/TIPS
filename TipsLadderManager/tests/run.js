@@ -8,6 +8,7 @@ import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, in
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { remainingCouponPaymentsThisYear, rmdCappedRemainingCoupons, latestRemainingCouponDate } from '../src/ladder-core.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
+import { buildDurationPopupRows } from '../src/drill.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
@@ -2431,6 +2432,37 @@ console.log('\nGap average duration — cost-weighted');
     Math.abs(_byCost - _bd.reduce((a, g) => a + g.dur, 0) / _bd.length) > 1e-3, true);
   console.log('        cost-wtd ' + _byCost.toFixed(6) + '   qty-wtd ' + _byQty.toFixed(6)
     + '   simple ' + (_bd.reduce((a, g) => a + g.dur, 0) / _bd.length).toFixed(6));
+}
+
+console.log('\nGap Dur popup — the duration match row is computed, not restated');
+{
+  // The row asserted the gap average rather than working the weights out, so any solve that did
+  // not reach the average still displayed as if it had. Feed weights that miss the average on
+  // purpose and check the row shows what they actually produce.
+  const _dara = 20000;
+  const { details: _bD } = runBuild({ dara: _dara, lastYear: 2057, tipsMap, refCPI, settlementDate });
+  const _holdings = _bD.map(d => ({ cusip: d.cusip, qty: d.fundedYearQty + d.excessQty, excessQty: d.excessQty }))
+                       .filter(h => h.qty > 0);
+  const { summary: _s } = runRebalance({ dara: _dara, bracketMode: '2bracket', holdings: _holdings, tipsMap, refCPI, settlementDate });
+  const _rowOf = s => buildDurationPopupRows(s, 'rebal')
+    .find(r => typeof r.label === 'string' && r.label.includes('Cost-weighted mean of the bracket year durations'));
+
+  const _real = _rowOf(_s);
+  assert('duration match row is present', !!_real, true);
+  assert('solved weights reproduce the gap average', _real.value, _s.gapParams.avgDuration.toFixed(2));
+
+  const _off = { ..._s, lowerWeight: 0.25, upperWeight: 0.75 };
+  const _expected = 0.25 * _s.lowerDuration + 0.75 * _s.upperDuration;
+  assert('weights that miss the average show the mean they produce',
+    _rowOf(_off).value, _expected.toFixed(2));
+  assert('and that mean is not the gap average (else this proves nothing)',
+    _expected.toFixed(2) !== _s.gapParams.avgDuration.toFixed(2), true);
+
+  // The upper-bracket-only branch used to print a "0.0000 × n/a" term with no meaning.
+  const _upperOnly = { ..._s, brackets: { ..._s.brackets, lowerYear: null } };
+  const _u = _rowOf(_upperOnly);
+  assert('upper-only branch carries a single term', _u.note.includes('+'), false);
+  assert('upper-only branch has no n/a factor',     _u.note.includes('n/a'), false);
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
