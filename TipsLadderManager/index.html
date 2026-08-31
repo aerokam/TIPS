@@ -279,7 +279,7 @@
 
     <p><b>4. Verify or modify ladder parameters.</b></p>
     <ul style="margin:0 0 10px 20px;padding:0">
-      <li><b>Brackets</b>: <i>2-bracket</i> sells the excess held in a retained lower bracket; <i>3-bracket</i> (default) keeps it instead, selling it only if the lower brackets become over-covered — oldest first, only as much as needed, never bought back.</li>
+      <li><b>Brackets</b>: <i>2-bracket</i> sells the excess held in a retained lower bracket; <i>Multi-bracket</i> (default) keeps it instead, selling it only if the lower brackets become over-covered — oldest first, only as much as needed, never bought back.</li>
       <li><b>Pre-ladder int.</b>: check Include to credit coupon income received before the ladder starts against the earliest funded years.</li>
       <li><b>Maturity preference</b>: which TIPS fill each funded year — <i>Last to mature</i> (default), <i>First to mature</i>, <i>Semiannual (Jan + Jul)</i>, <i>All maturity months</i>, or <i>Select maturities…</i>.</li>
       <li><b>Allocation policy</b>: which candidate a rebalance actually trades, whenever more than one qualifies — <i>Equal split</i>, <i>Maturity order</i>, <i>SA-Yield order</i>, or <i>Set priority order…</i>.</li>
@@ -588,7 +588,7 @@
         <div style="display:flex;align-items:center;gap:4px">
           <select id="bracket-mode">
             <option value="2bracket">2-bracket</option>
-            <option value="3bracket" selected>3-bracket</option>
+            <option value="3bracket" selected>Multi-bracket</option>
           </select>
           <button id="bracket-mode-help" style="background:none;border:1px solid #64748b;border-radius:50%;width:16px;height:16px;font-size:10px;color:#64748b;cursor:pointer;padding:0;line-height:1;flex-shrink:0" title="Bracket mode help">?</button>
         </div>
@@ -912,7 +912,7 @@ document.getElementById('bracket-mode-help').addEventListener('click', e => {
     { heading: '2-bracket' },
     { html: '<b>Active lower bracket:</b> the most recently issued 10-year TIPS, whether it falls in January or July.<br>Excess held in any older lower bracket is sold, and the whole lower weight moves to the active lower bracket.' },
     { sep: true },
-    { heading: '3-bracket (default)' },
+    { heading: 'Multi-bracket (default)' },
     { html: 'Excess is held in both the active lower bracket and the retained lower bracket, a maturity used as the lower bracket at an earlier time. The two are managed by a priority rule:<br><b>Over-allocated:</b> sell from the retained lower bracket, and only as much as restoring the duration match requires. The active lower bracket is sold only if the retained one is fully depleted and the lower brackets are still over target.<br><b>Under-allocated:</b> buy the active lower bracket. The retained lower bracket is frozen at the excess it already holds and is never bought back into.<br>A bracket year need not be a funded year: one whose DARA is 0 holds excess TIPS alone, and the same rule applies to it.<br><i>Note:</i> reloading an exported ladder can produce a small follow-up trade of at most about one bond, a whole-bond rounding artifact of the partial-sell target.' },
   ]);
 });
