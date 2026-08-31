@@ -38,10 +38,11 @@ function coverageAmtRows(label, grossPI, lmiAdd, finalAmt) {
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// Attaches a formula, and the arithmetic behind it, to whatever names the figure: the popup reads
-// at a glance and the derivation is one hover away.
-function hov(title, inner) {
-  return '<span title="' + title + '" style="border-bottom:1px dotted #94a3b8;cursor:help">' + inner + '</span>';
+// A bracket row links to its own weight drill rather than carrying hover text: the nested popup
+// is draggable, resizable, and its content can be selected and copied (5.0 §Nested (Level-3)
+// drills).
+function wtLink(which, inner) {
+  return '<span class="drill-l3" data-l3="bracketwt-' + which + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + inner + '</span>';
 }
 
 function bondVarRows(d, nPeriods, principalPerBond, couponPct) {
@@ -876,19 +877,131 @@ export function buildWeightedSaYieldPopupRows(details, waySa) {
   return _weightedAvgPopupRows(details, waySa, { field: 'saYield', quantityLabel: 'SA Yield', fmtValue: v => (v * 100).toFixed(2) + '%' });
 }
 
+// Brackets are named by the maturity actually holding their excess, not by the year alone
+// (DD Bracket Year TIPS). Shared so the weight drill and the popup that links to it agree.
+function bracketLabels(summary, mode) {
+  const lowerYear = mode === 'rebal' ? summary.brackets?.lowerYear : summary.lowerYear;
+  const upperYear = mode === 'rebal' ? summary.brackets?.upperYear : summary.upperYear;
+  const _my = d => (d ? MONTHS[d.getMonth()] + ' ' + d.getFullYear() : null);
+  return {
+    lowerYear, upperYear,
+    lowerLabel: mode === 'build' ? summary.lowerMonth + ' ' + lowerYear
+      : (_my(summary.brackets?.lowerMaturity) ?? String(lowerYear)),
+    upperLabel: mode === 'build' ? summary.upperMonth + ' ' + upperYear
+      : (_my(summary.brackets?.upperMaturity) ?? String(upperYear)),
+    activeLabel: _my(summary.newLowerMaturity) ?? String(summary.newLowerYear),
+  };
+}
+
+// Level-3 drill for one bracket weight, opened from a bracket row in the Gap Dur popup
+// (5.0 §Nested (Level-3) drills, key `bracketwt-<which>`). Every term is named in full so the
+// formula reads without a legend: a weight says weight, a duration says duration, and each names
+// the bracket it belongs to. Values appear at the precision the popup shows them at, so the
+// substitution can be checked against the rows it came from.
+export function buildBracketWeightDrill(summary, mode, which) {
+  const { lowerLabel, upperLabel, activeLabel } = bracketLabels(summary, mode);
+  const is3  = mode === 'rebal' && summary.bracketMode === '3bracket' && summary.newLowerCUSIP;
+  const avg  = summary.gapParams?.avgDuration ?? 0;
+  const dRet = summary.lowerDuration ?? 0;
+  const dAct = is3 ? (summary.newLowerDuration ?? 0) : (summary.lowerDuration ?? 0);
+  const dUp  = summary.upperDuration ?? 0;
+  const wRet = is3 ? (summary.origLowerWeight ?? 0) : 0;
+  const wAct = is3 ? (summary.newLowerWeight3 ?? 0) : (summary.lowerWeight ?? 0);
+  const wUp  = is3 ? (summary.upperWeight3 ?? summary.upperWeight ?? 0) : (summary.upperWeight ?? 0);
+
+  const f2 = v => v.toFixed(2), f4 = v => v.toFixed(4);
+  const fml = s => ({ html:
+    '<div style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;'
+    + 'line-height:1.7;white-space:pre-wrap;color:#1e293b;">' + s + '</div>' });
+  const DEF = 'The share of the gap years’ total cost carried by one bracket year. The weights '
+    + 'across the bracket years sum to 1, solved so that the cost-weighted mean of the bracket year '
+    + 'durations equals the average duration of the gap years. Durations here are modified durations.';
+
+  const rows = [{ prose: DEF }, { sep: true }];
+
+  if (which === 'retained') {
+    rows.push({ heading: 'Formula' });
+    rows.push(fml('retained lower bracket weight =\n'
+      + '    excess already held in the retained lower bracket\n'
+      + '    ÷ gap years’ total cost'));
+    rows.push({ sep: true }, { heading: 'This ladder' });
+    rows.push({ label: 'Retained lower bracket', value: lowerLabel });
+    rows.push({ label: 'Gap years’ total cost',
+                value: '$' + Math.round(summary.gapParams?.totalCost ?? 0).toLocaleString() });
+    rows.push({ sep: true });
+    rows.push({ label: 'Retained lower bracket weight', value: f4(wRet), total: true });
+    rows.push({ sep: true });
+    rows.push({ prose: 'A rebalance never increases this weight. It is reduced only as far as '
+      + 'restoring the duration match requires, oldest maturity first.' });
+    return rows;
+  }
+
+  if (which === 'active') {
+    rows.push({ heading: 'Formula' });
+    if (is3) {
+      rows.push(fml('active lower bracket weight =\n'
+        + '    (1 − retained lower bracket weight) − upper bracket weight'));
+      rows.push({ sep: true }, { heading: 'This ladder' });
+      rows.push({ label: 'Active lower bracket', value: activeLabel });
+      rows.push({ label: 'Retained lower bracket weight', value: f4(wRet) });
+      rows.push({ label: 'Upper bracket weight', value: f4(wUp) });
+      rows.push({ sep: true }, { heading: 'Substituted' });
+      rows.push(fml('(1 − ' + f4(wRet) + ') − ' + f4(wUp)));
+    } else {
+      rows.push(fml('active lower bracket weight =\n'
+        + '    (upper bracket duration − average gap year duration)\n'
+        + '    ÷ (upper bracket duration − active lower bracket duration)'));
+      rows.push({ sep: true }, { heading: 'This ladder' });
+      rows.push({ label: 'Active lower bracket', value: lowerLabel });
+      rows.push({ label: 'Average gap year duration', value: f2(avg) });
+      rows.push({ label: 'Active lower bracket duration', value: f2(dAct) });
+      rows.push({ label: 'Upper bracket duration', value: f2(dUp) });
+      rows.push({ sep: true }, { heading: 'Substituted' });
+      rows.push(fml('(' + f2(dUp) + ' − ' + f2(avg) + ')'
+        + ' ÷ (' + f2(dUp) + ' − ' + f2(dAct) + ')'));
+    }
+    rows.push({ sep: true });
+    rows.push({ label: 'Active lower bracket weight', value: f4(wAct), total: true });
+    return rows;
+  }
+
+  rows.push({ heading: 'Formula' });
+  if (is3) {
+    rows.push(fml('upper bracket weight =\n'
+      + '    (average gap year duration\n'
+      + '       − retained lower bracket weight × retained lower bracket duration\n'
+      + '       − (1 − retained lower bracket weight) × active lower bracket duration)\n'
+      + '    ÷ (upper bracket duration − active lower bracket duration)'));
+    rows.push({ sep: true }, { heading: 'This ladder' });
+    rows.push({ label: 'Upper bracket', value: upperLabel });
+    rows.push({ label: 'Average gap year duration', value: f2(avg) });
+    rows.push({ label: 'Retained lower bracket weight', value: f4(wRet) });
+    rows.push({ label: 'Retained lower bracket duration', value: f2(dRet) });
+    rows.push({ label: 'Active lower bracket duration', value: f2(dAct) });
+    rows.push({ label: 'Upper bracket duration', value: f2(dUp) });
+    rows.push({ sep: true }, { heading: 'Substituted' });
+    rows.push(fml('(' + f2(avg) + '\n'
+      + '   − ' + f4(wRet) + ' × ' + f2(dRet) + '\n'
+      + '   − (1 − ' + f4(wRet) + ') × ' + f2(dAct) + ')\n'
+      + '÷ (' + f2(dUp) + ' − ' + f2(dAct) + ')'));
+  } else {
+    rows.push(fml('upper bracket weight = 1 − active lower bracket weight'));
+    rows.push({ sep: true }, { heading: 'This ladder' });
+    rows.push({ label: 'Upper bracket', value: upperLabel });
+    rows.push({ label: 'Active lower bracket weight', value: f4(wAct) });
+    rows.push({ sep: true }, { heading: 'Substituted' });
+    rows.push(fml('1 − ' + f4(wAct)));
+  }
+  rows.push({ sep: true });
+  rows.push({ label: 'Upper bracket weight', value: f4(wUp), total: true });
+  return rows;
+}
+
 export function buildDurationPopupRows(summary, mode) {
   if (mode === 'rebal' && (!summary.gapYears || summary.gapYears.length === 0)) {
     return [{ label: 'No gap years', note: 'Bracket duration matching not applicable for this ladder', total: true }];
   }
-  const lowerYear  = mode === 'rebal' ? summary.brackets.lowerYear  : summary.lowerYear;
-  const upperYear  = mode === 'rebal' ? summary.brackets.upperYear  : summary.upperYear;
-  // A bracket year can hold both a January and a July maturity, so every bracket is named by
-  // the maturity actually holding its excess, not by the year alone (DD Bracket Maturity).
-  const _my = d => (d ? MONTHS[d.getMonth()] + ' ' + d.getFullYear() : null);
-  const lowerLabel = mode === 'build' ? summary.lowerMonth + ' ' + lowerYear
-    : (_my(summary.brackets?.lowerMaturity) ?? String(lowerYear));
-  const upperLabel = mode === 'build' ? summary.upperMonth + ' ' + upperYear
-    : (_my(summary.brackets?.upperMaturity) ?? String(upperYear));
+  const { lowerYear, upperYear, lowerLabel, upperLabel } = bracketLabels(summary, mode);
   
   const { lowerDuration, upperDuration, lowerWeight, upperWeight, gapParams } = summary;
   const is3 = mode === 'rebal' && summary.bracketMode === '3bracket' && summary.newLowerCUSIP;
@@ -917,9 +1030,9 @@ export function buildDurationPopupRows(summary, mode) {
     });
     rows.push({
       label: 'Weighted by cost',
-      // The divisor is the figure the bracket popup already calls Gap total cost. Name it on
-      // hover rather than leaving a bare number standing in the formula.
-      note: '\u03a3(cost \u00d7 duration) \u00f7 <span title="Gap total cost: the sum of the cost figures above" style="border-bottom:1px dotted #94a3b8;cursor:help">' + fd(costSum, 0) + '</span>',
+      // The divisor is the gap years' total cost; name it in the note rather than leave a bare
+      // number standing in the formula.
+      note: 'Σ(cost × duration) ÷ gap years’ total cost (' + fd(costSum, 0) + ')',
       value: avg.toFixed(2), total: true,
     });
     rows.push({ sep: true });
@@ -929,49 +1042,46 @@ export function buildDurationPopupRows(summary, mode) {
   // §Bracket Weight) — the cost-weighted mean of the bracket year durations equals the average
   // duration of the gap years. The mean is computed from the weights and durations shown rather
   // than restated as `avg`, so a solve that does not reach the average shows it here.
-  const matchRow = (ws, ds) => {
+  const matchRows = (ws, ds) => {
     const terms = ws.map((w, i) => w.toFixed(4) + '  \u00d7  ' + ds[i].toFixed(2)).join('   +   ');
     const mean  = ws.reduce((s, w, i) => s + w * ds[i], 0);
     const wSum  = ws.reduce((s, w) => s + w, 0);
-    return {
-      label: hov('The bracket weights sum to ' + wSum.toFixed(4) + ', and are solved so that this mean equals'
-               + ' the average duration of the gap years, ' + avg.toFixed(2) + '.',
-               'Cost-weighted mean of the bracket year durations'),
-      note: terms, value: mean.toFixed(2), total: true,
-    };
+    return [
+      {
+        label: 'Cost-weighted mean of the bracket year durations',
+        note: terms, value: mean.toFixed(2), total: true,
+      },
+      { prose: 'The bracket weights sum to ' + wSum.toFixed(4) + ', and are solved so that this mean'
+          + ' equals the average duration of the gap years, ' + avg.toFixed(2) + '.' },
+    ];
   };
 
   const buckets = [];
   if (is3) {
     const { newLowerYear, newLowerDuration, origLowerWeight, newLowerWeight3 } = summary;
-    const activeLabel = _my(summary.newLowerMaturity) ?? String(newLowerYear);
+    const { activeLabel } = bracketLabels(summary, mode);
     const w1 = (origLowerWeight ?? 0), w2 = (newLowerWeight3 ?? 0), w3 = (summary.upperWeight3 ?? summary.upperWeight ?? 0);
     // bracketWeightsN (gap-math.js): the retained lower bracket is frozen at held excess/total
     // cost; if the lower brackets are over-allocated it is sold down only as far as the duration match
     // requires (earliest first, clamped to [0, currently held]) \u2014 never depleted outright
     // when a partial sale would restore the match. Only the active lower and upper are solved
     // from the duration constraint, so this note must track that formula exactly.
-    const upperFml = '((avg dur \u2212 retained\u00d7retained dur) \u2212 (1\u2212retained)\u00d7active lower dur)'
-      + ' \u00f7 (upper dur \u2212 active lower dur)';
 
     const dv = (d, w) => d.toFixed(2) + '  \u00b7  ' + w.toFixed(4);
     rows.push({ heading: 'Bracket Years (modified duration \u00b7 weight)' });
     rows.push(
-      { label: hov('retained lower = held excess \u00f7 gap total cost. Frozen: never increased, and sold down only as far as the duration match requires.',
-               'retained lower: ' + lowerLabel),
+      { label: wtLink('retained', 'retained lower: ' + lowerLabel),
         value: dv(lowerDuration, w1) },
-      { label: hov('active lower = (1 \u2212 retained) \u2212 upper = (1 \u2212 ' + w1.toFixed(4) + ') \u2212 ' + w3.toFixed(4) + ' = ' + w2.toFixed(4),
-               'active lower: ' + activeLabel),
+      { label: wtLink('active', 'active lower: ' + activeLabel),
         value: dv(newLowerDuration, w2) },
-      { label: hov('upper = ' + upperFml + '  =  ((' + avg.toFixed(2) + ' \u2212 ' + w1.toFixed(4) + '\u00d7' + lowerDuration.toFixed(2) + ') \u2212 (1\u2212' + w1.toFixed(4) + ')\u00d7' + newLowerDuration.toFixed(2) + ') \u00f7 (' + upperDuration.toFixed(2) + ' \u2212 ' + newLowerDuration.toFixed(2) + ') = ' + w3.toFixed(4),
-               'upper: ' + upperLabel),
+      { label: wtLink('upper', 'upper: ' + upperLabel),
         value: dv(upperDuration, w3) }
     );
     buckets.push({ dur: lowerDuration, weight: w1, label: lowerLabel });
     buckets.push({ dur: newLowerDuration, weight: w2, label: activeLabel });
     buckets.push({ dur: upperDuration, weight: w3, label: upperLabel });
 
-    rows.push({ sep: true }, matchRow([w1, w2, w3], [lowerDuration, newLowerDuration, upperDuration]));
+    rows.push({ sep: true }, ...matchRows([w1, w2, w3], [lowerDuration, newLowerDuration, upperDuration]));
 
     // bracketWeightsN reports which condition blocked the solve; each is a different thing to tell
     // the reader, and only the first leaves the mean above short of the gap average.
@@ -992,23 +1102,20 @@ export function buildDurationPopupRows(summary, mode) {
         value: upperDuration.toFixed(2) + '  \u00b7  ' + (upperWeight ?? 1).toFixed(4) }
     );
     buckets.push({ dur: upperDuration, weight: upperWeight ?? 1, label: upperLabel });
-    rows.push({ sep: true }, matchRow([upperWeight ?? 1], [upperDuration]));
+    rows.push({ sep: true }, ...matchRows([upperWeight ?? 1], [upperDuration]));
   } else {
-    const wFml = 'active lower = (upper dur \u2212 avg dur) \u00f7 (upper dur \u2212 active lower dur)';
     const dv2 = (d, w) => d.toFixed(2) + '  \u00b7  ' + w.toFixed(4);
     rows.push({ heading: 'Bracket Years (modified duration \u00b7 weight)' });
     rows.push(
-      { label: hov(wFml + '  =  (' + upperDuration.toFixed(2) + ' \u2212 ' + avg.toFixed(2) + ') \u00f7 (' + upperDuration.toFixed(2) + ' \u2212 ' + lowerDuration.toFixed(2) + ') = ' + lowerWeight.toFixed(4),
-               'active lower: ' + lowerLabel),
+      { label: wtLink('active', 'active lower: ' + lowerLabel),
         value: dv2(lowerDuration, lowerWeight) },
-      { label: hov('upper = 1 \u2212 active lower = 1 \u2212 ' + lowerWeight.toFixed(4) + ' = ' + upperWeight.toFixed(4),
-               'upper: ' + upperLabel),
+      { label: wtLink('upper', 'upper: ' + upperLabel),
         value: dv2(upperDuration, upperWeight) }
     );
     buckets.push({ dur: lowerDuration, weight: lowerWeight, label: lowerLabel });
     buckets.push({ dur: upperDuration, weight: upperWeight, label: upperLabel });
 
-    rows.push({ sep: true }, matchRow([lowerWeight, upperWeight], [lowerDuration, upperDuration]));
+    rows.push({ sep: true }, ...matchRows([lowerWeight, upperWeight], [lowerDuration, upperDuration]));
   }
 
   rows.push(

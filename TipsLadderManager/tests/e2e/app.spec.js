@@ -2174,3 +2174,33 @@ test('Gap Dur popup: brackets are named by maturity, in current vocabulary', asy
   expect(text).not.toMatch(/new lower/i);
   expect(text).not.toMatch(/orig lower/i);
 });
+
+test('Gap Dur popup: a bracket weight opens a nested popup, not hover text', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('a.info-link-btn[data-popup="duration"]').click();
+  const popup = page.locator('#shared-popup');
+  await expect(popup).toBeVisible();
+
+  // No formula is reachable only by hovering: hover text cannot be moved, resized, or copied.
+  // (The duration balance graphic keeps a plain label tooltip; a formula is what must not hide.)
+  const OPS = '[title*="÷"], [title*="×"]';
+  expect(await popup.locator(OPS).count()).toBe(0);
+
+  const link = popup.locator('.drill-l3[data-l3^="bracketwt-"]').first();
+  await expect(link).toBeVisible();
+  await link.click();
+
+  const nested = page.locator('#shared-popup-l3');
+  await expect(nested).toBeVisible();
+  await expect(popup).toBeVisible();          // the popup drilled from stays open
+
+  const text = await nested.innerText();
+  expect(text).toMatch(/bracket weight/i);
+  // Every term names what it is: a weight says weight, a duration says duration.
+  expect(text).toMatch(/lower bracket weight/i);
+  expect(text).not.toMatch(/\bavg dur\b/i);
+  expect(text).not.toMatch(/\bretained dur\b/i);
+});

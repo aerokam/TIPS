@@ -706,7 +706,7 @@ import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding, UPPER_
 import { runBuild } from './src/build-lib.js';
 import { maxLastYear } from './src/ladder-core.js';
 import { renderTable, COLS } from './src/render.js';
-import { buildDrillHTML, buildDurationPopupRows, buildWeightedDurationPopupRows, buildWeightedYieldPopupRows, buildWeightedSaYieldPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill, buildGapYearDurationDrill, buildFuture30yYearDurationDrill, buildSyntheticPIDrill, buildSyntheticLMIDrill } from './src/drill.js';
+import { buildDrillHTML, buildDurationPopupRows, buildWeightedDurationPopupRows, buildWeightedYieldPopupRows, buildWeightedSaYieldPopupRows, buildFuture30yDurationPopupRows, buildIndexRatioDrill, buildRefCpiDrill, buildPIPerBondDrill, buildPreLadderPoolDrill, buildTradeTicketCostDrill, buildTradeTicketAccruedDrill, buildTradeTicketTotalDrill, buildCashFlowDateDrill, buildCashFlowEventDrill, buildGapYearDurationDrill, buildFuture30yYearDurationDrill, buildBracketWeightDrill, buildSyntheticPIDrill, buildSyntheticLMIDrill } from './src/drill.js';
 import { showPopup, hidePopup } from './src/popup.js';
 import { makeDraggableResizable } from './src/modal.js';
 import { rankForYear } from './src/allocation-policy.js';
@@ -4203,6 +4203,12 @@ document.addEventListener('click', e => {
       const credit = key.startsWith('plcpool:') ? (parseFloat(key.slice(8)) || 0) : (d?.preLadderCreditForYear || 0);
       const rows = buildPreLadderPoolDrill(summary, credit);
       showPopup(drillL3, 'Pre-ladder pool composition', rows);
+    } else if (key.startsWith('bracketwt-')) {
+      const which = key.slice(10);
+      const summary = currentMode === 'build' ? buildSummary : rebalSummary;
+      const titles = { retained: 'retained lower', active: 'active lower', upper: 'upper' };
+      showPopup(drillL3, 'Bracket Weight · ' + titles[which],
+        buildBracketWeightDrill(summary, currentMode, which), 'Gap Dur');
     } else if (key.startsWith('gapdur-')) {
       const year = parseInt(key.slice(7), 10);
       const summary = currentMode === 'build' ? buildSummary : rebalSummary;
