@@ -313,8 +313,8 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
     runningLMI += qty * 1000 * synCoupon;
     future30yTotalCost += cost;
   }
-  // Cost-weighted average duration, the same rule as the gap block (2.0 §Average Block Duration
-  // is Cost-Weighted): each hypothetical rung weighted by qty × costPerBond.
+  // Cost-weighted average duration, the same rule as the gap years (2.0 §Average Gap Year
+  // Duration is Cost-Weighted): each hypothetical rung weighted by qty × costPerBond.
   const _costSum = breakdown.reduce((s, b) => s + b.cost, 0);
   const avgDuration = _costSum > 0
     ? breakdown.reduce((s, b) => s + b.cost * b.dur, 0) / _costSum

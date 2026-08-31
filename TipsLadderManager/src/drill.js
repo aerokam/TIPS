@@ -1160,7 +1160,7 @@ export function buildSyntheticPIDrill(summary, year) {
 // Level-3 drill for the LMI of one synthetic Gap-year TIPS (5.0 §Nested (Level-3) drills,
 // key `gaplmi-<year>`). Splits the year's LMI into synthetic coupon from longer gap years already
 // sized in this sweep (each reconstructable from `gapParams.breakdown`, itself drillable via
-// `gapdur-<year>`) and coupon from actual TIPS maturing above the gap block (funded years, bracket
+// `gapdur-<year>`) and coupon from TIPS maturing after 2039 (funded years, bracket
 // excess) — the latter only available as a lump sum since gap-math.js doesn't retain a per-source
 // breakdown of `lmiAboveByYear`.
 export function buildSyntheticLMIDrill(summary, year) {
@@ -1179,7 +1179,7 @@ export function buildSyntheticLMIDrill(summary, year) {
     rows.push({ label: 'Subtotal', value: '$' + Math.round(fromSynthetic).toLocaleString(), total: true });
     rows.push({ sep: true });
   }
-  rows.push({ label: 'Coupon interest from actual TIPS maturing above the gap', note: 'funded years and bracket excess above the gap block', value: '$' + Math.round(fromActual).toLocaleString() });
+  rows.push({ label: 'Coupon interest from TIPS maturing after 2039', value: '$' + Math.round(fromActual).toLocaleString() });
   rows.push({ sep: true });
   rows.push({ label: 'Later Maturity Interest (LMI)', value: '$' + Math.round(g.laterMatInt).toLocaleString(), total: true });
   return rows;

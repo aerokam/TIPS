@@ -966,7 +966,7 @@ async function loadData() {
 
     const firstYearSel = document.getElementById('first-year');
     while (firstYearSel.options.length > 1) firstYearSel.remove(1);
-    // Include gap years so the ladder can start inside the gap block.
+    // Include gap years so the ladder can start inside the gap years.
     const _bfsFirstYearOptions = [...new Set([...bfsYears, ..._bfsGapYears])].sort((a, b) => a - b);
     _bfsFirstYearOptions.forEach(y => {
       const opt = document.createElement('option'); opt.value = y;
