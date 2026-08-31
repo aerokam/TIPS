@@ -279,7 +279,7 @@
 
     <p><b>4. Verify or modify ladder parameters.</b></p>
     <ul style="margin:0 0 10px 20px;padding:0">
-      <li><b>Brackets</b>: <i>2-bracket</i> sells an older lower-bracket holding's excess and rebuilds it to funded-year quantity only; <i>3-bracket</i> (default) retains that excess instead, selling it only if the lower side becomes over-covered — oldest first, only as much as needed, never bought back.</li>
+      <li><b>Brackets</b>: <i>2-bracket</i> sells the excess held in a retained lower bracket; <i>3-bracket</i> (default) keeps it instead, selling it only if the lower brackets become over-covered — oldest first, only as much as needed, never bought back.</li>
       <li><b>Pre-ladder int.</b>: check Include to credit coupon income received before the ladder starts against the earliest funded years.</li>
       <li><b>Maturity preference</b>: which TIPS fill each funded year — <i>Last to mature</i> (default), <i>First to mature</i>, <i>Semiannual (Jan + Jul)</i>, <i>All maturity months</i>, or <i>Select maturities…</i>.</li>
       <li><b>Allocation policy</b>: which candidate a rebalance actually trades, whenever more than one qualifies — <i>Equal split</i>, <i>Maturity order</i>, <i>SA-Yield order</i>, or <i>Set priority order…</i>.</li>
@@ -910,10 +910,10 @@ document.getElementById('bracket-mode-help').addEventListener('click', e => {
   e.stopPropagation();
   showPopup(e.currentTarget, 'Bracket Mode', [
     { heading: '2-bracket' },
-    { html: '<b>Lower bracket:</b> always the most recently issued 10-year TIPS before the gap — the latest maturity available in the market quotes, whether it falls in January or July.<br>Any older lower bracket holdings become regular funded years: their excess is sold and the bracket role moves to that latest maturity.' },
+    { html: '<b>Active lower bracket:</b> the most recently issued 10-year TIPS, whether it falls in January or July.<br>Excess held in any older lower bracket is sold, and the whole lower weight moves to the active lower bracket.' },
     { sep: true },
     { heading: '3-bracket (default)' },
-    { html: 'Lower bracket excess is kept in both the older maturity and the current one, managed with a priority rule:<br><b>Over-allocated:</b> sell only as much of the older excess as restoring the duration match requires (a partial sale, not a full one, unless the match still needs more); sell from the current lower bracket only if the older maturity is fully depleted and still over target.<br><b>Under-allocated:</b> buy the current lower bracket; the older maturity is frozen at its current excess and never increased or bought back.<br>Applies where an older lower bracket holding is to be retained until the duration match requires a sale.<br><i>Note:</i> reloading an exported ladder can produce a small follow-up trade of at most about one bond, a whole-bond rounding artifact of the partial-sell target.' },
+    { html: 'Excess is held in both the active lower bracket and the retained lower bracket, a maturity used as the lower bracket at an earlier time. The two are managed by a priority rule:<br><b>Over-allocated:</b> sell from the retained lower bracket, and only as much as restoring the duration match requires. The active lower bracket is sold only if the retained one is fully depleted and the lower brackets are still over target.<br><b>Under-allocated:</b> buy the active lower bracket. The retained lower bracket is frozen at the excess it already holds and is never bought back into.<br>A bracket year need not be a funded year: one whose DARA is 0 holds excess TIPS alone, and the same rule applies to it.<br><i>Note:</i> reloading an exported ladder can produce a small follow-up trade of at most about one bond, a whole-bond rounding artifact of the partial-sell target.' },
   ]);
 });
 document.getElementById('help-close').addEventListener('click', () => {

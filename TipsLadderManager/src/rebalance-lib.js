@@ -1110,11 +1110,11 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
   const bracketExcessTargetCost = {};
   if (gapYears.length > 0) {
     if (is3Bracket) {
-      // Retained lower-side maturities are frozen at the excess already held and enter the
+      // Retained lower brackets are frozen at the excess already held and enter the
       // duration solve at their OWN duration; only the active lower bracket and the upper
       // bracket are solved. Pricing retained excess at the ACTIVE bracket's duration (as this
       // did from 463b07a) leaves the block under-matched, because an older maturity is shorter.
-      // Spec 2.0 §Retained Bracket Excess; 3.0 §Lower-side priority rule.
+      // Spec 2.0 §Retained Bracket Excess; 3.0 §Lower bracket priority rule.
       const _excessCostOf = (year, cusip) => {
         const b   = tipsMap.get(cusip);
         const cpb = (b?.price ?? 0) / 100 * calcIndexRatio(refCPI, b?.datedDateRefCpi ?? refCPI) * 1000;
@@ -1122,7 +1122,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         return Math.max(0, (h?.qty ?? 0) - (bracketTargetFundedYearQtyBefore[year] ?? 0)) * cpb;
       };
 
-      // Retained = lower-side bracket maturities older than the active one, OLDEST FIRST
+      // Retained = lower brackets older than the active one, OLDEST FIRST
       // (the order the solver depletes them in when the match is otherwise unsolvable).
       const retainedList = [
         { year: brackets.lowerYear, cusip: brackets.lowerCUSIP, duration: lowerDuration },
@@ -1131,11 +1131,11 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         .sort((a, b) => a.year - b.year)
         .map(r => ({ ...r, excessCost: _excessCostOf(r.year, r.cusip) }));
 
-      // The active lower bracket is "the only lower-side maturity a rebalance buys"
+      // The active lower bracket is "the only lower bracket a rebalance buys"
       // (DATA_DICTIONARY §Active Lower Bracket) — it is never sold to make room for an older,
       // already-retained leg. Floor the duration solve at whatever excess it currently holds, so a
       // retained leg large/short enough to otherwise squeeze the active leg toward (or below) zero
-      // gets sold down further instead (3.0 §Lower-side priority rule; the sell-oldest-first branch
+      // gets sold down further instead (3.0 §Lower bracket priority rule; the sell-oldest-first branch
       // now triggers on "would shrink active below its current holding", not just "solves negative").
       const activeFloorCost = _excessCostOf(newLowerYear, newLowerCUSIP);
       const activeFloorWeight = gapParams.totalCost > 0 ? activeFloorCost / gapParams.totalCost : 0;
@@ -1149,7 +1149,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         activeFloorWeight,
       });
 
-      // lowerWeight now carries the ACTIVE bracket's own share, not the whole lower side, so
+      // lowerWeight now carries the ACTIVE bracket's own share, not both lower brackets, so
       // retained + active + upper sum to exactly 1 (they previously double-counted the retained
       // share in the gap-LMI allocation below).
       lowerWeight = wN.activeWeight; upperWeight = wN.upperWeight; upperWeight3 = wN.upperWeight;

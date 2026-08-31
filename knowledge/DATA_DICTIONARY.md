@@ -350,15 +350,15 @@ excessCost_b = gap total cost × bracketWeight_b
 
 <a id="active-lower-bracket"></a>
 ### Active Lower Bracket
-`Active_Lower_Bracket` = *The latest-maturing [outstanding](#outstanding-tips) TIPS maturing before the first [Gap Year](#gap-years) — the only lower-side maturity a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower-side duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
+`Active_Lower_Bracket` = *The most recently issued 10-year TIPS — the only [Bracket Maturity](#bracket-maturity) below the [Gap Years](#gap-years) a rebalance will **buy**. It absorbs whatever gap coverage the [Retained Bracket Excess](#retained-bracket-excess) does not supply, and it is the maturity used for lower bracket duration matching. Stated as a rule rather than a value because it advances as new TIPS are issued: it is whichever maturity currently satisfies the rule, not a fixed CUSIP or month.*
 
 <a id="retained-lower-bracket"></a>
 ### Retained Lower Bracket
-`Retained_Lower_Bracket` = *A lower-side [Bracket Maturity](#bracket-maturity) older than the [Active Lower Bracket](#active-lower-bracket), still held and still carrying part of the duration match. It was the active lower bracket at an earlier rebalance and kept its excess when a later maturity took that role. Named alongside the active lower bracket: **retained lower** and **active lower** are the two lower-side brackets, while the excess held in the retained one is [Retained Bracket Excess](#retained-bracket-excess) — the bracket is the maturity, the excess is the holding.*
+`Retained_Lower_Bracket` = *A [Bracket Maturity](#bracket-maturity) below the [Gap Years](#gap-years) older than the [Active Lower Bracket](#active-lower-bracket), still held and still carrying part of the duration match. It was used as the lower bracket at an earlier time and kept its excess when a later maturity took that role. Named alongside the active lower bracket: **retained lower** and **active lower** are the two lower brackets, while the excess held in the retained one is [Retained Bracket Excess](#retained-bracket-excess) — the bracket is the maturity, the excess is the holding.*
 
 <a id="retained-bracket-excess"></a>
 ### Retained Bracket Excess
-`Retained_Bracket_Excess` = *Excess held in a lower-bracket maturity older than the [Active Lower Bracket](#active-lower-bracket), carried forward from an earlier rebalance when that maturity was itself active. A rebalance **never increases** it. It is sold **only** when total lower-side excess exceeds the duration-matched target, **oldest maturity first**, and only until the overage is absorbed. Any number of older maturities may accumulate as successive maturities become active — the count is not fixed, so the structure is never named by how many brackets it contains.*
+`Retained_Bracket_Excess` = *Excess held in a [Bracket Maturity](#bracket-maturity) older than the [Active Lower Bracket](#active-lower-bracket), carried forward from a time when that maturity was itself the lower bracket. A rebalance **never increases** it. It is sold **only** when total lower bracket excess exceeds the duration-matched target, **oldest maturity first**, and only until the overage is absorbed. Any number of older maturities may accumulate as successive maturities become active — the count is not fixed, so the structure is never named by how many brackets it contains.*
 
 <a id="available-cash"></a>
 ### Available Cash

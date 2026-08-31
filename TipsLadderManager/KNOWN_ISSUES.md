@@ -653,7 +653,7 @@ per-CUSIP prices for a past date (3.1 §4.0).
 - **Symptom:** the 2052 upper cover solved to a negative duration-match weight, producing a
   negative excess quantity for it.
 - **Root cause:** `bracketWeights()` (`gap-math.js`) solved `lowerWeight`/`upperWeight` from the
-  raw two-sided formula with no bound. The deep-discount, near-zero-coupon 2052 cover carries an
+  raw 2-bracket formula with no bound. The deep-discount, near-zero-coupon 2052 cover carries an
   unusually long duration for its maturity, while a higher-coupon single-year block like 2057 can
   have a shorter duration than the 2056 lower cover itself — putting the block's average duration
   below `d_lower`, which the raw formula solves as `lowerWeight > 1`, `upperWeight < 0`. Only the

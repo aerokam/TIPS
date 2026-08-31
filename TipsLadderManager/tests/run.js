@@ -405,9 +405,9 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
 
     // ── Regression: retained (older) leg sold before the active (newer) bracket ──────────────
     // (financial-correctness bug #7, real-holdings repro). 2.0 §Retained Bracket Excess / §Active
-    // Lower Bracket: the active lower bracket (2036 here) is "the only lower-side maturity a
+    // Lower Bracket: the active lower bracket (2036 here) is "the only lower bracket a
     // rebalance buys" — retained excess (2034, older) is what gets sold, oldest first, when the
-    // lower side is over-allocated. Before the bracketWeightsN activeFloorWeight fix (gap-math.js),
+    // lower brackets are over-allocated. Before the bracketWeightsN activeFloorWeight fix (gap-math.js),
     // this exact real portfolio did the opposite: 2036's excess got wiped from 36 to 0 while 2034
     // kept 75 of its 83 excess bonds — because the unconstrained duration solve let the active
     // bracket's weight fall toward its literal zero floor (a short, oversized retained leg forces
@@ -429,7 +429,7 @@ console.log('\n3-bracket real-holdings reconciliation (distinct orig-lower/new-l
         // The active bracket's excess must never be sold below what it currently holds.
         assert('3B real: active (2036) bracket excess is not sold below its current holding',
           row2036.excessQtyAfter >= row2036.excessQtyBefore, true);
-        // The retained (older) leg absorbs the lower-side reduction the block's duration match
+        // The retained lower bracket absorbs the lower bracket reduction the block's duration match
         // requires — it sells strictly more (in absolute terms) than the active leg.
         assert('3B real: retained (2034) excess is sold down further than active (2036)',
           Math.abs(row2034.excessQtyDelta) > Math.abs(row2036.excessQtyDelta), true);
@@ -1722,13 +1722,13 @@ console.log('\naccruedInterest — day-count proration');
 }
 
 
-// ── Gap duration matching with retained lower-side maturities ─────────────────
+// ── Gap duration matching with retained lower brackets ─────────────────
 // The invariant nothing asserted before 463b07a removed the 3-way solve: the COST-WEIGHTED
 // duration of every leg actually held must equal the gap block's average duration. Spec 2.0
 // §Retained Bracket Excess.
 {
   console.log('');
-  console.log('Gap duration match — retained lower-side maturities');
+  console.log('Gap duration match — retained lower brackets');
 
   // Gap average sits BETWEEN the two brackets — the normal case. (If dGap crowds dUpper,
   // a short retained leg can make the match unsolvable at any non-negative weight; the solver
@@ -1738,12 +1738,12 @@ console.log('\naccruedInterest — day-count proration');
     retained.reduce((s, r, i) => s + w.retainedWeights[i] * r.duration, 0)
     + w.activeWeight * dAct + w.upperWeight * dUp;
 
-  // 1. No retained legs → must reproduce the plain two-sided answer exactly.
+  // 1. No retained lower brackets → must reproduce the plain 2-bracket answer exactly.
   {
     const base = bracketWeights(dAct, dUp, dGap);
     const w = bracketWeightsN({ retained: [], dActive: dAct, dUpper: dUp, dGap, totalBlockCost: 300000 });
-    assert('no retained: activeWeight == two-sided lowerWeight', w.activeWeight, base.lowerWeight, 1e-12);
-    assert('no retained: upperWeight == two-sided upperWeight', w.upperWeight, base.upperWeight, 1e-12);
+    assert('no retained: activeWeight == 2-bracket lowerWeight', w.activeWeight, base.lowerWeight, 1e-12);
+    assert('no retained: upperWeight == 2-bracket upperWeight', w.upperWeight, base.upperWeight, 1e-12);
     assert('no retained: blend matches dGap', blend([], w), dGap, 1e-9);
   }
 
@@ -1759,11 +1759,11 @@ console.log('\naccruedInterest — day-count proration');
     assert('one retained: weights sum to 1',
       w.retainedWeights[0] + w.activeWeight + w.upperWeight, 1, 1e-12);
 
-    // The old two-sided treatment, for contrast: retained dollars priced at dAct.
+    // The old 2-bracket treatment, for contrast: retained dollars priced at dAct.
     const base = bracketWeights(dAct, dUp, dGap);
     const wRet = 60000/total;
     const oldBlend = wRet * 7.4 + (base.lowerWeight - wRet) * dAct + base.upperWeight * dUp;
-    assert('one retained: old two-sided treatment really did fall short of dGap', oldBlend < dGap - 0.1, true);
+    assert('one retained: old 2-bracket treatment really did fall short of dGap', oldBlend < dGap - 0.1, true);
     console.log('        old blend: ' + oldBlend.toFixed(3) + '  vs dGap ' + dGap + '  (short by ' + (dGap - oldBlend).toFixed(3) + ')');
   }
 
@@ -2290,7 +2290,7 @@ console.log('\nBefore-state preview — standalone before-state-lib.js');
 }
 
 // ── Test: active lower bracket is the latest-maturing pre-gap TIPS, not the January one ──────
-// DATA_DICTIONARY.md §Active Lower Bracket / 2.0 §Synthetic TIPS for Gap Years: the lower-side
+// DATA_DICTIONARY.md §Active Lower Bracket / 2.0 §Synthetic TIPS for Gap Years: the lower bracket
 // maturity a ladder buys and interpolates against is the most recently issued 10-year — the
 // latest-maturing outstanding TIPS below the first gap year. Every pre-gap year carries both a
 // January and a July 10-year, so a rule that filtered to January silently picked the earlier of the

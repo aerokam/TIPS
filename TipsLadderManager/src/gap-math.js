@@ -35,10 +35,10 @@ export function bracketWeights(lowerDuration, upperDuration, avgGapDuration) {
   return { lowerWeight, upperWeight: 1 - lowerWeight };
 }
 
-// ─── Bracket weights with retained lower-side maturities ──────────────────────
-// Spec: 2.0 §Retained Bracket Excess; 3.0 §Lower-side priority rule.
+// ─── Bracket weights with retained lower brackets ──────────────────────
+// Spec: 2.0 §Retained Bracket Excess; 3.0 §Lower bracket priority rule.
 //
-// The plain two-sided `bracketWeights` above assumes EVERY lower-side dollar sits at the
+// The plain 2-bracket `bracketWeights` above assumes EVERY lower bracket dollar sits at the
 // active lower bracket's duration. That is false once excess is retained in older maturities:
 // they are shorter, so the realized blend lands short of `dGap` and the gap is under-matched.
 // (That was the shipped behavior from 463b07a until this function replaced it.)
@@ -55,7 +55,7 @@ export function bracketWeights(lowerDuration, upperDuration, avgGapDuration) {
 //   w_act = (1 − R) − w_up
 //
 // **Over-allocated → sell the earliest leg, only as much as restoring the match requires.** If
-// w_act solves negative, the lower side is carrying more than the block needs. Solve for the
+// w_act solves negative, the lower brackets are carrying more than the block needs. Solve for the
 // exact weight of the earliest retained leg that brings w_act back to 0 (holding every other leg
 // fixed), clamp it to [0, currently held], and re-solve. Only if depleting that leg entirely is
 // still not enough does the next-earliest leg get the same treatment. Selling a whole leg when a
@@ -63,7 +63,7 @@ export function bracketWeights(lowerDuration, upperDuration, avgGapDuration) {
 //
 // `retained` is oldest → newest. `activeFloorWeight` (optional, default 0) is the active lower
 // bracket's OWN currently-held excess, expressed as a share of totalBlockCost — the active bracket
-// is "the only lower-side maturity a rebalance buys" (DATA_DICTIONARY §Active Lower Bracket); it is
+// is "the only lower bracket a rebalance buys" (DATA_DICTIONARY §Active Lower Bracket); it is
 // never sold to make room for a duration match the way retained legs may be. When the unconstrained
 // solve would require shrinking active BELOW what it already holds, that is over-allocation exactly
 // as much as a negative wAct is — the retained legs (oldest first) are sold down further to make
@@ -95,7 +95,7 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
 
   let { wAct, wUp } = solve();
 
-  // wAct < floor means the lower side is carrying more than the block needs while still leaving
+  // wAct < floor means the lower brackets are carrying more than the block needs while still leaving
   // room for the active bracket's own current holding — you would have to shrink active below what
   // it already holds (floor=0: a literal negative amount) to come back to dGap. Sell the EARLIEST
   // retained maturity, and only as much as it takes to bring wAct back up to exactly `floor`; if
@@ -118,7 +118,7 @@ export function bracketWeightsN({ retained = [], dActive, dUpper, dGap, totalBlo
     ({ wAct, wUp } = solve());
   }
 
-  // With every retained leg sold off this reduces to the plain two-sided case (activeFloorWeight
+  // With every retained leg sold off this reduces to the plain 2-bracket case (activeFloorWeight
   // permitting), which always has a solution when the gap average sits between the two bracket
   // durations. `feasible` stays as a signal for the degenerate inputs (coincident durations, dGap
   // outside the bracket span, or a floor too high for even zero retained to satisfy).

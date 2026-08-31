@@ -947,7 +947,7 @@ export function buildDurationPopupRows(summary, mode) {
     const activeLabel = _my(summary.newLowerMaturity) ?? String(newLowerYear);
     const w1 = (origLowerWeight ?? 0), w2 = (newLowerWeight3 ?? 0), w3 = (summary.upperWeight3 ?? summary.upperWeight ?? 0);
     // bracketWeightsN (gap-math.js): the retained lower bracket is frozen at held excess/total
-    // cost; if the lower side is over-allocated it is sold down only as far as the duration match
+    // cost; if the lower brackets are over-allocated it is sold down only as far as the duration match
     // requires (earliest first, clamped to [0, currently held]) \u2014 never depleted outright
     // when a partial sale would restore the match. Only the active lower and upper are solved
     // from the duration constraint, so this note must track that formula exactly.
@@ -978,7 +978,7 @@ export function buildDurationPopupRows(summary, mode) {
     const solveNote = {
       coincidentDurations: 'The active lower and upper bracket durations coincide, so the weight left after the retained lower bracket was split evenly between the two rather than solved. The mean above does not reach the average duration of the gap years.',
       upperWeightNegative: 'The duration match solves to a negative upper bracket weight: the average duration of the gap years is shorter than the retained and active lower brackets alone produce.',
-      activeBelowFloor:    'The retained lower bracket has been sold down as far as the lower-side priority rule allows, and the duration match still calls for less excess in the active lower bracket than it currently holds.',
+      activeBelowFloor:    'The retained lower bracket has been sold down as far as the lower bracket priority rule allows, and the duration match still calls for less excess in the active lower bracket than it currently holds.',
     }[summary.bracketSolveReason];
     if (solveNote) rows.push({ html:
       '<div style="font-size:11px;color:#334155;line-height:1.6;padding:2px 0 0;">' + solveNote + '</div>' });
