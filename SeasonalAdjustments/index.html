@@ -6,15 +6,13 @@
 <style>
   :root{
     --bg:#0f172a; --panel:#1e293b; --ink:#e2e8f0; --muted:#94a3b8;
-    --grid:#334155; --settle:#38bdf8; --mat:#f59e0b; --wave:#7dd3fc;
-    --up:#22c55e; --down:#f87171;
+    --grid:#334155; --settle:#38bdf8; --mat:#f59e0b;
   }
   *{box-sizing:border-box}
   html,body{height:100%}
   body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;display:flex;flex-direction:column}
   svg{width:100%;height:100%;display:block}
 
-  /* ── Top bar ── */
   #topbar{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid var(--grid);flex:0 0 auto}
   .portal-link{font-size:11px;font-weight:700;color:var(--muted);background:var(--panel);border:1px solid var(--grid);border-radius:4px;padding:4px 10px;text-decoration:none;letter-spacing:.02em}
   .portal-link:hover{background:var(--ink);color:#0f172a;border-color:var(--ink)}
@@ -23,52 +21,22 @@
   #bookTitle{font-size:14px;font-weight:700;letter-spacing:.02em}
   #crumb{margin-left:auto;color:var(--muted);font-size:12px}
 
-  /* ── TOC drawer ── */
   #tocScrim{position:fixed;inset:0;background:rgba(0,0,0,.5);opacity:0;pointer-events:none;transition:opacity .15s;z-index:20}
   #toc.open #tocScrim{opacity:1;pointer-events:auto}
   #tocPanel{position:fixed;top:0;left:0;bottom:0;width:min(360px,88vw);background:var(--panel);border-right:1px solid var(--grid);transform:translateX(-100%);transition:transform .18s;z-index:21;padding:18px 16px;overflow-y:auto}
   #toc.open #tocPanel{transform:translateX(0)}
   #tocPanel h3{margin:0 0 14px;font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
-  .toc-chapter{font-size:13px;font-weight:700;color:var(--ink);margin:16px 0 6px}
-  .toc-chapter:first-child{margin-top:0}
-  .toc-pages{list-style:none;margin:0 0 0 4px;padding:0;border-left:2px solid var(--grid)}
-  .toc-pages li{padding:6px 0 6px 14px;color:var(--muted);font-size:13px;cursor:pointer;border-left:2px solid transparent;margin-left:-2px}
+  .toc-pages{list-style:none;margin:0;padding:0}
+  .toc-pages li{padding:8px 0 8px 14px;color:var(--muted);font-size:13px;cursor:pointer;border-left:2px solid var(--grid)}
   .toc-pages li:hover{color:var(--ink)}
   .toc-pages li.on{color:var(--settle);border-left-color:var(--settle);font-weight:600}
 
-  /* ── Stage ── */
   #stage{flex:1 1 auto;overflow-y:auto;display:flex;flex-direction:column;min-height:0}
   .page{display:none;flex:1;flex-direction:column;padding:12px 22px 4px;min-height:0}
   .page.on{display:flex}
   .pageTitle{text-align:center;font-size:24px;font-weight:800;margin:2px 0 8px;letter-spacing:.01em}
-  .hero{flex:1 1 auto;min-height:300px;display:flex;align-items:center;justify-content:center}
+  .hero{flex:1 1 auto;min-height:320px;display:flex;align-items:center;justify-content:center}
 
-  /* ── Shared control bar ── */
-  #ctlbar{display:none;align-items:center;gap:22px;flex-wrap:wrap;justify-content:center;padding:8px 22px;border-top:1px solid var(--grid);flex:0 0 auto}
-  #ctlbar.on{display:flex}
-  .ctl{display:none;align-items:center;gap:8px}
-  .ctl.on{display:flex}
-  .ctl label{color:var(--muted);font-size:12px;white-space:nowrap}
-  .ctl b{color:var(--settle)}
-  input[type=range]{-webkit-appearance:none;appearance:none;width:260px;height:28px;background:transparent;cursor:grab;touch-action:none;-webkit-user-select:none;user-select:none}
-  input[type=range]:active{cursor:grabbing}
-  input[type=range]::-webkit-slider-runnable-track{height:6px;background:var(--grid);border-radius:4px}
-  input[type=range]::-moz-range-track{height:6px;background:var(--grid);border-radius:4px}
-  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;margin-top:-7px;border-radius:50%;background:var(--settle);border:2px solid #0b1220;box-shadow:0 1px 4px rgba(0,0,0,.5)}
-  input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;background:var(--settle);border:2px solid #0b1220;cursor:grab}
-  .btns{display:flex;gap:5px;flex-wrap:wrap}
-  .btns button{background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:5px 10px;border-radius:6px;cursor:pointer;font-size:12px}
-  .btns button.on{background:var(--mat);color:#1a1205;border-color:var(--mat);font-weight:600}
-  .btns button.preset{border-color:var(--settle)}
-  .btns button.preset:hover{background:var(--settle);color:#0b1220}
-
-  /* ── Playground stats strip ── */
-  #pgStats{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:6px 0 2px}
-  #pgStats .stat{background:#0b1220;border:1px solid var(--grid);border-radius:8px;padding:6px 12px;text-align:center;min-width:110px}
-  #pgStats .stat .k{color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.05em}
-  #pgStats .stat .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
-
-  /* ── Pager ── */
   #pagerbar{display:flex;align-items:center;gap:14px;padding:8px 22px;border-top:1px solid var(--grid);flex:0 0 auto}
   #pagerbar button{background:#0b1220;border:1px solid var(--grid);color:var(--ink);padding:7px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600}
   #pagerbar button:hover:not(:disabled){border-color:var(--settle)}
@@ -76,7 +44,7 @@
   #dots{flex:1;display:flex;justify-content:center;gap:6px}
   #dots span{width:7px;height:7px;border-radius:50%;background:var(--grid);cursor:pointer}
   #dots span.on{background:var(--settle)}
-  .src{color:var(--muted);font-size:11px;text-align:center;padding:2px 22px 4px}
+  .src{color:var(--muted);font-size:11px;text-align:center;padding:2px 22px 6px}
 </style>
 </head>
 <body>
@@ -90,31 +58,10 @@
 
 <nav id="toc">
   <div id="tocScrim"></div>
-  <div id="tocPanel"><h3>Contents</h3><div id="tocList"></div></div>
+  <div id="tocPanel"><h3>Contents</h3><ul class="toc-pages" id="tocList"></ul></div>
 </nav>
 
 <div id="stage"></div>
-
-<div id="ctlbar">
-  <div class="ctl" id="ctlSettle">
-    <label>Purchase (settlement) date: <b id="settleLbl"></b></label>
-    <input id="settle" type="range" min="0" max="364" value="135"/>
-  </div>
-  <div class="ctl" id="ctlMat">
-    <label>Maturity month</label>
-    <div class="btns" id="matbtns"></div>
-  </div>
-  <div class="ctl" id="ctlYears">
-    <label>Years to maturity</label>
-    <div class="btns" id="yearbtns"></div>
-  </div>
-  <div class="ctl" id="ctlPresets">
-    <div class="btns">
-      <button class="preset" id="presetAnniv">Buy on the anniversary</button>
-      <button class="preset" id="presetWorst">Buy at the worst point</button>
-    </div>
-  </div>
-</div>
 
 <div id="pagerbar">
   <button id="prevBtn">&#8249; Prev</button>
@@ -124,49 +71,25 @@
 <div class="src" id="src">Loading…</div>
 
 <script type="module">
-import { D, state, loadData, defaultSettleDoy, dateLabel, doy, Sat, MATS, YEARS_OPTS } from './src/sa-data.js';
-import { drawP1, drawP2, drawP3, drawP4, drawP5 } from './src/sa-pages-cpi.js';
-import { drawP7, drawP8, drawP9, drawP10, drawP11, drawP12, drawP6, playgroundReadout } from './src/sa-pages-gap.js';
+import { loadSnapshot, SNAP, SNAPSHOT_DATE } from './src/snap-data.js';
+import { drawS1 } from './src/snap-slides.js';
 
-// Page registry: chapter, title, renderer, and which shared controls it shows.
+// Slide registry — grows one entry per slide as the rework proceeds.
 const PAGES = [
-  { ch: '1 · Inflation Has Seasons', title: 'Prices Have Seasons',                draw: drawP1, vh: 640 },
-  { ch: '1 · Inflation Has Seasons', title: 'Every Year, the Same Wave',          draw: drawP2 },
-  { ch: '1 · Inflation Has Seasons', title: 'One Year, Up Close',                 draw: drawP3 },
-  { ch: '2 · TIPS Ride the Index',   title: 'A TIPS Is a Stream of Payments',     draw: drawP4 },
-  { ch: '2 · TIPS Ride the Index',   title: 'Every Payment Rides the Index',      draw: drawP5 },
-  { ch: '3 · The Seasonal Gap',      title: 'You Buy on One Day of the Wave',     draw: drawP6, ctl: { settle: 1, mat: 1 } },
-  { ch: '3 · The Seasonal Gap',      title: 'The Gap Repeats — and Never Cancels',draw: drawP7, ctl: { settle: 1, mat: 1, years: 1 } },
-  { ch: '3 · The Seasonal Gap',      title: 'The Anniversary Trick',              draw: drawP8, ctl: { settle: 1, mat: 1, presets: 1 } },
-  { ch: '4 · Price & Yield',         title: 'The Fix: One Multiplication',        draw: drawP9, ctl: { settle: 1, mat: 1 } },
-  { ch: '4 · Price & Yield',         title: 'Same Gap, Any Maturity',             draw: drawP10, ctl: { settle: 1, mat: 1 } },
-  { ch: '4 · Price & Yield',         title: '…But Yield Spreads It Over Years',   draw: drawP11, ctl: { settle: 1, mat: 1 } },
-  { ch: '5 · Sandbox',               title: 'Playground',                         draw: drawP12, ctl: { settle: 1, mat: 1, years: 1 }, stats: 1 },
+  { title: 'The Sawtooth', draw: drawS1, vh: 520 },
 ];
 
-// ── Build stage, TOC, dots from the registry ────────────────────────────────
 const stage = document.getElementById('stage');
 PAGES.forEach((pg, i) => {
   const div = document.createElement('div');
   div.className = 'page'; div.id = 'page' + i;
   div.innerHTML = `<h2 class="pageTitle">${pg.title}</h2>` +
-    `<div class="hero"><svg id="svg${i}" viewBox="0 0 900 ${pg.vh || (i === 11 ? 400 : 500)}" preserveAspectRatio="xMidYMid meet"></svg></div>` +
-    (pg.stats ? `<div id="pgStats"></div>` : '');
+    `<div class="hero"><svg id="svg${i}" viewBox="0 0 900 ${pg.vh || 520}" preserveAspectRatio="xMidYMid meet"></svg></div>`;
   stage.appendChild(div);
 });
 
 const tocList = document.getElementById('tocList');
-let lastCh = '';
-let tocHtml = '';
-PAGES.forEach((pg, i) => {
-  if (pg.ch !== lastCh) {
-    if (lastCh) tocHtml += '</ol>';
-    tocHtml += `<div class="toc-chapter">${pg.ch}</div><ol class="toc-pages">`;
-    lastCh = pg.ch;
-  }
-  tocHtml += `<li data-page="${i}">${pg.title}</li>`;
-});
-tocList.innerHTML = tocHtml + '</ol>';
+tocList.innerHTML = PAGES.map((pg, i) => `<li data-page="${i}">${i + 1}. ${pg.title}</li>`).join('');
 
 const dotsEl = document.getElementById('dots');
 PAGES.forEach((_, i) => {
@@ -175,46 +98,20 @@ PAGES.forEach((_, i) => {
   dotsEl.appendChild(d);
 });
 
-// ── Navigation ──────────────────────────────────────────────────────────────
 let curPage = 0;
 function showPage(i) {
   curPage = Math.max(0, Math.min(PAGES.length - 1, i));
   const pg = PAGES[curPage];
   document.querySelectorAll('.page').forEach((el, idx) => el.classList.toggle('on', idx === curPage));
-  document.getElementById('crumb').textContent = pg.ch + ' · ' + (curPage + 1) + '/' + PAGES.length;
+  document.getElementById('crumb').textContent = (curPage + 1) + ' / ' + PAGES.length;
   document.querySelectorAll('#toc [data-page]').forEach(el => el.classList.toggle('on', +el.dataset.page === curPage));
   document.querySelectorAll('#dots span').forEach((el, idx) => el.classList.toggle('on', idx === curPage));
   document.getElementById('prevBtn').disabled = curPage === 0;
   document.getElementById('nextBtn').disabled = curPage === PAGES.length - 1;
-  const c = pg.ctl || {};
-  document.getElementById('ctlbar').classList.toggle('on', !!pg.ctl);
-  document.getElementById('ctlSettle').classList.toggle('on', !!c.settle);
-  document.getElementById('ctlMat').classList.toggle('on', !!c.mat);
-  document.getElementById('ctlYears').classList.toggle('on', !!c.years);
-  document.getElementById('ctlPresets').classList.toggle('on', !!c.presets);
   closeToc();
   redraw();
 }
-function redraw() {
-  document.getElementById('settle').value = state.settleDoy;
-  document.getElementById('settleLbl').textContent = dateLabel(state.settleDoy);
-  PAGES[curPage].draw(document.getElementById('svg' + curPage));
-  if (PAGES[curPage].stats) renderStats();
-}
-function renderStats() {
-  const r = playgroundReadout();
-  const stat = (k, v) => `<div class="stat"><div class="k">${k}</div><div class="v">${v}</div></div>`;
-  document.getElementById('pgStats').innerHTML =
-    stat('S(settle)', r.Ss.toFixed(5)) +
-    stat('S(maturity)', r.Sm.toFixed(5)) +
-    stat('Price × ', r.ratio.toFixed(5)) +
-    stat('Seasonal gap', (r.gapPct >= 0 ? '+' : '') + r.gapPct.toFixed(3) + '%') +
-    stat('SA yield impact', (r.bps >= 0 ? '+' : '') + r.bps.toFixed(1) + ' bp') +
-    stat('Mod. duration', r.modDur.toFixed(1) + 'y') +
-    stat('First coupon in', r.stubDays + ' days') +
-    stat('Principal share', (r.principalShare * 100).toFixed(1) + '%') +
-    stat('Illustrative bond', r.bond);
-}
+function redraw() { PAGES[curPage].draw(document.getElementById('svg' + curPage)); }
 
 function openToc() { document.getElementById('toc').classList.add('open'); }
 function closeToc() { document.getElementById('toc').classList.remove('open'); }
@@ -229,51 +126,15 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft') showPage(curPage - 1);
 });
 
-// ── Shared controls ─────────────────────────────────────────────────────────
-document.getElementById('settle').addEventListener('input', e => { state.settleDoy = +e.target.value; redraw(); });
-function buildMatBtns() {
-  const c = document.getElementById('matbtns'); c.innerHTML = '';
-  MATS.forEach(mm => {
-    const b = document.createElement('button'); b.textContent = mm.label;
-    if (mm.m === state.matIdx) b.className = 'on';
-    b.onclick = () => { state.matIdx = mm.m; buildMatBtns(); redraw(); };
-    c.appendChild(b);
-  });
-}
-function buildYearBtns() {
-  const c = document.getElementById('yearbtns'); c.innerHTML = '';
-  YEARS_OPTS.forEach(yy => {
-    const b = document.createElement('button'); b.textContent = yy + 'y';
-    if (yy === state.yearsToMat) b.className = 'on';
-    b.onclick = () => { state.yearsToMat = yy; buildYearBtns(); redraw(); };
-    c.appendChild(b);
-  });
-}
-document.getElementById('presetAnniv').addEventListener('click', () => {
-  state.settleDoy = doy(state.matIdx, 15); redraw();
-});
-document.getElementById('presetWorst').addEventListener('click', () => {
-  const mS = Sat(doy(state.matIdx, 15));
-  let best = 0, bestGap = 0;
-  for (let d = 0; d < 365; d++) { const g = Math.abs(mS / Sat(d) - 1); if (g > bestGap) { bestGap = g; best = d; } }
-  state.settleDoy = best; redraw();
-});
-
-// ── Init ────────────────────────────────────────────────────────────────────
 (async function () {
-  const [, settleDoy] = await Promise.all([loadData(), defaultSettleDoy()]);
-  state.settleDoy = settleDoy;
-  // Default maturity month: the TIPS month with the biggest seasonal gap from
-  // today's real settlement date — so the story pages land on a visible effect,
-  // not the near-anniversary null case.
-  let bestGap = -1;
-  MATS.forEach(mm => {
-    const g = Math.abs(Sat(doy(mm.m, 15)) / Sat(settleDoy) - 1);
-    if (g > bestGap) { bestGap = g; state.matIdx = mm.m; }
-  });
-  document.getElementById('src').textContent = D.srcNote;
-  buildMatBtns();
-  buildYearBtns();
+  try {
+    await loadSnapshot();
+    document.getElementById('src').textContent =
+      `Frozen snapshot: ${SNAP.bonds.length} outstanding TIPS, vendor quotes downloaded ${SNAPSHOT_DATE}; ` +
+      `seasonal factor = ${SNAP.waveYears} average of daily RefCPI_NSA / RefCPI_SA.`;
+  } catch (e) {
+    document.getElementById('src').textContent = 'Snapshot data failed to load: ' + e.message;
+  }
   showPage(0);
 })();
 </script>
