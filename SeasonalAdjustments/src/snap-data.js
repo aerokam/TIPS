@@ -15,8 +15,10 @@ import { parseCsv } from '../../shared/src/csv.js';
 const YSAO_URL = './data/YieldsSaSao.snapshot.csv';
 const REFCPI_URL = './data/RefCpiNsaSa.snapshot.csv';
 
-export const SNAPSHOT_DATE = '2026-08-31';   // vendor quote download date
+export const SNAPSHOT_DATE = '2026-08-31';   // market quote date
 export const SETTLE_DATE = '2026-09-01';     // T+1 market settlement
+export const SNAPSHOT_LABEL = 'Aug 31, 2026';
+export const SETTLE_LABEL = 'Sep 1, 2026';
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 export const DIM = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];

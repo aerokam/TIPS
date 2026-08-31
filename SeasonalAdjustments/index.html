@@ -71,7 +71,7 @@
 <div class="src" id="src">Loading…</div>
 
 <script type="module">
-import { loadSnapshot, SNAP, SNAPSHOT_DATE } from './src/snap-data.js';
+import { loadSnapshot, SNAP, SNAPSHOT_LABEL } from './src/snap-data.js';
 import { drawS1 } from './src/snap-slides.js';
 
 // Slide registry — grows one entry per slide as the rework proceeds.
@@ -130,8 +130,7 @@ document.addEventListener('keydown', e => {
   try {
     await loadSnapshot();
     document.getElementById('src').textContent =
-      `Frozen snapshot: ${SNAP.bonds.length} outstanding TIPS, vendor quotes downloaded ${SNAPSHOT_DATE}; ` +
-      `seasonal factor = ${SNAP.waveYears} average of daily RefCPI_NSA / RefCPI_SA.`;
+      `Frozen snapshot — market quotes as of ${SNAPSHOT_LABEL}, ${SNAP.bonds.length} outstanding TIPS.`;
   } catch (e) {
     document.getElementById('src').textContent = 'Snapshot data failed to load: ' + e.message;
   }

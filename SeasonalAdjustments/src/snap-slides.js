@@ -3,7 +3,7 @@
 // ON the chart — no external legends.
 // Spec: knowledge/1.0_SeasonalAdjustments_Explorer.md
 
-import { SNAP, SNAPSHOT_DATE, SETTLE_DATE, MONTHS, localDate } from './snap-data.js';
+import { SNAP, SNAPSHOT_LABEL, SETTLE_LABEL, MONTHS, localDate } from './snap-data.js';
 import { note, vBracket, AMBER, INK } from './sa-annotate.js';
 
 const GRID = '#334155', MUTED = '#94a3b8';
@@ -46,7 +46,7 @@ export function drawS1(el) {
     s += `<text x="${xx.toFixed(1)}" y="${H - B + 18}" text-anchor="middle" style="fill:${MUTED};font-size:11px">${y}</text>`;
   }
   const midY = (T + (H - B)) / 2;
-  s += `<text x="15" y="${midY}" text-anchor="middle" transform="rotate(-90 15 ${midY})" style="fill:${MUTED};font-size:12px">quoted real yield (%)</text>`;
+  s += `<text x="15" y="${midY}" text-anchor="middle" transform="rotate(-90 15 ${midY})" style="fill:${MUTED};font-size:12px">quoted ask yield (%)</text>`;
 
   // the quoted curve — one point per bond, connected in maturity order
   let p = '';
@@ -59,29 +59,32 @@ export function drawS1(el) {
          `<title>${fmtMY(b.mat)} · ${(b.coupon * 100).toFixed(3)}% — quoted ${(b.ask * 100).toFixed(2)}%</title></g>`;
   }
 
-  // measure the saw-tooth early vs. later: the same-year Jan→Jul drop (Jan
-  // misses the spring surge, Jul captures it) in an early year and a later one,
-  // to show the amplitude shrinking as maturity lengthens
-  const janJul = yr => {
-    const jans = bonds.filter(b => b.matMonth === 0 && b.matDate.getFullYear() === yr);
-    const jul = bonds.find(b => b.matMonth === 6 && b.matDate.getFullYear() === yr);
-    if (!jans.length || !jul) return null;
-    const janAsk = jans.reduce((a, b) => a + b.ask, 0) / jans.length;
-    return { jan: jans[0], janAsk, jul, bp: Math.round((janAsk - jul.ask) * 10000) };
+  // measure the saw-tooth early vs. later, between two real adjacent TIPS three
+  // months apart (Apr → Jul of the same year: Apr misses the spring surge, Jul
+  // captures it), to show the difference shrinking as maturity lengthens.
+  const lowestCoupon = list => list.reduce((a, b) => (b.coupon < a.coupon ? b : a));
+  const aprJul = yr => {
+    const apr = bonds.filter(b => b.matMonth === 3 && b.matDate.getFullYear() === yr);
+    const jul = bonds.filter(b => b.matMonth === 6 && b.matDate.getFullYear() === yr);
+    if (!apr.length || !jul.length) return null;
+    const a = lowestCoupon(apr), j = lowestCoupon(jul);
+    return { a, j, bp: Math.round((a.ask - j.ask) * 10000) };
   };
-  for (const [yr, side] of [[2028, 1], [2031, 1]]) {
-    const m = janJul(yr);
+  for (const yr of [2028, 2032]) {
+    const m = aprJul(yr);
     if (!m) continue;
-    const xj = tx(m.jul.matDate.getTime());
-    const ya = ty(m.janAsk * 100), yj = ty(m.jul.ask * 100);
-    const bx = xj + 18 * side;
+    const xa = tx(m.a.matDate.getTime()), xj = tx(m.j.matDate.getTime());
+    const ya = ty(m.a.ask * 100), yj = ty(m.j.ask * 100);
+    const bx = (xa + xj) / 2;
+    s += `<circle cx="${xa.toFixed(1)}" cy="${ya.toFixed(1)}" r="5.5" fill="none" stroke="${INK}" stroke-width="1.5"/>`;
+    s += `<circle cx="${xj.toFixed(1)}" cy="${yj.toFixed(1)}" r="5.5" fill="none" stroke="${INK}" stroke-width="1.5"/>`;
     s += vBracket(bx, ya, yj, INK, 4);
-    s += note(bx + 8 * side, Math.min(ya, yj) - 6, `${m.bp} bp`, INK, 'start', 12);
+    s += note(bx + 9, Math.min(ya, yj) - 6, `${m.bp} bp`, INK, 'start', 12);
   }
 
   // caption (title comes from the page h2)
-  s += note(W / 2, 40, [`The quoted curve as it stands today — market prices, one point per bond.  Snapshot ${fmtMY(SNAPSHOT_DATE)}, settlement ${SETTLE_DATE}.`], MUTED, 'middle', 11);
-  s += note(W / 2, H - 14, ['Every Jul / Oct maturity prints below its Jan / Apr neighbours — and the gap shrinks as maturity lengthens.'], AMBER, 'middle', 13);
+  s += note(W / 2, 40, [`Quoted ask yields as of ${SNAPSHOT_LABEL} (settlement = ${SETTLE_LABEL}).`], MUTED, 'middle', 12);
+  s += note(W / 2, H - 14, ['Every Jul / Oct maturity is lower than its Jan / Apr neighbours, and the differences shrink as maturity increases.'], AMBER, 'middle', 13);
 
   el.innerHTML = s;
 }
