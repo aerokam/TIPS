@@ -8,6 +8,28 @@ production impact go here.
 
 ## OPEN
 
+### Help text still to be walked, section by section
+
+- **The method, agreed 2026-08-30.** Take one help section at a time, show it, take feedback, and
+  let the feedback loop back into the specs and the DD where the language is wrong there too.
+  Two sections of the Gap Dur popup have been through it; that pass alone found a wrong maturity
+  month on every gap row, an average whose stated arithmetic did not produce the figure beside
+  it, a weighting that disagreed with its own spec, and vocabulary two renames out of date.
+- **Next in that popup:** the modified duration match line and the degenerate-inputs case.
+- **Then:** the Bracket Mode help (`#bracket-mode-help`), which the user rates as well written
+  but which describes only the case where the bracket year is also a funded year. A bracket year
+  whose DARA is 0 holds excess TIPS alone and is not covered.
+- **Everything else with user-facing text:** the Amount, Cost, Quantity and Ref CPI drills, the
+  Trade Ticket, the Cash Flow Calendar, the status strip, the top-card controls.
+
+### Hard-coded years still in the specs
+
+- Definitions are clean: no spec definition names a year any more. What remains is illustration,
+  mostly inside worked explanations where a concrete year is what makes the passage readable
+  (the traced 2034/2036 retained-bracket case, for instance).
+- **DD §5.1 permits that** — "a value appears only as illustration, marked with the date it was
+  true" — but most of them are not marked. Marking them is the open work, and it is a large
+  editing pass with a real readability cost, so it has not been started.
 ### Only one retained lower bracket maturity is identified from holdings
 
 - **Scope, pinned 2026-08-30.** `bracketWeightsN` (`gap-math.js`) already solves the duration

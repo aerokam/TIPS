@@ -10,6 +10,22 @@ This file is interaction/workflow guidance only — commands, tool gotchas, git 
 
 If a claim below ever conflicts with a spec, the spec wins — fix this file, don't propagate the stale claim.
 
+## Help Text Follows the Specs
+
+**User-facing text follows the specs exactly as code does**, and "specs" includes the repo-root
+`knowledge/DATA_DICTIONARY.md`, which is the foundation the rest of them rest on for terminology.
+Help modals, popup rows, status strips, column headers and tooltips are all in scope.
+
+- **Terms and phrases are defined once, in the DD, and used from there.** A word appearing in a
+  spec is not proof it is a defined term: check the DD. Where a term is missing from the DD that
+  should be there, add it rather than working around it.
+- **Do not introduce a new term without asking first.** Not in help text, not in a spec, not in a
+  reply. If no existing term covers what you mean, say so and ask.
+- **Derive a definition from how a term is already used** where the usage settles it, rather than
+  asking for something the formula or the code already determines.
+- A spec section that restates a definition the DD owns is a duplicate: keep the link, drop the
+  second copy.
+
 ## Commands (TipsLadderManager)
 
 ```bash
