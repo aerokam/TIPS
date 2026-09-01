@@ -1,5 +1,5 @@
 // Yield Curves — Frontend Logic
-import { yieldFromPrice } from '../../shared/src/bond-math.js';
+import { yieldFromPrice, calculateMDuration } from '../../shared/src/bond-math.js';
 import { saFactorForDate } from '../../shared/src/ref-cpi.js';
 import { parseCsv } from '../../shared/src/csv.js';
 import { localDate, toIsoDate, nextBusinessDay, parseHolidaySet } from '../../shared/src/settlement.js';
@@ -101,6 +101,23 @@ function ttmLabel(ms) {
   if (days < 365.25) return `${(days / 7).toFixed(1)}w`;
   return `${Math.round(days / 365.25)}y`;
 }
+
+// ─── Duration x-axis ─────────────────────────────────────────────────────────
+// Modified duration (years) for a bond priced at `yld`, or null when the inputs
+// are degenerate or no settlement date is available. Each series passes its own
+// yield (Ask / SA / SAO), so a point's Duration-mode x-position differs slightly
+// between series for the same bond — see knowledge/3.0_Visual_Standards.md §2b.
+function bondModDuration(b, yld) {
+  if (yld == null || isNaN(yld) || b.coupon == null || isNaN(b.coupon)) return null;
+  const settle = localDate(b.settlementDate);
+  if (!settle || !b.maturityDate) return null;
+  const md = calculateMDuration(settle, b.maturityDate, b.coupon, yld);
+  return Number.isFinite(md) ? md : null;
+}
+
+// The two x-axis modes that share the one linear "years" tick/label engine:
+// calendar Term (weeks-to-maturity) and Duration (modified duration).
+const isLinearYearsAxis = () => xAxisMode === 'ttm' || xAxisMode === 'duration';
 
 // Broker timestamp "MM/DD/YYYY HH:MM AM/PM" is Fidelity's stamp of the local
 // system clock, which on this machine is Pacific. Convert to Eastern (+3h,
@@ -354,6 +371,13 @@ async function init() {
       // Nominals (Treasuries)
       const { bonds, downloadDate } = parseFidelityNominals(fidText);
       if (bonds.length > 0) {
+        // Broker quotes settle T+1 from the download date (business-day adjusted),
+        // matching the TIPS broker path in buildProcessedTipsBonds. Needed so
+        // Duration mode can compute modified duration for each nominal.
+        const fidLoadDate = downloadDate ? parseFidelityDateStr(downloadDate) : null;
+        const fidSettleIso = (fidLoadDate && !isNaN(fidLoadDate))
+          ? toIsoDate(nextBusinessDay(fidLoadDate, holidaySet)) : null;
+        if (fidSettleIso) bonds.forEach(b => { b.settlementDate = fidSettleIso; });
         fidelityNominalsData = bonds;
         fidelityNominalsDate = downloadDate;
         const chkFid = document.getElementById('chkFidelity');
@@ -778,9 +802,12 @@ function renderNominalsChart(fedBonds, fidBonds) {
   if (allBonds.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
 
   const now = Date.now();
+  const yv = b => parseFloat((b.yield * 100).toFixed(3));
   const toPoint = xAxisMode === 'ttm'
-    ? b => ({ x: (b.maturityDate.getTime() - now) / (7 * 86400000), y: parseFloat((b.yield * 100).toFixed(3)) })
-    : b => ({ x: b.maturityDate.getTime(), y: parseFloat((b.yield * 100).toFixed(3)) });
+    ? b => ({ x: (b.maturityDate.getTime() - now) / (7 * 86400000), y: yv(b) })
+    : xAxisMode === 'duration'
+    ? b => { const d = bondModDuration(b, b.yield); return d == null ? null : { x: d * 52, y: yv(b) }; }
+    : b => ({ x: b.maturityDate.getTime(), y: yv(b) });
   const bothShown = fedBonds && fidBonds;
 
   // FedInvest: cool blues/purple (dotted) — Fidelity: warm orange/red/teal (solid)
@@ -804,14 +831,20 @@ function renderNominalsChart(fedBonds, fidBonds) {
     );
   }
 
+  // Drop points with no x (Duration mode: degenerate yield / missing settlement),
+  // then sort each series by x so the connecting line never zig-zags.
+  seriesDef.forEach(s => {
+    s.data = s.data.filter(Boolean);
+    if (xAxisMode === 'duration') s.data.sort((a, b) => a.x - b.x);
+  });
   // Filter series with no data points
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   if (allPoints.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
 
-  // X axis: linear term scale in Term mode; time scale in Maturity mode
+  // X axis: linear term scale in Term / Duration modes; time scale in Maturity mode
   let xScale;
-  if (xAxisMode === 'ttm') {
+  if (isLinearYearsAxis()) {
     const rawMaxW = Math.max(...allPoints.map(d => d.x));
     const isBillsOnly = rawMaxW <= 52;
     const maxW = isBillsOnly ? 52 : Math.ceil(rawMaxW / 52) * 52;
@@ -961,12 +994,13 @@ function renderNominalsChart(fedBonds, fidBonds) {
           cornerRadius: 6, displayColors: false,
           callbacks: {
             title: items => {
+              const xv = items[0].parsed.x;
+              if (xAxisMode === 'duration') return `Duration ${(xv / 52).toFixed(2)}y`;
               if (xAxisMode === 'ttm') {
-                const w = items[0].parsed.x;
-                const termLabel = w < 52 ? `${w.toFixed(1)}w` : `${(w / 52).toFixed(1)}y`;
-                return `${fmtDateMDY(new Date(now + w * 7 * 86400000))} (${termLabel})`;
+                const termLabel = xv < 52 ? `${xv.toFixed(1)}w` : `${(xv / 52).toFixed(1)}y`;
+                return `${fmtDateMDY(new Date(now + xv * 7 * 86400000))} (${termLabel})`;
               }
-              return fmtDateMDY(new Date(items[0].parsed.x));
+              return fmtDateMDY(new Date(xv));
             },
             label: (context) => `${context.dataset.label}: ${context.parsed.y.toFixed(3)}%`
           }
@@ -1172,9 +1206,10 @@ function getTipsSeriesVisibility(label) {
 }
 
 // Shared x-scale builder for TIPS-maturity-keyed yield charts (TIPS tab, BEI tab):
-// linear term (weeks) scale in Term mode, calendar time scale in Maturity mode.
+// linear "years" scale in Term / Duration modes (x is weeks-to-maturity, or
+// modified-duration-years × 52), calendar time scale in Maturity mode.
 function buildYieldXScale(allPoints) {
-  if (xAxisMode === 'ttm') {
+  if (isLinearYearsAxis()) {
     const rawMaxW = Math.max(...allPoints.map(d => d.x));
     const maxW = Math.ceil(rawMaxW / 52) * 52;
     const ttmTickCb = (val) => {
@@ -1251,8 +1286,12 @@ function renderChart(fedBonds, brokerBonds) {
   if (allBonds.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
 
   const now = Date.now();
+  // Duration mode: each series' x comes from a modified duration computed with
+  // that series' own yield (key), so Ask/SA/SAO points for one bond can differ.
   const toPt = xAxisMode === 'ttm'
     ? (b, key) => ({ x: (b.maturityDate.getTime() - now) / (7 * 86400000), y: parseFloat((b[key] * 100).toFixed(3)) })
+    : xAxisMode === 'duration'
+    ? (b, key) => { const d = bondModDuration(b, b[key]); return d == null ? null : { x: d * 52, y: parseFloat((b[key] * 100).toFixed(3)) }; }
     : (b, key) => ({ x: b.maturityDate.getTime(), y: parseFloat((b[key] * 100).toFixed(3)) });
   const both = fedBonds && brokerBonds;
   const seriesDef = [];
@@ -1274,6 +1313,10 @@ function renderChart(fedBonds, brokerBonds) {
     );
   }
 
+  seriesDef.forEach(s => {
+    s.data = s.data.filter(Boolean);
+    if (xAxisMode === 'duration') s.data.sort((a, b) => a.x - b.x);
+  });
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   const xScale = buildYieldXScale(allPoints);
@@ -1326,6 +1369,7 @@ function renderChart(fedBonds, brokerBonds) {
           backgroundColor: 'rgba(255,255,255,0.95)', titleColor: '#1e293b', bodyColor: '#475569', borderColor: '#e2e8f0', borderWidth: 1, padding: 8, cornerRadius: 6, displayColors: false,
           callbacks: {
             title: (items) => {
+              if (xAxisMode === 'duration') return `Duration ${(items[0].parsed.x / 52).toFixed(2)}y`;
               const ms = xAxisMode === 'ttm'
                 ? now + items[0].parsed.x * 7 * 86400000
                 : items[0].parsed.x;
@@ -1400,9 +1444,11 @@ function rescaleToVisible(chart) {
 
 
 // ─── BEI (Breakeven Inflation) ───────────────────────────────────────────────
-// BEI = closest-maturity nominal yield (Market, no STRIPS) − TIPS yield, for each of the
-// TIPS Ask/SA/SAO variants. Market-only: BEI needs both legs quoted the same way (broker
-// ask), so it doesn't mix in FedInvest's bid/ask-midpoint pricing the way the TIPS tab does.
+// BEI = matched nominal yield (Market, no STRIPS) − TIPS yield, for each of the
+// TIPS Ask/SA/SAO variants. The nominal is the closest-maturity issue in Maturity
+// and Term x-axis modes, or the closest-modified-duration issue in Duration mode.
+// Market-only: BEI needs both legs quoted the same way (broker ask), so it doesn't
+// mix in FedInvest's bid/ask-midpoint pricing the way the TIPS tab does.
 
 function processAndRenderBei() {
   const statusEl = document.getElementById('status');
@@ -1429,8 +1475,28 @@ function processAndRenderBei() {
       return;
     }
 
+    // Leg pairing depends on the x-axis: Maturity and Term modes pair each TIPS
+    // to the closest-maturity nominal (closest-term is the same ordering). In
+    // Duration mode the legs are paired by closest modified duration instead —
+    // the TIPS at its Ask (raw real) yield vs. the nominal at its ask yield —
+    // and the rows are ordered by increasing TIPS duration. See §2b of
+    // knowledge/3.0_Visual_Standards.md.
+    const durMode = xAxisMode === 'duration';
+    const nomDur = durMode
+      ? nominalCandidates.map(n => ({ n, dur: bondModDuration(n, n.yield) })).filter(x => x.dur != null)
+      : null;
+    const matchNominal = durMode && nomDur.length > 0
+      ? (b) => {
+          const td = bondModDuration(b, b.askYield);
+          if (td == null) return findClosestNominal(nominalCandidates, b.maturityDate);
+          let best = nomDur[0];
+          for (const x of nomDur) if (Math.abs(x.dur - td) < Math.abs(best.dur - td)) best = x;
+          return best.n;
+        }
+      : (b) => findClosestNominal(nominalCandidates, b.maturityDate);
+
     tipsBonds.forEach(b => {
-      const nom = findClosestNominal(nominalCandidates, b.maturityDate);
+      const nom = matchNominal(b);
       b.nominalCusip = nom.cusip;
       b.nominalMaturity = nom.maturity;
       b.nominalCoupon = nom.coupon;
@@ -1440,11 +1506,19 @@ function processAndRenderBei() {
       b.beiSao = nom.yield - b.saoYield;
     });
 
+    if (durMode) {
+      tipsBonds.sort((a, b) => {
+        const da = bondModDuration(a, a.askYield), db = bondModDuration(b, b.askYield);
+        return (da ?? Infinity) - (db ?? Infinity);
+      });
+    }
+
     const startEl = document.getElementById('startMaturity');
     const endEl = document.getElementById('endMaturity');
     if (!startEl.value && tipsBonds.length > 0) {
-      startEl.value = tipsBonds[0].maturity;
-      endEl.value = tipsBonds[tipsBonds.length - 1].maturity;
+      const mats = tipsBonds.map(b => b.maturity).sort();
+      startEl.value = mats[0];
+      endEl.value = mats[mats.length - 1];
     }
     const startDate = parseIsoInput(startEl.value) || new Date(0);
     const endDate = parseIsoInput(endEl.value) || new Date(9999, 0);
@@ -1484,8 +1558,14 @@ function renderBeiChart(bonds) {
   if (!bonds || bonds.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
 
   const now = Date.now();
+  // Duration mode: a BEI value is a spread, not a discountable yield — so each
+  // series' x is the underlying TIPS leg's modified duration at that series'
+  // real yield (Ask BEI → askYield, SA BEI → saYield, SAO BEI → saoYield).
+  const BEI_DUR_YIELD = { beiAsk: 'askYield', beiSa: 'saYield', beiSao: 'saoYield' };
   const toPt = xAxisMode === 'ttm'
     ? (b, key) => ({ x: (b.maturityDate.getTime() - now) / (7 * 86400000), y: parseFloat((b[key] * 100).toFixed(3)) })
+    : xAxisMode === 'duration'
+    ? (b, key) => { const d = bondModDuration(b, b[BEI_DUR_YIELD[key]]); return d == null ? null : { x: d * 52, y: parseFloat((b[key] * 100).toFixed(3)) }; }
     : (b, key) => ({ x: b.maturityDate.getTime(), y: parseFloat((b[key] * 100).toFixed(3)) });
 
   const seriesDef = [
@@ -1494,6 +1574,10 @@ function renderBeiChart(bonds) {
     { label: 'SAO BEI', data: bonds.map(b => toPt(b, 'beiSao')), color: '#059669', style: 'circle', w: 2.2, r: 1.25 },
   ];
 
+  seriesDef.forEach(s => {
+    s.data = s.data.filter(Boolean);
+    if (xAxisMode === 'duration') s.data.sort((a, b) => a.x - b.x);
+  });
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   const xScale = buildYieldXScale(allPoints);
@@ -1553,6 +1637,7 @@ function renderBeiChart(bonds) {
           backgroundColor: 'rgba(255,255,255,0.95)', titleColor: '#1e293b', bodyColor: '#475569', borderColor: '#e2e8f0', borderWidth: 1, padding: 8, cornerRadius: 6, displayColors: false,
           callbacks: {
             title: (items) => {
+              if (xAxisMode === 'duration') return `Duration ${(items[0].parsed.x / 52).toFixed(2)}y`;
               const ms = xAxisMode === 'ttm'
                 ? now + items[0].parsed.x * 7 * 86400000
                 : items[0].parsed.x;
@@ -1820,13 +1905,18 @@ function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
   if (allPoints.length === 0) return null;
   const _startDt = parseIsoInput(document.getElementById('startMaturity').value);
   const _endDt   = parseIsoInput(document.getElementById('endMaturity').value);
+  // Duration mode encodes modified duration as a synthetic timestamp
+  // (now + durationYears × one year) so the time scale, the Term tick callback
+  // and the ms-based trend/outlier math all carry over unchanged. The maturity
+  // date-range filter does not apply to a duration axis.
+  const durMode = xAxisMode === 'duration';
   const allX = allPoints.map(d => d.x);
   const minDate = new Date(Math.min(...allX));
   const maxDate = new Date(Math.max(...allX));
-  const minX = _startDt
+  const minX = (_startDt && !durMode)
     ? new Date(_startDt.getFullYear(), _startDt.getMonth(), 1).getTime()
     : new Date(minDate.getFullYear(), 0, 1).getTime();
-  const maxX = _endDt
+  const maxX = (_endDt && !durMode)
     ? new Date(_endDt.getFullYear(), _endDt.getMonth() + 1, 1).getTime()
     : new Date(maxDate.getFullYear() + 1, 0, 1).getTime();
   // IQR-clip Y axis to suppress near-maturity outliers (respects Clip Outliers checkbox)
@@ -1862,9 +1952,9 @@ function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
       scales: {
         x: {
           type: 'time', min: minX, max: maxX,
-          time: xAxisMode === 'ttm' ? { displayFormats: {} } : { displayFormats: { year: 'yyyy', month: 'MMM yyyy' } },
+          time: isLinearYearsAxis() ? { displayFormats: {} } : { displayFormats: { year: 'yyyy', month: 'MMM yyyy' } },
           grid: { color: 'rgba(0,0,0,0.05)' },
-          ...(xAxisMode === 'ttm'
+          ...(isLinearYearsAxis()
             ? { ticks: { autoSkip: true, maxRotation: 0, callback: (val, idx, ticks) => { if (!ticks || ticks.length < 2) return ttmLabel(val); const spanDays = (ticks[ticks.length-1].value - ticks[0].value) / 86400000; const days = (val - Date.now()) / 86400000; if (days <= 0) return ''; if (spanDays <= 91) return `${Math.round(days / 7)}w`; if (spanDays <= 365) return `${Math.round(days / 30.44)}m`; const yrs = days / 365.25; const wy = Math.floor(yrs); const rm = Math.round((yrs - wy) * 12); if (rm === 0) return `${wy}y`; if (rm === 12) return `${wy + 1}y`; if (wy === 0) return `${rm}m`; return `${wy}y ${rm}m`; } } }
             : calendarTimeAxis()
           ),
@@ -1893,6 +1983,7 @@ function _makeSpreadChart(ctx, seriesDef, yAxisLabel, yUnit, shouldClip) {
           callbacks: {
             title: items => {
               const ms = items[0].parsed.x;
+              if (xAxisMode === 'duration') return `Duration ${((ms - Date.now()) / _YEAR_MS).toFixed(2)}y`;
               return `${fmtDateMDY(new Date(ms))} (${ttmLabel(ms)})`;
             },
             label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)}${yUnit}`
@@ -1910,9 +2001,17 @@ function renderSpreadCharts(bonds, tab) {
   if (spreadChart2) { spreadChart2.destroy(); spreadChart2 = null; }
   const ctx1 = document.getElementById('spreadYieldChart').getContext('2d');
   const ctx2 = document.getElementById('spreadPriceChart').getContext('2d');
-  const toPt = (b, key) => ({ x: b.maturityDate.getTime(), y: parseFloat(b[key].toFixed(4)) });
+  // Duration mode: x is the bond's modified duration (from its ask yield),
+  // encoded as a synthetic timestamp so the shared time-scale spread chart
+  // machinery carries over. See _makeSpreadChart and §2b of 3.0_Visual_Standards.md.
+  const nowMs = Date.now();
+  const durYield = b => tab === 'tips' ? b.askYield : b.yield;
+  const toPt = xAxisMode === 'duration'
+    ? (b, key) => { const d = bondModDuration(b, durYield(b)); return d == null ? null : { x: nowMs + d * _YEAR_MS, y: parseFloat(b[key].toFixed(4)) }; }
+    : (b, key) => ({ x: b.maturityDate.getTime(), y: parseFloat(b[key].toFixed(4)) });
 
   const pushSeries = (arr, label, data, color, r) => {
+    data = data.filter(Boolean);
     if (data.length) arr.push({ label, data, color, r, trend: _kernelAverageTrend(data) });
   };
 
