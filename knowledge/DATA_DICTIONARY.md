@@ -307,7 +307,7 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 
 <a id="synthetic-tips"></a>
 ### Synthetic TIPS
-`Synthetic_TIPS` = *A theoretical TIPS constructed for a [Gap Year](#gap-years), never purchased. Yield interpolated from the surrounding issued maturities; [Index Ratio](#index-ratio) taken as 1.00000; price computed from its own yield and coupon.*
+`Synthetic_TIPS` = *A theoretical TIPS constructed for a [Gap Year](#gap-years) or a Future 30Y rung, never purchased. For a gap year the yield is interpolated from the surrounding issued maturities; for a Future 30Y rung it comes from the longest issued 30-year maturity, since there is nothing above it to interpolate between. [Index Ratio](#index-ratio) taken as 1.00000; price computed from its own yield and coupon.*
 
 **The index ratio is an approximation.** A TIPS carries an index ratio of exactly 1.00000 on its [Dated Date](#dated-date), not on its issue date, and the two never coincide for a TIPS. A security modeled as issued today would therefore already be indexed by the days between them. 1.00000 is close enough for a rung that is never bought.
 
@@ -341,7 +341,7 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 excessCost_b = gap total cost × bracketWeight_b
 ```
 
-*A bracket year’s weight is what turns gap total cost into the cost of that bracket year’s [Excess TIPS](#excess-tips). Solved by `bracketWeights` / `bracketWeightsN` (`gap-math.js`); see 2.0 §2-Bracket Weights and §Retained Bracket Excess. The Future 30Y [Cover Years](#cover-year) use the same formula against their own years and total cost.*
+*A bracket year’s weight is what turns gap total cost into the cost of that bracket year’s [Excess TIPS](#excess-tips). Solved by `bracketWeights` / `bracketWeightsN` (`gap-math.js`); see 2.0 §2-Bracket Weights and §Retained Bracket Excess. Its Future 30Y counterpart is [Cover Weight](#cover-weight).*
 
 <a id="outstanding-tips"></a>
 <a id="ladder-eligible-tips"></a>
@@ -383,6 +383,26 @@ excessCost_b = gap total cost × bracketWeight_b
 <a id="duration-matching"></a>
 ### Duration Matching
 `Duration_Matching` = *Holding [Excess TIPS](#excess-tips) in the [Bracket Years](#bracket-year) that surround the [Gap Years](#gap-years), weighted by [Bracket Weight](#bracket-weight) so that the excess changes in value as the gap years would under a rate move. Modified duration throughout (2.0 §Duration Matching). The Future 30Y [Cover Years](#cover-year) work the same way.*
+
+<a id="cover-year-tips"></a>
+<a id="cover-maturity"></a>
+### Cover Year TIPS
+`Cover_Year_TIPS` = *The specific TIPS securities in a [Cover Year](#cover-year). The Future 30Y counterpart of [Bracket Year TIPS](#bracket-year-tips), and named the same way: naming a cover names the security.*
+
+<a id="cover-excess"></a>
+### Cover Excess
+`Cover_Excess` = *The TIPS a [Cover Year](#cover-year) holds for duration matching. The Future 30Y counterpart of [Excess TIPS](#excess-tips): the quantity follows from that cover year’s [Cover Weight](#cover-weight), which the duration match determines.*
+
+<a id="cover-weight"></a>
+### Cover Weight
+`Cover_Weight` = *The share of the Future 30Y years’ total cost carried by one [Cover Year](#cover-year). The Future 30Y counterpart of [Bracket Weight](#bracket-weight), solved the same way and held within 0 to 1:*
+
+```
+Σ (coverWeight_c × coverYearDuration_c) = average duration of the Future 30Y years
+coverExcessCost_c = Future 30Y total cost × coverWeight_c
+```
+
+*Both cover years mature before the years they cover, so **lower** and **upper** rank them by duration rather than by maturity: a deep-discount cover carries an unusually long duration for its maturity, and can be the upper cover while maturing first. Where the average duration of the Future 30Y years falls outside the span between the two cover durations, the weight would solve past 0 or 1; it is held at the nearer bound instead, and the duration match is not reached exactly. Solved by `bracketWeights` (`gap-math.js`); see 2.0 §Future 30Y Rungs.*
 
 <a id="within-year-allocation-policy"></a>
 ### Within-Year Allocation Policy

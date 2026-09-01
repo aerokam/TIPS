@@ -314,7 +314,7 @@ export function future30yParamsCore({ future30yYears, coverBond2056, settlementD
     future30yTotalCost += cost;
   }
   // Cost-weighted average duration, the same rule as the gap years (2.0 §Average Gap Year
-  // Duration is Cost-Weighted): each hypothetical rung weighted by qty × costPerBond.
+  // Duration is Cost-Weighted): each synthetic rung weighted by qty × costPerBond.
   const _costSum = breakdown.reduce((s, b) => s + b.cost, 0);
   const avgDuration = _costSum > 0
     ? breakdown.reduce((s, b) => s + b.cost * b.dur, 0) / _costSum

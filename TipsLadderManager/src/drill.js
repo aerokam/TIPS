@@ -72,8 +72,8 @@ function future30yBreakdownRows(future30yParams) {
     const id = 'fut' + i;
     const fmla = 'round((' + fm(g.dara) + ' \u2212 <span class="formula-var" data-source="' + id + 'lmi">LMI</span>) \u00f7 <span class="formula-var" data-source="' + id + 'pi">P+I</span>)';
     rows += row(g.year + ' quantity', fmla, g.qty, false, undefined, id + 'qty')
-          + row('\u21b3 P+I per hypothetical TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi')
-          + row('\u21b3 Later mat int (LMI)', 'Coupon interest from longer hypothetical TIPS rungs', fm(g.laterMatInt), false, undefined, id + 'lmi')
+          + row('\u21b3 P+I per synthetic TIPS', '', fm2(g.piPerBond), false, undefined, id + 'pi')
+          + row('\u21b3 Later mat int (LMI)', 'Coupon interest from longer synthetic Future 30Y TIPS', fm(g.laterMatInt), false, undefined, id + 'lmi')
           + row('\u21b3 Theoretical cost', '<span class="formula-var" data-source="' + id + 'qty">Quantity</span> \xd7 $1,000 \xd7 price ' + fd(g.synPrice ?? 100, 3) + ' \u00f7 100', fm(g.cost ?? g.qty * 1000));
   });
   return rows;
@@ -290,7 +290,7 @@ export function buildDrillHTML(d, colKey, summary) {
       rows = row('Cover weights', 'see Future 30Y Duration Calcs \u2197', fd(weight, 4))
         + sep()
         + future30yBreakdownRows(s.future30yParams)
-        + row('Future 30Y total cost', 'Sum of hypothetical Future 30Y year costs', fm(s.future30yParams?.future30yTotalCost ?? 0), true, undefined, 'ftc')
+        + row('Future 30Y total cost', 'Sum of the synthetic Future 30Y year costs', fm(s.future30yParams?.future30yTotalCost ?? 0), true, undefined, 'ftc')
         + row('Target excess cost', '<span class="formula-var" data-source="ftc">total cost</span> \xd7 ' + wLabel.toLowerCase(), fm(exCost), false, undefined, 'tec')
         + sep()
         + row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb')
@@ -590,7 +590,7 @@ export function buildDrillHTML(d, colKey, summary) {
         + row('Cost per TIPS', '<span class="formula-var" data-source="price">price/100</span> \xd7 <span class="formula-var" data-source="ir">index ratio</span> \xd7 1,000', fm2(d.costPerBond), false, undefined, 'cpb')
         + sep()
         + future30yBreakdownRows(s.future30yParams)
-        + row('Future 30Y total cost', 'Sum of hypothetical Future 30Y year costs', fm(s.future30yParams?.future30yTotalCost ?? 0), true, undefined, 'ftc')
+        + row('Future 30Y total cost', 'Sum of the synthetic Future 30Y year costs', fm(s.future30yParams?.future30yTotalCost ?? 0), true, undefined, 'ftc')
         + row('Target excess cost', '<span class="formula-var" data-source="ftc">total cost</span> \xd7 ' + wLabel.toLowerCase(), fm(exCost));
       if (isAmt) {
         rows += sep()
@@ -1172,7 +1172,7 @@ export function buildDurationPopupRows(summary, mode) {
     rows.push({ html:
       '<div style="font-size:11px;color:#334155;margin:0 0 6px;line-height:1.6;">'
       + 'qty = round((DARA \u2212 LMI \u2212 PLI) \u00f7 P+I)<br>'
-      + '<b>LMI</b> = Later Maturity Interest \u2014 coupon income from TIPS maturing after this year, including hypothetical interest from synthetic gap year TIPS<br>'
+      + '<b>LMI</b> = Later Maturity Interest \u2014 coupon income from TIPS maturing after this year, including interest from synthetic gap year TIPS<br>'
       + '<b>PLI</b> = Pre-Ladder Interest credit applied to this gap year (0 unless a pre-ladder credit applies)<br>'
       + '<b>P+I</b> = Principal + Interest per synthetic TIPS for this year \u2014 these synthetic TIPS always mature in January, which receives one coupon payment in the maturity year, so P+I reflects half the annual coupon rate shown above<br>'
       + '<i>Click any LMI, PLI, or P+I value below for its breakdown.</i>'
@@ -1214,7 +1214,7 @@ export function buildFuture30yDurationPopupRows(summary) {
   ];
 
   if (future30yParams.breakdown?.length) {
-    rows.push({ heading: 'Hypothetical TIPS Durations' });
+    rows.push({ heading: 'Synthetic Future 30Y TIPS' });
     // The average is cost-weighted (gap-math.js future30yParamsCore, the same rule as the gap
     // years), so each row carries the cost that weights it. The label said "sum ÷ count", which
     // is a different figure from the one it sat beside.
@@ -1292,7 +1292,7 @@ export function buildFuture30yDurationPopupRows(summary) {
   );
 
   if (future30yParams.breakdown?.length) {
-    rows.push({ sep: true }, { heading: 'Future 30Y Year Breakdown (hypothetical qty)' });
+    rows.push({ sep: true }, { heading: 'Future 30Y Year Breakdown (theoretical qty)' });
     future30yParams.breakdown.forEach(b => {
       rows.push({ label: b.year + ' qty', note: 'round((' + fm(b.dara) + ' − ' + Math.round(b.laterMatInt) + ') ÷ ' + b.piPerBond.toFixed(2) + ')', value: String(b.qty) });
     });
