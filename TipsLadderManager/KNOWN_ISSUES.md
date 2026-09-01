@@ -24,13 +24,16 @@ production impact go here.
   unpicked eight "bracket/cover" compounds into the bracket and cover terms the Data Dictionary
   actually defines, dropped "3-bracket", and gave the longest-to-shortest sweep the heading two
   cross-references had been pointing at without one existing.
-- **Next: the same three phrases outside the walkthrough.** Sweeping for them found more:
-  `3.0` §320, `4.0` §273 and `6.0` §74 still say "3-bracket", and `6.0` documents the control as
-  offering "2-bracket/3-bracket" when it now reads Multi-bracket; `Primer/knowledge/1.0_Primer.md`
-  describes the same control twice by the label it no longer carries; `2.0` §§291, 297, 692 still
-  say "synthetic gap TIPS"; and "bracket/cover" survives in `2.0` §692, `4.0` §442, `5.0` §§324/326,
-  `6.0` §433 and in four help list items in `index.html`. The "Expand Bracket/Cover Years" button is
-  separate: there the slash names two kinds of row rather than one compound term.
+- **Also done: the same three phrases outside the walkthrough.** "3-bracket" is gone from `3.0`,
+  `4.0`, `6.0` and the Primer chapter spec, which had been describing the control by a label it no
+  longer carries; "synthetic gap TIPS" is gone from `2.0` and from two rows of the Gap Dur popup;
+  and the "bracket/cover" compounds in `2.0`, `4.0`, `5.0`, `6.0` and four help list items now name
+  the bracket and cover terms separately. The "Expand Bracket/Cover Years" button keeps its slash:
+  there it names two kinds of row rather than one compound term.
+- **Still carrying the older "synthetic gap-year TIPS" phrasing:** `2.0` §214, `3.0` §§121/357,
+  `4.0` §§80/115, `5.0` §525, `6.0` §358, `knowledge/BuildRebalanceParity.md`, and code comments and
+  test names across `gap-math.js`, `rebalance-lib.js`, `build-lib.js`, `render.js`, `drill.js` and
+  `tests/run.js`. None of it is user-facing. Worth a single mechanical pass, not a reading pass.
 - **Then, everything else with user-facing text:** the Amount, Cost, Quantity and Ref CPI drills,
   the Trade Ticket, the Cash Flow Calendar, the status strip, the top-card controls.
 

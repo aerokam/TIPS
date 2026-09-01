@@ -1068,7 +1068,7 @@ export function buildDurationPopupRows(summary, mode) {
   const avg = gapParams.avgDuration;
 
   const rows = [
-    { label: 'Weighted average duration of synthetic gap year TIPS', value: avg.toFixed(2) },
+    { label: 'Weighted average duration of the synthetic TIPS', value: avg.toFixed(2) },
     { sep: true },
   ];
 
@@ -1172,7 +1172,7 @@ export function buildDurationPopupRows(summary, mode) {
     rows.push({ html:
       '<div style="font-size:11px;color:#334155;margin:0 0 6px;line-height:1.6;">'
       + 'qty = round((DARA \u2212 LMI \u2212 PLI) \u00f7 P+I)<br>'
-      + '<b>LMI</b> = Later Maturity Interest \u2014 coupon income from TIPS maturing after this year, including interest from synthetic gap year TIPS<br>'
+      + '<b>LMI</b> = Later Maturity Interest \u2014 coupon income from TIPS maturing after this year, including interest from synthetic TIPS<br>'
       + '<b>PLI</b> = Pre-Ladder Interest credit applied to this gap year (0 unless a pre-ladder credit applies)<br>'
       + '<b>P+I</b> = Principal + Interest per synthetic TIPS for this year \u2014 these synthetic TIPS always mature in January, which receives one coupon payment in the maturity year, so P+I reflects half the annual coupon rate shown above<br>'
       + '<i>Click any LMI, PLI, or P+I value below for its breakdown.</i>'
