@@ -12,15 +12,24 @@ production impact go here.
 
 - **The method, agreed 2026-08-30.** Take one help section at a time, show it, take feedback, and
   let the feedback loop back into the specs and the DD where the language is wrong there too.
-  Two sections of the Gap Dur popup have been through it; that pass alone found a wrong maturity
-  month on every gap row, an average whose stated arithmetic did not produce the figure beside
-  it, a weighting that disagreed with its own spec, and vocabulary two renames out of date.
-- **Next in that popup:** the modified duration match line and the degenerate-inputs case.
-- **Then:** the Bracket Mode help (`#bracket-mode-help`), which the user rates as well written
-  but which describes only the case where the bracket year is also a funded year. A bracket year
-  whose DARA is 0 holds excess TIPS alone and is not covered.
-- **Everything else with user-facing text:** the Amount, Cost, Quantity and Ref CPI drills, the
-  Trade Ticket, the Cash Flow Calendar, the status strip, the top-card controls.
+  The Gap Dur popup has been through it end to end. That pass alone found a wrong maturity month
+  on every gap row, an average whose stated arithmetic did not produce the figure beside it, a
+  weighting that disagreed with its own spec, a duration match row that asserted its result
+  instead of computing it, vocabulary two renames out of date, a bracket weight drill fed the
+  wrong mode string so it reported 0.0000, and a retained weight formula that held only in the
+  case where nothing is sold.
+- **Done:** the Gap Dur popup (all sections) and the Bracket Mode help.
+- **Next:** the Future 30Y Dur popup, the cover-year twin of Gap Dur. It still carries both
+  defects already fixed there: a total row labelled `Avg (sum ÷ n)` when the value beside it is
+  cost-weighted, and a duration match row that asserts the average rather than working out the
+  weights. Its formulas also show no arithmetic, and nothing on screen says that lower and upper
+  cover mean lower and upper *duration*, not earlier and later maturity — the 2052 cover carries
+  a longer duration than the 2056 one.
+- **Then, everything else with user-facing text:** the Amount, Cost, Quantity and Ref CPI drills,
+  the Trade Ticket, the Cash Flow Calendar, the status strip, the top-card controls.
+- **The plain-language walkthrough** (`2.0_TIPS_Ladders.md` §Two-Pass Walkthrough, linked from the
+  foot of the Gap Dur popup) has to end up consistent with every terminology change made in this
+  pass. It has not been read since the renames.
 
 ### Hard-coded years still in the specs
 
