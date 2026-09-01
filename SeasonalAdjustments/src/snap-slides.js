@@ -149,29 +149,115 @@ export function drawS2(el) {
 
   // settlement marker
   const xs = x(SETTLE_DOY), ys = y(Sat(SETTLE_DOY));
-  s += `<line x1="${xs.toFixed(1)}" y1="${T}" x2="${xs.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${SETTLE}" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"/>`;
+  s += `<line x1="${xs.toFixed(1)}" y1="${ys.toFixed(1)}" x2="${xs.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${SETTLE}" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"/>`;
+  s += `<line x1="${L}" y1="${ys.toFixed(1)}" x2="${W - R}" y2="${ys.toFixed(1)}" stroke="${SETTLE}" stroke-width="1" stroke-dasharray="5 4" opacity=".4"/>`;
   s += `<circle cx="${xs.toFixed(1)}" cy="${ys.toFixed(1)}" r="6" fill="${SETTLE}"/>`;
-  s += callout(xs, ys - 4, xs + 40, ys - 44, [`settlement  ${SETTLE_LABEL}`, `factor ${Sat(SETTLE_DOY).toFixed(4)}`], SETTLE, 'start', 0.2, 11);
+  s += callout(xs, ys - 4, xs - 250, ys - 8, [`settlement  ${SETTLE_LABEL}`, `SA Factor ${Sat(SETTLE_DOY).toFixed(4)}`], SETTLE, 'start', -0.14, 11);
 
-  // the four maturity month/days — Jan/Apr sit below the line (label below),
-  // Jul/Oct above (label above); nudge horizontally off the settlement marker
+  // the four maturity month/days
   for (const mm of MATS) {
     const d = doy(mm.m, 15), xd = x(d), yd = y(Sat(d));
-    const below = Sat(d) < 1;
-    const dx = mm.m === 0 ? 8 : mm.m === 9 ? 10 : 0;
-    const anchor = mm.m === 0 ? 'start' : mm.m === 9 ? 'start' : 'middle';
-    s += `<line x1="${xd.toFixed(1)}" y1="${yd.toFixed(1)}" x2="${xd.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${AMBER}" stroke-width="1" stroke-dasharray="2 3" opacity=".5"/>`;
+    const below = Sat(d) < Sat(SETTLE_DOY);
+    const dx = mm.m === 0 ? 9 : 0;
+    const anchor = mm.m === 0 ? 'start' : 'middle';
+    s += `<line x1="${xd.toFixed(1)}" y1="${yd.toFixed(1)}" x2="${xd.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${AMBER}" stroke-width="1" stroke-dasharray="2 3" opacity=".45"/>`;
     s += `<circle cx="${xd.toFixed(1)}" cy="${yd.toFixed(1)}" r="5" fill="none" stroke="${AMBER}" stroke-width="2"/>`;
-    s += note(xd + dx, yd + (below ? 20 : -11), `${MONTHS[mm.m]} 15   ${Sat(d).toFixed(4)}`, AMBER, anchor, 11);
+    s += note(xd + dx, yd + (below ? 19 : -11), `${MONTHS[mm.m]} 15   ${Sat(d).toFixed(4)}`, AMBER, anchor, 11);
   }
+  // the gap that matters, shown on-chart for the extreme (Apr) case
+  const apr = doy(3, 15);
+  s += note(x(apr) + 6, (ys + y(Sat(apr))) / 2, ['this gap — settlement SA Factor', 'to maturity SA Factor — is what', 'distorts the quoted yield'], INK, 'start', 10.5);
 
-  // captions — define the terms, then make the bridge to slide 1
-  s += note(W / 2, 28, ['TIPS payments track the Ref CPI, interpolated daily from CPI-U Not Seasonally Adjusted (FRED CPIAUCNS).'], MUTED, 'middle', 12);
-  s += note(W / 2, 44, ['Divided by the Ref CPI from the Seasonally Adjusted series (CPIAUCSL), it gives the seasonal adjustment factor:'], MUTED, 'middle', 12);
-  s += note(W / 2, 60, ['above 1 in late summer, below 1 in late winter — the same cycle every year.'], MUTED, 'middle', 12);
+  // captions — define the term precisely, then bridge to the next slide
+  s += note(W / 2, 26, ['The Ref CPI that adjusts a TIPS is interpolated daily from CPI-U Not Seasonally Adjusted (FRED CPIAUCNS), so it carries a seasonal cycle.'], MUTED, 'middle', 12);
+  s += note(W / 2, 42, ['Divided by the Ref CPI from the Seasonally Adjusted series (CPIAUCSL), it isolates that cycle — the SA Factor, one year shown here.'], MUTED, 'middle', 12);
+  s += note(W / 2, 58, ['Above 1 in late summer, below 1 in late winter; the same shape every year.'], MUTED, 'middle', 12);
 
-  s += note(W / 2, H - 30, ['A TIPS is priced off the factor on its settlement date and pays off the factor on its maturity month and day.'], INK, 'middle', 13);
-  s += note(W / 2, H - 13, ['Jul / Oct maturity dates sit close to the Sep settlement — small difference. Jan / Apr sit far below — large difference. That difference is the saw-tooth.'], AMBER, 'middle', 12);
+  s += note(W / 2, H - 14, ['Settlement sits near the top. The four TIPS maturity dates sit at four fixed heights — Jul / Oct close by, Jan / Apr far below.'], AMBER, 'middle', 13);
+
+  el.innerHTML = s;
+}
+
+// ── Slide 3: Near and Far ──────────────────────────────────────────────────
+// The SA price factor = SA Factor(settlement) / SA Factor(maturity mm/dd), the
+// multiplier the fix applies to the quoted price. Walk two real TIPS: one
+// maturing Oct (mm/dd factor closest to the Sep settlement -> factor barely
+// above 1, tiny yield move) and one maturing Apr (farthest -> factor ~1.007,
+// large yield move). Same formula both times; distance from the settlement
+// factor sets the size.
+export function drawS3(el) {
+  const W = 900, H = 520;
+  const settleSAF = Sat(SETTLE_DOY);
+
+  // pick the two bonds: Oct 2028 (near) and Apr 2028 (far), lowest coupon at each
+  const pick = (mo) => SNAP.bonds
+    .filter(b => b.matMonth === mo && b.matDate.getFullYear() === 2028)
+    .sort((a, b) => a.coupon - b.coupon)[0];
+  const near = pick(9), far = pick(3);
+  const row = (b) => {
+    const mSAF = Sat(doy(b.matMonth, 15));
+    return { b, mSAF, pf: settleSAF / mSAF, dbp: (b.sa - b.ask) * 10000 };
+  };
+  const N = row(near), F = row(far);
+
+  let s = '';
+
+  // formula strip
+  s += note(W / 2, 26, ['SA price factor  =  SA Factor (settlement date)  ÷  SA Factor (maturity month & day)'], INK, 'middle', 14);
+  s += note(W / 2, 44, ['— the multiplier the seasonal adjustment applies to the quoted price.'], MUTED, 'middle', 11);
+
+  // ---- left: one-year SA Factor wave, compact ----
+  const L = 52, WR = 452, T = 84, B = H - 96;
+  const lo = 0.9905, hi = 1.007;
+  const x = d => L + (d / 364) * (WR - L);
+  const y = v => T + (1 - (v - lo) / (hi - lo)) * (B - T);
+
+  for (let m = 0; m < 12; m++) {
+    const xx = x(cum[m]);
+    s += `<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${B}" stroke="${GRID}" stroke-width="1" opacity=".25"/>`;
+    s += `<text x="${(xx + 2).toFixed(1)}" y="${B + 14}" style="fill:${MUTED};font-size:9px">${MONTHS[m][0]}</text>`;
+  }
+  const y1 = y(1);
+  s += `<line x1="${L}" y1="${y1.toFixed(1)}" x2="${WR}" y2="${y1.toFixed(1)}" stroke="#94a3b8" stroke-width="1" stroke-dasharray="3 3" opacity=".5"/>`;
+  s += note(L - 4, y1 + 3, '1.000', MUTED, 'end', 9);
+  let path = '';
+  for (let d = 0; d < 365; d++) path += (d ? 'L' : 'M') + x(d).toFixed(1) + ' ' + y(Sat(d)).toFixed(1) + ' ';
+  s += `<path d="${path}" fill="none" stroke="${WAVE}" stroke-width="2"/>`;
+
+  // settlement level line + the two maturity month/days, each with a dashed
+  // connector up to the settlement level (short for Oct, long for Apr)
+  s += `<line x1="${L}" y1="${y(settleSAF).toFixed(1)}" x2="${WR}" y2="${y(settleSAF).toFixed(1)}" stroke="${SETTLE}" stroke-width="1" stroke-dasharray="5 3" opacity=".5"/>`;
+  const mark = (d, saf, col, lbl, lblDx, lblDy, anchor) => {
+    const xd = x(d), yd = y(saf);
+    s += `<line x1="${xd.toFixed(1)}" y1="${yd.toFixed(1)}" x2="${xd.toFixed(1)}" y2="${y(settleSAF).toFixed(1)}" stroke="${col}" stroke-width="1.4" stroke-dasharray="3 2" opacity=".8"/>`;
+    s += `<circle cx="${xd.toFixed(1)}" cy="${yd.toFixed(1)}" r="5" fill="${col}"/>`;
+    s += note(xd + lblDx, yd + lblDy, lbl, col, anchor, 10);
+  };
+  mark(SETTLE_DOY, settleSAF, SETTLE, `settlement  ${settleSAF.toFixed(4)}`, -10, -10, 'end');
+  mark(doy(9, 15), N.mSAF, '#22c55e', `Oct 15  ${N.mSAF.toFixed(4)}`, 12, 4, 'start');
+  mark(doy(3, 15), F.mSAF, '#f97316', `Apr 15  ${F.mSAF.toFixed(4)}`, 0, 18, 'middle');
+  s += note((L + WR) / 2, T - 10, 'SA Factor, one year', MUTED, 'middle', 10);
+
+  // ---- right: two cards ----
+  const cx0 = 486, cw = W - cx0 - 26;
+  const card = (top, r, tone, tag) => {
+    const h = 150;
+    s += `<rect x="${cx0}" y="${top}" width="${cw}" height="${h}" rx="10" fill="#0b1220" stroke="${tone}" stroke-width="1.4"/>`;
+    s += note(cx0 + 16, top + 24, `${tag}  ·  matures ${MONTHS[r.b.matMonth]} 2028`, tone, 'start', 12);
+    s += note(cx0 + 16, top + 46, `${(r.b.coupon * 100).toFixed(3)}% coupon`, MUTED, 'start', 10);
+    s += note(cx0 + 16, top + 72, `SA Factor at maturity month/day:  ${r.mSAF.toFixed(4)}`, INK, 'start', 11);
+    s += note(cx0 + 16, top + 90, `SA price factor  =  ${settleSAF.toFixed(4)} ÷ ${r.mSAF.toFixed(4)}  =`, INK, 'start', 11);
+    s += note(cx0 + cw - 16, top + 92, `${r.pf.toFixed(4)}`, tone, 'end', 17);
+    s += `<line x1="${cx0 + 14}" y1="${top + 104}" x2="${cx0 + cw - 14}" y2="${top + 104}" stroke="${GRID}"/>`;
+    s += note(cx0 + 16, top + 126, `quoted ${(r.b.ask * 100).toFixed(2)}%   →   SA ${(r.b.sa * 100).toFixed(2)}%`, INK, 'start', 12);
+    s += note(cx0 + cw - 16, top + 126, `${r.dbp >= 0 ? '+' : ''}${r.dbp.toFixed(0)} bp`, tone, 'end', 14);
+  };
+  card(84, N, '#22c55e', 'NEAR');
+  card(252, F, '#f97316', 'FAR');
+
+  // takeaway
+  s += note(W / 2, H - 30, ['Same formula both times. The farther the maturity SA Factor sits from the settlement SA Factor, the farther the SA price factor is from 1 —'], INK, 'middle', 12.5);
+  s += note(W / 2, H - 13, ['and the larger the move from the quoted yield to the SA yield.'], AMBER, 'middle', 12.5);
 
   el.innerHTML = s;
 }

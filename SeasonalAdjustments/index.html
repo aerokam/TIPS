@@ -72,12 +72,13 @@
 
 <script type="module">
 import { loadSnapshot, SNAP, SNAPSHOT_LABEL } from './src/snap-data.js';
-import { drawS1, drawS2 } from './src/snap-slides.js';
+import { drawS1, drawS2, drawS3 } from './src/snap-slides.js';
 
 // Slide registry — grows one entry per slide as the rework proceeds.
 const PAGES = [
   { title: 'The Sawtooth', draw: drawS1, vh: 520 },
   { title: 'Why the Month Matters', draw: drawS2, vh: 520 },
+  { title: 'Near and Far', draw: drawS3, vh: 520 },
 ];
 
 const stage = document.getElementById('stage');
