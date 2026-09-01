@@ -45,11 +45,18 @@ export function drawS1(el) {
     s += `<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W - R}" y2="${yy.toFixed(1)}" stroke="${GRID}" stroke-width="1" opacity="${Math.abs(v * 10 % 5) < 1e-6 ? .55 : .3}"/>`;
     s += `<text x="${L - 8}" y="${(yy + 3).toFixed(1)}" text-anchor="end" style="fill:${MUTED};font-size:10px">${v.toFixed(1)}%</text>`;
   }
-  // x — year gridlines
-  for (let y = 2028; localDate(`${y}-01-01`).getTime() <= x1; y++) {
-    const xx = tx(localDate(`${y}-01-01`).getTime());
-    s += `<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H - B}" stroke="${GRID}" stroke-width="1" opacity=".4"/>`;
-    s += `<text x="${xx.toFixed(1)}" y="${H - B + 18}" text-anchor="middle" style="fill:${MUTED};font-size:11px">${y}</text>`;
+  // x — gridlines at every maturity month (15th of Jan / Apr / Jul / Oct) so the
+  // reader can read a point's maturity month straight off the axis: month
+  // abbreviation on every tick, the year on a second row under each January
+  for (let y = 2027; y <= 2037; y++) {
+    for (const mo of [0, 3, 6, 9]) {
+      const t = localDate(`${y}-${String(mo + 1).padStart(2, '0')}-15`).getTime();
+      if (t < x0 || t > x1) continue;
+      const xx = tx(t), major = mo === 0;
+      s += `<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H - B}" stroke="${GRID}" stroke-width="1" opacity="${major ? .45 : .16}"/>`;
+      s += `<text x="${xx.toFixed(1)}" y="${H - B + 14}" text-anchor="middle" style="fill:${MUTED};font-size:9px">${MONTHS[mo]}</text>`;
+      if (major) s += `<text x="${xx.toFixed(1)}" y="${H - B + 27}" text-anchor="middle" style="fill:${MUTED};font-size:11px;font-weight:600">${y}</text>`;
+    }
   }
   const midY = (T + (H - B)) / 2;
   s += `<text x="15" y="${midY}" text-anchor="middle" transform="rotate(-90 15 ${midY})" style="fill:${MUTED};font-size:12px">quoted ask yield (%)</text>`;
@@ -95,16 +102,17 @@ export function drawS1(el) {
   el.innerHTML = s;
 }
 
-// ── Slide 2: The Seasonal Factor ───────────────────────────────────────────
-// One year of the seasonal factor S = CPI(NSA) ÷ its de-seasonalized trend.
-// The index runs above trend in late summer, below in late winter, on a fixed
-// yearly cycle. The Sep 1 settlement date sits near the top; the four dates
-// every TIPS matures on (the 15th of Jan / Apr / Jul / Oct) sit at four fixed
-// heights — Jul and Oct near the settlement level, Jan and Apr well below.
+// ── Slide 2: Why the Month Matters ─────────────────────────────────────────
+// The bridge from the saw-tooth to its cause. A TIPS is priced off the Ref CPI
+// on its settlement date and pays off the Ref CPI on its maturity month/day
+// (SA calcs key on mm/dd only). Ref CPI is interpolated daily from CPI-U Not
+// Seasonally Adjusted (FRED CPIAUCNS); the same interpolation on the Seasonally
+// Adjusted series (CPIAUCSL) gives a second daily Ref CPI. Their ratio, NSA÷SA,
+// is the seasonal adjustment factor — plotted here for one year. Settlement
+// sits near the top; Jul/Oct maturity dates sit close to it, Jan/Apr well below.
 export function drawS2(el) {
-  const W = 900, H = 520, L = 60, R = 96, T = 74, B = 62;
-  const lo = Math.floor((waveMin() - 0.0012) * 1000) / 1000;
-  const hi = Math.ceil((waveMax() + 0.0012) * 1000) / 1000;
+  const W = 900, H = 520, L = 66, R = 116, T = 96, B = 80;
+  const lo = 0.9905, hi = 1.007;   // headroom above the peak / below the trough for labels
   const x = d => L + (d / 364) * (W - L - R);
   const y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
 
@@ -113,20 +121,23 @@ export function drawS2(el) {
   // month gridlines
   for (let m = 0; m < 12; m++) {
     const xx = x(cum[m]);
-    s += `<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H - B}" stroke="${GRID}" stroke-width="1" opacity=".35"/>`;
+    s += `<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H - B}" stroke="${GRID}" stroke-width="1" opacity=".3"/>`;
     s += `<text x="${(xx + 3).toFixed(1)}" y="${H - B + 16}" style="fill:${MUTED};font-size:11px">${MONTHS[m]}</text>`;
   }
-  // y ticks (S value)
+  // y ticks
   for (let v = Math.ceil(lo * 200) / 200; v <= hi + 1e-9; v += 0.005) {
     const yy = y(v);
     s += `<text x="${L - 8}" y="${(yy + 3).toFixed(1)}" text-anchor="end" style="fill:${MUTED};font-size:10px">${v.toFixed(3)}</text>`;
   }
-  // trend reference at S = 1
+  const midY = (T + (H - B)) / 2;
+  s += `<text x="16" y="${midY}" text-anchor="middle" transform="rotate(-90 16 ${midY})" style="fill:${MUTED};font-size:11px">seasonal adjustment factor  (Ref CPI NSA ÷ SA)</text>`;
+
+  // reference at factor = 1
   const y1 = y(1);
   s += `<line x1="${L}" y1="${y1.toFixed(1)}" x2="${W - R}" y2="${y1.toFixed(1)}" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="3 3" opacity=".7"/>`;
-  s += `<text x="${W - R + 6}" y="${(y1 + 3).toFixed(1)}" style="fill:${MUTED};font-size:10px">1.000 — trend</text>`;
+  s += `<text x="${W - R + 6}" y="${(y1 + 3).toFixed(1)}" style="fill:${MUTED};font-size:10px">1.000 — NSA = SA</text>`;
 
-  // the wave, with a faint fill to the trend line
+  // the wave
   let path = '', area = `M${x(0).toFixed(1)} ${y1.toFixed(1)} `;
   for (let d = 0; d < 365; d++) {
     path += (d ? 'L' : 'M') + x(d).toFixed(1) + ' ' + y(Sat(d)).toFixed(1) + ' ';
@@ -136,30 +147,31 @@ export function drawS2(el) {
   s += `<path d="${area}" fill="${WAVE}" opacity=".09"/>`;
   s += `<path d="${path}" fill="none" stroke="${WAVE}" stroke-width="2.5"/>`;
 
-  // trough
-  let tr = 0;
-  for (let d = 0; d < 365; d++) if (Sat(d) < Sat(tr)) tr = d;
-  s += `<circle cx="${x(tr).toFixed(1)}" cy="${y(Sat(tr)).toFixed(1)}" r="3.5" fill="${WAVE}"/>`;
-  s += note(x(tr), y(Sat(tr)) + 18, 'late-winter low', WAVE, 'middle', 11);
-
-  // settlement marker — which this year lands right at the seasonal high
+  // settlement marker
   const xs = x(SETTLE_DOY), ys = y(Sat(SETTLE_DOY));
   s += `<line x1="${xs.toFixed(1)}" y1="${T}" x2="${xs.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${SETTLE}" stroke-width="1.5" stroke-dasharray="4 3" opacity=".8"/>`;
   s += `<circle cx="${xs.toFixed(1)}" cy="${ys.toFixed(1)}" r="6" fill="${SETTLE}"/>`;
-  s += callout(xs, ys - 6, xs - 236, T + 4, [`You buy on ${SETTLE_LABEL} — which this`, `year sits right at the seasonal high,`, `S = ${Sat(SETTLE_DOY).toFixed(4)}`], SETTLE, 'start', -0.16, 12);
+  s += callout(xs, ys - 4, xs + 40, ys - 44, [`settlement  ${SETTLE_LABEL}`, `factor ${Sat(SETTLE_DOY).toFixed(4)}`], SETTLE, 'start', 0.2, 11);
 
-  // the four maturity days
+  // the four maturity month/days — Jan/Apr sit below the line (label below),
+  // Jul/Oct above (label above); nudge horizontally off the settlement marker
   for (const mm of MATS) {
     const d = doy(mm.m, 15), xd = x(d), yd = y(Sat(d));
-    const high = Sat(d) >= Sat(SETTLE_DOY) - 0.0015;
+    const below = Sat(d) < 1;
+    const dx = mm.m === 0 ? 8 : mm.m === 9 ? 10 : 0;
+    const anchor = mm.m === 0 ? 'start' : mm.m === 9 ? 'start' : 'middle';
     s += `<line x1="${xd.toFixed(1)}" y1="${yd.toFixed(1)}" x2="${xd.toFixed(1)}" y2="${(H - B).toFixed(1)}" stroke="${AMBER}" stroke-width="1" stroke-dasharray="2 3" opacity=".5"/>`;
     s += `<circle cx="${xd.toFixed(1)}" cy="${yd.toFixed(1)}" r="5" fill="none" stroke="${AMBER}" stroke-width="2"/>`;
-    s += note(xd + (mm.m === 0 ? 6 : 0), yd + (high ? -12 : 20), `${mm.label.slice(0, 3)}  ${Sat(d).toFixed(4)}`, AMBER, mm.m === 0 ? 'start' : 'middle', 11);
+    s += note(xd + dx, yd + (below ? 20 : -11), `${MONTHS[mm.m]} 15   ${Sat(d).toFixed(4)}`, AMBER, anchor, 11);
   }
 
-  // captions
-  s += note(W / 2, 34, ['The CPI index TIPS track runs above and below its de-seasonalized level on a fixed yearly cycle.  S is the ratio.'], MUTED, 'middle', 12);
-  s += note(W / 2, H - 14, ['You buy near the top.  Jul and Oct maturities redeem near that level; Jan and Apr maturities redeem well below.'], AMBER, 'middle', 13);
+  // captions — define the terms, then make the bridge to slide 1
+  s += note(W / 2, 28, ['TIPS payments track the Ref CPI, interpolated daily from CPI-U Not Seasonally Adjusted (FRED CPIAUCNS).'], MUTED, 'middle', 12);
+  s += note(W / 2, 44, ['Divided by the Ref CPI from the Seasonally Adjusted series (CPIAUCSL), it gives the seasonal adjustment factor:'], MUTED, 'middle', 12);
+  s += note(W / 2, 60, ['above 1 in late summer, below 1 in late winter — the same cycle every year.'], MUTED, 'middle', 12);
+
+  s += note(W / 2, H - 30, ['A TIPS is priced off the factor on its settlement date and pays off the factor on its maturity month and day.'], INK, 'middle', 13);
+  s += note(W / 2, H - 13, ['Jul / Oct maturity dates sit close to the Sep settlement — small difference. Jan / Apr sit far below — large difference. That difference is the saw-tooth.'], AMBER, 'middle', 12);
 
   el.innerHTML = s;
 }
