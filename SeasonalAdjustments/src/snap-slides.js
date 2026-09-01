@@ -103,8 +103,9 @@ export function drawS1(el) {
 }
 
 // ── Slide 2: Why the Month Matters ─────────────────────────────────────────
-// The bridge from the saw-tooth to its cause. The daily Ref CPI behind a TIPS's
-// inflation adjustment is interpolated from monthly CPI-U NSA (FRED CPIAUCNS);
+// The bridge from the saw-tooth to its cause. The daily Ref CPI behind the
+// inflation adjustment applied to TIPS is interpolated from monthly CPI-U NSA
+// (FRED CPIAUCNS);
 // the same interpolation on BLS's SA CPI-U (CPIAUCSL) gives a daily SA Ref CPI.
 // Ref CPI NSA / Ref CPI SA is the SA Factor (DATA_DICTIONARY.md#sa-factor) —
 // plotted here for one year. Settlement sits near the top; Jul/Oct maturity
@@ -169,7 +170,7 @@ export function drawS2(el) {
 
   // captions — define the terms precisely (first use of NSA / SA / SA Factor),
   // then bridge to the next slide
-  s += note(W / 2, 24, ['The daily Ref CPI behind a TIPS’s inflation adjustment is interpolated from monthly CPI-U Not Seasonally Adjusted (NSA; FRED CPIAUCNS) — a series with a stable annual cycle.'], MUTED, 'middle', 11.5);
+  s += note(W / 2, 24, ['The daily Ref CPI behind the inflation adjustment applied to TIPS is interpolated from monthly CPI-U Not Seasonally Adjusted (NSA; FRED CPIAUCNS) — a series with a stable annual cycle.'], MUTED, 'middle', 11.5);
   s += note(W / 2, 40, ['BLS also publishes a Seasonally Adjusted (SA) CPI-U with that cycle removed. Put through the same interpolation, it gives a daily SA Ref CPI.'], MUTED, 'middle', 11.5);
   s += note(W / 2, 56, ['Ref CPI NSA ÷ Ref CPI SA is the SA Factor — the cycle on its own, one year shown here: above 1 in late summer, below 1 in late winter, the same shape every year.'], MUTED, 'middle', 11.5);
 
