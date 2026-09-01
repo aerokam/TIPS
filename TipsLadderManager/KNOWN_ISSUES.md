@@ -18,18 +18,21 @@ production impact go here.
   instead of computing it, vocabulary two renames out of date, a bracket weight drill fed the
   wrong mode string so it reported 0.0000, and a retained weight formula that held only in the
   case where nothing is sold.
-- **Done:** the Gap Dur popup (all sections) and the Bracket Mode help.
-- **Next:** the Future 30Y Dur popup, the cover-year twin of Gap Dur. It still carries both
-  defects already fixed there: a total row labelled `Avg (sum ÷ n)` when the value beside it is
-  cost-weighted, and a duration match row that asserts the average rather than working out the
-  weights. Its formulas also show no arithmetic, and nothing on screen says that lower and upper
-  cover mean lower and upper *duration*, not earlier and later maturity — the 2052 cover carries
-  a longer duration than the 2056 one.
+- **Done:** the Gap Dur popup (all sections), the Bracket Mode help, the Future 30Y Dur popup, and
+  the plain-language walkthrough (`2.0_TIPS_Ladders.md` §Two-Pass Walkthrough, linked from the foot
+  of the Gap Dur popup). The walkthrough pass replaced "synthetic gap TIPS" with the defined term,
+  unpicked eight "bracket/cover" compounds into the bracket and cover terms the Data Dictionary
+  actually defines, dropped "3-bracket", and gave the longest-to-shortest sweep the heading two
+  cross-references had been pointing at without one existing.
+- **Next: the same three phrases outside the walkthrough.** Sweeping for them found more:
+  `3.0` §320, `4.0` §273 and `6.0` §74 still say "3-bracket", and `6.0` documents the control as
+  offering "2-bracket/3-bracket" when it now reads Multi-bracket; `Primer/knowledge/1.0_Primer.md`
+  describes the same control twice by the label it no longer carries; `2.0` §§291, 297, 692 still
+  say "synthetic gap TIPS"; and "bracket/cover" survives in `2.0` §692, `4.0` §442, `5.0` §§324/326,
+  `6.0` §433 and in four help list items in `index.html`. The "Expand Bracket/Cover Years" button is
+  separate: there the slash names two kinds of row rather than one compound term.
 - **Then, everything else with user-facing text:** the Amount, Cost, Quantity and Ref CPI drills,
   the Trade Ticket, the Cash Flow Calendar, the status strip, the top-card controls.
-- **The plain-language walkthrough** (`2.0_TIPS_Ladders.md` §Two-Pass Walkthrough, linked from the
-  foot of the Gap Dur popup) has to end up consistent with every terminology change made in this
-  pass. It has not been read since the renames.
 
 ### Hard-coded years still in the specs
 
