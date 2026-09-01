@@ -4208,7 +4208,7 @@ document.addEventListener('click', e => {
       const summary = currentMode === 'build' ? buildSummary : rebalSummary;
       const titles = { retained: 'retained lower', active: 'active lower', upper: 'upper' };
       showPopup(drillL3, 'Bracket Weight · ' + titles[which],
-        buildBracketWeightDrill(summary, currentMode, which), 'Gap Dur');
+        buildBracketWeightDrill(summary, currentMode === 'build' ? 'build' : 'rebal', which), 'Gap Dur');
     } else if (key.startsWith('gapdur-')) {
       const year = parseInt(key.slice(7), 10);
       const summary = currentMode === 'build' ? buildSummary : rebalSummary;

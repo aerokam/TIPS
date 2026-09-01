@@ -8,7 +8,7 @@ import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, in
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { remainingCouponPaymentsThisYear, rmdCappedRemainingCoupons, latestRemainingCouponDate } from '../src/ladder-core.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
-import { buildDurationPopupRows } from '../src/drill.js';
+import { buildDurationPopupRows, buildBracketWeightDrill } from '../src/drill.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
@@ -2463,6 +2463,49 @@ console.log('\nGap Dur popup — the duration match row is computed, not restate
   const _u = _rowOf(_upperOnly);
   assert('upper-only branch carries a single term', _u.note.includes('+'), false);
   assert('upper-only branch has no n/a factor',     _u.note.includes('n/a'), false);
+}
+
+console.log('\nBracket weight drill — the retained formula holds when the retained bracket is sold down');
+{
+  // A large, short retained bracket forces the solve to sell it: the drill then has to show the
+  // formula the solver used, not the frozen "held ÷ total cost" one, which no longer produces the
+  // weight. Inputs chosen so bracketWeightsN reports sold === true; the expectation comes from
+  // bracketWeightsN itself, and the assertion is that the formula printed in the drill reproduces
+  // it from the values the drill displays.
+  const dRet = 6.84, dAct = 8.49, dUp = 11.54, dGap = 9.83, total = 46731;
+  const floor = 0.05;
+  const w = bracketWeightsN({
+    retained: [{ duration: dRet, excessCost: 0.45 * total }],
+    dActive: dAct, dUpper: dUp, dGap, totalBlockCost: total, activeFloorWeight: floor,
+  });
+  assert('retained bracket was sold down (else this proves nothing)', w.sold, true);
+
+  const wRet = w.retainedWeights[0];
+  // The formula the drill prints, evaluated on the figures the drill shows.
+  const shown = (dGap - w.activeWeight * dAct - (1 - w.activeWeight) * dUp) / (dRet - dUp);
+  assert('the printed formula reproduces the retained weight', shown, wRet, 1e-9);
+
+  // And the frozen formula, which the drill shows in the ordinary case, does not apply here.
+  assert('held / total cost is not the answer once a sale happens',
+    Math.abs(0.45 - wRet) > 1e-6, true);
+
+  const summary = {
+    bracketMode: '3bracket', newLowerCUSIP: 'X', newLowerYear: 2036,
+    newLowerMaturity: new Date(2036, 0, 15),
+    brackets: { lowerYear: 2034, upperYear: 2040,
+                lowerMaturity: new Date(2034, 0, 15), upperMaturity: new Date(2040, 1, 15) },
+    gapParams: { avgDuration: dGap, totalCost: total },
+    lowerDuration: dRet, newLowerDuration: dAct, upperDuration: dUp,
+    origLowerWeight: wRet, newLowerWeight3: w.activeWeight, upperWeight3: w.upperWeight,
+    retainedExcessCostBefore: 0.45 * total, retainedBracketSold: w.sold,
+  };
+  const rows = buildBracketWeightDrill(summary, 'rebal', 'retained');
+  const text = rows.map(r => (r.label ?? '') + ' ' + (r.value ?? '') + ' '
+    + (r.html ?? '') + ' ' + (r.prose ?? '')).join(' | ');
+  assert('the drill drops the frozen formula when a sale happened',
+    text.includes('excess already held in the retained lower bracket'), false);
+  assert('the drill shows the retained duration it divides by',
+    text.includes('Retained lower bracket duration'), true);
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);

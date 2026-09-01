@@ -2204,3 +2204,37 @@ test('Gap Dur popup: a bracket weight opens a nested popup, not hover text', asy
   expect(text).not.toMatch(/\bavg dur\b/i);
   expect(text).not.toMatch(/\bretained dur\b/i);
 });
+
+test('Gap Dur popup: a bracket weight drill reports the same weight as the row it opens from', async ({ page }) => {
+  await page.locator('#holdings-file').setInputFiles(HOLDINGS_PATH);
+  await page.locator('#run-btn').click();
+  await expect(page.locator('#simple-table tbody tr').first()).toBeVisible({ timeout: 4_000 });
+
+  await page.locator('a.info-link-btn[data-popup="duration"]').click();
+  const popup = page.locator('#shared-popup');
+  await expect(popup).toBeVisible();
+
+  for (const which of ['retained', 'active', 'upper']) {
+    const link = popup.locator('.drill-l3[data-l3="bracketwt-' + which + '"]');
+    if (await link.count() === 0) continue;
+
+    // The row reads "<duration>  ·  <weight>"; the weight is the second figure.
+    const rowText = await link.locator('xpath=ancestor::tr[1]').innerText();
+    const onRow = rowText.match(/(\d+\.\d{4})/);
+    expect(onRow, which + ': row shows a weight').not.toBeNull();
+
+    await link.click();
+    const nested = page.locator('#shared-popup-l3');
+    await expect(nested).toBeVisible();
+    // The drill's own bottom line, which the mode string reaching it decides. Weights also
+    // appear among the inputs above it, so the last one is the result.
+    const drillText = await nested.innerText();
+    const total = [...drillText.matchAll(/bracket weight\s+(\d+\.\d{4})/gi)].pop();
+    expect(total, which + ': drill shows a weight').not.toBeNull();
+    expect(total[1], which + ': drill weight matches the row').toBe(onRow[1]);
+
+    // The nested popup opens over the one it came from; close it before the next row.
+    await nested.locator('#sp-close').click();
+    await expect(nested).toBeHidden();
+  }
+});

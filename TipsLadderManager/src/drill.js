@@ -920,19 +920,58 @@ export function buildBracketWeightDrill(summary, mode, which) {
   const rows = [{ prose: DEF }, { sep: true }];
 
   if (which === 'retained') {
+    const heldCost = summary.retainedExcessCostBefore;
+    const totalCost = summary.gapParams?.totalCost ?? 0;
+    const sold = !!summary.retainedBracketSold;
     rows.push({ heading: 'Formula' });
-    rows.push(fml('retained lower bracket weight =\n'
-      + '    excess already held in the retained lower bracket\n'
-      + '    ÷ gap years’ total cost'));
-    rows.push({ sep: true }, { heading: 'This ladder' });
-    rows.push({ label: 'Retained lower bracket', value: lowerLabel });
-    rows.push({ label: 'Gap years’ total cost',
-                value: '$' + Math.round(summary.gapParams?.totalCost ?? 0).toLocaleString() });
+    if (sold) {
+      // The duration match could not be reached with the retained bracket held where it was, so
+      // it was reduced to the weight that brings the active lower bracket back to the excess it
+      // already holds (gap-math.js bracketWeightsN; 2.0 §Retained Bracket Excess).
+      rows.push(fml('retained lower bracket weight =\n'
+        + '    (average gap year duration\n'
+        + '       − active lower bracket weight × active lower bracket duration\n'
+        + '       − (1 − active lower bracket weight) × upper bracket duration)\n'
+        + '    ÷ (retained lower bracket duration − upper bracket duration)'));
+      rows.push({ sep: true }, { heading: 'This ladder' });
+      rows.push({ label: 'Retained lower bracket', value: lowerLabel });
+      rows.push({ label: 'Average gap year duration', value: f2(avg) });
+      rows.push({ label: 'Active lower bracket weight', value: f4(wAct) });
+      rows.push({ label: 'Active lower bracket duration', value: f2(dAct) });
+      rows.push({ label: 'Retained lower bracket duration', value: f2(dRet) });
+      rows.push({ label: 'Upper bracket duration', value: f2(dUp) });
+      rows.push({ sep: true }, { heading: 'Substituted' });
+      rows.push(fml('(' + f2(avg) + '\n'
+        + '   − ' + f4(wAct) + ' × ' + f2(dAct) + '\n'
+        + '   − (1 − ' + f4(wAct) + ') × ' + f2(dUp) + ')\n'
+        + '÷ (' + f2(dRet) + ' − ' + f2(dUp) + ')'));
+    } else {
+      rows.push(fml('retained lower bracket weight =\n'
+        + '    excess already held in the retained lower bracket\n'
+        + '    ÷ gap years’ total cost'));
+      rows.push({ sep: true }, { heading: 'This ladder' });
+      rows.push({ label: 'Retained lower bracket', value: lowerLabel });
+      if (heldCost != null) {
+        rows.push({ label: 'Excess already held, at cost',
+                    value: '$' + Math.round(heldCost).toLocaleString() });
+      }
+      rows.push({ label: 'Gap years’ total cost',
+                  value: '$' + Math.round(totalCost).toLocaleString() });
+      if (heldCost != null && totalCost > 0) {
+        rows.push({ sep: true }, { heading: 'Substituted' });
+        rows.push(fml(Math.round(heldCost).toLocaleString() + ' ÷ ' + Math.round(totalCost).toLocaleString()));
+      }
+    }
     rows.push({ sep: true });
     rows.push({ label: 'Retained lower bracket weight', value: f4(wRet), total: true });
     rows.push({ sep: true });
-    rows.push({ prose: 'A rebalance never increases this weight. It is reduced only as far as '
-      + 'restoring the duration match requires, oldest maturity first.' });
+    rows.push({ prose: sold
+      ? 'The excess already held came to more than the duration match allows, so it was sold down '
+        + 'to this weight — only as far as the match requires, and oldest maturity first. A rebalance '
+        + 'never increases it.'
+      : 'A rebalance never increases this weight. Where the duration match cannot be reached with '
+        + 'the excess held where it is, the retained lower bracket is sold down — only as far as the '
+        + 'match requires, and oldest maturity first — and this weight follows from the match instead.' });
     return rows;
   }
 
