@@ -8,7 +8,7 @@ import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, in
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { remainingCouponPaymentsThisYear, rmdCappedRemainingCoupons, latestRemainingCouponDate } from '../src/ladder-core.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
-import { buildDurationPopupRows, buildBracketWeightDrill } from '../src/drill.js';
+import { buildDurationPopupRows, buildBracketWeightDrill, buildFuture30yDurationPopupRows } from '../src/drill.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
 import { parseBrokerCSV } from '../src/broker-import.js';
@@ -2506,6 +2506,46 @@ console.log('\nBracket weight drill — the retained formula holds when the reta
     text.includes('excess already held in the retained lower bracket'), false);
   assert('the drill shows the retained duration it divides by',
     text.includes('Retained lower bracket duration'), true);
+}
+
+console.log('\nFuture 30Y Dur popup — cost-weighted average, computed match, clamp shown');
+{
+  // A Future 30Y run long enough that the hypothetical rungs differ in duration and in cost, so a
+  // simple mean and a cost-weighted mean are different numbers. The popup labelled its total
+  // "Avg (sum / count)" while the value beside it was the cost-weighted one.
+  const { summary: s } = runBuild({ dara: 20000, lastYear: 2062, tipsMap, refCPI, settlementDate });
+  const bd = s.future30yParams.breakdown;
+  assert('Future 30Y run spans several years (else this proves nothing)', bd.length > 2, true);
+
+  const costSum = bd.reduce((a, b) => a + b.cost, 0);
+  const byCost  = bd.reduce((a, b) => a + b.cost * b.dur, 0) / costSum;
+  const simple  = bd.reduce((a, b) => a + b.dur, 0) / bd.length;
+  assert('Future 30Y average duration is the cost-weighted mean', s.future30yParams.avgDuration, byCost, 1e-12);
+  assert('cost weighting differs from the simple mean here', Math.abs(byCost - simple) > 1e-4, true);
+
+  const rows = buildFuture30yDurationPopupRows(s);
+  const txt = r => (r.label ?? '') + ' ' + (r.note ?? '') + ' ' + (r.prose ?? '');
+  const all = rows.map(txt).join(' | ');
+  assert('the total row no longer claims a simple mean', /Avg \(/.test(all), false);
+  assert('the total row names cost weighting', all.includes('Weighted by cost'), true);
+
+  // The duration match row computes its mean rather than restating the average.
+  const match = rows.find(r => typeof r.label === 'string'
+    && r.label.includes('Cost-weighted mean of the cover year durations'));
+  assert('cover duration match row is present', !!match, true);
+  const expected = s.future30yLowerWeight * s.future30yLowerDuration
+                 + s.future30yUpperWeight * s.future30yUpperDuration;
+  assert('the match row shows the mean the weights produce', match.value, expected.toFixed(2));
+
+  // Where the solve is clamped, the weight shown is not what the division gives, and the row
+  // has to say so instead of printing a false equals sign.
+  const lower = rows.find(r => typeof r.label === 'string' && r.label.startsWith('lower cover:'));
+  const raw = (s.future30yUpperDuration - s.future30yParams.avgDuration)
+            / (s.future30yUpperDuration - s.future30yLowerDuration);
+  const clamped = Math.abs(raw - s.future30yLowerWeight) > 1e-9;
+  assert('a clamped weight is reported as held, not as the division result',
+    lower.note.includes('held at'), clamped);
+  assert('the division result itself appears in the note', lower.note.includes(raw.toFixed(4)), true);
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);

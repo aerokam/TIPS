@@ -879,6 +879,27 @@ export function buildWeightedSaYieldPopupRows(details, waySa) {
 
 // Brackets are named by the maturity actually holding their excess, not by the year alone
 // (DD Bracket Year TIPS). Shared so the weight drill and the popup that links to it agree.
+// The row the gap and Future 30Y duration matches both end on: the check that defines Bracket
+// Weight (DATA_DICTIONARY §Bracket Weight) — the cost-weighted mean of the durations equals the
+// average duration of the years being covered. The mean is computed from the weights and
+// durations shown rather than restated as the target, so a solve that does not reach the average
+// shows it here. `kind` is 'bracket' or 'cover'; the arithmetic is identical either way.
+function durationMatchRows(ws, ds, avg, kind) {
+  const of    = kind === 'cover' ? 'cover year' : 'bracket year';
+  const avgOf = kind === 'cover' ? 'the Future 30Y years' : 'the gap years';
+  const terms = ws.map((w, i) => w.toFixed(4) + '  ×  ' + ds[i].toFixed(2)).join('   +   ');
+  const mean  = ws.reduce((s, w, i) => s + w * ds[i], 0);
+  const wSum  = ws.reduce((s, w) => s + w, 0);
+  return [
+    {
+      label: 'Cost-weighted mean of the ' + of + ' durations',
+      note: terms, value: mean.toFixed(2), total: true,
+    },
+    { prose: 'The ' + of + ' weights sum to ' + wSum.toFixed(4) + ', and are solved so that this mean'
+        + ' equals the average duration of ' + avgOf + ', ' + avg.toFixed(2) + '.' },
+  ];
+}
+
 function bracketLabels(summary, mode) {
   const lowerYear = mode === 'rebal' ? summary.brackets?.lowerYear : summary.lowerYear;
   const upperYear = mode === 'rebal' ? summary.brackets?.upperYear : summary.upperYear;
@@ -1077,23 +1098,6 @@ export function buildDurationPopupRows(summary, mode) {
     rows.push({ sep: true });
   }
 
-  // The row every branch ends on: the check that defines Bracket Weight (DATA_DICTIONARY
-  // §Bracket Weight) — the cost-weighted mean of the bracket year durations equals the average
-  // duration of the gap years. The mean is computed from the weights and durations shown rather
-  // than restated as `avg`, so a solve that does not reach the average shows it here.
-  const matchRows = (ws, ds) => {
-    const terms = ws.map((w, i) => w.toFixed(4) + '  \u00d7  ' + ds[i].toFixed(2)).join('   +   ');
-    const mean  = ws.reduce((s, w, i) => s + w * ds[i], 0);
-    const wSum  = ws.reduce((s, w) => s + w, 0);
-    return [
-      {
-        label: 'Cost-weighted mean of the bracket year durations',
-        note: terms, value: mean.toFixed(2), total: true,
-      },
-      { prose: 'The bracket weights sum to ' + wSum.toFixed(4) + ', and are solved so that this mean'
-          + ' equals the average duration of the gap years, ' + avg.toFixed(2) + '.' },
-    ];
-  };
 
   const buckets = [];
   if (is3) {
@@ -1120,7 +1124,7 @@ export function buildDurationPopupRows(summary, mode) {
     buckets.push({ dur: newLowerDuration, weight: w2, label: activeLabel });
     buckets.push({ dur: upperDuration, weight: w3, label: upperLabel });
 
-    rows.push({ sep: true }, ...matchRows([w1, w2, w3], [lowerDuration, newLowerDuration, upperDuration]));
+    rows.push({ sep: true }, ...durationMatchRows([w1, w2, w3], [lowerDuration, newLowerDuration, upperDuration], avg, 'bracket'));
 
     // bracketWeightsN reports which condition blocked the solve; each is a different thing to tell
     // the reader, and only the first leaves the mean above short of the gap average.
@@ -1141,7 +1145,7 @@ export function buildDurationPopupRows(summary, mode) {
         value: upperDuration.toFixed(2) + '  \u00b7  ' + (upperWeight ?? 1).toFixed(4) }
     );
     buckets.push({ dur: upperDuration, weight: upperWeight ?? 1, label: upperLabel });
-    rows.push({ sep: true }, ...matchRows([upperWeight ?? 1], [upperDuration]));
+    rows.push({ sep: true }, ...durationMatchRows([upperWeight ?? 1], [upperDuration], avg, 'bracket'));
   } else {
     const dv2 = (d, w) => d.toFixed(2) + '  \u00b7  ' + w.toFixed(4);
     rows.push({ heading: 'Bracket Years (modified duration \u00b7 weight)' });
@@ -1154,7 +1158,7 @@ export function buildDurationPopupRows(summary, mode) {
     buckets.push({ dur: lowerDuration, weight: lowerWeight, label: lowerLabel });
     buckets.push({ dur: upperDuration, weight: upperWeight, label: upperLabel });
 
-    rows.push({ sep: true }, ...matchRows([lowerWeight, upperWeight], [lowerDuration, upperDuration]));
+    rows.push({ sep: true }, ...durationMatchRows([lowerWeight, upperWeight], [lowerDuration, upperDuration], avg, 'bracket'));
   }
 
   rows.push(
@@ -1195,60 +1199,102 @@ export function buildDurationPopupRows(summary, mode) {
 export function buildFuture30yDurationPopupRows(summary) {
   const { future30yYears, future30yParams, future30yLowerYear, future30yUpperYear,
           future30yLowerDuration, future30yUpperDuration, future30yUpperWeight, future30yLowerWeight,
-          future30yFellBack, future30yLowerMonth, future30yUpperMonth } = summary;
+          future30yFellBack, future30yCoverReason, future30yLowerMonth, future30yUpperMonth } = summary;
   if (!future30yYears?.length || !future30yParams) {
     return [{ label: 'No Future 30Y years', note: 'Future 30Y cover matching not applicable', total: true }];
   }
   const lowerLabel = (future30yLowerMonth ? future30yLowerMonth + ' ' : '') + future30yLowerYear;
   const upperLabel = (future30yUpperMonth ? future30yUpperMonth + ' ' : '') + future30yUpperYear;
   const avg = future30yParams.avgDuration;
-  const wFml = '(avg dur \u2212 lower dur) / (upper dur \u2212 lower dur)';
-  const match = future30yLowerWeight.toFixed(4) + ' \u00d7 ' + future30yLowerDuration.toFixed(2)
-              + ' + ' + future30yUpperWeight.toFixed(4) + ' \u00d7 ' + future30yUpperDuration.toFixed(2)
-              + ' = ' + avg.toFixed(2);
+  const f2 = v => v.toFixed(2), f4 = v => v.toFixed(4);
 
   const rows = [
-    { label: 'Future 30Y average duration', value: avg.toFixed(2) },
+    { label: 'Cost-weighted average duration of the Future 30Y years', value: f2(avg) },
     { sep: true },
   ];
 
   if (future30yParams.breakdown?.length) {
     rows.push({ heading: 'Hypothetical TIPS Durations' });
-    const durSum = future30yParams.breakdown.reduce((s, b) => s + (b.dur ?? 0), 0);
+    // The average is cost-weighted (gap-math.js future30yParamsCore, the same rule as the gap
+    // years), so each row carries the cost that weights it. The label said "sum ÷ count", which
+    // is a different figure from the one it sat beside.
+    const costSum = future30yParams.breakdown.reduce((s, b) => s + (b.cost ?? 0), 0);
     future30yParams.breakdown.forEach(b => {
+      const yr = b.year + ' (Feb 15)';
       const label = b.durDetail
-        ? '<span class="drill-l3" data-l3="f30dur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + b.year + ' (Feb 15)</span>'
-        : b.year + ' (Feb 15)';
-      rows.push({ label, note: 'mod. duration', value: b.dur != null ? b.dur.toFixed(2) : '\u2014' });
+        ? '<span class="drill-l3" data-l3="f30dur-' + b.year + '" style="cursor:pointer;text-decoration:underline dotted #94a3b8;">' + yr + '</span>'
+        : yr;
+      const note = b.qty != null && b.costPerBond != null
+        ? b.qty.toLocaleString() + ' × ' + fd(b.costPerBond, 2) + ' = ' + fd(b.cost, 0) + ' cost'
+        : 'mod. duration';
+      rows.push({ label, note, value: b.dur != null ? f2(b.dur) : '—' });
     });
-    rows.push({ label: 'Avg (' + durSum.toFixed(2) + ' \u00f7 ' + future30yParams.breakdown.length + ')', value: avg.toFixed(2), total: true });
+    rows.push({
+      label: 'Weighted by cost',
+      note: 'Σ(cost × duration) ÷ Future 30Y total cost (' + fd(costSum, 0) + ')',
+      value: f2(avg), total: true,
+    });
     rows.push({ sep: true });
   }
 
+  // bracketWeights holds the lower weight within 0 to 1 (KNOWN_ISSUES: negative weight on a short
+  // single-year Future 30Y run), so the division shown can land outside that range. Say so rather
+  // than print an equals sign the arithmetic does not support.
+  const _den = future30yUpperDuration - future30yLowerDuration;
+  const rawLower = Math.abs(_den) > 1e-9 ? (future30yUpperDuration - avg) / _den : null;
+  const rawLowerText = rawLower == null ? f4(future30yLowerWeight)
+    : Math.abs(rawLower - future30yLowerWeight) > 1e-9
+      ? f4(rawLower) + ', held at ' + f4(future30yLowerWeight)
+      : f4(future30yLowerWeight);
+
+  rows.push({ heading: 'Cover Years (modified duration · weight)' });
   rows.push(
-    { label: 'Lower cover (' + lowerLabel + ')', note: 'mod. duration', value: future30yLowerDuration.toFixed(2) },
-    { label: 'Upper cover (' + upperLabel + ')', note: 'mod. duration', value: future30yUpperDuration.toFixed(2) },
+    { label: 'lower cover: ' + lowerLabel,
+      note: 'lower cover weight = (upper cover duration − average duration) ÷ (upper cover duration'
+          + ' − lower cover duration), held within 0 to 1  =  (' + f2(future30yUpperDuration) + ' − '
+          + f2(avg) + ') ÷ (' + f2(future30yUpperDuration) + ' − ' + f2(future30yLowerDuration) + ') = '
+          + rawLowerText,
+      value: f2(future30yLowerDuration) + '  ·  ' + f4(future30yLowerWeight) },
+    { label: 'upper cover: ' + upperLabel,
+      note: 'upper cover weight = 1 − lower cover weight = 1 − ' + f4(future30yLowerWeight)
+          + ' = ' + f4(future30yUpperWeight),
+      value: f2(future30yUpperDuration) + '  ·  ' + f4(future30yUpperWeight) },
+  );
+  // Lower and upper here rank the two covers by duration, not by maturity: the deep-discount,
+  // near-zero-coupon cover carries an unusually long duration for its maturity, so the upper
+  // cover can mature first (KNOWN_ISSUES: negative weight on a short single-year run).
+  rows.push({ prose: 'Lower and upper rank the two covers by duration, not by maturity — a '
+    + 'deep-discount cover carries an unusually long duration for its maturity, so the upper cover '
+    + 'can be the one maturing first.' });
+
+  rows.push({ sep: true }, ...durationMatchRows(
+    [future30yLowerWeight, future30yUpperWeight],
+    [future30yLowerDuration, future30yUpperDuration],
+    avg, 'cover'));
+
+  if (future30yFellBack) {
+    const note = {
+      aboveUpper: 'The average duration of the Future 30Y years is longer than either cover, so the '
+        + 'whole weight sits on the upper cover and the mean above falls short of it.',
+      belowLower: 'The average duration of the Future 30Y years is shorter than either cover, so the '
+        + 'whole weight sits on the lower cover and the mean above overshoots it.',
+    }[future30yCoverReason];
+    if (note) rows.push({ prose: note });
+  }
+
+  rows.push(
     { sep: true },
-    { label: 'Lower weight', note: wFml,                    value: future30yLowerWeight.toFixed(4) },
-    { label: 'Upper weight', note: '1 \u2212 lower weight', value: future30yUpperWeight.toFixed(4) },
-    { sep: true },
-    { label: 'Duration match', note: match, total: true },
-    { sep: true },
-    { heading: 'Duration Balance (Mod. Duration)' },
+    { heading: 'Modified Duration Balance' },
     { html: renderDurationBeam([
         { dur: future30yLowerDuration, weight: future30yLowerWeight, label: lowerLabel },
         { dur: future30yUpperDuration, weight: future30yUpperWeight, label: upperLabel }
       ], avg) },
   );
 
-  if (future30yFellBack) {
-    rows.push({ sep: true }, { label: 'Fallback applied', note: 'Avg duration exceeds upper cover duration; all weight assigned to upper cover.' });
-  }
-
   if (future30yParams.breakdown?.length) {
     rows.push({ sep: true }, { heading: 'Future 30Y Year Breakdown (hypothetical qty)' });
     future30yParams.breakdown.forEach(b => {
-      rows.push({ label: b.year + ' qty', note: 'round((' + fm(b.dara) + ' \u2212 ' + Math.round(b.laterMatInt) + ') \u00f7 ' + b.piPerBond.toFixed(2) + ')', value: String(b.qty) });
+      rows.push({ label: b.year + ' qty', note: 'round((' + fm(b.dara) + ' − ' + Math.round(b.laterMatInt) + ') ÷ ' + b.piPerBond.toFixed(2) + ')', value: String(b.qty) });
     });
     rows.push({ label: 'Total Future 30Y cost', value: '$' + Math.round(future30yParams.future30yTotalCost).toLocaleString(), total: true });
   }

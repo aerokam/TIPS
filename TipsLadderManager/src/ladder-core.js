@@ -36,7 +36,7 @@ function calcFuture30yParams(future30yYears, bond2056, settlementDate, dara, dar
 // function rather than inlined once inside sizeLadder.
 // Returns { future30yParams, future30yLowerDuration, future30yUpperDuration,
 //           future30yLowerWeight, future30yUpperWeight, future30yLowerExQty, future30yUpperExQty,
-//           future30yFellBack, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth }.
+//           future30yFellBack, future30yCoverReason, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth }.
 // No-op shape (all zero/null) when future30yYears is empty.
 export function sizeFuture30yCover({
   future30yYears, future30yLowerCoverBond, future30yUpperCoverBond,
@@ -46,7 +46,7 @@ export function sizeFuture30yCover({
   let future30yLowerDuration = 0, future30yUpperDuration = 0;
   let future30yUpperWeight = 0, future30yLowerWeight = 0;
   let future30yUpperExQty = 0, future30yLowerExQty = 0;
-  let future30yFellBack = false;
+  let future30yFellBack = false, future30yCoverReason = null;
   let future30yTotalExcessCost = 0;
   let future30yLowerMonth = null, future30yUpperMonth = null;
 
@@ -56,7 +56,14 @@ export function sizeFuture30yCover({
     future30yUpperDuration = calculateMDuration(settlementDate, future30yUpperCoverBond.maturity, future30yUpperCoverBond.coupon ?? 0, future30yUpperCoverBond.yield ?? 0);
 
     ({ lowerWeight: future30yLowerWeight, upperWeight: future30yUpperWeight } = bracketWeights(future30yLowerDuration, future30yUpperDuration, future30yParams.avgDuration));
-    if (future30yParams.avgDuration > future30yUpperDuration) future30yFellBack = true;
+    // bracketWeights clamps in both directions (KNOWN_ISSUES: negative weight on a short
+    // single-year Future 30Y run). Both corners leave the whole weight on one cover, so both
+    // are reported, not just the upper one.
+    if (future30yParams.avgDuration > future30yUpperDuration) {
+      future30yFellBack = true; future30yCoverReason = 'aboveUpper';
+    } else if (future30yParams.avgDuration < future30yLowerDuration) {
+      future30yFellBack = true; future30yCoverReason = 'belowLower';
+    }
 
     const future30yLowerCPB = (future30yLowerCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yLowerCoverBond.datedDateRefCpi ?? refCPI) * 1000;
     const future30yUpperCPB = (future30yUpperCoverBond.price ?? 0) / 100 * calcIndexRatio(refCPI, future30yUpperCoverBond.datedDateRefCpi ?? refCPI) * 1000;
@@ -69,7 +76,7 @@ export function sizeFuture30yCover({
   return {
     future30yParams, future30yLowerDuration, future30yUpperDuration,
     future30yLowerWeight, future30yUpperWeight, future30yLowerExQty, future30yUpperExQty,
-    future30yFellBack, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth,
+    future30yFellBack, future30yCoverReason, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth,
   };
 }
 
@@ -436,7 +443,7 @@ export function sizeLadder({
   const {
     future30yParams, future30yLowerDuration, future30yUpperDuration,
     future30yLowerWeight, future30yUpperWeight, future30yLowerExQty, future30yUpperExQty,
-    future30yFellBack, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth,
+    future30yFellBack, future30yCoverReason, future30yTotalExcessCost, future30yLowerMonth, future30yUpperMonth,
   } = sizeFuture30yCover({ future30yYears, future30yLowerCoverBond, future30yUpperCoverBond, settlementDate, dara, daraByYear, refCPI });
 
   // ─── Accrued Market Discount on discount excess holdings (generic, multi-bond) ──
@@ -715,7 +722,7 @@ export function sizeLadder({
     lowerDuration, upperDuration, lowerMonth, upperMonth, totalExcessCost,
     gapParams, future30yParams,
     future30yLowerDuration, future30yUpperDuration, future30yUpperWeight, future30yLowerWeight,
-    future30yLowerExQty, future30yUpperExQty, future30yFellBack, future30yTotalExcessCost,
+    future30yLowerExQty, future30yUpperExQty, future30yFellBack, future30yCoverReason, future30yTotalExcessCost,
     future30yLowerMonth, future30yUpperMonth,
     future30yUpperAnnualAmdByYear, calcFuture30yUpperAnnualAmd,
     amdLifetimeByBracketYear, future30yLMITotal,
