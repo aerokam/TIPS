@@ -1657,6 +1657,51 @@ for (const gapFirstYear of [2037, 2038, 2039]) {
   console.log(`        stated ${Math.round(dara * 1.05).toLocaleString()} -> solved ${Math.round(solved.get(2030)).toLocaleString()}, net cash ${Math.round(res.summary.costDeltaSum).toLocaleString()}`);
 }
 
+// ── Test: runFundedRebalance — pinned rows are held, the rest scale around them ────────────
+// A stated plan with a gap block to fund: when the user hand-states one or more rows
+// (`pinnedDaraByYear`), those rows keep their exact value and only the untouched rows are swept to
+// the self-financing level. This is what lets a user lower a single near-year DARA (so the rebalance
+// stops buying it) without the tool re-levelling every other rung away from the file.
+{
+  const lastYear = 2040, dara = 100000;
+  const b = runBuild({ dara, firstYear: 2026, lastYear, tipsMap, refCPI, settlementDate });
+  const holdings = b.details
+    .map(d => ({ cusip: d.cusip, qty: (d.fundedYearQty || 0) + (d.excessQty || 0), excessQty: d.excessQty || 0 }))
+    .filter(h => h.qty > 0);
+  const plan = new Map();
+  for (let y = 2026; y <= lastYear; y++) plan.set(y, dara);
+
+  console.log('\nrunFundedRebalance — pinned rows held, rest scaled around them');
+
+  // Pin 2026 well below the built level. It must come back at exactly the pinned value; the other
+  // rungs must move (they scale to re-absorb the cash 2026 no longer needs); net cash self-finances.
+  const pinned = new Map([[2026, Math.round(dara * 0.5)]]);
+  const pinnedPlan = new Map(plan); pinnedPlan.set(2026, Math.round(dara * 0.5));
+  const res = runFundedRebalance({
+    dara, holdings, tipsMap, refCPI, settlementDate,
+    daraByYear: pinnedPlan, daraPlanIsStated: true, pinnedDaraByYear: pinned,
+    firstYearOverride: 2026, lastYearOverride: lastYear,
+  });
+  assert('pinned test has a gap block (else it proves nothing)', res.summary.gapYears.length > 0, true);
+  const solved = res.summary.daraByYearResolved;
+  assert('pinned row 2026 comes back at exactly the pinned value', Math.round(solved.get(2026)), Math.round(dara * 0.5));
+  assert('an untouched row moved (scaled around the pin)', Math.round(solved.get(2032)) !== dara, true);
+  assert('pinned solve still self-finances: net cash small and non-negative',
+    res.summary.costDeltaSum >= -50 && res.summary.costDeltaSum < b.summary.totalBuyCost * 0.01, true);
+  console.log(`        2026 pinned ${Math.round(dara * 0.5).toLocaleString()}, 2032 solved ${Math.round(solved.get(2032)).toLocaleString()}, net cash ${Math.round(res.summary.costDeltaSum).toLocaleString()}`);
+
+  // Pin EVERY funded rung → nothing left to sweep → the stated shape runs as entered (no scale).
+  const allPinned = new Map();
+  for (let y = 2026; y <= lastYear; y++) allPinned.set(y, y === 2026 ? Math.round(dara * 0.5) : dara);
+  const resAll = runFundedRebalance({
+    dara, holdings, tipsMap, refCPI, settlementDate,
+    daraByYear: allPinned, daraPlanIsStated: true, pinnedDaraByYear: new Map(allPinned),
+    firstYearOverride: 2026, lastYearOverride: lastYear,
+  });
+  assert('all rungs pinned: 2026 stays at the entered value', Math.round(resAll.summary.daraByYearResolved.get(2026)), Math.round(dara * 0.5));
+  assert('all rungs pinned: 2032 stays at the entered value (no sweep)', Math.round(resAll.summary.daraByYearResolved.get(2032)), dara);
+}
+
 // ── Test: Infer LMP DARA when lastYear lands inside the gap — orphaned bracket trade ────────────
 // Regression: when lastYearOverride sits inside the structural gap (2037-2039), the upper bracket
 // (2040) is NOT a funded rung, but the rebalance still emits a trade for it (3.0 §lastYear as a Gap

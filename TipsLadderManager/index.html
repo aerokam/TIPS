@@ -260,7 +260,7 @@
       <li><b>Supported formats</b>: position CSV export files from Fidelity, Schwab, and Vanguard; a simple <code>cusip,qty</code> file; the tipsladder.com <code>cusip,qty,year</code> format; or this app's own CUSIP/Qty export.</li>
       <li>For a broker file, the app scans for accounts that hold TIPS and shows only those; if more than one account holds TIPS, a selection dialog lets you choose which to include, with every account selected by default.</li>
       <li>A sample holdings file loads automatically when the app opens, so you can try a rebalance before uploading anything of your own.</li>
-      <li>If you previously used the Export button to export a <b>DARA Plan</b> — a file containing DARA for each funded year — import it separately via <b>Import → DARA Plan</b>; its values drive the rebalance instead of the values mirrored from your holdings. Left unedited, the plan is still scaled to a self-financing level when a gap or Future 30Y block needs funding (see step 3); edit any rung to use it exactly as written.</li>
+      <li>If you previously used the Export button to export a <b>DARA Plan</b> — a file containing DARA for each funded year — import it separately via <b>Import → DARA Plan</b>; its values drive the rebalance instead of the values mirrored from your holdings. When a gap or Future 30Y block needs funding, the plan is scaled to a self-financing level (see step 3); rows you edit yourself are held at your value and only the rest are scaled.</li>
     </ul>
 
     <p><b>2. Check the range.</b> Once holdings load, the table immediately shows your current ladder (the Before columns).</p>
@@ -275,7 +275,7 @@
       <li><b>Each rung separately</b>: edit the per-year table directly (pre-filled with each year's current ARA).</li>
       <li><b>A range of rungs at once</b>: select them — see <b>Using the ladder table</b> below for how.</li>
     </ul>
-    <p style="margin-top:0">If you leave the table untouched and a gap or Future 30Y block still needs funding, clicking Rebalance Ladder scales the whole shape to the largest self-financing level automatically. Edit any rung, or set a range, and the shape you entered is used as stated, with no self-financing scale. The DARA field shows <b style="color:#7c3aed">by year</b> once any year's DARA differs from the default.</p>
+    <p style="margin-top:0">When a gap or Future 30Y block still needs funding, clicking Rebalance Ladder scales the ladder to the largest self-financing level automatically. Rows you set yourself — a rung you type into, or a range you Set — are held at your value; the scale sweeps only the rows you left alone. Set every rung yourself and nothing is scaled, so the rebalance runs exactly as entered and its net cash lands wherever it lands. The DARA field shows <b style="color:#7c3aed">by year</b> once any year's DARA differs from the default.</p>
 
     <p><b>4. Verify or modify ladder parameters.</b></p>
     <ul style="margin:0 0 10px 20px;padding:0">
@@ -4066,20 +4066,25 @@ document.getElementById('run-btn').addEventListener('click', async () => {
       _daraByYearPanelDefault = finalDara;
       updateDaraInput();
 
-      // Run the rebalance with self-financing funding (gap/Future-30Y scale applied only when the
-      // store is the untouched mirror AND there's a block to fund). All orchestration lives in the
-      // library (3.0 §Funding the rebalance); the shell just passes the store + pristine flag.
+      // Run the rebalance with self-financing funding (gap/Future-30Y scale). All orchestration
+      // lives in the library (3.0 §Funding the rebalance); the shell passes the store, the pristine
+      // flag, and the rows the user has hand-stated (`_daraManualYears`) as pinned — those keep
+      // their value while the scale sweeps the rest.
       // Select maturities' pick set overrides the range fields here too (2.0 §Picking Maturities
       // for a Funded Year), same as Build — but only when picks actually exist; with none yet,
       // firstYearOverride/lastYearOverride stay whatever the (possibly blank) fields hold, so the
       // engine keeps deriving the range from holdings exactly as before this feature existed.
       const picked = _pickedYearRange();
+      const _runDaraByYear = getDaraByYear();
+      const _pinnedDaraByYear = new Map();
+      if (_runDaraByYear) for (const y of _daraManualYears) if (_runDaraByYear.has(y)) _pinnedDaraByYear.set(y, _runDaraByYear.get(y));
       const result = runFundedRebalance({
         dara: finalDara,
         bracketMode: document.getElementById('bracket-mode').value,
         holdings: currentHoldingsArray, tipsMap, refCPI, settlementDate,
-        daraByYear: getDaraByYear(),
+        daraByYear: _runDaraByYear,
         daraPlanUnedited: _daraPlanUnedited(),
+        pinnedDaraByYear: _pinnedDaraByYear,
         daraPlanIsStated: !!(currentImportedDaraByYear && currentImportedDaraByYear.size > 0),
         lastYearOverride: picked ? picked.lastYear : parseInt(document.getElementById('rebal-last-year').value),
         firstYearOverride: picked ? picked.firstYear : parseInt(document.getElementById('rebal-first-year').value),
