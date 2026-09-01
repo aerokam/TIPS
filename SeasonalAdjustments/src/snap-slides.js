@@ -103,13 +103,12 @@ export function drawS1(el) {
 }
 
 // ── Slide 2: Why the Month Matters ─────────────────────────────────────────
-// The bridge from the saw-tooth to its cause. A TIPS is priced off the Ref CPI
-// on its settlement date and pays off the Ref CPI on its maturity month/day
-// (SA calcs key on mm/dd only). Ref CPI is interpolated daily from CPI-U Not
-// Seasonally Adjusted (FRED CPIAUCNS); the same interpolation on the Seasonally
-// Adjusted series (CPIAUCSL) gives a second daily Ref CPI. Their ratio, NSA÷SA,
-// is the seasonal adjustment factor — plotted here for one year. Settlement
-// sits near the top; Jul/Oct maturity dates sit close to it, Jan/Apr well below.
+// The bridge from the saw-tooth to its cause. The daily Ref CPI behind a TIPS's
+// inflation adjustment is interpolated from monthly CPI-U NSA (FRED CPIAUCNS);
+// the same interpolation on BLS's SA CPI-U (CPIAUCSL) gives a daily SA Ref CPI.
+// Ref CPI NSA / Ref CPI SA is the SA Factor (DATA_DICTIONARY.md#sa-factor) —
+// plotted here for one year. Settlement sits near the top; Jul/Oct maturity
+// dates sit close to it, Jan/Apr well below. SA calcs key on month/day only.
 export function drawS2(el) {
   const W = 900, H = 520, L = 66, R = 116, T = 96, B = 80;
   const lo = 0.9905, hi = 1.007;   // headroom above the peak / below the trough for labels
@@ -130,7 +129,7 @@ export function drawS2(el) {
     s += `<text x="${L - 8}" y="${(yy + 3).toFixed(1)}" text-anchor="end" style="fill:${MUTED};font-size:10px">${v.toFixed(3)}</text>`;
   }
   const midY = (T + (H - B)) / 2;
-  s += `<text x="16" y="${midY}" text-anchor="middle" transform="rotate(-90 16 ${midY})" style="fill:${MUTED};font-size:11px">seasonal adjustment factor  (Ref CPI NSA ÷ SA)</text>`;
+  s += `<text x="16" y="${midY}" text-anchor="middle" transform="rotate(-90 16 ${midY})" style="fill:${MUTED};font-size:11px">SA Factor  (Ref CPI NSA ÷ Ref CPI SA)</text>`;
 
   // reference at factor = 1
   const y1 = y(1);
@@ -168,10 +167,11 @@ export function drawS2(el) {
   const apr = doy(3, 15);
   s += note(x(apr) + 6, (ys + y(Sat(apr))) / 2, ['this gap — settlement SA Factor', 'to maturity SA Factor — is what', 'distorts the quoted yield'], INK, 'start', 10.5);
 
-  // captions — define the term precisely, then bridge to the next slide
-  s += note(W / 2, 26, ['The Ref CPI that adjusts a TIPS is interpolated daily from CPI-U Not Seasonally Adjusted (FRED CPIAUCNS), so it carries a seasonal cycle.'], MUTED, 'middle', 12);
-  s += note(W / 2, 42, ['Divided by the Ref CPI from the Seasonally Adjusted series (CPIAUCSL), it isolates that cycle — the SA Factor, one year shown here.'], MUTED, 'middle', 12);
-  s += note(W / 2, 58, ['Above 1 in late summer, below 1 in late winter; the same shape every year.'], MUTED, 'middle', 12);
+  // captions — define the terms precisely (first use of NSA / SA / SA Factor),
+  // then bridge to the next slide
+  s += note(W / 2, 24, ['The daily Ref CPI behind a TIPS’s inflation adjustment is interpolated from monthly CPI-U Not Seasonally Adjusted (NSA; FRED CPIAUCNS) — a series with a stable annual cycle.'], MUTED, 'middle', 11.5);
+  s += note(W / 2, 40, ['BLS also publishes a Seasonally Adjusted (SA) CPI-U with that cycle removed. Put through the same interpolation, it gives a daily SA Ref CPI.'], MUTED, 'middle', 11.5);
+  s += note(W / 2, 56, ['Ref CPI NSA ÷ Ref CPI SA is the SA Factor — the cycle on its own, one year shown here: above 1 in late summer, below 1 in late winter, the same shape every year.'], MUTED, 'middle', 11.5);
 
   s += note(W / 2, H - 14, ['Settlement sits near the top. The four TIPS maturity dates sit at four fixed heights — Jul / Oct close by, Jan / Apr far below.'], AMBER, 'middle', 13);
 

@@ -158,11 +158,11 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 
 <a id="cpi-nsa"></a>
 ### CPI-U NSA
-`CPI_NSA` = *Consumer Price Index for All Urban Consumers, Not Seasonally Adjusted (BLS series `CUUR0000SA0`). The reference index used for TIPS principal adjustments per 31 CFR § 356.*
+`CPI_NSA` = *Consumer Price Index for All Urban Consumers, Not Seasonally Adjusted (BLS series `CUUR0000SA0`, FRED `CPIAUCNS`). The reference index used for TIPS principal adjustments per 31 CFR § 356.*
 
 <a id="cpi-sa"></a>
 ### CPI-U SA
-`CPI_SA` = *Consumer Price Index for All Urban Consumers, Seasonally Adjusted (BLS series `CUSR0000SA0`). Strips predictable seasonal patterns to expose underlying inflation trend.*
+`CPI_SA` = *Consumer Price Index for All Urban Consumers, Seasonally Adjusted (BLS series `CUSR0000SA0`, FRED `CPIAUCSL`). BLS removes the recurring seasonal pattern from CPI-U NSA with the X-13ARIMA-SEATS method; the seasonal factors are recalculated each February with the January release, revising the prior five years of seasonally adjusted data.*
 
 <a id="cpi-change-p2p"></a>
 ### CPI Change (Point-to-Point)
@@ -422,7 +422,7 @@ coverExcessCost_c = Future 30Y total cost × coverWeight_c
 
 <a id="sa-factor"></a>
 ### SA Factor
-`SA_Factor` = `CPI_NSA / CPI_SA` *(multiplicative factor derived from BLS CPI-U NSA vs SA series; normalizes for seasonal inflation patterns)*
+`SA_Factor` = `Ref_CPI_NSA(date) / Ref_CPI_SA(date)` *(daily ratio that isolates the seasonal component of the Ref CPI. `Ref_CPI_SA` is BLS's monthly seasonally adjusted CPI-U put through the same 31 CFR App. B daily interpolation as the NSA Ref CPI — a constructed series, since no official daily SA Ref CPI exists. Analogous to the monthly seasonal factors BLS publishes (`NSA index / SA index`, shown ×100 to 3 dp), but daily and unscaled. Stored unrounded in [`RefCpiNsaSa.csv`](#s4); lookup via `shared/src/ref-cpi.js#saFactorForDate`.)*
 
 <a id="sa-yield"></a>
 ### SA Yield
@@ -434,7 +434,11 @@ coverExcessCost_c = Future 30Y total cost × coverWeight_c
 
 <a id="sacp"></a>
 ### SACP
-`SACP` = *Seasonally Adjusted Clean Price (Canty 2009, Eq. 14 approximation): `SACP ≈ CP × (S_settle / S_maturity)`. Strips predictable seasonal carry from the quoted clean price.*
+`SACP` = *Seasonally Adjusted Clean Price (Canty 2009, Eq. 14 approximation): `SACP ≈ CP × SA_Price_Factor`. Strips predictable seasonal carry from the quoted clean price.*
+
+<a id="sa-price-factor"></a>
+### SA Price Factor
+`SA_Price_Factor` = `SA_Factor(settlement date) / SA_Factor(maturity month & day)` *(the multiplier the seasonal adjustment applies to the quoted price to produce [`SACP`](#sacp), Canty 2009 Eq. 14. Keyed on month/day only, since `SA_Factor` repeats each year. Equals 1.0 — no adjustment — when settlement and maturity fall on the same calendar month/day, i.e. a whole number of years apart; departs from 1 with the seasonal gap between the two dates.)*
 
 <a id="facp"></a>
 ### FACP
