@@ -26,6 +26,15 @@ Help modals, popup rows, status strips, column headers and tooltips are all in s
 - A spec section that restates a definition the DD owns is a duplicate: keep the link, drop the
   second copy.
 
+**This rule is enforced, not just stated.** `.githooks/pre-commit` runs
+`scripts/check-vocabulary.js`, which blocks a commit that introduces a banned term into prose a
+reader meets: the `knowledge/` specs, `Primer/content/`, and the string literals in each app's
+`index.html` and `src/`. Only lines the commit adds or changes are gated, so pre-existing wording
+never blocks unrelated work. `node scripts/check-vocabulary.js --audit` lists what is already
+there. When a commit is blocked, fix the wording; if no defined term fits, ask, and add the term to
+the Data Dictionary. Adding a rule to that file is how a term ruled out in conversation stays ruled
+out for every session afterwards.
+
 ## Commands (TipsLadderManager)
 
 ```bash
