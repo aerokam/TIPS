@@ -43,6 +43,53 @@ there. When a commit is blocked, fix the wording; if no defined term fits, ask, 
 the Data Dictionary. Adding a rule to that file is how a term ruled out in conversation stays ruled
 out for every session afterwards.
 
+## Multiple Sessions Share One Checkout
+
+Several Claude sessions run against this repo at once, all acting for the one developer, all sharing
+the primary checkout `C:/Users/aerok/projects/Treasuries`. Two incidents on 2026-09-02 came from
+sessions moving each other's work between branches and worktrees. Both were caused by rewriting
+refs, not by the shared index.
+
+- **The primary checkout stays on `main`.** Working directly on `main` there is the default and is
+  fine for coordinated work. Do not `git checkout` another branch in it. If you need a different
+  branch, use a worktree (below).
+- **Never rewrite a ref.** No `git update-ref`, `git branch -f`, a `git reset` that moves a branch,
+  or a cherry-pick used to advance one. A branch moves only by `checkout` then `commit` / `merge`.
+- **Stage explicit paths, then commit immediately.** `git add <path> <path>` — never `git add -A`,
+  `git add .`, or a bare directory, and never leave staged files sitting: a concurrent session's
+  commit will sweep them up.
+- **If the checkout is not where you expect** — a different branch, or staged/modified files you did
+  not make — **stop and ask.** Another session is mid-task; do not work around it.
+- **Before a work pass**, run `git status`, `git worktree list`, and `ListAgents`. If a peer is in
+  the same project or files, message them (`SendMessage`) before editing. `git diff` a shared file
+  before changing it.
+- **Pushing is the user's explicit call, every time.** Merge a finished feature branch into `main`
+  first, from `main`.
+- **Delete a branch only when it is merged into `main`, or the user says so.** `retained-bracket-work`
+  is kept unmerged on purpose (see `TipsLadderManager/KNOWN_ISSUES.md`).
+
+### Worktrees
+
+Use one only when the work does not sit alongside others on `main`: multi-phase, many files,
+experimental, or churny (the `retained-bracket-work` fixture thrash is the cautionary case). Not for
+small localized edits.
+
+```bash
+git worktree add ../Treasuries-<topic> -b <topic>   # off main
+```
+
+Then tell the user the worktree exists and which port it serves on, so they can point a browser at
+it. After it merges to `main`, `git worktree remove` it and `git branch -d` the branch.
+
+### Ports
+
+- **8080** is the user's own persistent dev server on the primary checkout. Never start, kill, or
+  restart it — that is the user's action, so they can watch test runs live.
+- **8081** is the port for a worktree (`npx serve . -p 8081` from the worktree root — the user runs
+  this).
+- More ports need the user to widen the R2 CORS allowlist (repo-root `knowledge/Data_Pipeline.md`).
+  Ask.
+
 ## Commands (TipsLadderManager)
 
 ```bash
