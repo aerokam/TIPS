@@ -422,7 +422,7 @@ coverExcessCost_c = Future 30Y total cost × coverWeight_c
 
 <a id="sa-factor"></a>
 ### SA Factor
-`SA_Factor` = `Ref_CPI_NSA(date) / Ref_CPI_SA(date)` *(daily ratio that isolates the seasonal component of the Ref CPI. `Ref_CPI_SA` is BLS's monthly seasonally adjusted CPI-U put through the same 31 CFR App. B daily interpolation as the NSA Ref CPI — a constructed series, since no official daily SA Ref CPI exists. Analogous to the monthly seasonal factors BLS publishes (`NSA index / SA index`, shown ×100 to 3 dp), but daily and unscaled. Stored unrounded in [`RefCpiNsaSa.csv`](#s4); lookup via `shared/src/ref-cpi.js#saFactorForDate`.)*
+`SA_Factor` = `Ref_CPI_NSA(date) / Ref_CPI_SA(date)` *(daily ratio that isolates the seasonal component of the Ref CPI. `Ref_CPI_NSA` is the Treasury-published Ref CPI. `Ref_CPI_SA` applies the same 31 CFR App. B daily interpolation to BLS's monthly seasonally adjusted CPI-U — a constructed series, since no official seasonally adjusted Ref CPI exists. Analogous to the monthly seasonal factors BLS publishes (`NSA index / SA index`, shown ×100 to 3 dp), but daily and unscaled. Stored unrounded in [`RefCpiNsaSa.csv`](#s4); lookup via `shared/src/ref-cpi.js#saFactorForDate`.)*
 
 <a id="sa-yield"></a>
 ### SA Yield
