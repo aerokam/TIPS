@@ -19,6 +19,16 @@ const FIDELITY_URL = `${R2_BASE_URL}/Treasuries/FidelityTreasuriesTips.csv`;
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
+// GSW (Gürkaynak-Sack-Wright, FEDS 2008-05) fitted TIPS par-yield curve — a snapshot for
+// visual comparison against our own fit. GSW publishes weekly (Tuesdays, covering through the
+// prior Friday); this is the latest row as of this branch. [maturity years, par yield %],
+// coupon-equivalent — matches our YTM-based fit. Replace with a pipelined feed if this
+// graduates from spike.
+const GSW_TIPS_PAR_SNAPSHOT = {
+  date: '2026-08-28',
+  points: [[2,2.1946],[3,2.1105],[4,2.0884],[5,2.1081],[6,2.1547],[7,2.2173],[8,2.2884],[9,2.3623],[10,2.4355],[11,2.5054],[12,2.5707],[13,2.6304],[14,2.6843],[15,2.7322],[16,2.7744],[17,2.8111],[18,2.8427],[19,2.8696],[20,2.8922]],
+};
+
 // Compute IQR-based clip bounds from a yield array.
 // minFence: minimum fence size (default 0.5 for yield % data; pass 0 for spread data
 // where values are small and the hard floor would swallow real outliers).
@@ -1168,6 +1178,8 @@ function getTipsSeriesVisibility(label) {
   if (base === 'Ask') return document.getElementById('showTipsAsk').checked;
   if (base === 'SA') return document.getElementById('showTipsSa').checked;
   if (base === 'SAO') return document.getElementById('showTipsSao').checked;
+  if (base === 'Spot') return document.getElementById('showTipsSpot').checked;
+  if (base === 'GSW') return document.getElementById('showTipsGsw').checked;
   return true;
 }
 
@@ -1274,6 +1286,37 @@ function renderChart(fedBonds, brokerBonds) {
     );
   }
 
+  // Spot-curve fit through the quoted Ask YTM points (>= SAO_NOISE_YRS), one line per source,
+  // plus the GSW reference. v0: reuses fitNSS (Svensson fit through YTM points) — for low-coupon
+  // TIPS that is within a bp or two of a true price-space spot fit. Refine to a price fit later.
+  const yToX = xAxisMode === 'ttm' ? y => y * (365.25 / 7) : y => now + y * 365.25 * 86400000;
+  const y2m = b => (b.maturityDate.getTime() - now) / (365.25 * 86400000);
+  const curveSrc = [];
+  if (fedBonds)    curveSrc.push({ bonds: fedBonds,    sfx: both ? ' (Fed)' : '',    color: '#1a56db' });
+  if (brokerBonds) curveSrc.push({ bonds: brokerBonds, sfx: both ? ' (Market)' : '', color: '#b45309' });
+  for (const { bonds, sfx, color } of curveSrc) {
+    const all = bonds.map(b => [y2m(b), b.askYield * 100]).filter(([t, y]) => t > 0 && !isNaN(y));
+    const fitPts = all.filter(([t]) => t >= SAO_NOISE_YRS);   // near-maturity YTM is price noise — kept out of the fit
+    if (fitPts.length < 4) continue;
+    const fn = fitNSS(fitPts.map(p => p[0]), fitPts.map(p => p[1]));
+    if (!fn) continue;
+    // Draw from the shortest bond out to the longest; below SAO_NOISE_YRS the line is the
+    // fit extrapolated, not anchored (near-maturity real yields are unreliable — GSW itself
+    // starts at 2y). Sample on a half-year grid so a dot lands on every integer year,
+    // aligning with GSW's published points.
+    const tMin = Math.min(...all.map(p => p[0]));
+    const gStart = Math.max(0.25, Math.ceil(tMin * 2) / 2);
+    const gEnd   = Math.max(...all.map(p => p[0]));
+    const grid = [];
+    for (let t = gStart; t <= gEnd + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(fn(t).toFixed(3)) });
+    seriesDef.push({ label: `Spot${sfx}`, data: grid, color, curve: true, w: 2.25, dash: [], style: 'circle', r: 0, markerR: 2 });
+  }
+  seriesDef.push({
+    label: `GSW ${GSW_TIPS_PAR_SNAPSHOT.date}`,
+    data: GSW_TIPS_PAR_SNAPSHOT.points.map(([t, y]) => ({ x: yToX(t), y })),
+    color: '#111827', curve: true, w: 1.5, dash: [6, 4], style: 'circle', r: 0, markerR: 3,
+  });
+
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   const xScale = buildYieldXScale(allPoints);
@@ -1298,9 +1341,10 @@ function renderChart(fedBonds, brokerBonds) {
         backgroundColor: s.color,
         borderWidth: s.w,
         borderDash: s.dash,
-        pointRadius: s.r,
+        pointRadius: s.curve ? (s.markerR ?? 0) : s.r,
+        pointHoverRadius: s.curve ? 5 : undefined,
         pointStyle: s.style,
-        tension: 0.1,
+        tension: s.curve ? 0.3 : 0.1,
         hidden: !getTipsSeriesVisibility(s.label)
       }))
     },
@@ -2007,10 +2051,11 @@ function renderSpreadTable(bonds, tab) {
 // ─── Interaction Handlers ────────────────────────────────────────────────────
 
 // TIPS 'Show' Checkboxes & Links
-['showTipsAsk', 'showTipsSa', 'showTipsSao'].forEach((id) => {
+const TIPS_SHOW = { showTipsAsk: 'Ask', showTipsSa: 'SA', showTipsSao: 'SAO', showTipsSpot: 'Spot', showTipsGsw: 'GSW' };
+Object.keys(TIPS_SHOW).forEach((id) => {
   document.getElementById(id).addEventListener('change', (e) => {
     if (!chart || activeTab !== 'tips') return;
-    const seriesKey = id === 'showTipsAsk' ? 'Ask' : id === 'showTipsSa' ? 'SA' : 'SAO';
+    const seriesKey = TIPS_SHOW[id];
     chart.data.datasets.forEach((ds, i) => {
       if (ds.label.split(' ')[0] === seriesKey) chart.setDatasetVisibility(i, e.target.checked);
     });
@@ -2021,7 +2066,7 @@ function renderSpreadTable(bonds, tab) {
 
 document.getElementById('tipsShowAll').onclick = (e) => {
   e.preventDefault();
-  ['showTipsAsk', 'showTipsSa', 'showTipsSao'].forEach(id => {
+  Object.keys(TIPS_SHOW).forEach(id => {
     const el = document.getElementById(id);
     el.checked = true;
     el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2029,7 +2074,7 @@ document.getElementById('tipsShowAll').onclick = (e) => {
 };
 document.getElementById('tipsShowNone').onclick = (e) => {
   e.preventDefault();
-  ['showTipsAsk', 'showTipsSa', 'showTipsSao'].forEach(id => {
+  Object.keys(TIPS_SHOW).forEach(id => {
     const el = document.getElementById(id);
     el.checked = false;
     el.dispatchEvent(new Event('change', { bubbles: true }));
