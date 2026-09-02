@@ -26,6 +26,7 @@ This document provides the technical schemas and field-level specifications for 
 ## <a id="s2"></a>S2: TipsRef.csv
 **Description**: Immutable TIPS metadata fetched from FiscalData.
 **Update Frequency**: Weekly (or on-demand for new auctions).
+**R2 Key**: `TIPS/TipsRef.csv` (written by `scripts/fetchTipsRef.js`). The old `Treasuries/TipsRef.csv` key was consolidated away (see `R2_Cleanup.md`) but the stale object was never deleted from R2 — it is frozen at 2026-07-13 and must not be read.
 
 | Field | Type | Description |
 |---|---|---|
@@ -36,7 +37,7 @@ This document provides the technical schemas and field-level specifications for 
 | `DatedDateRefCpi` | Number | The Ref CPI on the Dated Date. |
 | `Term` | String | Original issuance term (5-year, 10-year, 30-year). |
 
-**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/TipsRef.csv)
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/TipsRef.csv)
 
 ---
 
