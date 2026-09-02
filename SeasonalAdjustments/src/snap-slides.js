@@ -103,14 +103,14 @@ export function drawS1(el) {
 }
 
 // ── Slide 2: Why the Month Matters ─────────────────────────────────────────
-// The bridge from the saw-tooth to its cause. The daily Ref CPI behind the
-// inflation adjustment applied to TIPS is published by Treasury, interpolated
-// from monthly CPI-U NSA (FRED CPIAUCNS). There is no official seasonally
-// adjusted Ref CPI; we construct one by running the same interpolation on BLS's
-// SA CPI-U (CPIAUCSL). Ref CPI NSA / Ref CPI SA is the SA Factor
-// (DATA_DICTIONARY.md#sa-factor), plotted here for one year. The SA Factor
-// differs between settlement and each maturity month/day, and that difference is
-// why the quoted yield and the SA yield are not equal. SA calcs key on mm/dd.
+// Slide 2 connects the slide-1 saw-tooth to its cause. The daily Ref CPI used
+// for TIPS inflation adjustments is interpolated from monthly CPI-U NSA (FRED
+// CPIAUCNS) and has a seasonal pattern that repeats each year. No official
+// seasonally adjusted Ref CPI is published; we compute one by applying the same
+// interpolation to BLS's SA CPI-U (CPIAUCSL). Ref CPI NSA / Ref CPI SA is the
+// SA Factor (DATA_DICTIONARY.md#sa-factor), plotted here for one year. It
+// differs between settlement and each maturity month/day, and that difference
+// is why the quoted yield and the SA yield are not equal. SA calcs key on mm/dd.
 export function drawS2(el) {
   const W = 900, H = 520, L = 66, R = 116, T = 96, B = 80;
   const lo = 0.9905, hi = 1.007;   // headroom above the peak / below the trough for labels
@@ -165,16 +165,21 @@ export function drawS2(el) {
     s += `<circle cx="${xd.toFixed(1)}" cy="${yd.toFixed(1)}" r="5" fill="none" stroke="${AMBER}" stroke-width="2"/>`;
     s += note(xd + dx, yd + (below ? 19 : -11), `${MONTHS[mm.m]} 15   ${Sat(d).toFixed(4)}`, AMBER, anchor, 11);
   }
-  // the difference that drives the yield gap, shown on-chart for the Apr case
+  // the SA-Factor difference between settlement and the Apr maturity date,
+  // labelled on-chart as the extreme case
   const apr = doy(3, 15);
-  s += note(x(apr) + 6, (ys + y(Sat(apr))) / 2, ['the SA Factor differs between settlement', 'and this maturity month/day — that', 'difference is why the quoted yield', 'and the SA yield are not equal'], INK, 'start', 10.5);
+  s += note(x(apr) + 6, (ys + y(Sat(apr))) / 2, ['The SA Factor differs between settlement', 'and this maturity month/day. That is why', 'the quoted yield and the SA yield are', 'not equal.'], INK, 'start', 10.5);
 
-  // captions — define the terms precisely (first use of NSA / SA / SA Factor)
-  s += note(W / 2, 24, ['The Treasury-published daily Ref CPI used for TIPS inflation adjustments is interpolated from monthly CPI-U Not Seasonally Adjusted (NSA; FRED CPIAUCNS).'], MUTED, 'middle', 11.5);
-  s += note(W / 2, 40, ['That series carries a stable annual cycle. No seasonally adjusted Ref CPI is published, so we run the same interpolation on BLS’s Seasonally Adjusted (SA) CPI-U (CPIAUCSL).'], MUTED, 'middle', 11.5);
-  s += note(W / 2, 56, ['Ref CPI NSA ÷ Ref CPI SA is the SA Factor — the seasonal cycle as a daily ratio, one year shown here: above 1 in late summer, below 1 in late winter.'], MUTED, 'middle', 11.5);
+  // captions — provenance in grey, the SA Factor definition in white.
+  // First use of NSA / SA / SA Factor; each line kept inside the viewBox width.
+  s += note(W / 2, 22, [
+    'The daily Ref CPI used for TIPS inflation adjustments is interpolated from monthly CPI-U Not Seasonally Adjusted (NSA; FRED CPIAUCNS).',
+    'It has a seasonal pattern that repeats each year, and no official seasonally adjusted Ref CPI is published.',
+    'We derive one with the same interpolation from BLS’s Seasonally Adjusted (SA) CPI-U (CPIAUCSL).',
+  ], MUTED, 'middle', 11.5);
+  s += note(W / 2, 72, ['Ref CPI NSA ÷ Ref CPI SA is the SA Factor shown here: above 1 in late summer, below 1 in late winter.'], INK, 'middle', 11.5);
 
-  s += note(W / 2, H - 14, ['Settlement sits near the top. The four TIPS maturity dates sit at four fixed heights — Jul / Oct close by, Jan / Apr far below.'], AMBER, 'middle', 13);
+  s += note(W / 2, H - 14, ['Settlement is near the SA Factor peak. Jul and Oct maturity dates are close to it; Jan and Apr are well below.'], AMBER, 'middle', 13);
 
   el.innerHTML = s;
 }
@@ -257,7 +262,7 @@ export function drawS3(el) {
   card(252, F, '#f97316', 'FAR');
 
   // takeaway
-  s += note(W / 2, H - 30, ['Same formula both times. The farther the maturity SA Factor sits from the settlement SA Factor, the farther the SA price factor is from 1 —'], INK, 'middle', 12.5);
+  s += note(W / 2, H - 30, ['Same formula both times. The farther the maturity SA Factor is from the settlement SA Factor, the farther the SA price factor is from 1 —'], INK, 'middle', 12.5);
   s += note(W / 2, H - 13, ['and the larger the move from the quoted yield to the SA yield.'], AMBER, 'middle', 12.5);
 
   el.innerHTML = s;
