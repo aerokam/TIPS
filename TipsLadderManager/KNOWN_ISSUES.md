@@ -58,8 +58,51 @@ production impact go here.
   maturity, so identifying retained generations means identifying maturities, not years
   (DD §Bracket Maturity). The popup now names every bracket by month and year for the same
   reason.
-- **Status:** out of scope for now, deliberately. Nothing is wrong with the arithmetic when one
-  retained maturity is held, which is every case seen so far.
+- **Prior work — branch `retained-bracket-work`** (HEAD `078741f`, cut from `d02a55f` on
+  2026-07-27; kept as a reference, not merged). Reviewed 2026-09-02. Do not rebase or cherry-pick
+  it: it is ~290 commits behind `main`, `src/data.js` has since moved to
+  `shared/src/market-data.js`, and `rebalance-lib.js` has diverged substantially under it. Read it,
+  reimplement against today's `main`.
+  - **Already on `main` by other routes — nothing on the branch to take for these:** the N-leg
+    solver (`bracketWeightsN` + `activeFloorWeight`, landed 2026-08-21); net-of-excess funded
+    sizing, i.e. a bracket year's funded quantity measured net of the excess committed at the
+    target (`rebalance-lib.js`, `targetExcessHeld` / `targetFundedHeld`); the "never name the data
+    vendor" string fixes (the strings the branch corrected no longer exist on `main`).
+  - **Not on `main` — the one live idea, commit `9e93424`:** identify the retained lower maturity
+    by *held excess* under the funded-first split, not by `araByYear[y] - DARA`. A
+    `resolveLowerExcess` pass runs over every pre-gap maturity year before brackets are picked,
+    reads the stated excess when the file gives one, otherwise derives it against the carrying
+    maturity's funded-year need (`fundedYearNeedFor`, one formula shared by both passes); the
+    latest-10Y maturity is resolved before identification and excluded from retention. The branch's
+    stated motivation: on the real-holdings portfolio the `araByYear[y] - DARA` metric claimed 2032
+    and 2033 as retained brackets while the app displayed their excess as zero, and in a year
+    holding both a January and a July maturity it attributed the excess to the larger holding
+    rather than the one carrying it. **That claim is not reproduced against current `main`** —
+    verify it on the real-holdings export before treating it as a live single-generation bug; if it
+    holds it is the more urgent half of this issue.
+  - **Conceptual question to settle with the user first — not a straight implementation task.**
+    `3.0 §Bracket Identification Rules §Retained Maturities` and §198 currently *endorse* the
+    Excess-ARA metric as the engine's established rule, chosen deliberately over latest-maturing.
+    `9e93424` argues that rule is wrong. Changing it is a spec decision.
+  - **Why the parent series was reverted** (`02ee6e3`, 2026-07-30): per-CUSIP rather than
+    per-maturity-year identification flagged 2032–2036 as bracket years on an account whose only
+    real excess is 2034. The per-maturity-year fix is in `9e93424` and never returned to `main`.
+  - **Fixture lesson from `078741f`.** A fixture replayed through the real Build and Rebalance
+    algorithms (hiding not-yet-issued TIPS at each step) produces *one* retained maturity, not two:
+    each pre-gap issuance shrinks the gap block, so a rebalance needs less cover and retains what
+    the older maturity holds, never buying into the new 10-year. Two retained maturities only arise
+    in a real accumulated portfolio, so a multi-generation test must come from real holdings, not a
+    hand-built or replayed fixture. Five of the branch's seven commits are that fixture attempt
+    going in circles.
+  - **Current-`main` anchors:** `rebalance-lib.js:43` `identifyBrackets`; `~:69` the
+    `(araByYear[y] || 0) - DARA` metric; `~:128` `retainedList` (hardcoded single element). Specs
+    to read first: `3.0 §Bracket Identification Rules`, `3.0 §Lower bracket priority rule`,
+    `2.0 §Retained Bracket Excess`, and DD `#retained-lower-bracket` / `#retained-bracket-excess` /
+    `#active-lower-bracket` / `#bracket-maturity`.
+- **Status:** out of scope for now, deliberately. The arithmetic is correct when one retained
+  maturity is held, which is every case seen so far. The next TipsLadderManager session picks this
+  up: settle the metric question above, then reimplement `9e93424`'s identification against
+  `main`.
 ### The vocabulary for what a ladder does, and what happens to its cash flows
 
 - **Found:** 2026-08-28, reviewing the Available Cash help and 2.0 §Available Cash. Repeatedly, over
