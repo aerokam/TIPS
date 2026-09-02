@@ -8,7 +8,7 @@ of findings; `1.0_Operation.md` references it.
 
 - CNBC's Treasury/TIPS data source is **Tradeweb**.
 - The CNBC `1D`/`5D` chart feeds are **24-hour continuous** (electronic/overnight).
-- Each weekday the day session ends with a **fixed-time consolidation bar stamped `17:05` ET**, followed by a ~2.5h gap (resume ~19:30 ET). This is the *actual end-of-session close*.
+- Each weekday the day session ends with one **fixed-time consolidation bar per symbol, stamped `17:05` ET**, followed by a ~2.5h gap (resume ~19:30 ET). This is the *actual end-of-session close*.
 - **BUT CNBC's stored DAILY close (the value in the longer-range feeds that the history files are built from) is NOT the 17:05 bar — it is the ~3:00 PM ET mid-afternoon benchmark.** Verified across US10Y, US10YTIPS, US30YTIPS.
 - The U.S. Treasury's official **Constant Maturity (CMT) nominal yields and real/TIPS yields** are derived from FRBNY indicative quotations at **~3:30 PM ET**. The mid-afternoon snapshot is the industry "official close" convention.
 - **Decision:** history (UI ranges **1Y and longer**) uses the **~3 PM benchmark close**, refreshed by **re-reading the daily feeds** (no 17:05 extraction). Short views (**2D/10D** = `1D`/`5D`) may keep the **actual 17:05 session close** even though that differs from the long-range basis (tentative).
@@ -33,7 +33,7 @@ Runtime: long ranges read the **R2 history baseline** (`yields-history/history.j
 
 ## 2. Intraday feed structure & the 17:05 bar
 
-Feeds trade 24h. Each weekday: continuous trading to ~16:56–17:04 ET → a single **`17:05` consolidation bar** → ~2.5h gap → overnight session resumes ~19:30 ET.
+Feeds trade 24h. Each weekday: continuous trading to ~16:56–17:04 ET → one **`17:05` consolidation bar** per symbol → ~2.5h gap → overnight session resumes ~19:30 ET.
 
 The `17:05` stamp is **fixed-time, not a random last trade** — it appears for every symbol every weekday regardless of liquidity, even after a `17:04` bar, even when continuous trading stopped minutes earlier.
 
