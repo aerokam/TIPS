@@ -26,6 +26,14 @@ Help modals, popup rows, status strips, column headers and tooltips are all in s
 - A spec section that restates a definition the DD owns is a duplicate: keep the link, drop the
   second copy.
 
+**No new metaphors.** A metaphor names a thing by something it is not: a *leg*, a *block* of years, a
+CPI *print*. This portal already has the ones it uses, and the user introduced them: *bracket*,
+*rung*, *ladder*. Reaching for another is not a style choice, it is a new term, so the rule above
+applies with no exception — ask first. The user is the sole developer of every portal app and the
+only person who can approve one. This holds in help text, in specs, in commit messages, and in
+conversation, and it holds for a metaphor that reads as ordinary financial idiom. When no existing
+term fits, say what is missing and ask, rather than reaching for an image.
+
 **This rule is enforced, not just stated.** `.githooks/pre-commit` runs
 `scripts/check-vocabulary.js`, which blocks a commit that introduces a banned term into prose a
 reader meets: the `knowledge/` specs, `Primer/content/`, and the string literals in each app's
