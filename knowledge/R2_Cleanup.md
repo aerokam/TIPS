@@ -2,7 +2,9 @@
 
 Audit run 2026-04-30. Cleanup executed 2026-05-21.
 
-**Background:** Gradual migration from `TIPS/` → `Treasuries/` prefix left many scripts writing to both locations; only one location was read. Cleanup completed — orphan writes patched, dead objects deleted via `scripts/r2-cleanup.js`.
+**Background:** Gradual migration from `TIPS/` → `Treasuries/` prefix left many scripts writing to both locations; only one location was read. Cleanup completed — orphan writes patched, dead objects deleted.
+
+**2026-09-02 follow-up:** `Treasuries/TipsRef.csv` was on the delete list but survived (frozen at 2026-07-13, still resolving, missing every TIPS issued since — it broke a spot-curve verification). Now deleted, and the last links to it fixed (`DataStores.md` S2, the TLM pipeline diagram, the Dashboard staleness monitor). `scripts/r2-cleanup.js` has itself been **removed**: it was a one-time script whose `KEYS_TO_DELETE` list went stale and had grown to include keys that are now live (`TIPS/RefCpiNsaSa.csv`, `TIPS/YieldsSaSao.csv`) — re-running it would have destroyed production data.
 
 ---
 

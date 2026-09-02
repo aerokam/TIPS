@@ -146,7 +146,7 @@ const APP_CONFIGS = [
         id: 'tips-reference',
         label: 'TIPS reference metadata',
         feeds: 'Coupon + dated-date lookups',
-        r2Key: 'Treasuries/TipsRef.csv',
+        r2Key: 'TIPS/TipsRef.csv',
         localJobIds: ['fetch-tips-ref'],
         stalenessHours: 720,
       },
