@@ -26,13 +26,26 @@ Help modals, popup rows, status strips, column headers and tooltips are all in s
 - A spec section that restates a definition the DD owns is a duplicate: keep the link, drop the
   second copy.
 
-**No new metaphors.** A metaphor names a thing by something it is not: a *leg*, a *block* of years, a
-CPI *print*. This portal already has the ones it uses, and the user introduced them: *bracket*,
-*rung*, *ladder*. Reaching for another is not a style choice, it is a new term, so the rule above
-applies with no exception — ask first. The user is the sole developer of every portal app and the
-only person who can approve one. This holds in help text, in specs, in commit messages, and in
-conversation, and it holds for a metaphor that reads as ordinary financial idiom. When no existing
-term fits, say what is missing and ask, rather than reaching for an image.
+**Read the Data Dictionary at the start of every session, not just the specs.** Read it whole, or at
+minimum every entry touching the specs in play, before writing any prose. It is the vocabulary the
+help text and the specs are written in, and it has to be in mind while writing rather than consulted
+after the fact. Re-read it whenever that recall has faded — a session that has run long has lost it.
+
+**The test is consistency with the specs, never whether it reads naturally.** Prose that reads well
+is not evidence it is right; for this failure mode it is the opposite, because an invented term
+arrives sounding like ordinary professional register. Ask instead: is every term here the one the DD
+defines?
+
+**Do not replace a defined term with anything.** Not with a metaphor (*leg*, a *block* of years, a
+CPI *print*, a value *stamped* at 17:05), and not with a plain synonym either. Where a term already
+exists, it is the only correct word. Metaphors are fine in conversation with the user and are not
+the problem in themselves; substituting one for a term already defined is. When nothing defined
+fits, say what is missing and ask rather than coining anything. The user is the sole developer of
+every portal app and the only person who can approve a new term.
+
+**Match a summary of an external source to that source.** `YieldCurves/knowledge/Canty.md` is the
+worked case: it holds itself out as the canonical summary of a paper, so a word the paper never uses
+does not belong in it, however standard the word sounds.
 
 **This rule is enforced, not just stated.** `.githooks/pre-commit` runs
 `scripts/check-vocabulary.js`, which blocks a commit that introduces a banned term into prose a
