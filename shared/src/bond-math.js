@@ -84,6 +84,21 @@ export function calculateMDuration(settlement, maturity, coupon, yld) {
   return mac != null ? mac / (1 + yld / 2) : null;
 }
 
+// Cash-flow schedule for a coupon bond, for curve fitting (discount each flow with a
+// zero curve and match the observed price). `times` are years from settlement, `amounts`
+// are per 100 face (coupon/2 each, plus 100 at maturity); `accrued` is accrued interest
+// per 100 (add to the clean price to get the dirty price the schedule discounts to).
+// Null if settlement >= maturity or there are no coupon dates.
+export function cashflowSchedule(settlement, maturity, coupon) {
+  const d = calculateDurationDetail(settlement, maturity, coupon, 0);
+  if (!d) return null;
+  return {
+    times:   d.periods.map(p => p.t / 2),
+    amounts: d.periods.map(p => p.cf / 10),
+    accrued: coupon / 2 * 100 * (1 - d.w),
+  };
+}
+
 // ─── Per-unit quantities ($1,000 face) ──────────────────────────────────────
 // Spec: 2.1 TIPS Basics, 5.0 §bondCalcs
 // security: { coupon, datedDateRefCpi, price, maturity: Date }

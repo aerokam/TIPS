@@ -1,5 +1,5 @@
 // Yield Curves — Frontend Logic
-import { yieldFromPrice } from '../../shared/src/bond-math.js';
+import { yieldFromPrice, cashflowSchedule } from '../../shared/src/bond-math.js';
 import { saFactorForDate } from '../../shared/src/ref-cpi.js';
 import { parseCsv } from '../../shared/src/csv.js';
 import { localDate, toIsoDate, nextBusinessDay, parseHolidaySet } from '../../shared/src/settlement.js';
@@ -19,14 +19,15 @@ const FIDELITY_URL = `${R2_BASE_URL}/Treasuries/FidelityTreasuriesTips.csv`;
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-// GSW (Gürkaynak-Sack-Wright, FEDS 2008-05) fitted TIPS par-yield curve — a snapshot for
-// visual comparison against our own fit. GSW publishes weekly (Tuesdays, covering through the
-// prior Friday); this is the latest row as of this branch. [maturity years, par yield %],
-// coupon-equivalent — matches our YTM-based fit. Replace with a pipelined feed if this
-// graduates from spike.
-const GSW_TIPS_PAR_SNAPSHOT = {
+// GSW (Gürkaynak-Sack-Wright, FEDS 2008-05) fitted TIPS zero-coupon curve — a snapshot for
+// visual comparison against our own spot fit. GSW publishes weekly (Tuesdays, covering
+// through the prior Friday); this is the latest row as of this commit. [maturity years,
+// zero yield %], converted from GSW's continuously-compounded TIPSY to a semi-annual
+// bond-equivalent basis so it sits on the same axis as our Spot line and the Ask/SA yields.
+// TODO: replace with a weekly R2 pull from feds200805_1.html + show the GSW data date.
+const GSW_TIPS_ZERO_SNAPSHOT = {
   date: '2026-08-28',
-  points: [[2,2.1946],[3,2.1105],[4,2.0884],[5,2.1081],[6,2.1547],[7,2.2173],[8,2.2884],[9,2.3623],[10,2.4355],[11,2.5054],[12,2.5707],[13,2.6304],[14,2.6843],[15,2.7322],[16,2.7744],[17,2.8111],[18,2.8427],[19,2.8696],[20,2.8922]],
+  points: [[2,2.1922],[3,2.1071],[4,2.0853],[5,2.1065],[6,2.1559],[7,2.2229],[8,2.2994],[9,2.3799],[10,2.4607],[11,2.5388],[12,2.6125],[13,2.6808],[14,2.7430],[15,2.7990],[16,2.8486],[17,2.8920],[18,2.9295],[19,2.9615],[20,2.9884]],
 };
 
 // Compute IQR-based clip bounds from a yield array.
@@ -508,6 +509,59 @@ function fitNSS(taus, ys) {
     const xb = _nssBasis(tau, best.l1, best.l2);
     return xb[0]*best.beta[0] + xb[1]*best.beta[1] + xb[2]*best.beta[2] + xb[3]*best.beta[3];
   };
+  fn._params = best;
+  return fn;
+}
+
+// True zero-coupon (spot) curve: fit Svensson so the model price of each bond — its cash
+// flows discounted with z(t) — matches the observed dirty price, weighted 1/√duration so
+// long bonds don't dominate. Grid-search the two decay params; for each, Gauss-Newton on
+// the four (nonlinear) betas from the YTM-fit start. Returns z(t) in %, CONTINUOUSLY
+// COMPOUNDED (matches GSW's TIPSY convention), or null.
+// specs: [{ t, ytm, dirty, times:[yrs], cf:[per100], wt }]
+function fitSpotNSS(specs) {
+  if (specs.length < 5) return null;
+  const evalZ = (beta, l1, l2, t) => {
+    const p = _nssBasis(t, l1, l2);
+    return (p[0]*beta[0] + p[1]*beta[1] + p[2]*beta[2] + p[3]*beta[3]) / 100; // decimal
+  };
+  const modelPrice = (beta, l1, l2, s) => {
+    let P = 0;
+    for (let k = 0; k < s.times.length; k++) P += s.cf[k] * Math.exp(-evalZ(beta, l1, l2, s.times[k]) * s.times[k]);
+    return P;
+  };
+  const grid = [1, 1.5, 2, 2.5, 3, 4, 5, 7, 10, 15, 20, 30];
+  let best = null;
+  for (const l1 of grid) for (const l2 of grid) {
+    if (l2 <= l1) continue;
+    let beta = _ols4(specs.map(s => _nssBasis(s.t, l1, l2)), specs.map(s => s.ytm));
+    if (!beta) continue;
+    for (let iter = 0; iter < 8; iter++) {
+      const J = [], resid = [];
+      for (const s of specs) {
+        const sw = Math.sqrt(s.wt);
+        const dP = [0, 0, 0, 0];
+        let P = 0;
+        for (let k = 0; k < s.times.length; k++) {
+          const tk = s.times[k], phi = _nssBasis(tk, l1, l2);
+          const pv = s.cf[k] * Math.exp(-evalZ(beta, l1, l2, tk) * tk);
+          P += pv;
+          for (let j = 0; j < 4; j++) dP[j] += pv * (-tk * phi[j] / 100);
+        }
+        resid.push((s.dirty - P) * sw);
+        J.push(dP.map(d => d * sw));
+      }
+      const db = _ols4(J, resid);
+      if (!db) break;
+      beta = beta.map((b, j) => b + db[j]);
+      if (Math.max(...db.map(Math.abs)) < 1e-7) break;
+    }
+    let ssr = 0;
+    for (const s of specs) ssr += s.wt * (s.dirty - modelPrice(beta, l1, l2, s)) ** 2;
+    if (isFinite(ssr) && (!best || ssr < best.ssr)) best = { l1, l2, beta: [...beta], ssr };
+  }
+  if (!best) return null;
+  const fn = t => evalZ(best.beta, best.l1, best.l2, t) * 100; // % continuous
   fn._params = best;
   return fn;
 }
@@ -1286,34 +1340,37 @@ function renderChart(fedBonds, brokerBonds) {
     );
   }
 
-  // Spot-curve fit through the quoted Ask YTM points (>= SAO_NOISE_YRS), one line per source,
-  // plus the GSW reference. v0: reuses fitNSS (Svensson fit through YTM points) — for low-coupon
-  // TIPS that is within a bp or two of a true price-space spot fit. Refine to a price fit later.
+  // Zero-coupon (spot) curve: Svensson fitted in price space (fitSpotNSS) to each source's
+  // quoted TIPS, plus the GSW zero reference. Bonds under SAO_NOISE_YRS are excluded (their
+  // real yield is price noise), so the curve is drawn only from the shortest bond that is.
   const yToX = xAxisMode === 'ttm' ? y => y * (365.25 / 7) : y => now + y * 365.25 * 86400000;
   const y2m = b => (b.maturityDate.getTime() - now) / (365.25 * 86400000);
+  const zToSA = z => 200 * (Math.exp(z / 200) - 1);   // % continuous → % semi-annual bond-equivalent
   const curveSrc = [];
   if (fedBonds)    curveSrc.push({ bonds: fedBonds,    sfx: both ? ' (Fed)' : '',    color: '#1a56db' });
   if (brokerBonds) curveSrc.push({ bonds: brokerBonds, sfx: both ? ' (Market)' : '', color: '#b45309' });
   for (const { bonds, sfx, color } of curveSrc) {
-    const all = bonds.map(b => [y2m(b), b.askYield * 100]).filter(([t, y]) => t > 0 && !isNaN(y));
-    const fitPts = all.filter(([t]) => t >= SAO_NOISE_YRS);   // near-maturity YTM is price noise — kept out of the fit
-    if (fitPts.length < 4) continue;
-    const fn = fitNSS(fitPts.map(p => p[0]), fitPts.map(p => p[1]));
-    if (!fn) continue;
-    // Draw from the shortest bond out to the longest; below SAO_NOISE_YRS the line is the
-    // fit extrapolated, not anchored (near-maturity real yields are unreliable — GSW itself
-    // starts at 2y). Sample on a half-year grid so a dot lands on every integer year,
-    // aligning with GSW's published points.
-    const tMin = Math.min(...all.map(p => p[0]));
-    const gStart = Math.max(0.25, Math.ceil(tMin * 2) / 2);
-    const gEnd   = Math.max(...all.map(p => p[0]));
+    const specs = [];
+    for (const b of bonds) {
+      const t = y2m(b);
+      if (t < SAO_NOISE_YRS || isNaN(b.askYield) || !(b.price > 0)) continue;
+      const sch = cashflowSchedule(localDate(b.settlementDate), b.maturityDate, b.coupon);
+      if (!sch || !sch.times.length) continue;
+      specs.push({ t, ytm: b.askYield * 100, dirty: b.price + sch.accrued, times: sch.times, cf: sch.amounts, wt: 1 / Math.max(1, t) });
+    }
+    if (specs.length < 5) continue;
+    const z = fitSpotNSS(specs);
+    if (!z) continue;
+    const tMin = Math.min(...specs.map(s => s.t));
+    const tMax = Math.max(...specs.map(s => s.t));
+    const gStart = Math.ceil(tMin * 2) / 2;
     const grid = [];
-    for (let t = gStart; t <= gEnd + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(fn(t).toFixed(3)) });
+    for (let t = gStart; t <= tMax + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(zToSA(z(t)).toFixed(3)) });
     seriesDef.push({ label: `Spot${sfx}`, data: grid, color, curve: true, w: 2.25, dash: [], style: 'circle', r: 0, markerR: 2 });
   }
   seriesDef.push({
-    label: `GSW ${GSW_TIPS_PAR_SNAPSHOT.date}`,
-    data: GSW_TIPS_PAR_SNAPSHOT.points.map(([t, y]) => ({ x: yToX(t), y })),
+    label: `GSW zero ${GSW_TIPS_ZERO_SNAPSHOT.date}`,
+    data: GSW_TIPS_ZERO_SNAPSHOT.points.map(([t, y]) => ({ x: yToX(t), y })),
     color: '#111827', curve: true, w: 1.5, dash: [6, 4], style: 'circle', r: 0, markerR: 3,
   });
 
@@ -1373,7 +1430,8 @@ function renderChart(fedBonds, brokerBonds) {
               const ms = xAxisMode === 'ttm'
                 ? now + items[0].parsed.x * 7 * 86400000
                 : items[0].parsed.x;
-              return `${fmtDateMDY(new Date(ms))} (${ttmLabel(ms)})`;
+              const yrs = (ms - now) / (365.25 * 86400000);
+              return `${fmtDateMDY(new Date(ms))} · ${yrs.toFixed(1)}y`;
             },
             label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}%`
           }
@@ -1600,7 +1658,8 @@ function renderBeiChart(bonds) {
               const ms = xAxisMode === 'ttm'
                 ? now + items[0].parsed.x * 7 * 86400000
                 : items[0].parsed.x;
-              return `${fmtDateMDY(new Date(ms))} (${ttmLabel(ms)})`;
+              const yrs = (ms - now) / (365.25 * 86400000);
+              return `${fmtDateMDY(new Date(ms))} · ${yrs.toFixed(1)}y`;
             },
             label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}%`
           }
