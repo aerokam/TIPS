@@ -34,6 +34,7 @@ test.describe('Yield Curves Chart and UI', () => {
         body: '"Wednesday, January 1, 2025",New Year’s Day\n'
       });
     });
+    await page.route('**/TIPS/GswTipsCurve.json', r => r.fulfill({ status: 404, body: '' }));  // GSW overlay: force snapshot fallback in tests
 
     await page.goto('./');
     // FedInvest defaults off and no Market data is mocked here, so it must be

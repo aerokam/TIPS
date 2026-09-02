@@ -81,6 +81,7 @@ async function setupRoutes(page) {
   await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: FED_YIELDS_CSV }));
   await page.route('**/TIPS/RefCpiNsaSa.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: REF_CPI_CSV }));
   await page.route('**/misc/BondHolidaysSifma.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: HOLIDAYS_CSV }));
+  await page.route('**/TIPS/GswTipsCurve.json', r => r.fulfill({ status: 404, body: '' }));  // GSW overlay: force snapshot fallback in tests
   await page.route('**/Treasuries/FidelityTreasuriesTips.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: FID_COMBINED_CSV }));
 }
 
@@ -88,6 +89,7 @@ async function setupOutlierRoutes(page) {
   await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: FED_YIELDS_CSV_OUTLIER }));
   await page.route('**/TIPS/RefCpiNsaSa.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: REF_CPI_CSV }));
   await page.route('**/misc/BondHolidaysSifma.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: HOLIDAYS_CSV }));
+  await page.route('**/TIPS/GswTipsCurve.json', r => r.fulfill({ status: 404, body: '' }));  // GSW overlay: force snapshot fallback in tests
   // No matching Fidelity CUSIPs — Market source inactive for this test
   await page.route('**/Treasuries/FidelityTreasuriesTips.csv', r => r.fulfill({ status: 200, contentType: 'text/csv', body: FID_COMBINED_CSV.split('\n')[0] }));
 }

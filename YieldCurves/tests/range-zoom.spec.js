@@ -49,6 +49,7 @@ async function setupTipsRoutes(page) {
   await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r => r.fulfill({ body: TIPS_MULTIYR_CSV, contentType: 'text/csv' }));
   await page.route('**/TIPS/RefCpiNsaSa.csv', r => r.fulfill({ body: REF_CPI_CSV, contentType: 'text/csv' }));
   await page.route('**/misc/BondHolidaysSifma.csv', r => r.fulfill({ body: HOLIDAYS_CSV, contentType: 'text/csv' }));
+  await page.route('**/TIPS/GswTipsCurve.json', r => r.fulfill({ status: 404, body: '' }));  // GSW overlay: force snapshot fallback in tests
   await page.route('**/Treasuries/FidelityTreasuriesTips.csv', r => r.fulfill({ status: 404, body: '' }));
 }
 
@@ -56,6 +57,7 @@ async function setupNominalsRoutes(page) {
   await page.route('**/Treasuries/YieldsFromFedInvestPrices.csv', r => r.fulfill({ body: NOMINALS_CSV, contentType: 'text/csv' }));
   await page.route('**/TIPS/RefCpiNsaSa.csv', r => r.fulfill({ body: REF_CPI_CSV, contentType: 'text/csv' }));
   await page.route('**/misc/BondHolidaysSifma.csv', r => r.fulfill({ body: HOLIDAYS_CSV, contentType: 'text/csv' }));
+  await page.route('**/TIPS/GswTipsCurve.json', r => r.fulfill({ status: 404, body: '' }));  // GSW overlay: force snapshot fallback in tests
   await page.route('**/Treasuries/FidelityTreasuriesTips.csv', r => r.fulfill({ status: 404, body: '' }));
 }
 

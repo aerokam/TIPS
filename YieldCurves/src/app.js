@@ -16,6 +16,7 @@ const YIELDS_CSV_URL = `${R2_BASE_URL}/Treasuries/YieldsFromFedInvestPrices.csv`
 const REF_CPI_CSV_URL = `${R2_BASE_URL}/TIPS/RefCpiNsaSa.csv`;
 const HOLIDAYS_CSV_URL = `${R2_BASE_URL}/misc/BondHolidaysSifma.csv`;
 const FIDELITY_URL = `${R2_BASE_URL}/Treasuries/FidelityTreasuriesTips.csv`;
+const GSW_TIPS_CURVE_URL = `${R2_BASE_URL}/TIPS/GswTipsCurve.json`;   // { date, beta0..beta3, tau1, tau2 } — updateGswTipsCurve.js
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -52,6 +53,7 @@ let brokerPrices = null;
 let brokerDownloadDate = null;    // download date string from Fidelity TIPS CSV footer
 let fidelityNominalsData = null;  // processed bond objects from Fidelity CSV
 let fidelityNominalsDate = null;  // download date string extracted from CSV footer
+let gswTipsCurve = null;          // { date, beta0..beta3, tau1, tau2 } — GSW fitted TIPS curve, R2 (weekly)
 let nominalsShowStrips = false;
 let nominalsClipOutliers = true;
 let beiClipOutliers = true;
@@ -326,12 +328,17 @@ async function init() {
   
   try {
     console.log("Fetching market data...");
-    const [yieldsRes, refCpiRes, holidayRes, fidRes] = await Promise.all([
+    const [yieldsRes, refCpiRes, holidayRes, fidRes, gswRes] = await Promise.all([
       fetch(YIELDS_CSV_URL, { cache: 'no-cache' }).then(r => { console.log("Yields fetched"); return r; }).catch(e => ({ ok: false, error: e })),
       fetch(REF_CPI_CSV_URL, { cache: 'no-cache' }).then(r => { console.log("RefCPI fetched"); return r; }).catch(e => ({ ok: false, error: e })),
       fetch(HOLIDAYS_CSV_URL, { cache: 'no-cache' }).then(r => { console.log("Holidays fetched"); return r; }).catch(e => ({ ok: false, error: e })),
       fetch(FIDELITY_URL, { cache: 'no-cache' }).then(r => { console.log("Fidelity fetched"); return r; }).catch(e => ({ ok: false, error: e })),
+      fetch(GSW_TIPS_CURVE_URL, { cache: 'no-cache' }).then(r => { console.log("GSW curve fetched"); return r; }).catch(e => ({ ok: false, error: e })),
     ]);
+
+    if (gswRes.ok) {
+      try { gswTipsCurve = await gswRes.json(); } catch { gswTipsCurve = null; }
+    }
 
     if (!yieldsRes.ok) throw new Error(`Failed to fetch yields: ${yieldsRes.status || yieldsRes.error}`);
     if (!refCpiRes.ok) throw new Error(`Failed to fetch Ref CPI: ${refCpiRes.status || refCpiRes.error}`);
@@ -1368,9 +1375,26 @@ function renderChart(fedBonds, brokerBonds) {
     for (let t = gStart; t <= tMax + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(zToSA(z(t)).toFixed(3)) });
     seriesDef.push({ label: `Spot${sfx}`, data: grid, color, curve: true, w: 2.25, dash: [], style: 'circle', r: 0, markerR: 2 });
   }
+  // GSW zero reference: evaluate its published Svensson parameters (weekly R2 pull) on the
+  // same half-year grid, converted to the semi-annual basis. Falls back to a baked-in
+  // snapshot if the R2 file is unavailable.
+  let gswData, gswDate;
+  if (gswTipsCurve) {
+    gswDate = gswTipsCurve.date;
+    const { beta0, beta1, beta2, beta3, tau1, tau2 } = gswTipsCurve;
+    gswData = [];
+    for (let t = 2; t <= 20 + 1e-9; t += 0.5) {   // GSW fits to 20y — don't extrapolate past it
+      const p = _nssBasis(t, tau1, tau2);
+      const zc = beta0 * p[0] + beta1 * p[1] + beta2 * p[2] + beta3 * p[3];   // % continuous
+      gswData.push({ x: yToX(t), y: parseFloat(zToSA(zc).toFixed(3)) });
+    }
+  } else {
+    gswDate = GSW_TIPS_ZERO_SNAPSHOT.date;
+    gswData = GSW_TIPS_ZERO_SNAPSHOT.points.map(([t, y]) => ({ x: yToX(t), y }));
+  }
   seriesDef.push({
-    label: `GSW zero ${GSW_TIPS_ZERO_SNAPSHOT.date}`,
-    data: GSW_TIPS_ZERO_SNAPSHOT.points.map(([t, y]) => ({ x: yToX(t), y })),
+    label: `GSW zero ${gswDate}`,
+    data: gswData,
     color: '#111827', curve: true, w: 1.5, dash: [6, 4], style: 'circle', r: 0, markerR: 3,
   });
 
