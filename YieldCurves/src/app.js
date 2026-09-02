@@ -25,8 +25,8 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 // coupon-equivalent — matches our YTM-based fit. Replace with a pipelined feed if this
 // graduates from spike.
 const GSW_TIPS_PAR_SNAPSHOT = {
-  date: '2026-08-21',
-  points: [[2,2.0696],[3,1.9942],[4,1.9858],[5,2.0211],[6,2.0837],[7,2.1615],[8,2.2465],[9,2.3329],[10,2.4171],[11,2.4967],[12,2.5704],[13,2.6375],[14,2.6977],[15,2.7511],[16,2.7981],[17,2.839],[18,2.8742],[19,2.9042],[20,2.9296]],
+  date: '2026-08-28',
+  points: [[2,2.1946],[3,2.1105],[4,2.0884],[5,2.1081],[6,2.1547],[7,2.2173],[8,2.2884],[9,2.3623],[10,2.4355],[11,2.5054],[12,2.5707],[13,2.6304],[14,2.6843],[15,2.7322],[16,2.7744],[17,2.8111],[18,2.8427],[19,2.8696],[20,2.8922]],
 };
 
 // Compute IQR-based clip bounds from a yield array.
@@ -1295,20 +1295,26 @@ function renderChart(fedBonds, brokerBonds) {
   if (fedBonds)    curveSrc.push({ bonds: fedBonds,    sfx: both ? ' (Fed)' : '',    color: '#1a56db' });
   if (brokerBonds) curveSrc.push({ bonds: brokerBonds, sfx: both ? ' (Market)' : '', color: '#b45309' });
   for (const { bonds, sfx, color } of curveSrc) {
-    const pts = bonds.map(b => [y2m(b), b.askYield * 100]).filter(([t, y]) => t >= SAO_NOISE_YRS && !isNaN(y));
-    if (pts.length < 4) continue;
-    const fn = fitNSS(pts.map(p => p[0]), pts.map(p => p[1]));
+    const all = bonds.map(b => [y2m(b), b.askYield * 100]).filter(([t, y]) => t > 0 && !isNaN(y));
+    const fitPts = all.filter(([t]) => t >= SAO_NOISE_YRS);   // near-maturity YTM is price noise — kept out of the fit
+    if (fitPts.length < 4) continue;
+    const fn = fitNSS(fitPts.map(p => p[0]), fitPts.map(p => p[1]));
     if (!fn) continue;
-    const tMax = Math.max(...pts.map(p => p[0]));
-    const step = Math.max(0.1, (tMax - SAO_NOISE_YRS) / 120);
+    // Draw from the shortest bond out to the longest; below SAO_NOISE_YRS the line is the
+    // fit extrapolated, not anchored (near-maturity real yields are unreliable — GSW itself
+    // starts at 2y). Sample on a half-year grid so a dot lands on every integer year,
+    // aligning with GSW's published points.
+    const tMin = Math.min(...all.map(p => p[0]));
+    const gStart = Math.max(0.25, Math.ceil(tMin * 2) / 2);
+    const gEnd   = Math.max(...all.map(p => p[0]));
     const grid = [];
-    for (let t = SAO_NOISE_YRS; t <= tMax + 1e-9; t += step) grid.push({ x: yToX(t), y: parseFloat(fn(t).toFixed(3)) });
-    seriesDef.push({ label: `Spot${sfx}`, data: grid, color, curve: true, w: 2.5, dash: [], style: 'circle', r: 0 });
+    for (let t = gStart; t <= gEnd + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(fn(t).toFixed(3)) });
+    seriesDef.push({ label: `Spot${sfx}`, data: grid, color, curve: true, w: 2.25, dash: [], style: 'circle', r: 0, markerR: 2 });
   }
   seriesDef.push({
     label: `GSW ${GSW_TIPS_PAR_SNAPSHOT.date}`,
     data: GSW_TIPS_PAR_SNAPSHOT.points.map(([t, y]) => ({ x: yToX(t), y })),
-    color: '#111827', curve: true, w: 1.75, dash: [6, 4], style: 'circle', r: 0,
+    color: '#111827', curve: true, w: 1.5, dash: [6, 4], style: 'circle', r: 0, markerR: 3,
   });
 
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
@@ -1335,7 +1341,8 @@ function renderChart(fedBonds, brokerBonds) {
         backgroundColor: s.color,
         borderWidth: s.w,
         borderDash: s.dash,
-        pointRadius: s.curve ? 0 : s.r,
+        pointRadius: s.curve ? (s.markerR ?? 0) : s.r,
+        pointHoverRadius: s.curve ? 5 : undefined,
         pointStyle: s.style,
         tension: s.curve ? 0.3 : 0.1,
         hidden: !getTipsSeriesVisibility(s.label)
