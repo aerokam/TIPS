@@ -199,6 +199,15 @@ Register-NodeTask "FundHoldings" `
     @(New-ScheduledTaskTrigger -Daily -At "6:40am") `
     "FundHoldings/updateAllHoldings.js"
 
+# GswTipsCurve  -  Daily 7:15am PT
+# Scrape the latest row of the Fed's GSW fitted TIPS curve (published weekly, Tuesdays,
+# through prior Friday); write its 6 Svensson parameters + date to TIPS/GswTipsCurve.json.
+# Daily (not weekly) so an off-schedule Fed revision is picked up promptly; the fetch is tiny.
+Register-NodeTask "GswTipsCurve" `
+    "Scrape the latest GSW fitted TIPS curve parameters, upload TIPS/GswTipsCurve.json" `
+    @(New-ScheduledTaskTrigger -Daily -At "7:15am") `
+    "YieldCurves/scripts/updateGswTipsCurve.js"
+
 # FidelityQuotes  -  8:05am ET [PT: 5:05am], 12:35pm ET [PT: 9:35am], 5:05pm ET [PT: 2:05pm]
 # Bond market hours 8am-5pm ET; run at open, midday, and close.
 Register-CmdTask "FidelityQuotes" `

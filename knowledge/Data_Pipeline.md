@@ -34,6 +34,7 @@ These jobs run on the host machine via Windows Task Scheduler.
 | **TIPS Ref Refresh** | Mondays 7am PT | `scripts/fetchTipsRef.js` | `TipsRef.csv` |
 | **Update Yields History** | Weekdays 2:00pm PT | `YieldsMonitor/scripts/updateYieldsHistory.js` | `yields-history/history.json` |
 | **SA Factor Update** | Daily 6:35am | `YieldCurves/scripts/updateRefCpi.js` | `RefCpiNsaSa.csv` |
+| **GSW TIPS Curve** | Daily 7:15am PT | `YieldCurves/scripts/updateGswTipsCurve.js` | `TIPS/GswTipsCurve.json` (GSW Svensson params — [S11](./DataStores.md#s11)) |
 | **CPI History Refresh** | 8:35 AM ET on each BLS release date, then chains Ref CPI Refresh | `scripts/fetchCpiHistory.js` (`run-cpi-history.cmd`) | `bls/CPI_history.csv` |
 | **Ref CPI Refresh** | Chained from CPI History Refresh (not independently scheduled) | `scripts/fetchRefCpi.js` (`run-ref-cpi.cmd`) | `TIPS/RefCPI.csv` |
 

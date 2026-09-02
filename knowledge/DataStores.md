@@ -154,3 +154,20 @@ This document provides the technical schemas and field-level specifications for 
 **Consumer**: FundHoldings ([E7](./DATA_DICTIONARY.md#e7)/[E8](./DATA_DICTIONARY.md#e8) holdings enrichment) — cross-references by CUSIP to attach ask/SA/SAO yield to TIPS fund holdings.
 
 **Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/YieldsSaSao.csv)
+
+---
+
+## <a id="s11"></a>S11: GswTipsCurve.json
+**Description**: The latest published row of the Federal Reserve's Gürkaynak-Sack-Wright fitted TIPS (real) yield curve (FEDS 2008-05), scraped from `feds200805_1.html`. Just the six Svensson parameters and the observation date — the app evaluates the curve itself. Used only as a reference overlay against YieldCurves' own spot fit.
+**Update Frequency**: `GswTipsCurve` task, daily 7:15am PT, via `YieldCurves/scripts/updateGswTipsCurve.js`. The source itself updates weekly (Tuesdays, covering through the prior Friday); the daily poll just picks up new or revised rows promptly.
+**R2 Key**: `TIPS/GswTipsCurve.json`
+
+| Field | Type | Description |
+|---|---|---|
+| `date` | Date | Observation date of the fitted curve (`YYYY-MM-DD`). |
+| `beta0`–`beta3` | Number | Svensson level / slope / two curvature coefficients (percent). |
+| `tau1`, `tau2` | Number | Svensson decay parameters (years). |
+
+**Consumer**: YieldCurves (TIPS tab) — evaluates the Svensson zero-yield formula from these parameters to draw the "GSW zero" reference line.
+
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/GswTipsCurve.json)
