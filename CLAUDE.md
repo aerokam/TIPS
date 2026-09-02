@@ -50,6 +50,9 @@ the primary checkout `C:/Users/aerok/projects/Treasuries`. Two incidents on 2026
 sessions moving each other's work between branches and worktrees. Both were caused by rewriting
 refs, not by the shared index.
 
+Every session follows this section. The developer does not read git diffs or drive git directly, so
+a session that is unsure which rule applies asks the developer in plain terms rather than guessing.
+
 - **The primary checkout stays on `main`.** Working directly on `main` there is the default and is
   fine for coordinated work. Do not `git checkout` another branch in it. If you need a different
   branch, use a worktree (below).
@@ -80,6 +83,28 @@ git worktree add ../Treasuries-<topic> -b <topic>   # off main
 
 Then tell the user the worktree exists and which port it serves on, so they can point a browser at
 it. After it merges to `main`, `git worktree remove` it and `git branch -d` the branch.
+
+### Shipping an urgent fix while `main` has unpushed work
+
+`main` usually carries unpushed work in progress from one or more sessions. When a separate bug
+needs to ship **now**, without dragging that work in progress along with it:
+
+1. Tell the user what the bug is and that you are shipping a fix ahead of the work in progress.
+2. `git switch -c fix-<bug> origin/main` — a fix branch starting from the last shipped commit, so
+   the work in progress is not on it.
+3. Make the fix, commit it on `fix-<bug>`. Verify it on a worktree served at 8081, against shipped
+   code.
+4. `git push origin fix-<bug>:main` — this ships only the fix. The developer approves this push
+   like any other.
+5. `git switch main` then `git merge origin/main` — folds the shipped fix into the local `main` the
+   sessions share. Tell the other sessions this happened.
+6. `git branch -d fix-<bug>`.
+
+This never moves the shared `main` ref backward. Do **not** instead reset `main` to the shipped
+commit and re-apply the work in progress afterward: that rewrites the ref every other session is
+committing to. If the bug genuinely cannot be reproduced or fixed except on a `main` that holds
+only shipped code, stop and ask the user — that case needs coordinating so no session loses a
+commit.
 
 ### Ports
 
