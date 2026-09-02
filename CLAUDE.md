@@ -66,8 +66,18 @@ a session that is unsure which rule applies asks the developer in plain terms ra
 - **Before a work pass**, run `git status`, `git worktree list`, and `ListAgents`. If a peer is in
   the same project or files, message them (`SendMessage`) before editing. `git diff` a shared file
   before changing it.
+- **One session at a time owns a cross-cutting sweep.** The vocabulary / Data Dictionary pass
+  touches `scripts/check-vocabulary.js` and specs across every project — those are the files two
+  sessions collide on. If a sweep like that is already running, do not also edit `knowledge/` specs
+  or `check-vocabulary.js`; coordinate with the session that holds it.
+- **Coordinate before running a full test suite.** `npm run test:e2e` in any project drives the
+  shared 8080 server; two Playwright runs against it at once interfere and produce failures that are
+  not real (this is what blocked a push twice on 2026-09-02). Check `ListAgents`; if a peer is
+  mid-run or about to push, wait. The pre-push hook already runs the suites for touched projects, so
+  a routine push does not also need a manual run.
 - **Pushing is the user's explicit call, every time.** Merge a finished feature branch into `main`
-  first, from `main`.
+  first, from `main`. Expect the unpushed set to have grown since the user last looked — commits
+  land on `main` continuously.
 - **Delete a branch only when it is merged into `main`, or the user says so.** `retained-bracket-work`
   is kept unmerged on purpose (see `TipsLadderManager/KNOWN_ISSUES.md`).
 
@@ -84,27 +94,43 @@ git worktree add ../Treasuries-<topic> -b <topic>   # off main
 Then tell the user the worktree exists and which port it serves on, so they can point a browser at
 it. After it merges to `main`, `git worktree remove` it and `git branch -d` the branch.
 
-### Shipping an urgent fix while `main` has unpushed work
+### Shipping part of `main` while the rest stays unpushed
 
-`main` usually carries unpushed work in progress from one or more sessions. When a separate bug
-needs to ship **now**, without dragging that work in progress along with it:
+`main` usually carries unpushed work in progress from several sessions. When some of it must ship
+now — an urgent fix, or a set of commits the user has picked out — without dragging the rest along:
 
-1. Tell the user what the bug is and that you are shipping a fix ahead of the work in progress.
-2. `git switch -c fix-<bug> origin/main` — a fix branch starting from the last shipped commit, so
-   the work in progress is not on it.
-3. Make the fix, commit it on `fix-<bug>`. Verify it on a worktree served at 8081, against shipped
-   code.
-4. `git push origin fix-<bug>:main` — this ships only the fix. The developer approves this push
-   like any other.
-5. `git switch main` then `git merge origin/main` — folds the shipped fix into the local `main` the
-   sessions share. Tell the other sessions this happened.
-6. `git branch -d fix-<bug>`.
+**Never switch the primary checkout to do this.** It stays on `main` so the 8080 server keeps
+serving `main` for everyone. Build the subset on a branch in a **worktree**, and push it with an
+explicit refspec from the primary checkout.
 
-This never moves the shared `main` ref backward. Do **not** instead reset `main` to the shipped
-commit and re-apply the work in progress afterward: that rewrites the ref every other session is
-committing to. If the bug genuinely cannot be reproduced or fixed except on a `main` that holds
-only shipped code, stop and ask the user — that case needs coordinating so no session loses a
-commit.
+1. Tell the user exactly which commits are shipping and that the rest stays local.
+2. `git worktree add ../Treasuries-ship -b ship-<desc> origin/main` — a branch from the last
+   shipped commit, in its own checkout.
+3. In that worktree: build the fix and commit it, or `git cherry-pick <sha> <sha> …` the commits
+   the user named, oldest first.
+4. Verify. Either serve the worktree at 8081, or — since for the touched files `main` already
+   contains these same changes — run the affected project's suite from the primary checkout.
+5. From the **primary checkout** (on `main`, where `node_modules` is installed so the pre-push hook
+   can run the suites): `git push origin ship-<desc>:main`. The developer approves this push. If
+   the hook fails on something that is not a real assertion failure (a crash, a timeout, a
+   `node_modules` gap in a worktree, another session's concurrent test run), verify the suites
+   directly, then retry — do not `--no-verify` without the user.
+6. Reconcile local `main`: from the primary checkout on `main`, `git merge -s ours origin/main`.
+   Use `-s ours` — local `main` already carries these changes as the originals plus any later
+   edits to the same files, so a plain merge conflicts on them; `-s ours` records the merge and
+   keeps local `main`'s tree byte-for-byte (confirm the tree hash is unchanged). Tell the other
+   sessions the merge landed.
+7. `git worktree remove ../Treasuries-ship` and `git branch -d ship-<desc>`.
+
+This never moves the shared `main` ref backward and never switches the primary checkout. Do **not**
+instead reset `main` to the shipped commit and re-apply the rest afterward — that rewrites the ref
+every other session is committing to. If a bug genuinely cannot be reproduced except on a `main`
+holding only shipped code, stop and ask the user; that case needs coordinating so no session loses
+a commit.
+
+The cost of the `-s ours` reconcile is one cosmetic duplicate of each shipped commit in local
+`main`'s history (the original and the cherry-pick) until the rest of `main` is pushed. That is
+acceptable; rewriting SHAs to avoid it is not, while other sessions hold `main`.
 
 ### Ports
 
