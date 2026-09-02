@@ -8,8 +8,8 @@ of findings; `1.0_Operation.md` references it.
 
 - CNBC's Treasury/TIPS data source is **Tradeweb**.
 - The CNBC `1D`/`5D` chart feeds are **24-hour continuous** (electronic/overnight).
-- Each weekday the day session ends with a **fixed-time consolidation print stamped `17:05` ET**, followed by a ~2.5h gap (resume ~19:30 ET). This is the *actual end-of-session close*.
-- **BUT CNBC's stored DAILY close (the value in the longer-range feeds that the history files are built from) is NOT the 17:05 print — it is the ~3:00 PM ET mid-afternoon benchmark.** Verified across US10Y, US10YTIPS, US30YTIPS.
+- Each weekday the day session ends with a **fixed-time consolidation bar stamped `17:05` ET**, followed by a ~2.5h gap (resume ~19:30 ET). This is the *actual end-of-session close*.
+- **BUT CNBC's stored DAILY close (the value in the longer-range feeds that the history files are built from) is NOT the 17:05 bar — it is the ~3:00 PM ET mid-afternoon benchmark.** Verified across US10Y, US10YTIPS, US30YTIPS.
 - The U.S. Treasury's official **Constant Maturity (CMT) nominal yields and real/TIPS yields** are derived from FRBNY indicative quotations at **~3:30 PM ET**. The mid-afternoon snapshot is the industry "official close" convention.
 - **Decision:** history (UI ranges **1Y and longer**) uses the **~3 PM benchmark close**, refreshed by **re-reading the daily feeds** (no 17:05 extraction). Short views (**2D/10D** = `1D`/`5D`) may keep the **actual 17:05 session close** even though that differs from the long-range basis (tentative).
 
@@ -31,9 +31,9 @@ The app's `TIME_RANGE_MAP` (UI label → CNBC provider `timeRange`):
 
 Runtime: long ranges read the **R2 history baseline** (`yields-history/history.json`, nested by symbol), not these CNBC ranges live. The daily feeds are used by `updateYieldsHistory.js` (and this investigation) to build/refresh that baseline.
 
-## 2. Intraday feed structure & the 17:05 print
+## 2. Intraday feed structure & the 17:05 bar
 
-Feeds trade 24h. Each weekday: continuous trading to ~16:56–17:04 ET → a single **`17:05` consolidation print** → ~2.5h gap → overnight session resumes ~19:30 ET.
+Feeds trade 24h. Each weekday: continuous trading to ~16:56–17:04 ET → a single **`17:05` consolidation bar** → ~2.5h gap → overnight session resumes ~19:30 ET.
 
 The `17:05` stamp is **fixed-time, not a random last trade** — it appears for every symbol every weekday regardless of liquidity, even after a `17:04` bar, even when continuous trading stopped minutes earlier.
 
@@ -58,7 +58,7 @@ Evidence, 06/08/2026 (last completed day):
 | US10YTIPS | **2.1930** | 2.1910 ✓ | 2.2030 | 2.2010 | 2.2030 (−1.0bp) |
 | US30YTIPS | **2.7820** | 2.7810 ✓ | 2.7930 | 2.7900 | 2.7910 (−0.9bp) |
 
-US10Y matched 15:00 **exactly** (Δ0.0000) on 06/01, 06/03, and 06/08. The daily close runs ~1–2bp *below* the 17:05 print. (Same-day rows are provisional — the current day's daily bar tracks the live level until it settles, so ignore them.)
+US10Y matched 15:00 **exactly** (Δ0.0000) on 06/01, 06/03, and 06/08. The daily close runs ~1–2bp *below* the 17:05 bar. (Same-day rows are provisional — the current day's daily bar tracks the live level until it settles, so ignore them.)
 
 **Conclusion:** CNBC stores the **mid-afternoon (~3 PM) Tradeweb benchmark** as the daily close. This is the same basis as the `previous_day_closing` quote field noted historically. The existing multi-year history files are already on this basis.
 
@@ -76,7 +76,7 @@ US10Y matched 15:00 **exactly** (Δ0.0000) on 06/01, 06/03, and 06/08. The daily
 |---|---|---|
 | ~3:00–3:30 PM ET | mid-afternoon **official-close benchmark** (Tradeweb 3/4pm; Treasury CMT/real ~3:30pm) | CNBC **daily** close; Treasury published curves |
 | ~16:59 ET | last continuous-trade bar | chart intraday stream |
-| 17:05 ET | end-of-**session** consolidation print | chart `1D` feed; the actual trading-day close |
+| 17:05 ET | end-of-**session** consolidation bar | chart `1D` feed; the actual trading-day close |
 
 ## 5. Decision & rationale
 
@@ -100,7 +100,7 @@ Measured bar spacing per provider range (US10Y / US10YTIPS, consistent):
 |---|---|---|---|
 | **1Y / 2Y / 3Y** | ~3 PM benchmark | **Reread fresh** from CNBC provider `6M` (daily, ~3 yr) on each page load. No `history.json`, no 5D tip. Covers all three ranges from one cached fetch per symbol. Includes the current day's provisional bar (tracks live). | **Implemented** — `app.js` `fetchOne()` `_6Mdaily` cache |
 | **10Y / ALL** | ~3 PM benchmark | **Persistent merge store**: CNBC's coarse deep history (weekly/quarterly) + accumulated **daily** recent closes (`history.json`). `updateYieldsHistory.js` runs weekdays at 5 PM ET to persist completed days. | Live |
-| **2D / 10D** | actual **17:05** session close (tentative) | already renders real intraday bars incl. the 17:05 print; keep that, though it differs from the long-range basis. | Live |
+| **2D / 10D** | actual **17:05** session close (tentative) | already renders real intraday bars incl. the 17:05 bar; keep that, though it differs from the long-range basis. | Live |
 
 Rationale:
 - The 3 PM basis is **internally consistent**, **matches CNBC**, **matches Treasury's CMT/real methodology (~3:30pm)**, and is the **IOSCO Tradeweb benchmark**.
@@ -110,7 +110,7 @@ Rationale:
 
 ## 6. Symbol reliability
 
-**US5YTIPS (5Y TIPS) is flaky** — sparse/irregular quotes and a broken/gapped daily feed. Do **not** depend on it. Use **US10YTIPS** as the reliable TIPS reference. Other 14-symbol coverage is fine; this caveat governs which symbol any *logic/probe* anchors to.
+**US5YTIPS (5Y TIPS) is flaky** — sparse/irregular bars and a broken/gapped daily feed. Do **not** depend on it. Use **US10YTIPS** as the reliable TIPS reference. Other 14-symbol coverage is fine; this caveat governs which symbol any *logic/probe* anchors to.
 
 ## 7. Investigation tooling (all read-only / additive)
 
@@ -119,7 +119,7 @@ Rationale:
 | `scripts/dumpFeed.js <sym> <1D\|5D>` | dump a raw feed with ET-annotated bars |
 | `scripts/archiveIntraday.js` | daily immutable raw 1D+5D snapshot per symbol → R2 `yields-history/intraday-raw/{sym}/{YYYYMMDD}.json` (task `IntradayArchive`, 17:05 ET) |
 | `scripts/analyzeCloseWindow.js <sym>` | per-day close-window structure from an archived snapshot |
-| `scripts/probeClose.js <sym>` | log last `1D` bar over time → `yields-history/close-probe/{sym}.csv` (task `CloseProbe`, 17:05+15min×1h) to pin when the 17:05 print posts |
+| `scripts/probeClose.js <sym>` | log last `1D` bar over time → `yields-history/close-probe/{sym}.csv` (task `CloseProbe`, 17:05+15min×1h) to pin when the 17:05 bar posts |
 | `scripts/probeLock.js` | hourly overnight, log the last 5 daily (`6M`) bars **by date** vs live `1D` for US10YTIPS+US10Y → `yields-history/lock-probe/lock-probe.csv` (task `LockProbe`, 17:00 ET +1h×18h) to pin the **overnight revision time** — when a completed day's bar flips from live-tracked to the ~3PM benchmark (§8). Per-date keying survives the ~01:00 ET rollover and the feed's intermittent dropping of recent days (§5). |
 | `scripts/analyzeLock.js` | read `lock-probe.csv` and report, per completed day, the **lock time** (earliest run after which that day's bar value never changes) + a live→frozen timeline. Run after an overnight `LockProbe` collection. |
 | `scripts/compareDailyVsIntraday.js <sym>` | compare daily-feed close vs intraday 15:00/16:00/16:59/17:05 (Section 3) |

@@ -1487,7 +1487,7 @@ function updateYieldCurves() {
   // Start = the chosen start date (or, for preset ranges, the first 10Y-TIPS trading day in
   // range); End = the chosen end date. fetchOne already clamps the 10Y-TIPS series to the
   // active window, so its first/last points ARE those dates (and snap past non-trading days).
-  // Every maturity on every curve is then read on those exact dates; a maturity with no print
+  // Every maturity on every curve is then read on those exact dates; a maturity with no bar
   // that day is left as a gap.
   // Falls back through this priority list if the primary anchor has no data for the active
   // range (CNBC's per-symbol feed reliability can vary by range — see fetchOne's 1Y/2Y/3Y

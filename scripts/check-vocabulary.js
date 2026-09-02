@@ -31,7 +31,7 @@ const RULES = [
     use: 'the yield itself: "the real yield", "the SA TIPS yield", "uses a TIPS yield"' },
   // "print" as a plain verb is fine -- a script prints rows. What is banned is the
   // noun: a CPI print, irregular prints, a yield printing below a curve.
-  { id: 'print', re: /\b(a|the|one|two|latest|last|next|known|unpublished|monthly|CPI|CPI-U|sparse|irregular|first|second)[\s/,]+prints?\b|\bprints?\s+(below|above)\b/i,
+  { id: 'print', re: /\b(a|the|one|two|latest|last|next|known|unpublished|monthly|CPI|CPI-U|sparse|irregular|first|second|close|consolidation)[\s/,]+prints?\b|\bprints?\s+(below|above)\b|\b\d[\d:.]*\s+prints?\b|\bprints?\s+(sparsely|thinly)\b/i,
     why: 'is a metaphor for a published value or a quote',
     use: 'value or release for a CPI figure, quotes for feed records, "is below" for a data point' },
   { id: 'tenor', re: /\btenors?\b/i,
