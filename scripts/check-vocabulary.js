@@ -26,6 +26,14 @@ const RULES = [
   { id: 'block-of-years', re: /(gap|future[- ]?30y)[^.\n]{0,40}\bblocks?\b|\bblocks?\b[^.\n]{0,25}\b(of|the) (gap )?years\b|\bblock (coupon|excess|total)\b/i,
     why: 'names a run of years the DD already has terms for',
     use: 'gap years, Future 30Y rungs, or the years themselves' },
+  { id: 'leg', re: /\blegs?\b/i,
+    why: 'is a metaphor, and names a breakeven component by something it is not',
+    use: 'the yield itself: "the real yield", "the SA TIPS yield", "uses a TIPS yield"' },
+  // "print" as a plain verb is fine -- a script prints rows. What is banned is the
+  // noun: a CPI print, irregular prints, a yield printing below a curve.
+  { id: 'print', re: /\b(a|the|one|two|latest|last|next|known|unpublished|monthly|CPI|CPI-U|sparse|irregular|first|second)[\s/,]+prints?\b|\bprints?\s+(below|above)\b/i,
+    why: 'is a metaphor for a published value or a quote',
+    use: 'value or release for a CPI figure, quotes for feed records, "is below" for a data point' },
   { id: 'tenor', re: /\btenors?\b/i,
     why: 'not used for a maturity or term in this repo',
     use: 'maturity' },

@@ -110,7 +110,7 @@ Rationale:
 
 ## 6. Symbol reliability
 
-**US5YTIPS (5Y TIPS) is flaky** — sparse/irregular prints and a broken/gapped daily feed. Do **not** depend on it. Use **US10YTIPS** as the reliable TIPS reference. Other 14-symbol coverage is fine; this caveat governs which symbol any *logic/probe* anchors to.
+**US5YTIPS (5Y TIPS) is flaky** — sparse/irregular quotes and a broken/gapped daily feed. Do **not** depend on it. Use **US10YTIPS** as the reliable TIPS reference. Other 14-symbol coverage is fine; this caveat governs which symbol any *logic/probe* anchors to.
 
 ## 7. Investigation tooling (all read-only / additive)
 
