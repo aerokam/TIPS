@@ -56,103 +56,70 @@ there. When a commit is blocked, fix the wording; if no defined term fits, ask, 
 the Data Dictionary. Adding a rule to that file is how a term ruled out in conversation stays ruled
 out for every session afterwards.
 
-## Multiple Sessions Share One Checkout
+## Multiple Sessions, One Branch
 
-Several Claude sessions run against this repo at once, all acting for the one developer, all sharing
-the primary checkout `C:/Users/aerok/projects/Treasuries`. Two incidents on 2026-09-02 came from
-sessions moving each other's work between branches and worktrees. Both were caused by rewriting
-refs, not by the shared index.
+Several Claude sessions work this repo at once, all for the one developer, all in the primary
+checkout `C:/Users/aerok/projects/Treasuries`, which stays on `main`. That checkout is what the
+developer's `localhost:8080` server serves and tests, so every change has to land there.
 
-Every session follows this section. The developer does not read git diffs or drive git directly, so
-a session that is unsure which rule applies asks the developer in plain terms rather than guessing.
+**All work is done on `main`.** A session does not create a branch or a worktree on its own
+judgment. There are exactly two reasons to work off `main`, both the developer's call — propose it
+in plain terms and wait for a yes:
 
-- **The primary checkout stays on `main`.** Working directly on `main` there is the default and is
-  fine for coordinated work. Do not `git checkout` another branch in it. If you need a different
-  branch, use a worktree (below).
-- **Never rewrite a ref.** No `git update-ref`, `git branch -f`, a `git reset` that moves a branch,
-  or a cherry-pick used to advance one. A branch moves only by `checkout` then `commit` / `merge`.
-- **Stage explicit paths, then commit immediately.** `git add <path> <path>` — never `git add -A`,
-  `git add .`, or a bare directory, and never leave staged files sitting: a concurrent session's
-  commit will sweep them up.
-- **If the checkout is not where you expect** — a different branch, or staged/modified files you did
-  not make — **stop and ask.** Another session is mid-task; do not work around it.
-- **Before a work pass**, run `git status`, `git worktree list`, and `ListAgents`. If a peer is in
-  the same project or files, message them (`SendMessage`) before editing. `git diff` a shared file
-  before changing it.
-- **One session at a time owns a cross-cutting sweep.** The vocabulary / Data Dictionary pass
-  touches `scripts/check-vocabulary.js` and specs across every project — those are the files two
-  sessions collide on. If a sweep like that is already running, do not also edit `knowledge/` specs
-  or `check-vocabulary.js`; coordinate with the session that holds it.
-- **Coordinate before running a full test suite.** `npm run test:e2e` in any project drives the
-  shared 8080 server; two Playwright runs against it at once interfere and produce failures that are
-  not real (this is what blocked a push twice on 2026-09-02). Check `ListAgents`; if a peer is
-  mid-run or about to push, wait. The pre-push hook already runs the suites for touched projects, so
-  a routine push does not also need a manual run.
-- **Pushing is the user's explicit call, every time.** Merge a finished feature branch into `main`
-  first, from `main`. Expect the unpushed set to have grown since the user last looked — commits
-  land on `main` continuously.
-- **Delete a branch only when it is merged into `main`, or the user says so.** `retained-bracket-work`
+- an urgent bug fix that has to ship while unrelated unpushed work is sitting on `main`, or
+- a large new enhancement the developer has agreed to build separately.
+
+"Many files" or "a long sweep" is **not** a reason — that work goes on `main` too, committed in
+small pieces as it goes.
+
+### Sharing `main` with other sessions
+
+- **Commit your own changes in small pieces, the moment each piece is done.** Stage the exact files
+  and commit in the same step: `git add <path> <path> && git commit`. Never `git add -A`,
+  `git add .`, or a bare directory. Never stage files and walk away — a concurrent commit will
+  sweep them in, or block on them.
+- **Uncommitted or staged changes you did not make are normal** — another session is mid-edit.
+  Leave their files alone; do your own work in other files and commit it. You do not need their
+  tree clean to commit yours. Stop and ask the developer only if their in-progress work genuinely
+  blocks you — do not accuse, do not undo their changes.
+- **Never move a branch by hand.** No `git update-ref`, `git branch -f`, a `git reset` that moves a
+  branch, `git push --force`, or a cherry-pick to relocate a commit. A branch moves only by an
+  ordinary commit, merge, or push.
+- **Before a work pass**, run `git status` and `ListAgents`. If another session is editing the same
+  files, message it (`SendMessage`) and agree who goes first.
+- **Two full `npm run test:e2e` runs against the 8080 server at once interfere** and report
+  failures that are not real. Check `ListAgents` before starting one. The pre-push hook already
+  runs the suites for a push, so a routine push needs no separate run.
+- **Pushing is the developer's explicit call, every time.** `main` usually has unpushed commits
+  from several sessions, and more than when the developer last looked. When told to push, push all
+  of `main` unless told to push only part of it.
+- **Do not delete a branch unless it is merged or the developer says so.** `retained-bracket-work`
   is kept unmerged on purpose (see `TipsLadderManager/KNOWN_ISSUES.md`).
 
-### Worktrees
+### The urgent-bug-fix exception
 
-Use one only when the work does not sit alongside others on `main`: multi-phase, many files,
-experimental, or churny (the `retained-bracket-work` fixture thrash is the cautionary case). Not for
-small localized edits.
+When a bug must ship now and `main` holds unrelated unpushed work that cannot go with it, once the
+developer approves:
 
-```bash
-git worktree add ../Treasuries-<topic> -b <topic>   # off main
-```
+1. `git worktree add ../Treasuries-fix -b fix-<bug> origin/main` — a fresh checkout at the last
+   pushed commit, so the unpushed work is not in it.
+2. Fix, commit, and verify there (the developer gives it a port).
+3. From the primary checkout: `git push origin fix-<bug>:main` — ships only the fix. The developer
+   approves the push.
+4. From the primary checkout on `main`: `git merge -s ours origin/main` — folds the shipped fix
+   back into local `main` without disturbing the unpushed work (the working tree does not change).
+5. `git worktree remove ../Treasuries-fix` and `git branch -d fix-<bug>`.
 
-Then tell the user the worktree exists and which port it serves on, so they can point a browser at
-it. After it merges to `main`, `git worktree remove` it and `git branch -d` the branch.
-
-### Shipping part of `main` while the rest stays unpushed
-
-`main` usually carries unpushed work in progress from several sessions. When some of it must ship
-now — an urgent fix, or a set of commits the user has picked out — without dragging the rest along:
-
-**Never switch the primary checkout to do this.** It stays on `main` so the 8080 server keeps
-serving `main` for everyone. Build the subset on a branch in a **worktree**, and push it with an
-explicit refspec from the primary checkout.
-
-1. Tell the user exactly which commits are shipping and that the rest stays local.
-2. `git worktree add ../Treasuries-ship -b ship-<desc> origin/main` — a branch from the last
-   shipped commit, in its own checkout.
-3. In that worktree: build the fix and commit it, or `git cherry-pick <sha> <sha> …` the commits
-   the user named, oldest first.
-4. Verify. Either serve the worktree at 8081, or — since for the touched files `main` already
-   contains these same changes — run the affected project's suite from the primary checkout.
-5. From the **primary checkout** (on `main`, where `node_modules` is installed so the pre-push hook
-   can run the suites): `git push origin ship-<desc>:main`. The developer approves this push. If
-   the hook fails on something that is not a real assertion failure (a crash, a timeout, a
-   `node_modules` gap in a worktree, another session's concurrent test run), verify the suites
-   directly, then retry — do not `--no-verify` without the user.
-6. Reconcile local `main`: from the primary checkout on `main`, `git merge -s ours origin/main`.
-   Use `-s ours` — local `main` already carries these changes as the originals plus any later
-   edits to the same files, so a plain merge conflicts on them; `-s ours` records the merge and
-   keeps local `main`'s tree byte-for-byte (confirm the tree hash is unchanged). Tell the other
-   sessions the merge landed.
-7. `git worktree remove ../Treasuries-ship` and `git branch -d ship-<desc>`.
-
-This never moves the shared `main` ref backward and never switches the primary checkout. Do **not**
-instead reset `main` to the shipped commit and re-apply the rest afterward — that rewrites the ref
-every other session is committing to. If a bug genuinely cannot be reproduced except on a `main`
-holding only shipped code, stop and ask the user; that case needs coordinating so no session loses
-a commit.
-
-The cost of the `-s ours` reconcile is one cosmetic duplicate of each shipped commit in local
-`main`'s history (the original and the cherry-pick) until the rest of `main` is pushed. That is
-acceptable; rewriting SHAs to avoid it is not, while other sessions hold `main`.
+Never instead rewind `main` to the pushed commit and replay the rest afterward — that rewrites the
+branch other sessions are committing on.
 
 ### Ports
 
-- **8080** is the user's own persistent dev server on the primary checkout. Never start, kill, or
-  restart it — that is the user's action, so they can watch test runs live.
-- **8081** is the port for a worktree (`npx serve . -p 8081` from the worktree root — the user runs
-  this).
-- More ports need the user to widen the R2 CORS allowlist (repo-root `knowledge/Data_Pipeline.md`).
-  Ask.
+- **8080** — the developer's own dev server on the primary checkout. Never start, kill, or restart
+  it.
+- A branch or worktree the developer approves gets its own port, which the developer runs and names.
+- More ports need the developer to widen the R2 CORS allowlist (repo-root
+  `knowledge/Data_Pipeline.md`). Ask.
 
 ## Commands (TipsLadderManager)
 
