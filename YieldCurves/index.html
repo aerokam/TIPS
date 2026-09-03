@@ -170,11 +170,11 @@
       <div class="card">
         <div id="tipsControls" style="display:flex; padding:6px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; gap:18px; align-items:center; font-size:13px;">
           <span style="font-weight:700; color:#475569; text-transform:uppercase; font-size:11px;">Show:</span>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsAsk" checked> Ask</label>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsSa" checked> SA</label>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsSao" checked> SAO</label>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsSpot" checked> Spot fit</label>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showTipsGsw"> GSW</label>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsAsk" checked><a class="col-help" href="#" data-col="ask-yield">Ask</a></span>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsSa" checked><a class="col-help" href="#" data-col="sa-yield">SA</a></span>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsSao" checked><a class="col-help" href="#" data-col="sao-yield">SAO</a></span>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsSpot" checked><a class="col-help" href="#" data-col="spot">Spot</a></span>
+          <span id="tipsGswShow" style="display:none; align-items:center; gap:5px;"><input type="checkbox" id="showTipsGsw" checked><a class="col-help" href="#" data-col="gsw">GSW</a></span>
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
           <a href="#" id="tipsShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">All</a>
           <a href="#" id="tipsShowNone" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">None</a>

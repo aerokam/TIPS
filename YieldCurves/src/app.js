@@ -18,6 +18,11 @@ const HOLIDAYS_CSV_URL = `${R2_BASE_URL}/misc/BondHolidaysSifma.csv`;
 const FIDELITY_URL = `${R2_BASE_URL}/Treasuries/FidelityTreasuriesTips.csv`;
 const GSW_TIPS_CURVE_URL = `${R2_BASE_URL}/TIPS/GswTipsCurve.json`;   // { date, beta0..beta3, tau1, tau2 } — updateGswTipsCurve.js
 
+// The GSW reference line is an analysis aid, not an end-user feature — the published curve
+// is only weekly (Tuesdays, through the prior Friday) so it goes stale fast. Hidden unless
+// the page is opened with ?gsw; the curve data is always fetched so it's there when needed.
+const SHOW_GSW = new URLSearchParams(location.search).has('gsw');
+
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // GSW (Gürkaynak-Sack-Wright, FEDS 2008-05) fitted TIPS zero-coupon curve — a snapshot for
@@ -223,6 +228,17 @@ const COL_HELP = {
     title: 'Diff (bps)',
     html: `<p>The difference between <strong>SA Yield</strong> and <strong>Ask Yield</strong>, expressed in basis points (1 bp = 0.01 percentage point).</p>
 <p>A positive value means the seasonal adjustment raised the yield (the TIPS had a seasonal price premium that was stripped out). A negative value means the adjustment lowered the yield (the TIPS had a seasonal penalty that was compensated).</p>`
+  },
+  'spot': {
+    title: 'Spot — Zero-Coupon Yield Curve',
+    html: `<p>Ask, SA and SAO are one point per bond. <strong>Spot</strong> is a single smooth curve fitted through the TIPS — one line per price source (FedInvest dotted, Market solid).</p>
+<p>It is a <strong>zero-coupon</strong> curve: the rate for a single payment at each horizon. The fit chooses the curve so that discounting every TIPS's own cash flows along it reproduces that bond's price. Because a bond's yield-to-maturity blends together many different-dated payments, two TIPS of the same maturity but different coupons have slightly different yields to maturity — the spot curve removes that coupon effect.</p>
+<p>Same curve family (Nelson-Siegel-Svensson) the Federal Reserve uses for its published TIPS curve. It is currently fitted to the <strong>quoted ask</strong> prices, so it tracks the Ask points rather than the SA points.</p>`
+  },
+  'gsw': {
+    title: 'GSW — Federal Reserve TIPS Curve',
+    html: `<p>The Federal Reserve's own fitted TIPS yield curve (Gürkaynak-Sack-Wright, FEDS 2008-05), shown here as a benchmark for the Spot fit.</p>
+<p>The Fed publishes it <strong>weekly, on Tuesdays, covering data through the prior Friday</strong>, so it can be several days stale. For that reason it is hidden by default and only appears when the page is opened with <code>?gsw</code>; the curve data is fetched every load so it is available for analysis at any time.</p>`
   }
 };
 
@@ -1375,9 +1391,10 @@ function renderChart(fedBonds, brokerBonds) {
     for (let t = gStart; t <= tMax + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(zToSA(z(t)).toFixed(3)) });
     seriesDef.push({ label: `Spot${sfx}`, data: grid, color, curve: true, w: 2.25, dash: [], style: 'circle', r: 0, markerR: 2 });
   }
-  // GSW zero reference: evaluate its published Svensson parameters (weekly R2 pull) on the
-  // same half-year grid, converted to the semi-annual basis. Falls back to a baked-in
-  // snapshot if the R2 file is unavailable.
+  // GSW zero reference (analysis aid, ?gsw only): evaluate its published Svensson parameters
+  // (weekly R2 pull) on the same half-year grid, converted to the semi-annual basis. Falls
+  // back to a baked-in snapshot if the R2 file is unavailable.
+  if (SHOW_GSW) {
   let gswData, gswDate;
   if (gswTipsCurve) {
     gswDate = gswTipsCurve.date;
@@ -1397,6 +1414,7 @@ function renderChart(fedBonds, brokerBonds) {
     data: gswData,
     color: '#111827', curve: true, w: 1.5, dash: [6, 4], style: 'circle', r: 0, markerR: 3,
   });
+  }
 
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
@@ -2135,6 +2153,7 @@ function renderSpreadTable(bonds, tab) {
 
 // TIPS 'Show' Checkboxes & Links
 const TIPS_SHOW = { showTipsAsk: 'Ask', showTipsSa: 'SA', showTipsSao: 'SAO', showTipsSpot: 'Spot', showTipsGsw: 'GSW' };
+if (SHOW_GSW) document.getElementById('tipsGswShow').style.display = 'flex';
 Object.keys(TIPS_SHOW).forEach((id) => {
   document.getElementById(id).addEventListener('change', (e) => {
     if (!chart || activeTab !== 'tips') return;

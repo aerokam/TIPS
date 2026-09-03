@@ -75,9 +75,25 @@ test.describe('Yield Curves Chart and UI', () => {
   test('reset button should restore chart view', async ({ page }) => {
     const canvas = page.locator('#yieldChart');
     await expect(canvas).toBeVisible();
-    
+
     // Simple click test for reset button to ensure no crash
     await page.click('#resetZoom');
     await expect(canvas).toBeVisible();
+  });
+
+  test('SHOW-row labels open help popups', async ({ page }) => {
+    await page.click('#tipsControls a.col-help[data-col="spot"]');
+    await expect(page.locator('#drill-modal')).toContainText('Zero-Coupon Yield Curve');
+    await page.click('#drill-close');
+    await page.click('#tipsControls a.col-help[data-col="sa-yield"]');
+    await expect(page.locator('#drill-modal')).toContainText('Seasonal Adjustment');
+  });
+
+  test('GSW row is hidden without ?gsw, shown with it', async ({ page }) => {
+    await expect(page.locator('#tipsGswShow')).toBeHidden();
+    await page.goto('./?gsw');
+    await page.check('#chkTipsFed');
+    await expect(page.locator('#saTable tbody tr')).toHaveCount(3, { timeout: 10000 });
+    await expect(page.locator('#tipsGswShow')).toBeVisible();
   });
 });
