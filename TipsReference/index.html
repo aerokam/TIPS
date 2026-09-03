@@ -95,7 +95,9 @@
   .cmt .cmr .cmv { font-size: 13px; font-weight: 700; color: var(--portal-text-main); }
 
   /* Body rows */
-  tbody td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; font-variant-numeric: tabular-nums; white-space: nowrap; background: #fff; }
+  tbody td { padding: 4px 8px; border-bottom: 1px solid #f1f5f9; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  tbody tr:nth-child(odd) td { background: #f9fafb; }
+  tbody tr:nth-child(even) td { background: #fff; }
   tbody td.right { text-align: right; }
   tbody tr:hover td { background: #fffde7; }
 </style>
