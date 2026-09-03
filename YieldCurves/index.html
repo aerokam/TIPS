@@ -195,9 +195,10 @@
         </div>
         <div id="beiControls" style="display:none; padding:6px 14px; border-bottom:1px solid #e2e8f0; background:#f8fafc; flex-shrink:0; gap:18px; align-items:center; font-size:13px;">
           <span style="font-weight:700; color:#475569; text-transform:uppercase; font-size:11px;">Show:</span>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showBeiAsk" checked> Ask</label>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showBeiSa" checked> SA</label>
-          <label style="display:flex; align-items:center; gap:5px; cursor:pointer;"><input type="checkbox" id="showBeiSao" checked> SAO</label>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showBeiAsk" checked><a class="col-help" href="#" data-col="ask-yield">Ask</a></span>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showBeiSa" checked><a class="col-help" href="#" data-col="sa-yield">SA</a></span>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showBeiSao" checked><a class="col-help" href="#" data-col="sao-yield">SAO</a></span>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showBeiSpot" checked><a class="col-help" href="#" data-col="spot-bei">Spot</a></span>
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
           <a href="#" id="beiShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">All</a>
           <a href="#" id="beiShowNone" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">None</a>

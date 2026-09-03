@@ -201,3 +201,23 @@ test('unchecking Bills+Notes in Treasuries spread shows only Bonds', async ({ pa
   await page.locator('#filterNotes').check();
   await expect(page.locator('#spreadChartWrap')).toBeVisible();
 });
+
+// ─── BEI tab: Spot BEI series wiring ─────────────────────────────────────────
+
+test('BEI tab loads with the Spot BEI toggle and no crash', async ({ page }) => {
+  await loadTips(page);
+  await page.click('[data-tab="bei"]');
+  await expect(page.locator('#beiTableBody tr')).toHaveCount(3, { timeout: 10000 });
+  await expect(page.locator('#showBeiSpot')).toBeChecked();
+  // toggling it must not throw even when the curve did not fit (tiny fixture)
+  await page.locator('#showBeiSpot').uncheck();
+  await page.locator('#showBeiSpot').check();
+  await expect(page.locator('#yieldChart')).toBeVisible();
+});
+
+test('Treasuries + TIPS SHOW rows carry Spot / Spot SA', async ({ page }) => {
+  await loadTreasuries(page);
+  await page.click('[data-tab="tips"]');
+  await expect(page.locator('#showTipsSpot')).toBeVisible();
+  await expect(page.locator('#showTipsSpotSa')).toBeVisible();
+});

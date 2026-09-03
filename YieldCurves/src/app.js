@@ -240,6 +240,11 @@ const COL_HELP = {
     html: `<p>The same zero-coupon fit as <strong>Spot</strong>, but fitted to the <strong>seasonally adjusted</strong> yields (the SA transform applied to the ask price) instead of the quoted ask yields.</p>
 <p>The gap between <strong>Spot</strong> and <strong>Spot SA</strong> is the seasonal adjustment's effect on the whole curve, in one line. This is the real-yield curve used for spot breakeven inflation on the BEI tab.</p>`
   },
+  'spot-bei': {
+    title: 'Spot BEI — Curve-Based Breakeven Inflation',
+    html: `<p>Ask / SA / SAO BEI are per-TIPS: each subtracts a single closest-maturity nominal yield from that one bond's real yield.</p>
+<p><strong>Spot BEI</strong> is instead the <strong>nominal zero-coupon curve minus the seasonally adjusted real zero-coupon curve</strong>, read off at each horizon. Both curves are fitted to the Market (Fidelity) securities. Every point is a genuine same-horizon breakeven — a 10-year point compares a 10-year nominal rate with a 10-year real rate — rather than a comparison of two bonds that only roughly line up in maturity.</p>`
+  },
   'gsw': {
     title: 'GSW — Federal Reserve TIPS Curve',
     html: `<p>The Federal Reserve's own fitted TIPS yield curve (Gürkaynak-Sack-Wright, FEDS 2008-05), shown here as a benchmark for the Spot fit.</p>
@@ -598,12 +603,12 @@ function fitSpotNSS(specs) {
 // Ask/SA yield scatter).
 const zToSA = zc => 200 * (Math.exp(zc / 200) - 1);
 
-// Fit a zero curve to a set of bonds and return a half-year { x, y } grid ready to plot as a
-// chart line, or null if there aren't enough usable bonds. `priceOf` and `yieldOf` pick which
-// price / YTM to fit (the quoted ask, or the seasonally adjusted equivalent). `yToX` maps
-// years-to-maturity to the current x-axis unit. Bonds under `minT` years are left out of the
-// fit; the line is drawn from the shortest bond that remains.
-function spotCurveGrid(bonds, { priceOf, yieldOf, yToX, minT = SAO_NOISE_YRS }) {
+// Fit a zero curve to a set of bonds. Returns { z, tMin, tMax, sane(fn) } or null.
+// `z(t)` is the zero yield in % continuous; `sane` reports whether a value stays within
+// 2 percentage points of the observed yields (Svensson blows up on a set with a large
+// maturity-to-maturity discontinuity — a real curve stays inside the scatter). `priceOf` /
+// `yieldOf` pick which price / YTM to fit; bonds under `minT` years are left out.
+function spotCurveFit(bonds, { priceOf, yieldOf, minT = SAO_NOISE_YRS }) {
   const now = Date.now();
   const specs = [];
   for (const b of bonds) {
@@ -618,17 +623,27 @@ function spotCurveGrid(bonds, { priceOf, yieldOf, yToX, minT = SAO_NOISE_YRS }) 
   if (specs.length < 5) return null;
   const z = fitSpotNSS(specs);
   if (!z) return null;
-  const tMin = Math.min(...specs.map(s => s.t)), tMax = Math.max(...specs.map(s => s.t));
-  let grid = [];
-  for (let t = Math.ceil(tMin * 2) / 2; t <= tMax + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(zToSA(z(t)).toFixed(3)) });
-  grid = grid.filter(p => Number.isFinite(p.y));
-  if (grid.length < 3) return null;
-  // Reject a fit that overshoots the observed yields by more than 2 percentage points anywhere:
-  // Svensson can't fit a set with a large discontinuity (a cliff between two maturities) and blows
-  // up. Real curves stay inside the scatter.
   const yLo = Math.min(...specs.map(s => s.ytm)) - 2, yHi = Math.max(...specs.map(s => s.ytm)) + 2;
-  if (grid.some(p => p.y < yLo || p.y > yHi)) return null;
-  return grid;
+  return {
+    z,
+    tMin: Math.min(...specs.map(s => s.t)),
+    tMax: Math.max(...specs.map(s => s.t)),
+    sane: v => Number.isFinite(v) && v >= yLo && v <= yHi,
+  };
+}
+
+// spotCurveFit → a half-year { x, y } grid (y in semi-annual %) for a chart line, or null.
+// `yToX` maps years-to-maturity to the current x-axis unit; drawn from the shortest fitted bond.
+function spotCurveGrid(bonds, opts) {
+  const fit = spotCurveFit(bonds, opts);
+  if (!fit) return null;
+  const grid = [];
+  for (let t = Math.ceil(fit.tMin * 2) / 2; t <= fit.tMax + 1e-9; t += 0.5) {
+    const y = parseFloat(zToSA(fit.z(t)).toFixed(3));
+    if (!fit.sane(y)) return null;   // blown-up fit — drop the whole line
+    grid.push({ x: opts.yToX(t), y });
+  }
+  return grid.length >= 3 ? grid : null;
 }
 
 // years-to-maturity → current x-axis unit (calendar ms in Maturity mode, weeks in Term mode).
@@ -1637,6 +1652,26 @@ function processAndRenderBei() {
       b.beiSao = nom.yield - b.saoYield;
     });
 
+    // Spot BEI: the nominal zero curve minus the seasonally adjusted real zero curve, on a
+    // horizon grid — a true same-horizon breakeven at every point, unlike the per-bond
+    // closest-maturity match above.
+    const yToX = yearsToX(Date.now());
+    const nomFit = spotCurveFit(
+      nominalCandidates.filter(n => n.type === 'MARKET BASED NOTE' || n.type === 'MARKET BASED BOND'),
+      { priceOf: n => n.price, yieldOf: n => n.yield, minT: 1 });
+    const saFit = spotCurveFit(tipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield });
+    let spotBeiGrid = null;
+    if (nomFit && saFit) {
+      spotBeiGrid = [];
+      const t0 = Math.max(2, Math.ceil(Math.max(nomFit.tMin, saFit.tMin) * 2) / 2);
+      const t1 = Math.min(nomFit.tMax, saFit.tMax);
+      for (let t = t0; t <= t1 + 1e-9; t += 0.5) {
+        const zn = zToSA(nomFit.z(t)), zr = zToSA(saFit.z(t));
+        if (nomFit.sane(zn) && saFit.sane(zr)) spotBeiGrid.push({ x: yToX(t), y: parseFloat((zn - zr).toFixed(3)) });
+      }
+      if (spotBeiGrid.length < 3) spotBeiGrid = null;
+    }
+
     const startEl = document.getElementById('startMaturity');
     const endEl = document.getElementById('endMaturity');
     if (!startEl.value && tipsBonds.length > 0) {
@@ -1648,7 +1683,7 @@ function processAndRenderBei() {
     const filtered = tipsBonds.filter(b => b.maturityDate >= startDate && b.maturityDate <= endDate);
 
     renderBeiTable(filtered);
-    renderBeiChart(filtered);
+    renderBeiChart(filtered, spotBeiGrid);
 
     if (brokerDownloadDate) {
       const loadDate = parseFidelityDateStr(brokerDownloadDate);
@@ -1673,10 +1708,11 @@ function getBeiSeriesVisibility(label) {
   if (label === 'Ask BEI') return document.getElementById('showBeiAsk').checked;
   if (label === 'SA BEI') return document.getElementById('showBeiSa').checked;
   if (label === 'SAO BEI') return document.getElementById('showBeiSao').checked;
+  if (label === 'Spot BEI') return document.getElementById('showBeiSpot').checked;
   return true;
 }
 
-function renderBeiChart(bonds) {
+function renderBeiChart(bonds, spotBeiGrid) {
   const ctx = document.getElementById('yieldChart').getContext('2d');
   if (!bonds || bonds.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
 
@@ -1690,11 +1726,12 @@ function renderBeiChart(bonds) {
     { label: 'SA BEI',  data: bonds.map(b => toPt(b, 'beiSa')),  color: '#dc2626', style: 'circle', w: 1.8, r: 1.25 },
     { label: 'SAO BEI', data: bonds.map(b => toPt(b, 'beiSao')), color: '#059669', style: 'circle', w: 2.2, r: 1.25 },
   ];
+  if (spotBeiGrid) seriesDef.push({ label: 'Spot BEI', data: spotBeiGrid, color: '#1a56db', style: 'circle', w: 2.5, r: 0, markerR: 2, curve: true });
 
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   const xScale = buildYieldXScale(allPoints);
-  const allY = allPoints.map(d => d.y);
+  const allY = activeSeries.filter(s => !s.curve).flatMap(s => s.data).map(d => d.y);
   let scaleY = allY;
   if (beiClipOutliers && allY.length >= 4) {
     const bounds = iqrClipBounds(allY);
@@ -1719,12 +1756,14 @@ function renderBeiChart(bonds) {
       datasets: activeSeries.map(s => ({
         label: s.label,
         data: s.data,
+        _curve: !!s.curve,
         borderColor: s.color,
         backgroundColor: s.color,
         borderWidth: s.w,
-        pointRadius: s.r,
+        pointRadius: s.curve ? (s.markerR ?? 0) : s.r,
+        pointHoverRadius: s.curve ? 5 : undefined,
         pointStyle: s.style,
-        tension: 0.1,
+        tension: s.curve ? 0.3 : 0.1,
         hidden: !getBeiSeriesVisibility(s.label)
       }))
     },
@@ -2237,10 +2276,11 @@ document.getElementById('tipsShowNone').onclick = (e) => {
 };
 
 // BEI 'Show' Checkboxes & Links
-['showBeiAsk', 'showBeiSa', 'showBeiSao'].forEach((id) => {
+const BEI_SHOW = { showBeiAsk: 'Ask BEI', showBeiSa: 'SA BEI', showBeiSao: 'SAO BEI', showBeiSpot: 'Spot BEI' };
+Object.keys(BEI_SHOW).forEach((id) => {
   document.getElementById(id).addEventListener('change', (e) => {
     if (!chart || activeTab !== 'bei') return;
-    const seriesKey = id === 'showBeiAsk' ? 'Ask BEI' : id === 'showBeiSa' ? 'SA BEI' : 'SAO BEI';
+    const seriesKey = BEI_SHOW[id];
     chart.data.datasets.forEach((ds, i) => {
       if (ds.label === seriesKey) chart.setDatasetVisibility(i, e.target.checked);
     });
@@ -2251,7 +2291,7 @@ document.getElementById('tipsShowNone').onclick = (e) => {
 
 document.getElementById('beiShowAll').onclick = (e) => {
   e.preventDefault();
-  ['showBeiAsk', 'showBeiSa', 'showBeiSao'].forEach(id => {
+  ['showBeiAsk', 'showBeiSa', 'showBeiSao', 'showBeiSpot'].forEach(id => {
     const el = document.getElementById(id);
     el.checked = true;
     el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2259,7 +2299,7 @@ document.getElementById('beiShowAll').onclick = (e) => {
 };
 document.getElementById('beiShowNone').onclick = (e) => {
   e.preventDefault();
-  ['showBeiAsk', 'showBeiSa', 'showBeiSao'].forEach(id => {
+  ['showBeiAsk', 'showBeiSa', 'showBeiSao', 'showBeiSpot'].forEach(id => {
     const el = document.getElementById(id);
     el.checked = false;
     el.dispatchEvent(new Event('change', { bubbles: true }));
