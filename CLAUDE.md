@@ -32,8 +32,8 @@ help text and the specs are written in, and it has to be in mind while writing r
 after the fact. Re-read it whenever that recall has faded — a session that has run long has lost it.
 
 **The test is consistency with the specs, never whether it reads naturally.** Prose that reads well
-is not evidence it is right; for this failure mode it is the opposite, because an invented term
-arrives sounding like ordinary professional register. Ask instead: is every term here the one the DD
+is not evidence it is right; for this failure mode it is the opposite, because a term that was never
+defined can read just as well as the one that was. Ask instead: is every term here the one the DD
 defines?
 
 **Do not replace a defined term with anything.** Not with a metaphor (*leg*, a *block* of years, a
