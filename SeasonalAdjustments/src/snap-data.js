@@ -40,11 +40,13 @@ export function yearsBetween(aStr, bStr) {
 }
 
 // ── Loaded snapshot ─────────────────────────────────────────────────────────
-// bonds: [{ cusip, mat:'YYYY-MM-DD', matDate, matMonth, coupon, ask, sa, sao, ytm }]
-//        sorted by maturity, yields as decimals (0.02556 = 2.556%).
-// wave:  365-element daily seasonal factor, most recent year in the
-//        snapshot — S = RefCPI_NSA / RefCPI_SA. 1.0 = no seasonal effect.
-export const SNAP = { bonds: null, wave: null, waveYears: '', loaded: false };
+// bonds:   [{ cusip, mat:'YYYY-MM-DD', matDate, matMonth, coupon, ask, sa, sao, ytm }]
+//          sorted by maturity, yields as decimals (0.02556 = 2.556%).
+// wave:    365-element daily seasonal factor, most recent year in the
+//          snapshot — S = RefCPI_NSA / RefCPI_SA. 1.0 = no seasonal effect.
+// refRows: [{ date:'YYYY-MM-DD', nsa, sa, factor }] ascending by date — the raw
+//          daily NSA / SA Ref CPI series, for the trend-vs-seasonal decomposition.
+export const SNAP = { bonds: null, wave: null, waveYears: '', refRows: null, loaded: false };
 
 function buildWave(refRows) {
   // refRows: [{date:'YYYY-MM-DD', factor:Number}], any order.
@@ -96,10 +98,10 @@ export async function loadSnapshot() {
   const refRows = parseCsv(refText).map(r => ({
     date: r['Ref CPI Date'], nsa: parseFloat(r['Ref CPI NSA']),
     sa: parseFloat(r['Ref CPI SA']), factor: parseFloat(r['SA Factor']),
-  }));
+  })).filter(r => r.date && !isNaN(r.nsa)).sort((a, b) => (a.date < b.date ? -1 : 1));
 
   const { wave, waveYears } = buildWave(refRows);
-  Object.assign(SNAP, { bonds, wave, waveYears, loaded: true });
+  Object.assign(SNAP, { bonds, wave, waveYears, refRows, loaded: true });
   return SNAP;
 }
 
