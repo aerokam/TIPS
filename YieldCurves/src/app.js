@@ -233,7 +233,12 @@ const COL_HELP = {
     title: 'Spot — Zero-Coupon Yield Curve',
     html: `<p>Ask, SA and SAO are one point per bond. <strong>Spot</strong> is a single smooth curve fitted through the TIPS — one line per price source (FedInvest dotted, Market solid).</p>
 <p>It is a <strong>zero-coupon</strong> curve: the rate for a single payment at each horizon. The fit chooses the curve so that discounting every TIPS's own cash flows along it reproduces that bond's price. Because a bond's yield-to-maturity blends together many different-dated payments, two TIPS of the same maturity but different coupons have slightly different yields to maturity — the spot curve removes that coupon effect.</p>
-<p>Same curve family (Nelson-Siegel-Svensson) the Federal Reserve uses for its published TIPS curve. It is currently fitted to the <strong>quoted ask</strong> prices, so it tracks the Ask points rather than the SA points.</p>`
+<p>Same curve family (Nelson-Siegel-Svensson) the Federal Reserve uses for its published TIPS curve. <strong>Spot</strong> is fitted to the <strong>quoted ask</strong> yields, so it tracks the Ask points.</p>`
+  },
+  'spot-sa': {
+    title: 'Spot SA — Seasonally Adjusted Zero-Coupon Curve',
+    html: `<p>The same zero-coupon fit as <strong>Spot</strong>, but fitted to the <strong>seasonally adjusted</strong> yields (the SA transform applied to the ask price) instead of the quoted ask yields.</p>
+<p>The gap between <strong>Spot</strong> and <strong>Spot SA</strong> is the seasonal adjustment's effect on the whole curve, in one line. This is the real-yield curve used for spot breakeven inflation on the BEI tab.</p>`
   },
   'gsw': {
     title: 'GSW — Federal Reserve TIPS Curve',
@@ -589,6 +594,48 @@ function fitSpotNSS(specs) {
   return fn;
 }
 
+// % continuous → % semi-annual bond-equivalent (so a spot line sits on the same axis as the
+// Ask/SA yield scatter).
+const zToSA = zc => 200 * (Math.exp(zc / 200) - 1);
+
+// Fit a zero curve to a set of bonds and return a half-year { x, y } grid ready to plot as a
+// chart line, or null if there aren't enough usable bonds. `priceOf` and `yieldOf` pick which
+// price / YTM to fit (the quoted ask, or the seasonally adjusted equivalent). `yToX` maps
+// years-to-maturity to the current x-axis unit. Bonds under `minT` years are left out of the
+// fit; the line is drawn from the shortest bond that remains.
+function spotCurveGrid(bonds, { priceOf, yieldOf, yToX, minT = SAO_NOISE_YRS }) {
+  const now = Date.now();
+  const specs = [];
+  for (const b of bonds) {
+    const settle = localDate(b.settlementDate);
+    const t = (b.maturityDate.getTime() - now) / (365.25 * 86400000);
+    const px = priceOf(b), y = yieldOf(b);
+    if (!settle || isNaN(settle) || t < minT || !(px > 0) || y == null || isNaN(y)) continue;
+    const sch = cashflowSchedule(settle, b.maturityDate, b.coupon);
+    if (!sch || !sch.times.length || sch.times.some(isNaN) || sch.amounts.some(isNaN) || isNaN(sch.accrued)) continue;
+    specs.push({ t, ytm: y * 100, dirty: px + sch.accrued, times: sch.times, cf: sch.amounts, wt: 1 / Math.max(1, t) });
+  }
+  if (specs.length < 5) return null;
+  const z = fitSpotNSS(specs);
+  if (!z) return null;
+  const tMin = Math.min(...specs.map(s => s.t)), tMax = Math.max(...specs.map(s => s.t));
+  let grid = [];
+  for (let t = Math.ceil(tMin * 2) / 2; t <= tMax + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(zToSA(z(t)).toFixed(3)) });
+  grid = grid.filter(p => Number.isFinite(p.y));
+  if (grid.length < 3) return null;
+  // Reject a fit that overshoots the observed yields by more than 2 percentage points anywhere:
+  // Svensson can't fit a set with a large discontinuity (a cliff between two maturities) and blows
+  // up. Real curves stay inside the scatter.
+  const yLo = Math.min(...specs.map(s => s.ytm)) - 2, yHi = Math.max(...specs.map(s => s.ytm)) + 2;
+  if (grid.some(p => p.y < yLo || p.y > yHi)) return null;
+  return grid;
+}
+
+// years-to-maturity → current x-axis unit (calendar ms in Maturity mode, weeks in Term mode).
+function yearsToX(now) {
+  return xAxisMode === 'ttm' ? y => y * (365.25 / 7) : y => now + y * 365.25 * 86400000;
+}
+
 function calculateSAO(bonds) {
   const n = bonds.length;
   const sao = new Array(n);
@@ -891,6 +938,18 @@ function renderNominalsChart(fedBonds, fidBonds) {
     );
   }
 
+  // Zero-coupon (spot) curve, per source — fitted in price space to the coupon Treasuries
+  // (Notes + Bonds; Bills and STRIPS left out, same as the TIPS fit drops the very short end).
+  const yToX = yearsToX(now);
+  const nomCurveSrc = [];
+  if (fedBonds) nomCurveSrc.push({ bonds: fedBonds, sfx: bothShown ? ' (FedInvest)' : '', color: '#1a56db', dash: [4, 4] });
+  if (fidBonds) nomCurveSrc.push({ bonds: fidBonds, sfx: bothShown ? ' (Market)' : '',    color: '#b45309', dash: [] });
+  for (const { bonds, sfx, color, dash } of nomCurveSrc) {
+    const coupons = bonds.filter(b => (b.type === 'MARKET BASED NOTE' || b.type === 'MARKET BASED BOND') && !isStrip(b.cusip));
+    const grid = spotCurveGrid(coupons, { priceOf: b => b.price, yieldOf: b => b.yield, yToX, minT: 1 });
+    if (grid) seriesDef.push({ label: `Spot${sfx}`, data: grid, color, w: 2.25, dash, curve: true, r: 0, markerR: 2 });
+  }
+
   // Filter series with no data points
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
@@ -972,7 +1031,8 @@ function renderNominalsChart(fedBonds, fidBonds) {
     };
   }
 
-  const allY = allPoints.map(d => d.y);
+  // Fitted curves can overshoot on a sparse/lumpy set — the y-axis fits the yield scatter only.
+  const allY = activeSeries.filter(s => !s.curve).flatMap(s => s.data).map(d => d.y);
   let scaleY = allY;
   if (nominalsClipOutliers && allY.length >= 4) {
     // Use Bills/Notes yields for IQR (outliers live in short-dated issues; bonds widen IQR too much).
@@ -1009,13 +1069,14 @@ function renderNominalsChart(fedBonds, fidBonds) {
       datasets: activeSeries.map(s => ({
         label: s.label,
         data: s.data,
+        _curve: !!s.curve,
         borderColor: s.color,
         backgroundColor: s.color,
         borderWidth: s.w,
         borderDash: s.dash,
-        pointRadius: s.r,
-        pointHoverRadius: s.r > 0 ? s.r + 2 : 3,
-        tension: 0.1
+        pointRadius: s.curve ? (s.markerR ?? 0) : s.r,
+        pointHoverRadius: s.curve ? 5 : (s.r > 0 ? s.r + 2 : 3),
+        tension: s.curve ? 0.3 : 0.1
       }))
     },
     options: {
@@ -1099,8 +1160,9 @@ function buildProcessedTipsBonds(sourceMap, isBroker) {
 
     const settleDate = localDate(settleDateStr);
     const matureDate = localDate(bond.maturity);
+    const saRatio = saSettle / saMature;   // SA clean price = price × saRatio (1.0_Seasonal_Adjustments)
     const askYield = yieldFromPrice(price, coupon, settleDate, matureDate);
-    const saYield = yieldFromPrice(price * (saSettle / saMature), coupon, settleDate, matureDate);
+    const saYield = yieldFromPrice(price * saRatio, coupon, settleDate, matureDate);
 
     let bidPrice = NaN, bidYield = NaN, adjAskPrice = NaN, adjBidPrice = NaN;
     let inflationFactor = NaN, yieldSpreadBps = NaN, priceSpreadPct = NaN;
@@ -1115,7 +1177,7 @@ function buildProcessedTipsBonds(sourceMap, isBroker) {
         priceSpreadPct = (adjAskPrice - adjBidPrice) / adjAskPrice * 100;
     }
 
-    return { ...bond, coupon, price, askYield, saYield, bidPrice, bidYield, adjAskPrice, adjBidPrice, inflationFactor, yieldSpreadBps, priceSpreadPct, maturityDate: matureDate, settlementDate: settleDateStr, isBroker };
+    return { ...bond, coupon, price, saRatio, askYield, saYield, bidPrice, bidYield, adjAskPrice, adjBidPrice, inflationFactor, yieldSpreadBps, priceSpreadPct, maturityDate: matureDate, settlementDate: settleDateStr, isBroker };
   }).filter(Boolean).sort((a, b) => a.maturityDate - b.maturityDate);
 }
 
@@ -1250,14 +1312,18 @@ function renderTable(fedBonds, brokerBonds) {
   }
 }
 
+// A dataset's SHOW-row key, from its legend label. "Spot SA (Fed)" → SpotSA before the
+// generic first-word split so it doesn't read as "Spot".
+function tipsSeriesKey(label) {
+  if (label.startsWith('Spot SA')) return 'SpotSA';
+  if (label.startsWith('Spot')) return 'Spot';
+  if (label.startsWith('GSW')) return 'GSW';
+  return label.split(' ')[0];   // Ask, SA, SAO
+}
+const TIPS_SHOW_EL = { Ask: 'showTipsAsk', SA: 'showTipsSa', SAO: 'showTipsSao', Spot: 'showTipsSpot', SpotSA: 'showTipsSpotSa', GSW: 'showTipsGsw' };
 function getTipsSeriesVisibility(label) {
-  const base = label.split(' ')[0];
-  if (base === 'Ask') return document.getElementById('showTipsAsk').checked;
-  if (base === 'SA') return document.getElementById('showTipsSa').checked;
-  if (base === 'SAO') return document.getElementById('showTipsSao').checked;
-  if (base === 'Spot') return document.getElementById('showTipsSpot').checked;
-  if (base === 'GSW') return document.getElementById('showTipsGsw').checked;
-  return true;
+  const el = TIPS_SHOW_EL[tipsSeriesKey(label)];
+  return el ? document.getElementById(el).checked : true;
 }
 
 // Shared x-scale builder for TIPS-maturity-keyed yield charts (TIPS tab, BEI tab):
@@ -1363,33 +1429,18 @@ function renderChart(fedBonds, brokerBonds) {
     );
   }
 
-  // Zero-coupon (spot) curve: Svensson fitted in price space (fitSpotNSS) to each source's
-  // quoted TIPS, plus the GSW zero reference. Bonds under SAO_NOISE_YRS are excluded (their
-  // real yield is price noise), so the curve is drawn only from the shortest bond that is.
-  const yToX = xAxisMode === 'ttm' ? y => y * (365.25 / 7) : y => now + y * 365.25 * 86400000;
-  const y2m = b => (b.maturityDate.getTime() - now) / (365.25 * 86400000);
-  const zToSA = z => 200 * (Math.exp(z / 200) - 1);   // % continuous → % semi-annual bond-equivalent
+  // Zero-coupon (spot) curves, per source: one fitted to the quoted ask yields, one to the
+  // seasonally adjusted yields (spotCurveGrid → fitSpotNSS in price space). Plus the GSW
+  // reference (?gsw only).
+  const yToX = yearsToX(now);
   const curveSrc = [];
   if (fedBonds)    curveSrc.push({ bonds: fedBonds,    sfx: both ? ' (Fed)' : '',    color: '#1a56db' });
   if (brokerBonds) curveSrc.push({ bonds: brokerBonds, sfx: both ? ' (Market)' : '', color: '#b45309' });
   for (const { bonds, sfx, color } of curveSrc) {
-    const specs = [];
-    for (const b of bonds) {
-      const t = y2m(b);
-      if (t < SAO_NOISE_YRS || isNaN(b.askYield) || !(b.price > 0)) continue;
-      const sch = cashflowSchedule(localDate(b.settlementDate), b.maturityDate, b.coupon);
-      if (!sch || !sch.times.length) continue;
-      specs.push({ t, ytm: b.askYield * 100, dirty: b.price + sch.accrued, times: sch.times, cf: sch.amounts, wt: 1 / Math.max(1, t) });
-    }
-    if (specs.length < 5) continue;
-    const z = fitSpotNSS(specs);
-    if (!z) continue;
-    const tMin = Math.min(...specs.map(s => s.t));
-    const tMax = Math.max(...specs.map(s => s.t));
-    const gStart = Math.ceil(tMin * 2) / 2;
-    const grid = [];
-    for (let t = gStart; t <= tMax + 1e-9; t += 0.5) grid.push({ x: yToX(t), y: parseFloat(zToSA(z(t)).toFixed(3)) });
-    seriesDef.push({ label: `Spot${sfx}`, data: grid, color, curve: true, w: 2.25, dash: [], style: 'circle', r: 0, markerR: 2 });
+    const ask = spotCurveGrid(bonds, { priceOf: b => b.price, yieldOf: b => b.askYield, yToX });
+    if (ask) seriesDef.push({ label: `Spot${sfx}`, data: ask, color, curve: true, w: 2.25, dash: [], style: 'circle', r: 0, markerR: 2 });
+    const sa = spotCurveGrid(bonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield, yToX });
+    if (sa) seriesDef.push({ label: `Spot SA${sfx}`, data: sa, color, curve: true, w: 2.25, dash: [2, 3], style: 'circle', r: 0, markerR: 2 });
   }
   // GSW zero reference (analysis aid, ?gsw only): evaluate its published Svensson parameters
   // (weekly R2 pull) on the same half-year grid, converted to the semi-annual basis. Falls
@@ -1419,7 +1470,8 @@ function renderChart(fedBonds, brokerBonds) {
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   const xScale = buildYieldXScale(allPoints);
-  const allY = allPoints.map(d => d.y);
+  // Fitted curves can overshoot — scale the y-axis to the yield scatter (Ask/SA/SAO), not the curves.
+  const allY = activeSeries.filter(s => !s.curve).flatMap(s => s.data).map(d => d.y);
   const minY = Math.floor(Math.min(...allY) * 4) / 4;
   const maxY = Math.ceil(Math.max(...allY) * 4) / 4;
 
@@ -1436,6 +1488,7 @@ function renderChart(fedBonds, brokerBonds) {
       datasets: activeSeries.map(s => ({
         label: s.label,
         data: s.data,
+        _curve: !!s.curve,
         borderColor: s.color,
         backgroundColor: s.color,
         borderWidth: s.w,
@@ -1502,7 +1555,7 @@ function rescaleToVisible(chart) {
   let allVisibleY = [];
 
   chart.data.datasets.forEach((dataset, i) => {
-    if (!chart.isDatasetVisible(i)) return;
+    if (!chart.isDatasetVisible(i) || dataset._curve) return;   // fitted curves don't set the axis
     dataset.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) allVisibleY.push(p.y); });
   });
 
@@ -2152,14 +2205,14 @@ function renderSpreadTable(bonds, tab) {
 // ─── Interaction Handlers ────────────────────────────────────────────────────
 
 // TIPS 'Show' Checkboxes & Links
-const TIPS_SHOW = { showTipsAsk: 'Ask', showTipsSa: 'SA', showTipsSao: 'SAO', showTipsSpot: 'Spot', showTipsGsw: 'GSW' };
+const TIPS_SHOW = { showTipsAsk: 'Ask', showTipsSa: 'SA', showTipsSao: 'SAO', showTipsSpot: 'Spot', showTipsSpotSa: 'SpotSA', showTipsGsw: 'GSW' };
 if (SHOW_GSW) document.getElementById('tipsGswShow').style.display = 'flex';
 Object.keys(TIPS_SHOW).forEach((id) => {
   document.getElementById(id).addEventListener('change', (e) => {
     if (!chart || activeTab !== 'tips') return;
     const seriesKey = TIPS_SHOW[id];
     chart.data.datasets.forEach((ds, i) => {
-      if (ds.label.split(' ')[0] === seriesKey) chart.setDatasetVisibility(i, e.target.checked);
+      if (tipsSeriesKey(ds.label) === seriesKey) chart.setDatasetVisibility(i, e.target.checked);
     });
     chart.update('none');
     rescaleToVisible(chart);
