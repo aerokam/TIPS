@@ -224,13 +224,13 @@ export function drawS3(el) {
 
   // captions
   s += note(W / 2, 22, ['Follow one TIPS: 1.250% coupon, maturing 15 April 2028, bought for settlement 1 September 2026.'], MUTED, 'middle', 11.5);
-  s += note(W / 2, 38, [`That is one whole year of indexation plus a ${stubMonths}-month stub. Whole years of the seasonal pattern cancel; the stub does not.`], MUTED, 'middle', 11.5);
+  s += note(W / 2, 38, [`That is one whole year of indexation plus a ${stubMonths}-month stub. A whole year of the seasonal pattern cancels; the stub does not.`], MUTED, 'middle', 11.5);
 
   // shaded spans: whole year (faint) then the stub (amber tint)
   s += `<rect x="${tx(settle).toFixed(1)}" y="${T}" width="${(tx(anniv) - tx(settle)).toFixed(1)}" height="${H - T - B}" fill="${MUTED}" opacity=".06"/>`;
   s += `<rect x="${tx(anniv).toFixed(1)}" y="${T}" width="${(tx(matur) - tx(anniv)).toFixed(1)}" height="${H - T - B}" fill="${FARC}" opacity=".10"/>`;
-  s += note((tx(settle) + tx(anniv)) / 2, H - B + 34, ['one whole year', 'seasonal pattern completes and cancels'], MUTED, 'middle', 10);
-  s += note((tx(anniv) + tx(matur)) / 2, H - B + 34, [`the ${stubMonths}-month stub`, 'a net seasonal change'], FARC, 'middle', 10);
+  s += note((tx(settle) + tx(anniv)) / 2, H - B + 32, ['one whole year', 'the seasonal pattern completes and cancels'], MUTED, 'middle', 10);
+  s += note((tx(anniv) + tx(matur)) / 2, H - B + 32, [`the ${stubMonths}-month stub`, 'a net seasonal change remains'], FARC, 'middle', 10);
 
   // month gridlines + year labels
   for (let y = 2026; y <= 2028; y++) for (const mo of [0, 3, 6, 9]) {
@@ -243,6 +243,10 @@ export function drawS3(el) {
   }
   const midY = (T + (H - B)) / 2;
   s += `<text x="16" y="${midY}" text-anchor="middle" transform="rotate(-90 16 ${midY})" style="fill:${MUTED};font-size:11px">SA Factor  (Ref CPI NSA ÷ Ref CPI SA)</text>`;
+  for (const v of niceTicks(lo, hi, 4)) {
+    s += `<line x1="${L}" y1="${ty(v).toFixed(1)}" x2="${W - R}" y2="${ty(v).toFixed(1)}" stroke="${GRID}" stroke-width="1" opacity=".2"/>`;
+    s += `<text x="${L - 6}" y="${(ty(v) + 3).toFixed(1)}" text-anchor="end" style="fill:${MUTED};font-size:9px">${v.toFixed(3)}</text>`;
+  }
 
   // the SA Factor across the bond's life
   let path = '';
@@ -256,25 +260,23 @@ export function drawS3(el) {
   s += `<line x1="${L}" y1="${ty(sSettle).toFixed(1)}" x2="${W - R}" y2="${ty(sSettle).toFixed(1)}" stroke="${SETTLE}" stroke-width="1" stroke-dasharray="5 4" opacity=".55"/>`;
   s += `<text x="${W - R + 6}" y="${(ty(sSettle) + 3).toFixed(1)}" style="fill:${SETTLE};font-size:10px">settlement level</text>`;
 
-  const mk = (d, sv, col, lbl, dy) => {
+  const mk = (d, sv, col, lbl, dy, anch = 'middle') => {
     const xx = tx(d), yy = ty(sv);
     s += `<line x1="${xx.toFixed(1)}" y1="${T}" x2="${xx.toFixed(1)}" y2="${H - B}" stroke="${col}" stroke-width="1" stroke-dasharray="2 3" opacity=".5"/>`;
     s += `<circle cx="${xx.toFixed(1)}" cy="${yy.toFixed(1)}" r="5" fill="${col}"/>`;
-    s += note(xx, yy + dy, lbl, col, 'middle', 10);
+    s += note(xx + (anch === 'start' ? 8 : 0), yy + dy, lbl, col, anch, 10);
   };
-  mk(settle, sSettle, SETTLE, [`settlement`, sSettle.toFixed(4)], -16);
-  mk(anniv, Sat(doyOf(anniv)), SETTLE, [`one year on`, Sat(doyOf(anniv)).toFixed(4)], -16);
-  mk(matur, sMatur, FARC, [`maturity`, sMatur.toFixed(4)], 26);
+  mk(settle, sSettle, SETTLE, [`settlement`, sSettle.toFixed(4)], -14, 'start');
+  mk(anniv, Sat(doyOf(anniv)), SETTLE, [`one year on`, Sat(doyOf(anniv)).toFixed(4)], -14);
+  mk(matur, sMatur, FARC, [`maturity`, sMatur.toFixed(4)], 24);
 
-  // shortfall bracket
-  const bx = tx(matur) + 24;
+  // shortfall bracket at the maturity edge
+  const bx = tx(matur) + 22;
   s += vBracket(bx, ty(sSettle), ty(sMatur), INK, 5);
   s += note(bx + 9, (ty(sSettle) + ty(sMatur)) / 2, ['seasonal', 'shortfall', `${((sSettle / sMatur - 1) * 100).toFixed(2)}%`], INK, 'start', 10);
 
-  // 3-month lag note
-  s += note(tx(anniv) + 6, ty(hi) + 4, ['3-month lag: the Ref CPI across this stub is CPI-U', 'from about Jun 2027 to Jan 2028 — the softer half', 'of the calendar for inflation'], MUTED, 'start', 9.5);
-
-  s += note(W / 2, H - 14, ['The market knows this shortfall in advance, so it prices the bond to a higher quoted real yield than a bond maturing a whole number of years from settlement. The difference is seasonal, not a difference in real yield.'], AMBER, 'middle', 11.5);
+  s += note(W / 2, H - 30, ['Over the whole year the seasonal pattern returns to where it started. Over the stub it does not: the bond ends at a seasonal low,'], AMBER, 'middle', 11);
+  s += note(W / 2, H - 14, ['so it accrues less seasonally-predictable inflation. The market prices that shortfall in as a higher quoted real yield.'], AMBER, 'middle', 11);
 
   el.innerHTML = s;
 }
@@ -312,15 +314,19 @@ export function drawS4(el) {
   });
   s += `<path d="${pSa}" fill="none" stroke="${SETTLE}" stroke-width="2.5"/>`;
   s += `<path d="${pNsa}" fill="none" stroke="${QUOTED}" stroke-width="1.8"/>`;
-  s += note(W - R, AT + 4, ['NSA — trend with the seasonal wave in it'], QUOTED, 'end', 10);
-  s += note(W - R, AT + 20, ['SA — the trend on its own'], SETTLE, 'end', 10);
+  s += note(L + 4, AT + 12, ['Ref CPI NSA — the seasonal wave is still in it'], QUOTED, 'start', 10);
+  s += note(L + 4, AT + 28, ['Ref CPI SA — the seasonal wave taken out'], SETTLE, 'start', 10);
 
   // ---- panel B: the ratio = SA Factor ----
   const BT = 340, BB = 452;
   const facs = rows.map(r => r.factor);
   const blo = Math.min(...facs) - 0.0008, bhi = Math.max(...facs) + 0.0008;
   const by = v => BT + (1 - (v - blo) / (bhi - blo)) * (BB - BT);
-  s += `<line x1="${L}" y1="${by(1).toFixed(1)}" x2="${W - R}" y2="${by(1).toFixed(1)}" stroke="${MUTED}" stroke-width="1" stroke-dasharray="3 3" opacity=".5"/>`;
+  for (const v of niceTicks(blo, bhi, 3)) {
+    s += `<line x1="${L}" y1="${by(v).toFixed(1)}" x2="${W - R}" y2="${by(v).toFixed(1)}" stroke="${GRID}" stroke-width="1" opacity="${Math.abs(v - 1) < 1e-9 ? 0 : .22}"/>`;
+    s += `<text x="${L - 6}" y="${(by(v) + 3).toFixed(1)}" text-anchor="end" style="fill:${MUTED};font-size:9px">${v.toFixed(3)}</text>`;
+  }
+  s += `<line x1="${L}" y1="${by(1).toFixed(1)}" x2="${W - R}" y2="${by(1).toFixed(1)}" stroke="${MUTED}" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>`;
   s += `<text x="${L - 6}" y="${(by(1) + 3).toFixed(1)}" text-anchor="end" style="fill:${MUTED};font-size:9px">1.000</text>`;
   let pF = '';
   rows.forEach((r, i) => { pF += (i ? 'L' : 'M') + tx(i).toFixed(1) + ' ' + by(r.factor).toFixed(1) + ' '; });
@@ -337,7 +343,7 @@ export function drawS4(el) {
     }
   });
 
-  s += note(W / 2, H - 12, ['Divide the wavy line by the smooth one and what is left is a clean, repeating wave. That wave is what the seasonal adjustment removes.'], AMBER, 'middle', 11.5);
+  s += note(W / 2, H - 12, ['Divide Ref CPI NSA by Ref CPI SA and what is left is a clean, repeating wave — the seasonal part, and what the seasonal adjustment removes.'], AMBER, 'middle', 11.5);
 
   el.innerHTML = s;
 }
@@ -446,23 +452,23 @@ export function drawS6(el) {
   // ---- right: two cards, the full chain ----
   const cx0 = 470, cw = W - cx0 - 22;
   const card = (top, r, tone, tag) => {
-    const h = 172;
+    const h = 186;
     s += `<rect x="${cx0}" y="${top}" width="${cw}" height="${h}" rx="10" fill="#0b1220" stroke="${tone}" stroke-width="1.4"/>`;
-    s += note(cx0 + 16, top + 22, `${tag}  ·  ${MONTHS[r.b.matMonth]} 15 2028  ·  ${(r.b.coupon * 100).toFixed(3)}%`, tone, 'start', 11.5);
-    s += note(cx0 + 16, top + 44, `quoted yield  ${(r.b.ask * 100).toFixed(2)}%`, INK, 'start', 11);
-    s += note(cx0 + 16, top + 64, `clean price  =  ${r.cp.toFixed(2)}`, INK, 'start', 11);
-    s += note(cx0 + 16, top + 88, `SA price factor  =  ${sSettle.toFixed(4)} ÷ ${r.sMat.toFixed(4)}  =  ${r.pf.toFixed(4)}`, INK, 'start', 11);
-    s += note(cx0 + 16, top + 108, `SACP  =  ${r.cp.toFixed(2)}  ×  ${r.pf.toFixed(4)}  =  ${r.sacp.toFixed(2)}`, INK, 'start', 11);
-    s += `<line x1="${cx0 + 14}" y1="${top + 120}" x2="${cx0 + cw - 14}" y2="${top + 120}" stroke="${GRID}"/>`;
-    s += note(cx0 + 16, top + 142, `SA yield  =  solve YTM(${r.sacp.toFixed(2)})  =  ${(r.saY * 100).toFixed(2)}%`, INK, 'start', 11);
-    s += note(cx0 + 16, top + 160, `move from quoted`, MUTED, 'start', 9.5);
-    s += note(cx0 + cw - 16, top + 158, `${r.dbp >= 0 ? '+' : ''}${r.dbp.toFixed(0)} bp`, tone, 'end', 15);
+    s += note(cx0 + 16, top + 24, `${tag}  ·  ${MONTHS[r.b.matMonth]} 15 2028  ·  ${(r.b.coupon * 100).toFixed(3)}%`, tone, 'start', 11.5);
+    s += note(cx0 + 16, top + 48, `quoted yield  ${(r.b.ask * 100).toFixed(2)}%`, INK, 'start', 11);
+    s += note(cx0 + 16, top + 68, `clean price  =  ${r.cp.toFixed(2)}`, INK, 'start', 11);
+    s += note(cx0 + 16, top + 94, `SA price factor  =  ${sSettle.toFixed(4)} ÷ ${r.sMat.toFixed(4)}  =  ${r.pf.toFixed(4)}`, INK, 'start', 11);
+    s += note(cx0 + 16, top + 114, `SACP  =  ${r.cp.toFixed(2)}  ×  ${r.pf.toFixed(4)}  =  ${r.sacp.toFixed(2)}`, INK, 'start', 11);
+    s += `<line x1="${cx0 + 14}" y1="${top + 128}" x2="${cx0 + cw - 14}" y2="${top + 128}" stroke="${GRID}"/>`;
+    s += note(cx0 + 16, top + 150, `SA yield  =  solve YTM(${r.sacp.toFixed(2)})  =  ${(r.saY * 100).toFixed(2)}%`, INK, 'start', 11);
+    s += note(cx0 + 16, top + 172, `change from quoted yield`, MUTED, 'start', 9.5);
+    s += note(cx0 + cw - 16, top + 172, `${r.dbp >= 0 ? '+' : ''}${r.dbp.toFixed(0)} bp`, tone, 'end', 15);
   };
-  card(72, N, NEARC, 'NEAR');
-  card(262, F, FARC, 'FAR');
+  card(66, N, NEARC, 'NEAR');
+  card(268, F, FARC, 'FAR');
 
-  s += note(W / 2, H - 26, ['Same four steps both times. How far the price factor sits from 1 is set by how far the maturity month/day sits from settlement on the wave;'], INK, 'middle', 11.5);
-  s += note(W / 2, H - 11, ['the SA yield is just the ordinary yield recomputed from the adjusted price.'], AMBER, 'middle', 11.5);
+  s += note(W / 2, H - 26, ['Same four steps both times. How far the price factor is from 1 is set by how far the maturity month/day is from settlement on the wave;'], INK, 'middle', 11.5);
+  s += note(W / 2, H - 11, ['the SA yield is the ordinary yield recomputed from the adjusted price.'], AMBER, 'middle', 11.5);
 
   el.innerHTML = s;
 }
