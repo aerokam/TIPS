@@ -174,6 +174,7 @@
           <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsSa" checked><a class="col-help" href="#" data-col="sa-yield">SA</a></span>
           <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsSao" checked><a class="col-help" href="#" data-col="sao-yield">SAO</a></span>
           <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsSpot" checked><a class="col-help" href="#" data-col="spot">Spot</a></span>
+          <span style="display:flex; align-items:center; gap:5px;"><input type="checkbox" id="showTipsSpotSa" checked><a class="col-help" href="#" data-col="spot-sa">Spot SA</a></span>
           <span id="tipsGswShow" style="display:none; align-items:center; gap:5px;"><input type="checkbox" id="showTipsGsw" checked><a class="col-help" href="#" data-col="gsw">GSW</a></span>
           <span style="color:#cbd5e1; margin: 0 4px;">|</span>
           <a href="#" id="tipsShowAll" style="color:#1a56db; text-decoration:none; font-weight:600; font-size:13px;">All</a>
@@ -299,6 +300,6 @@
     });
   </script>
   <script type="module" src="./src/app.js"></script>
-<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('../sw.js');</script>
+<script type="module" src="/shared/src/sw-register.js"></script>
 </body>
 </html>

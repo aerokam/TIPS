@@ -126,7 +126,7 @@
     A free contribution to the <a href="https://www.bogleheads.org/" style="color: var(--portal-text-muted); text-decoration: none; border-bottom: 1px dotted var(--border-med);">Bogleheads</a> community.
   </footer>
 
-<script>if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');</script>
+<script type="module" src="/shared/src/sw-register.js"></script>
 <script>
   // Local-only Admin Dashboard link: revealed only when the gitignored sentinel
   // (local-admin.json) is present — i.e. running from a local checkout, never on GitHub Pages.
