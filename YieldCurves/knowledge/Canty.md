@@ -25,7 +25,7 @@ Canty's paper uses generic notation for inflation-linked bonds across any market
 
 | Canty notation | TIPS equivalent | Notes |
 |---|---|---|
-| $I_t$ — inflation index at date $t$ | **Ref CPI** on date $t$ | Non-seasonally adjusted CPI-U, daily-interpolated per 31 CFR § 356 App. B with a 3-month lag. A TIPS's adjusted principal = face value × (Ref CPI(t) / Ref CPI(dated date)), so the principal changes daily with the Ref CPI. |
+| $I_t$ — inflation index at date $t$ | **Ref CPI** on date $t$ | Non-seasonally adjusted CPI-U, daily-interpolated per 31 CFR § 356 App. B with a 3-month lag. The adjusted principal of a TIPS = face value × (Ref CPI(t) / Ref CPI(dated date)), so the principal changes daily with the Ref CPI. |
 | $I_{Base}$ — base index | **Ref CPI on the dated date** | Fixed at issuance; the inflation index ratio = Ref CPI(settle) / Ref CPI(dated date). This ratio multiplies the face value to give the current adjusted principal. |
 | $I_{Settle}$ — index at settlement | **Ref CPI on the settlement date** | App. B interpolation for the specific day of the settlement month |
 | $I_i$ — index at each payment date | **Ref CPI on each payment date** | Interpolated for the month/day of each semi-annual coupon and the final maturity |
@@ -132,7 +132,7 @@ $$\boxed{\,SACP \approx CP\,\frac{S_{Settle}}{S_{Maturity}}\,} \qquad (14)$$
 > **Anniversary identity.** When the maturity date is a whole number of years after settlement, settlement and maturity fall on the **same calendar month/day**, so $S_{Settle}=S_{Maturity}$, the ratio is **1.0, and SACP = CP — no adjustment at all.** The entire seasonal adjustment is therefore a function of the **fractional-year offset** between the settlement month/day and the maturity month/day. Over each whole year the seasonal pattern repeats and cancels; only the leftover partial year carries a net seasonal slope. Moving the settlement date through the calendar varies this fraction from 0 to a full year, and the adjustment over that span is the seasonal curve itself.
 
 ### What the ratio *means* economically
-A TIPS's nominal inflation accrual from settlement to maturity is $\frac{I_{Mat}}{I_{Settle}} = \frac{T_{Mat}}{T_{Settle}}\cdot\frac{S_{Mat}}{S_{Settle}}$. The trend ratio is the "real" expected inflation; the seasonal ratio $\frac{S_{Mat}}{S_{Settle}}$ is a **predictable, calendar-driven** bump on top of it. So:
+The nominal inflation accrual of a TIPS from settlement to maturity is $\frac{I_{Mat}}{I_{Settle}} = \frac{T_{Mat}}{T_{Settle}}\cdot\frac{S_{Mat}}{S_{Settle}}$. The trend ratio is the "real" expected inflation; the seasonal ratio $\frac{S_{Mat}}{S_{Settle}}$ is a **predictable, calendar-driven** bump on top of it. So:
 
 - **$S_{Mat} > S_{Settle}$** (buy in a low-factor month, mature in a high-factor month): the indexation period includes additional *seasonally guaranteed* nominal inflation. The market prices the bond **up** (lower quoted real yield). Eq 14 multiplies price by $\frac{S_{Settle}}{S_{Mat}}<1$ to **remove that additional inflation**.
 - **$S_{Mat} < S_{Settle}$** (buy high, mature low): you forgo seasonal inflation; the market prices it **down** (higher quoted yield). Eq 14 multiplies by $\frac{S_{Settle}}{S_{Mat}}>1$ to **compensate**.

@@ -1043,7 +1043,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
         }
       }
     }
-    if (!newLowerCUSIP) throw new Error('3-bracket: no outstanding TIPS found before gap year ' + minGapYear);
+    if (!newLowerCUSIP) throw new Error('Multi-bracket: no outstanding TIPS found before gap year ' + minGapYear);
     const _nlBond = tipsMap.get(newLowerCUSIP);
     newLowerDuration = calculateMDuration(settlementDate, newLowerMaturity, _nlBond?.coupon ?? 0, _nlBond?.yield ?? 0);
     // When orig lower and new lower resolve to the same year, 3-bracket is a no-op:
@@ -1955,7 +1955,7 @@ export function runRebalance({ dara, bracketMode = '2bracket', holdings: holding
 // default-mirror Run with a gap/Future-30Y block produced large non-self-financing net cash (funded
 // years weren't sold down at all). It went undetected for 9 days because the only unit test covering
 // this function exercised the gap-free NO-OP path, never the actual scale-application path — see the
-// paired test below ("runFundedRebalance — gap/Future-30Y block: scale actually applies").
+// paired test below ("runFundedRebalance — gap year or Future 30Y funding: scale actually applies").
 export function runFundedRebalance({
   dara, bracketMode = '2bracket', holdings, tipsMap, refCPI, settlementDate,
   daraByYear = null, daraPlanUnedited = false, daraPlanIsStated = false, pinnedDaraByYear = null,

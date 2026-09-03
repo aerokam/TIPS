@@ -44,7 +44,10 @@ const RULES = [
     use: 'reword: "the coupon on the TIPS"' },
   { id: 'bracket-cover', re: /bracket\/cover/i,
     why: 'compounds two separately defined terms into one that is defined nowhere',
-    use: 'name both: "bracket year and cover year", "excess TIPS or cover excess"' },
+    use: 'name both: "bracket year and cover year", "excess TIPS or cover excess"',
+    // The button is literally labelled "Expand/Collapse Bracket/Cover Years". There the slash
+    // names two kinds of row rather than one compound term, so quoting the label is correct.
+    ignore: /(Expand|Collapse) Bracket\/Cover Years|bracket\/cover year groups/i },
   { id: 'synthetic-gap', re: /synthetic[- ]gap/i,
     why: 'the defined term is synthetic TIPS, which covers gap years and Future 30Y rungs alike',
     use: 'synthetic TIPS' },

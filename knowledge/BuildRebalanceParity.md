@@ -11,7 +11,7 @@ keep the suite green while this is investigated.
 
 ## Root Cause (Preliminary)
 `calcGapParams` (build-lib.js) and `calculateGapParameters` (rebalance-lib.js) compute
-the LMI that feeds synthetic gap-year sizing through different code paths:
+the LMI that feeds synthetic TIPS sizing through different code paths:
 
 | | Build (`calcGapParams`) | Rebalance (`calculateGapParameters`) |
 |---|---|---|

@@ -31,7 +31,7 @@ function coverageAmtRows(label, grossPI, lmiAdd, finalAmt) {
   if (lmiAdd  > 0.5) fmla += ' + <span class="formula-var" data-source="lmiadd">coupon add-back</span>';
   return row('Excess P+I', '<span class="formula-var" data-source="pipb">P+I per TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(grossPI), false, undefined, 'expi')
     + (amdNet > 0.5 ? row('AMD credited to earlier years', 'this cover’s market discount is delivered to the years it accrues in (AMD line items), not coverage here', '−' + fm(amdNet), false, undefined, 'amdn') : '')
-    + (lmiAdd  > 0.5 ? row('+ block coupon add-back', 'this cover’s share of the block coupon that sized the synthetic rungs down', fm(lmiAdd), false, undefined, 'lmiadd') : '')
+    + (lmiAdd  > 0.5 ? row('+ synthetic coupon add-back', 'this cover’s share of the coupon on the synthetic rungs, which sized them down', fm(lmiAdd), false, undefined, 'lmiadd') : '')
     + sep()
     + row(label, fmla, fm(finalAmt), true);
 }
@@ -308,7 +308,7 @@ export function buildDrillHTML(d, colKey, summary) {
           + row('P+I per TIPS', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 (1 + <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span>)', fm2(d.fundedYearPi), false, undefined, 'pipb')
           + row('Excess P+I', '<span class="formula-var" data-source="pipb">P+I/TIPS</span> \xd7 <span class="formula-var" data-source="qty">Excess Quantity</span>', fm(grossPI), false, undefined, 'expi')
           + (amdNet > 0 ? row('AMD credited to earlier years', 'this cover’s market discount is delivered to the funded years it accrues in (AMD line items), not as coverage here — netted out to avoid double-counting', '−' + fm(amdNet), false, undefined, 'amdn') : '')
-          + (lmiAdd > 0 ? row('+ Future-30Y coupon add-back', 'this cover’s share of the block coupon that sized the synthetic Future-30Y rungs down (analog of the bracket-LMI add-back)', fm(lmiAdd), false, undefined, 'lmiadd') : '')
+          + (lmiAdd > 0 ? row('+ Future-30Y coupon add-back', 'this cover’s share of the coupon on the synthetic Future-30Y rungs, which sized them down (the same add-back the bracket years get)', fm(lmiAdd), false, undefined, 'lmiadd') : '')
           + sep()
           + row('Future 30Y Cover Amount', amtFmla, fm(d.excessAmt), true);
       } else {

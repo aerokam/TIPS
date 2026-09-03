@@ -37,7 +37,7 @@ function wireIndexRatioCalc(el, data) {
     const lo = tips && tips.datedDate > minDate ? tips.datedDate : minDate;
     dateInp.min = lo;
     if (dateInp.value < lo) dateInp.value = lo;
-    hint.textContent = `Ratio is only meaningful on or after this TIPS's dated date (${lo}); ` +
+    hint.textContent = `Ratio is only meaningful on or after the dated date of this TIPS (${lo}); ` +
       `the field won't go earlier.`;
   }
 

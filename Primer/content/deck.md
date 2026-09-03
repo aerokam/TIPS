@@ -271,7 +271,7 @@ ch: 4 · TIPS & the CPI Index
 title: Calculator: Index Ratio
 
 :::lead
-Pick a TIPS and a date. This looks up the *actual, published* daily Reference CPI (TreasuryDirect's official series) — not a recomputation — and divides it by that TIPS's base CPI to get its Index Ratio right now.
+Pick a TIPS and a date. This looks up the *actual, published* daily Reference CPI (TreasuryDirect's official series) — not a recomputation — and divides it by the dated date Ref CPI of that TIPS to get its Index Ratio right now.
 :::
 
 # inflation-adjusted-principal
