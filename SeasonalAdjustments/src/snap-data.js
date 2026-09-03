@@ -49,27 +49,30 @@ export function yearsBetween(aStr, bStr) {
 export const SNAP = { bonds: null, wave: null, waveYears: '', refRows: null, loaded: false };
 
 function buildWave(refRows) {
-  // refRows: [{date:'YYYY-MM-DD', factor:Number}], any order.
-  let latest = '';
-  const byKey = {};                       // 'mm-dd' -> [{year, S}]
+  // One single year's real SA Factors, one value per calendar day — matches the
+  // maturity-factor rule in YieldCurves/knowledge/1.0_Seasonal_Adjustments.md
+  // §The Transformation (one year's value, not a multi-year average).
+  //
+  // The frozen snapshot ends in the autumn, so its most recent *calendar* year
+  // is only partial; picking the latest year per calendar day then splices two
+  // years together and leaves a step in the wave at the boundary. Use the most
+  // recent COMPLETE year instead — one clean annual cycle, no seam.
+  const perYear = {};                     // 'YYYY' -> { 'mm-dd' -> S }
   for (const r of refRows) {
     if (!r.date || isNaN(r.factor)) continue;
-    if (r.date > latest) latest = r.date;
-    (byKey[r.date.slice(5, 10)] ||= []).push({ year: +r.date.slice(0, 4), S: r.factor });
+    (perYear[r.date.slice(0, 4)] ||= {})[r.date.slice(5, 10)] = r.factor;
   }
-  // Most recent year's SA Factor per mm-dd — matches saFactorForDate's
-  // out-of-series lookup (YieldCurves/knowledge/1.0_Seasonal_Adjustments.md
-  // §The Transformation). Not a multi-year average.
-  const maxY = +latest.slice(0, 4);
+  const useYear = Object.keys(perYear)
+    .filter(y => Object.keys(perYear[y]).length >= 360)
+    .sort().pop();
+  const src = perYear[useYear] || {};
   const out = new Array(365);
   for (let m = 0; m < 12; m++) for (let d = 0; d < DIM[m]; d++) {
     const key = String(m + 1).padStart(2, '0') + '-' + String(d + 1).padStart(2, '0');
-    let pick = null;
-    for (const v of (byKey[key] || [])) if (!pick || v.year > pick.year) pick = v;
-    out[cum[m] + d] = pick ? pick.S : null;
+    out[cum[m] + d] = src[key] != null ? src[key] : null;
   }
   for (let i = 0; i < 365; i++) if (out[i] == null) out[i] = out[(i - 1 + 365) % 365];
-  return { wave: out, waveYears: `${maxY}` };
+  return { wave: out, waveYears: useYear || '' };
 }
 
 export async function loadSnapshot() {
