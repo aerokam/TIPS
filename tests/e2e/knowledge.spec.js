@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Knowledge Map and Viewer', () => {
   test('should load context map and navigate to TipsLadderManager overview', async ({ page }) => {
     await page.goto('/knowledge/KNOWLEDGE_MAP.html');
-    await expect(page.locator('h1')).toContainText('Treasuries Ecosystem Context');
+    await expect(page.locator('h1')).toContainText('Treasury Investors Portal');
 
     // Click TipsLadderManager process bubble
     const tlmLink = page.locator('a:has-text("TipsLadderManager")');
@@ -49,6 +49,19 @@ test.describe('Knowledge Map and Viewer', () => {
     // Should navigate to 1.0_Bond_Ladders.md
     await expect(page.url()).toContain('1.0_Bond_Ladders.md');
     await expect(page.locator('h1')).toContainText('1.0 Bond Ladders');
+  });
+
+  test('should render LaTeX math via KaTeX, not raw source', async ({ page }) => {
+    await page.goto('/knowledge/viewer.html#/md/YieldCurves/knowledge/1.0_Seasonal_Adjustments.md');
+
+    // The display formula P_SA = P_Price * S_settle / S_maturity becomes a .katex node
+    const katex = page.locator('.katex').first();
+    await expect(katex).toBeVisible({ timeout: 15000 });
+
+    // Raw delimiters must not survive into the rendered text
+    const body = await page.locator('#content').innerText();
+    expect(body).not.toContain('\\frac');
+    expect(body).not.toContain('P_{SA}');
   });
 
   test('should show error for non-existent files', async ({ page }) => {

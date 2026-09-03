@@ -42,8 +42,11 @@ li{margin:.4em 0}
 .mermaid { background: transparent !important; border: none !important; display: block; margin: 32px 0; text-align: center; }
 .mermaid svg { max-width: 100% !important; height: auto !important; background: none !important; }
 </style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
 </head>
 <body>
 <nav>
@@ -62,6 +65,50 @@ mermaid.initialize({
 });
 
 let currentFilePath = '';
+
+// Pull LaTeX spans out before Markdown parsing so marked doesn't mangle the
+// underscores / backslashes inside them; put them back verbatim afterwards and
+// let KaTeX auto-render turn them into math. Placeholder is pure alphanumeric
+// so marked passes it through untouched.
+// `$$`, `\[…\]`, `\(…\)` are unambiguous. Single `$…$` collides with prose
+// currency ("$100 to $200"), so a `$…$` span is only treated as math when it
+// carries a LaTeX metacharacter (\ _ ^ { }) or is a bare 1–2 letter symbol
+// ("$S$"); anything else is left as literal text.
+// Everything is normalised to \[…\] / \(…\) on the way into the store, so the
+// KaTeX auto-render pass never has to look for a bare `$` in the rendered DOM.
+const MATH_DELIMS = [
+    [/\$\$([\s\S]+?)\$\$/g, '\\[', '\\]', () => true],
+    [/\\\[([\s\S]+?)\\\]/g, '\\[', '\\]', () => true],
+    [/\\\(([\s\S]+?)\\\)/g, '\\(', '\\)', () => true],
+    [/\$(?!\s)((?:\\.|[^$\\\n])+?)\$/g, '\\(', '\\)',
+        body => /[\\_^{}]/.test(body)          // a LaTeX command / sub-superscript
+            || /^[A-Za-z]{1,2}$/.test(body)    // a bare symbol, e.g. $S$
+            || /^[<>=]?\s*-?[\d.]+$/.test(body)],  // a bare number/comparison, e.g. $<1.0$
+];
+function protectMath(md) {
+    const store = [];
+    for (const [re, left, right, isMath] of MATH_DELIMS) {
+        md = md.replace(re, (m, body) => {
+            if (!isMath(body)) return m;
+            store.push(left + body + right);
+            return `MATHZjQ0k${store.length - 1}k0Qjz`;
+        });
+    }
+    return { md, store };
+}
+function restoreMath(html, store) {
+    return html.replace(/MATHZjQ0k(\d+)k0Qjz/g, (_, i) => store[+i] ?? '');
+}
+function renderMath(el) {
+    if (typeof renderMathInElement !== 'function') return;
+    renderMathInElement(el, {
+        delimiters: [
+            { left: '\\[', right: '\\]', display: true },
+            { left: '\\(', right: '\\)', display: false },
+        ],
+        throwOnError: false,
+    });
+}
 
 async function loadMarkdown() {
     const hash = window.location.hash || '';
@@ -113,8 +160,9 @@ async function loadMarkdown() {
 
         const response = await fetch(fetchPath);
         if (!response.ok) throw new Error(`Failed to load ${filePath}: ${response.statusText}`);
-        const markdown = await response.text();
-        
+        const rawMarkdown = await response.text();
+        const { md: markdown, store: mathStore } = protectMath(rawMarkdown);
+
         const renderer = new marked.Renderer();
         renderer.code = function(args) {
             const text = typeof args === 'object' ? args.text : args;
@@ -122,7 +170,8 @@ async function loadMarkdown() {
             return lang === 'mermaid' ? `<div class="mermaid">${text}</div>` : `<pre><code class="language-${lang}">${text}</code></pre>`;
         };
 
-        contentEl.innerHTML = marked.parse(markdown, { renderer });
+        contentEl.innerHTML = restoreMath(marked.parse(markdown, { renderer }), mathStore);
+        renderMath(contentEl);
         contentEl.classList.add('loaded');
         
         // Clean persistent Mermaid junk
