@@ -42,8 +42,8 @@ export function yearsBetween(aStr, bStr) {
 // ── Loaded snapshot ─────────────────────────────────────────────────────────
 // bonds: [{ cusip, mat:'YYYY-MM-DD', matDate, matMonth, coupon, ask, sa, sao, ytm }]
 //        sorted by maturity, yields as decimals (0.02556 = 2.556%).
-// wave:  365-element daily seasonal factor, 5-year average ending at the
-//        snapshot year — S = RefCPI_NSA / RefCPI_SA. 1.0 = no seasonal push.
+// wave:  365-element daily seasonal factor, most recent year in the
+//        snapshot — S = RefCPI_NSA / RefCPI_SA. 1.0 = no seasonal effect.
 export const SNAP = { bonds: null, wave: null, waveYears: '', loaded: false };
 
 function buildWave(refRows) {
@@ -55,15 +55,19 @@ function buildWave(refRows) {
     if (r.date > latest) latest = r.date;
     (byKey[r.date.slice(5, 10)] ||= []).push({ year: +r.date.slice(0, 4), S: r.factor });
   }
-  const maxY = +latest.slice(0, 4), minY = maxY - 4;
+  // Most recent year's SA Factor per mm-dd — matches saFactorForDate's
+  // out-of-series lookup (YieldCurves/knowledge/1.0_Seasonal_Adjustments.md
+  // §The Transformation). Not a multi-year average.
+  const maxY = +latest.slice(0, 4);
   const out = new Array(365);
   for (let m = 0; m < 12; m++) for (let d = 0; d < DIM[m]; d++) {
     const key = String(m + 1).padStart(2, '0') + '-' + String(d + 1).padStart(2, '0');
-    const vals = (byKey[key] || []).filter(v => v.year >= minY && v.year <= maxY).map(v => v.S);
-    out[cum[m] + d] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+    let pick = null;
+    for (const v of (byKey[key] || [])) if (!pick || v.year > pick.year) pick = v;
+    out[cum[m] + d] = pick ? pick.S : null;
   }
   for (let i = 0; i < 365; i++) if (out[i] == null) out[i] = out[(i - 1 + 365) % 365];
-  return { wave: out, waveYears: `${minY}–${maxY}` };
+  return { wave: out, waveYears: `${maxY}` };
 }
 
 export async function loadSnapshot() {

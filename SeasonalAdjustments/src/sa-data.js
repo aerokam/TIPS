@@ -10,7 +10,7 @@ const R2ROOT = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const R2 = R2ROOT + '/TIPS/RefCpiNsaSa.csv';
 const HOLIDAYS_URL = R2ROOT + '/misc/BondHolidaysSifma.csv';
 
-// Offline-fallback monthly anchors for the SA Factor (5-yr avg shape).
+// Offline-fallback monthly anchors for the SA Factor shape.
 const MONTHLY_S = [1.00010, 0.99673, 0.99371, 0.99596, 0.99813, 1.00004, 1.00154, 1.00264, 1.00350, 1.00273, 1.00212, 1.00171];
 
 export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -41,8 +41,9 @@ export function yieldForYears(y) {
 // Shared interactive state, mutated by page controls, read by page renderers.
 export const state = { settleDoy: 135, matIdx: 6, yearsToMat: 3 };
 
-// Loaded data: daily = 365-element 5-yr-avg S array; series = ~10y of
-// {date,nsa,sa,factor} rows; srcNote = footer text describing the source.
+// Loaded data: daily = 365-element S array (most recent year's SA Factor
+// per calendar day); series = ~10y of {date,nsa,sa,factor} rows; srcNote
+// = footer text describing the source.
 export const D = { daily: null, series: null, srcNote: 'Loading…' };
 
 export function doy(month, day) { return cum[month] + (day - 1); }
@@ -101,13 +102,18 @@ export async function loadData() {
       (byKey[key] ||= []).push({ year, S: factor });
     }
 
-    // 5-year average per mm-dd
-    const maxYear = parseInt(latestDate.slice(0, 4)), minYear = maxYear - 4;
+    // Most recent year's SA Factor per mm-dd — the value
+    // shared/src/ref-cpi.js#saFactorForDate returns for a date past the
+    // published series (YieldCurves/knowledge/1.0_Seasonal_Adjustments.md
+    // §The Transformation). Not a multi-year average: tested, moves the
+    // factor too little to be worth the complexity.
+    const maxYear = parseInt(latestDate.slice(0, 4));
     const out = new Array(365);
     for (let m = 0; m < 12; m++) for (let d = 0; d < DIM[m]; d++) {
       const key = String(m + 1).padStart(2, '0') + '-' + String(d + 1).padStart(2, '0');
-      const vals = (byKey[key] || []).filter(v => v.year >= minYear && v.year <= maxYear).map(v => v.S);
-      out[cum[m] + d] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+      let latest = null;
+      for (const v of (byKey[key] || [])) if (!latest || v.year > latest.year) latest = v;
+      out[cum[m] + d] = latest ? latest.S : null;
     }
     for (let i = 0; i < 365; i++) if (out[i] == null) out[i] = out[(i - 1 + 365) % 365];
     D.daily = out;
@@ -115,7 +121,7 @@ export async function loadData() {
     // Chronological series: 11 years back gives 10 full years of MoM data
     const cutoff = `${maxYear - 11}-01-01`;
     D.series = allRows.filter(d => d.date >= cutoff).sort((a, b) => a.date.localeCompare(b.date));
-    D.srcNote = `5-year average (${minYear}–${maxYear}) of daily SA Factor = RefCPI_NSA / RefCPI_SA from R2 (latest data: ${latestDate}).`;
+    D.srcNote = `Daily SA Factor = RefCPI_NSA / RefCPI_SA, most recent year in R2 (latest data: ${latestDate}).`;
   } catch (e) {
     D.daily = buildDailyFromMonthly();
     D.series = [];
