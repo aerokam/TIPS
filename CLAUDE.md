@@ -62,6 +62,11 @@ Several Claude sessions work this repo at once, all for the one developer, all i
 checkout `C:/Users/aerok/projects/Treasuries`, which stays on `main`. That checkout is what the
 developer's `localhost:8080` server serves and tests, so every change has to land there.
 
+This section changes as the developer's instructions change. A session that loaded it at its own
+start may be holding a stale copy in context — if a judgment call here matters and there is any
+doubt the copy is current, re-read the file from disk before deciding, rather than trust memory of
+it.
+
 **All work is done on `main`.** A session does not create a branch or a worktree on its own
 judgment. There are exactly two reasons to work off `main`, both the developer's call — propose it
 in plain terms and wait for a yes:
@@ -90,25 +95,35 @@ small pieces as it goes.
 - **Two full `npm run test:e2e` runs against the 8080 server at once interfere** and report
   failures that are not real. Check `ListAgents` before starting one. The pre-push hook already
   runs the suites for a push, so a routine push needs no separate run.
-- **Pushing is the developer's explicit call, every time.** `main` usually has unpushed commits
-  from several sessions, and more than when the developer last looked. When told to push, push all
-  of `main` unless told to push only part of it.
+- **Pushing is the developer's explicit call, every time, and it means only the commits from the
+  session being asked** — not everything else waiting on `main`. `main` usually carries unpushed
+  work from several sessions at once, so "push" is scoped to the session unless the developer says
+  otherwise.
+  - If nothing else is unpushed, this is a plain push: `git push origin main`.
+  - If other sessions' unpushed commits are mixed in, separate the session's own commits first and
+    push just those — §Shipping less than all of `main` below. More steps, not harder; never push
+    the mixed set to avoid them.
 - **Do not delete a branch unless it is merged or the developer says so.** `retained-bracket-work`
   is kept unmerged on purpose (see `TipsLadderManager/KNOWN_ISSUES.md`).
 
-### The urgent-bug-fix exception
+### Shipping less than all of `main`
 
-When a bug must ship now and `main` holds unrelated unpushed work that cannot go with it, once the
-developer approves:
+Two cases need this: an urgent bug fix while unrelated unpushed work sits on `main` (the developer
+approves working off `main` first, per the exception above), and pushing one session's own commits
+past other sessions' unpushed ones (no approval needed beyond the push itself — this is just how a
+scoped push is done). Same steps either way:
 
-1. `git worktree add ../Treasuries-fix -b fix-<bug> origin/main` — a fresh checkout at the last
-   pushed commit, so the unpushed work is not in it.
-2. Fix, commit, and verify there (the developer gives it a port).
-3. From the primary checkout: `git push origin fix-<bug>:main` — ships only the fix. The developer
-   approves the push.
-4. From the primary checkout on `main`: `git merge -s ours origin/main` — folds the shipped fix
-   back into local `main` without disturbing the unpushed work (the working tree does not change).
-5. `git worktree remove ../Treasuries-fix` and `git branch -d fix-<bug>`.
+1. `git worktree add ../Treasuries-ship -b ship-<desc> origin/main` — a fresh checkout at the last
+   pushed commit, so the rest of `main` is not in it.
+2. Build the fix there and commit it, or `git cherry-pick <sha> <sha> …` the session's own commits
+   onto it, oldest first. Verify (the developer gives a fix worked on its own a port; a cherry-pick
+   of already-verified commits usually does not need re-testing).
+3. From the primary checkout: `git push origin ship-<desc>:main` — ships only this. The developer
+   approves the push itself, same as any push.
+4. From the primary checkout on `main`: `git merge -s ours origin/main` — folds the shipped work
+   back into local `main` without disturbing what is still unpushed (the working tree does not
+   change).
+5. `git worktree remove ../Treasuries-ship` and `git branch -d ship-<desc>`.
 
 Never instead rewind `main` to the pushed commit and replay the rest afterward — that rewrites the
 branch other sessions are committing on.
@@ -117,7 +132,8 @@ branch other sessions are committing on.
 
 - **8080** — the developer's own dev server on the primary checkout. Never start, kill, or restart
   it.
-- A branch or worktree the developer approves gets its own port, which the developer runs and names.
+- **8081** — any branch or worktree, always this port, no exceptions and no session picking a
+  different one. `npx serve . -p 8081` from the worktree root; the developer runs it.
 - More ports need the developer to widen the R2 CORS allowlist (repo-root
   `knowledge/Data_Pipeline.md`). Ask.
 
