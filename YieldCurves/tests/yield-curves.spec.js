@@ -208,10 +208,10 @@ test('BEI tab loads with the Spot BEI toggle and no crash', async ({ page }) => 
   await loadTips(page);
   await page.click('[data-tab="bei"]');
   await expect(page.locator('#beiTableBody tr')).toHaveCount(3, { timeout: 10000 });
-  await expect(page.locator('#showBeiSpot')).toBeChecked();
+  await expect(page.locator('#showBeiSpot')).not.toBeChecked();   // off by default — opt in
   // toggling it must not throw even when the curve did not fit (tiny fixture)
-  await page.locator('#showBeiSpot').uncheck();
   await page.locator('#showBeiSpot').check();
+  await page.locator('#showBeiSpot').uncheck();
   await expect(page.locator('#yieldChart')).toBeVisible();
 });
 

@@ -1089,7 +1089,8 @@ function renderNominalsChart(fedBonds, fidBonds) {
         borderDash: s.dash,
         pointRadius: s.curve ? (s.markerR ?? 0) : s.r,
         pointHoverRadius: s.curve ? 5 : (s.r > 0 ? s.r + 2 : 3),
-        tension: s.curve ? 0.3 : 0.1
+        tension: s.curve ? 0.3 : 0.1,
+        hidden: !!s.curve   // Spot starts off; click the legend item to show it
       }))
     },
     options: {
