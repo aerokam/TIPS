@@ -12,7 +12,7 @@ TipsLadderManager is a browser-based, privacy-first tool for designing and rebal
 - **DARA (Desired Annual Real Amount)**: The target annual amount in inflation-adjusted dollars.
 - **Gap Years**: Years currently missing TIPS issuances (e.g., 2037–2039).
 - **Bracket Years**: TIPS (e.g., 2036, 2040) used to cover gap years by holding additional TIPS that match the average duration of the missing maturities.
-- **Later Maturity Interest**: Interest from longer-dated TIPS that cascades down to fund earlier rungs of the ladder.
+- **Later Maturity Interest**: Interest from later-maturing TIPS that cascades down to fund earlier rungs of the ladder.
 
 ---
 

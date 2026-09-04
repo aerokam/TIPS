@@ -38,7 +38,7 @@ This tool is designed for **transparency first**. Every number in the UI is trac
 
 **Bracket Years** — Maturity years used to cover gaps or Future 30Y rungs. *Upper bracket*: always the Feb 2040 TIPS. *Active lower bracket*: the most recently issued 10-year TIPS. With **Retain lower bracket excess** on, excess you already hold in a retained lower bracket is kept and never added to; it is sold, oldest first, only if the lower brackets are over-covered.
 
-**Same-Year Excess Interest** — Bracket and cover excess TIPS are ordinary held bonds: interest paid in their own maturity year counts toward that year's amount, and it also flows down as LMI to every shorter year, the same as any other TIPS's coupon. Bracket excess (lower/upper gap brackets) covers gap years; cover excess (the Future 30Y cover pair) covers Future 30Y rungs. Example: excess Feb 2056 TIPS held to cover Future 30Y rungs (2057–2066) — their interest contributes to the 2056 funded year's amount, reducing the quantity of 2056 TIPS needed, and the same coupon also flows down to 2055 and every year below.
+**Same-Maturity Excess Interest** — Bracket and cover excess TIPS are ordinary held bonds: interest paid in their own maturity year counts toward that year's amount, and it also flows down as LMI to every shorter year, the same as any other TIPS's coupon. Bracket excess (lower/upper gap brackets) covers gap years; cover excess (the Future 30Y cover pair) covers Future 30Y rungs. Example: excess Feb 2056 TIPS held to cover Future 30Y rungs (2057–2066) — their interest contributes to the 2056 funded year's amount, reducing the quantity of 2056 TIPS needed, and the same coupon also flows down to 2055 and every year below.
 
 ---
 

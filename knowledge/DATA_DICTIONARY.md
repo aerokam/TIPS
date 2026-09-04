@@ -287,7 +287,7 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 
 <a id="ara"></a>
 ### ARA
-`ARA` = `Funded_PI + LMI + Same_Year_Excess_Interest` *(Annual Real Amount: total real cash flow produced for a Funded Year)*
+`ARA` = `Funded_PI + LMI + Same_Maturity_Excess_Interest` *(Annual Real Amount: total real cash flow produced for a Funded Year)*
 
 Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The header drops *Annual* because it applies to each funded year while the totals row beneath is not annual, and drops *Real* because every principal and interest value in a TIPS ladder is inflation-adjusted, so real is implied throughout. The Cost and Quantity headers drop *Annual* for the same reason.
 
@@ -295,11 +295,22 @@ Displayed as **Amount**, and as **Real Amount** where a fuller header fits. The 
 ### LMI
 `LMI` = `Σ Annual_Interest_Real for TIPS maturing in years > Current_Year` *(Later Maturity Interest: interest contributions to the current funded year from bonds maturing in future years)*
 
+<a id="same-maturity-excess-interest"></a>
 <a id="same-year-excess-interest"></a>
-### Same-Year Excess Interest
-`Same_Year_Excess_Interest` = `Σ Annual_Interest_Real for bracket or cover excess TIPS maturing in Current_Year`
-*Bracket or cover excess TIPS ([Duration Matching](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets)) are ordinary held bonds — their coupon interest behaves exactly like the interest on any other TIPS: paid in their own maturity year counts toward that year's Amount (this term, credited only to the year the excess bonds themselves mature), and it also continues flowing down into [LMI](#lmi) for every shorter-maturity year, same as any other coupon. Bracket excess (the lower/upper gap brackets) covers [Gap Years](#gap-years), where 10-year TIPS have not yet been issued; cover excess (the Future 30Y cover pair) covers [Future 30Y Rungs](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#future-30y-rungs-section), where 30-year TIPS have not yet been issued — the two are covered by different excess holdings. Example: excess TIPS held at the longest issued 30-year maturity, to cover the Future 30Y Rungs beyond it — their interest contributes to that maturity year's Amount as Same-Year Excess Interest, reducing its own rung's quantity, and the same coupon also flows down as ordinary LMI to every year below.*
+### Same-Maturity Excess Interest
+`Same_Maturity_Excess_Interest` = `Σ Annual_Interest_Real for bracket or cover excess TIPS maturing in Current_Year`
+*Bracket or cover excess TIPS ([Duration Matching](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#duration-matching-brackets)) are ordinary held bonds — their coupon interest behaves exactly like the interest on any other TIPS: paid in their own maturity year counts toward that year's Amount (this term, credited only to the year the excess bonds themselves mature), and it also continues flowing down into [LMI](#lmi) for every shorter-maturity year, same as any other coupon. Bracket excess (the lower/upper gap brackets) covers [Gap Years](#gap-years), where 10-year TIPS have not yet been issued; cover excess (the Future 30Y cover pair) covers [Future 30Y Rungs](../TipsLadderManager/knowledge/2.0_TIPS_Ladders.md#future-30y-rungs-section), where 30-year TIPS have not yet been issued — the two are covered by different excess holdings. Example: excess TIPS held at the longest issued 30-year maturity, to cover the Future 30Y Rungs beyond it — their interest contributes to that maturity year's Amount as Same-Maturity Excess Interest, reducing its own rung's quantity, and the same coupon also flows down as ordinary LMI to every year below.*
 
+
+<a id="amd"></a>
+<a id="accrued-market-discount"></a>
+### Accrued Market Discount (AMD)
+`AMD` = *Income a TIPS bought below par earns as its price accretes toward par, under the constant-yield method. A par TIPS returns its whole yield as coupon; a deep-discount TIPS returns most of it as accretion instead, and that accretion is interest above the coupon. Counted like coupon interest, so it reduces the quantity a [Funded Year](#funded-year) needs, and earned on the whole held position each year regardless of how many TIPS are sold to turn it into cash. Applies to [Excess TIPS](#excess-tips) and [Cover Excess](#cover-excess) only: funded year TIPS are held to maturity and receive par, so their discount is already in [P+I](#pi) and counting it again would double it (2.0 §Future 30Y Cover AMD).*
+
+<a id="pre-ladder-credit"></a>
+<a id="pre-ladder-interest"></a>
+### Pre-Ladder Interest (PLI)
+`Pre_Ladder_Interest` = *Coupon interest and [AMD](#amd) earned on the ladder’s holdings in the years between settlement and the first funded year, pooled and credited to the earliest funded years until the pool is exhausted. Income arriving before the ladder starts paying out, which would otherwise go unused. Shown in the Amount popup as **Pre-ladder credit**, the share of the pool this funded year received. Enabled by the **Pre-ladder int.** control (2.0 §Pre-Ladder Interest).*
 
 <a id="gap-years"></a>
 ### Gap Years

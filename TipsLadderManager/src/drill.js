@@ -167,7 +167,7 @@ export function buildDrillHTML(d, colKey, summary) {
     // so, the same way the Cash Flow Calendar's Ref CPI label flags its own date exception (label
     // itself carries the disclosure, no separate explanatory sentence).
     const _isSettleYr = d.fundedYear === summary?.settlementYear;
-    const _lmiLabel = _isSettleYr ? 'Remaining interest from longer-dated TIPS' : 'Interest from longer-dated TIPS';
+    const _lmiLabel = _isSettleYr ? 'Remaining later maturity interest' : 'Later maturity interest (LMI)';
     const _lmiDesc = _isSettleYr
       ? 'coupons from TIPS maturing after this year, paid on or after today, based on RMD Options selection'
       : 'from TIPS maturing after ' + d.fundedYear;
@@ -177,12 +177,12 @@ export function buildDrillHTML(d, colKey, summary) {
     const _rungs = (d.fundedRungs && d.fundedRungs.length > 1) ? d.fundedRungs : null;
 
     let totalFmla = _rungs
-      ? 'Funded-year TIPS + <span class="formula-var" data-source="lmi">Longer-dated int</span>'
-      : 'Principal + Coupons + <span class="formula-var" data-source="lmi">Longer-dated int</span>';
-    if (sameYearExInt > 0) totalFmla += ' + <span class="formula-var" data-source="exlmi">Same-year excess int</span>';
+      ? 'Funded-year TIPS + <span class="formula-var" data-source="lmi">LMI</span>'
+      : 'Principal + Coupons + <span class="formula-var" data-source="lmi">LMI</span>';
+    if (sameYearExInt > 0) totalFmla += ' + <span class="formula-var" data-source="exlmi">Same-maturity excess int</span>';
     if (_plCredit - _cashCredit > 0) totalFmla += ' + Pre-ladder credit';
     if (_amd > 0) totalFmla += ' + <span class="formula-var" data-source="amd">AMD</span>';
-    if (_roll > 0) totalFmla += ' + <span class="formula-var" data-source="roll">Future-30Y coupon</span>';
+    if (_roll > 0) totalFmla += ' + <span class="formula-var" data-source="roll">Cover-roll coupon</span>';
     if (_cashCredit > 0) totalFmla += ' + Available cash';
 
     if (_rungs) {
@@ -200,10 +200,10 @@ export function buildDrillHTML(d, colKey, summary) {
         sep() +
         row('Funded-year TIPS subtotal', 'principal + last-year coupons across the year’s TIPS', fm(ownSum)) +
         row(_lmiLabel, _lmiDesc, fm(longerDatedInt), false, undefined, 'lmi') +
-        (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
+        (sameYearExInt > 0 ? row('Same-maturity excess interest', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
         (_plCredit - _cashCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit - _cashCredit), false, 'plcpool') : '') +
-        (_amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
-        (_roll > 0 ? row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', fm(_roll), false, undefined, 'roll') : '') +
+        (_amd > 0 ? row('Accrued market discount (AMD)', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
+        (_roll > 0 ? row('Cover-roll coupon (2052)', 'coupon on the Future 30Y TIPS bought when the 2052 upper cover matures and its proceeds are reinvested; the share attributed to the upper cover', fm(_roll), false, undefined, 'roll') : '') +
         (_cashCredit > 0 ? row('Available cash', 'cash on hand applied to this year', fm(_cashCredit)) : '') +
         sep() +
         row('Funded Year Amount', totalFmla, fm(d.fundedYearAmt), true) +
@@ -221,10 +221,10 @@ export function buildDrillHTML(d, colKey, summary) {
       row('Principal', '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearPrincipalTotal)) +
       row(couponLabel, '<span class="formula-var" data-source="ppb">Par Value/TIPS</span> \xd7 <span class="formula-var" data-source="cpp">coupon/period</span> \xd7 <span class="formula-var" data-source="cp">periods</span> \xd7 <span class="formula-var" data-source="qty">Quantity</span>', fm(d.fundedYearOwnRungInt)) +
       row(_lmiLabel, _lmiDesc, fm(longerDatedInt), false, undefined, 'lmi') +
-      (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
+      (sameYearExInt > 0 ? row('Same-maturity excess interest', 'from excess TIPS maturing in ' + d.fundedYear, fm(sameYearExInt), false, undefined, 'exlmi') : '') +
       (_plCredit - _cashCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plCredit - _cashCredit), false, 'plcpool') : '') +
-      (_amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
-      (_roll > 0 ? row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', fm(_roll), false, undefined, 'roll') : '') +
+      (_amd > 0 ? row('Accrued market discount (AMD)', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd') : '') +
+      (_roll > 0 ? row('Cover-roll coupon (2052)', 'coupon on the Future 30Y TIPS bought when the 2052 upper cover matures and its proceeds are reinvested; the share attributed to the upper cover', fm(_roll), false, undefined, 'roll') : '') +
       (_cashCredit > 0 ? row('Available cash', 'cash on hand applied to this year', fm(_cashCredit)) : '') +
       sep() +
       row('Funded Year Amount', totalFmla, fm(d.fundedYearAmt), true) +
@@ -334,7 +334,7 @@ export function buildDrillHTML(d, colKey, summary) {
     // Settlement-year LMI is capped to not-yet-paid coupons only (2.0 §Settlement-year LMI is
     // remaining coupons only) — same disclosure as the Build "amount" popup above.
     const _isSettleYr = d.fundedYear === summary?.settlementYear;
-    const _lmiLabel = _isSettleYr ? 'Remaining interest from longer-dated TIPS' : 'Interest from longer-dated TIPS';
+    const _lmiLabel = _isSettleYr ? 'Remaining later maturity interest' : 'Later maturity interest (LMI)';
     const _lmiDesc = _isSettleYr
       ? 'coupons from TIPS maturing after this year, paid on or after today, based on RMD Options selection'
       : 'from TIPS maturing after ' + d.fundedYear;
@@ -364,29 +364,29 @@ export function buildDrillHTML(d, colKey, summary) {
     const excessLMI = isBef ? d.excessLMI_Before : d.excessLMI_After;
     if (excessLMI > 0) {
       const _exDesc = d.isFuture30yCover
-        ? 'from additional ' + d.fundedYear + ' TIPS held to cover Future 30Y rungs'
-        : 'from additional ' + d.fundedYear + ' TIPS held to cover gap years, where 10-year TIPS have not yet been issued';
-      rows += row('Interest from same-year excess (bracket)', _exDesc, fm(excessLMI), false, undefined, 'exlmi');
+        ? 'from the cover excess held in ' + d.fundedYear + ', covering the Future 30Y rungs'
+        : 'from the excess TIPS held in ' + d.fundedYear + ', covering the gap years, where 10-year TIPS have not yet been issued';
+      rows += row('Same-maturity excess interest', _exDesc, fm(excessLMI), false, undefined, 'exlmi');
     }
     if (_plShown > 0) {
       rows += row('Pre-ladder credit', 'pre-ladder pool applied to this year', fm(_plShown), false, 'plcpool', 'plc');
     }
     if (_amd > 0) {
-      rows += row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd');
+      rows += row('Accrued market discount (AMD)', 'accrued market discount from sales of excess TIPS', fm(_amd), false, undefined, 'amd');
     }
     if (_roll > 0) {
-      rows += row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', fm(_roll), false, undefined, 'roll');
+      rows += row('Cover-roll coupon (2052)', 'coupon on the Future 30Y TIPS bought when the 2052 upper cover matures and its proceeds are reinvested; the share attributed to the upper cover', fm(_roll), false, undefined, 'roll');
     }
     if (_cashCredit > 0) {
       rows += row('Available cash', 'cash on hand applied to this year', fm(_cashCredit));
     }
     let totalFmla = _pliZeroed
       ? 'Inferred from CSV'
-      : 'Funded year TIPS + <span class="formula-var" data-source="lmi">Longer-dated int</span>';
-    if (!_pliZeroed && excessLMI > 0) totalFmla += ' + <span class="formula-var" data-source="exlmi">Same-year excess int</span>';
+      : 'Funded year TIPS + <span class="formula-var" data-source="lmi">LMI</span>';
+    if (!_pliZeroed && excessLMI > 0) totalFmla += ' + <span class="formula-var" data-source="exlmi">Same-maturity excess int</span>';
     if (!_pliZeroed && _plShown > 0) totalFmla += ' + <span class="formula-var" data-source="plc">Pre-ladder credit</span>';
     if (!_pliZeroed && _amd > 0) totalFmla += ' + <span class="formula-var" data-source="amd">AMD</span>';
-    if (!_pliZeroed && _roll > 0) totalFmla += ' + <span class="formula-var" data-source="roll">Future-30Y coupon</span>';
+    if (!_pliZeroed && _roll > 0) totalFmla += ' + <span class="formula-var" data-source="roll">Cover-roll coupon</span>';
     if (!_pliZeroed && _cashCredit > 0) totalFmla += ' + Available cash';
     rows += sep()
       + row(isBef ? 'Amount Before' : 'Amount After', totalFmla, fm(_displayAmt), true)
@@ -403,7 +403,7 @@ export function buildDrillHTML(d, colKey, summary) {
     } else {
       const fyQty = d.fundedYearQtyAfter ?? d.fundedYearQty;
       const isSettleYr = d.fundedYear === summary?.settlementYear;
-      const lmiLabel = isSettleYr ? 'Remaining interest from longer-dated TIPS' : 'Interest from longer-dated TIPS';
+      const lmiLabel = isSettleYr ? 'Remaining later maturity interest' : 'Later maturity interest (LMI)';
       const lmiDesc = isSettleYr
         ? 'coupons from TIPS maturing after this year, paid on or after today, based on RMD Options selection'
         : 'from TIPS maturing after ' + d.fundedYear;
@@ -417,11 +417,11 @@ export function buildDrillHTML(d, colKey, summary) {
       const dara = d.DARA ?? 0;
       const needed = dara - laterMatInt - sameYearExInt - plCredit - amd - roll;
 
-      let neededFmla = 'DARA − <span class="formula-var" data-source="lmi">Longer-dated int</span>';
-      if (sameYearExInt > 0) neededFmla += ' − <span class="formula-var" data-source="exlmi">Same-year excess int</span>';
+      let neededFmla = 'DARA − <span class="formula-var" data-source="lmi">LMI</span>';
+      if (sameYearExInt > 0) neededFmla += ' − <span class="formula-var" data-source="exlmi">Same-maturity excess int</span>';
       if (plCredit > 0) neededFmla += ' − <span class="formula-var" data-source="plc">Pre-ladder credit</span>';
       if (amd > 0) neededFmla += ' − <span class="formula-var" data-source="amd">AMD</span>';
-      if (roll > 0) neededFmla += ' − <span class="formula-var" data-source="roll">Future-30Y coupon</span>';
+      if (roll > 0) neededFmla += ' − <span class="formula-var" data-source="roll">Cover-roll coupon</span>';
 
 
       // P+I needed is the funded YEAR's total requirement; it equals this row's own quantity only
@@ -437,10 +437,10 @@ export function buildDrillHTML(d, colKey, summary) {
       rows =
         row('DARA', '', fm(dara), false, undefined, 'dara') +
         row(lmiLabel, lmiDesc, '−' + fm(laterMatInt), false, undefined, 'lmi') +
-        (sameYearExInt > 0 ? row('Interest from same-year excess (bracket)', 'from excess TIPS maturing in ' + d.fundedYear, '−' + fm(sameYearExInt), false, undefined, 'exlmi') : '') +
+        (sameYearExInt > 0 ? row('Same-maturity excess interest', 'from excess TIPS maturing in ' + d.fundedYear, '−' + fm(sameYearExInt), false, undefined, 'exlmi') : '') +
         (plCredit > 0 ? row('Pre-ladder credit', 'pre-ladder pool applied to this year', '−' + fm(plCredit), false, undefined, 'plc') : '') +
-        (amd > 0 ? row('AMD from excess TIPS', 'accrued market discount from sales of excess TIPS', '−' + fm(amd), false, undefined, 'amd') : '') +
-        (roll > 0 ? row('Future-30Y coupon (2052 roll)', 'coupon on the Future-30Y TIPS bought with the matured 2052 cover proceeds (upper-cover share)', '−' + fm(roll), false, undefined, 'roll') : '') +
+        (amd > 0 ? row('Accrued market discount (AMD)', 'accrued market discount from sales of excess TIPS', '−' + fm(amd), false, undefined, 'amd') : '') +
+        (roll > 0 ? row('Cover-roll coupon (2052)', 'coupon on the Future 30Y TIPS bought when the 2052 upper cover matures and its proceeds are reinvested; the share attributed to the upper cover', '−' + fm(roll), false, undefined, 'roll') : '') +
         (cashCredit > 0 ? row('↳ of which Available cash', 'cash on hand applied to this year', fm(cashCredit)) : '') +
         sep() +
         row('P+I needed', neededFmla, fm(needed), true, undefined, 'needed') +
