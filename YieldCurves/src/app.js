@@ -1046,8 +1046,7 @@ function renderNominalsChart(fedBonds, fidBonds) {
     };
   }
 
-  // Fitted curves can overshoot on a sparse/lumpy set — the y-axis fits the yield scatter only.
-  const allY = activeSeries.filter(s => !s.curve).flatMap(s => s.data).map(d => d.y);
+  const allY = allPoints.map(d => d.y);
   let scaleY = allY;
   if (nominalsClipOutliers && allY.length >= 4) {
     // Use Bills/Notes yields for IQR (outliers live in short-dated issues; bonds widen IQR too much).
@@ -1084,7 +1083,6 @@ function renderNominalsChart(fedBonds, fidBonds) {
       datasets: activeSeries.map(s => ({
         label: s.label,
         data: s.data,
-        _curve: !!s.curve,
         borderColor: s.color,
         backgroundColor: s.color,
         borderWidth: s.w,
@@ -1485,8 +1483,7 @@ function renderChart(fedBonds, brokerBonds) {
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   const xScale = buildYieldXScale(allPoints);
-  // Fitted curves can overshoot — scale the y-axis to the yield scatter (Ask/SA/SAO), not the curves.
-  const allY = activeSeries.filter(s => !s.curve).flatMap(s => s.data).map(d => d.y);
+  const allY = allPoints.map(d => d.y);
   const minY = Math.floor(Math.min(...allY) * 4) / 4;
   const maxY = Math.ceil(Math.max(...allY) * 4) / 4;
 
@@ -1503,7 +1500,6 @@ function renderChart(fedBonds, brokerBonds) {
       datasets: activeSeries.map(s => ({
         label: s.label,
         data: s.data,
-        _curve: !!s.curve,
         borderColor: s.color,
         backgroundColor: s.color,
         borderWidth: s.w,
@@ -1570,7 +1566,7 @@ function rescaleToVisible(chart) {
   let allVisibleY = [];
 
   chart.data.datasets.forEach((dataset, i) => {
-    if (!chart.isDatasetVisible(i) || dataset._curve) return;   // fitted curves don't set the axis
+    if (!chart.isDatasetVisible(i)) return;
     dataset.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) allVisibleY.push(p.y); });
   });
 
@@ -1731,7 +1727,7 @@ function renderBeiChart(bonds, spotBeiGrid) {
   const activeSeries = seriesDef.filter(s => s.data.length > 0);
   const allPoints = activeSeries.flatMap(s => s.data);
   const xScale = buildYieldXScale(allPoints);
-  const allY = activeSeries.filter(s => !s.curve).flatMap(s => s.data).map(d => d.y);
+  const allY = allPoints.map(d => d.y);
   let scaleY = allY;
   if (beiClipOutliers && allY.length >= 4) {
     const bounds = iqrClipBounds(allY);
@@ -1756,7 +1752,6 @@ function renderBeiChart(bonds, spotBeiGrid) {
       datasets: activeSeries.map(s => ({
         label: s.label,
         data: s.data,
-        _curve: !!s.curve,
         borderColor: s.color,
         backgroundColor: s.color,
         borderWidth: s.w,
