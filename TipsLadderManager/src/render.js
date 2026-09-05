@@ -191,13 +191,30 @@ function bracketTipHTML(fy, groupRows, mode, summary) {
 // after the funded-year label (5.0 §Funded Year Group Header Row §DARA Input). `daraByYear`/
 // `flaggedYears` are optional — omitted entirely (both null) when a caller has no DARA context at
 // all (defensive default; every real call site now supplies them).
-function daraInputHTML(fy, daraByYear, flaggedYears) {
+function daraInputHTML(fy, daraByYear, flaggedYears, gapSet, future30ySet) {
   if (!daraByYear) return '';
   const val = daraByYear.get(fy);
   const flagged = !!flaggedYears?.has(fy);
+  // Three populations reach this flag and each needs its own sentence. A bracket or cover
+  // candidate is flagged because its own holdings stand out. A gap year and a Future 30Y year
+  // hold no TIPS at all, so their value was filled in from a flagged bracket rather than read
+  // from holdings (3.0 §Before-State Preview). Which one a year is comes from the summary the
+  // header already builds to label the row, so the two never disagree.
+  const isGapYear   = !!gapSet?.has(fy);
+  const isFuture30y = !!future30ySet?.has(fy);
+  const flagTip = isGapYear
+    ? '<b>Auto-set to median.</b> A gap year holds no TIPS of its own to read a DARA from, so '
+      + 'this is the median of the bracket that appears to fund it. Adjust as necessary.'
+    : isFuture30y
+    ? '<b>Auto-set to median.</b> No TIPS is issued this far out yet, so this year has no DARA '
+      + 'of its own. This is the median of the cover that appears to fund it. Adjust as necessary.'
+    : '<b>Auto-set to median.</b> Holdings suggest bracket excess. Adjust if this year is '
+      + 'intended for higher income.';
+  // data-tip-html rather than title: the browser sets how long a title waits before it appears
+  // and that wait cannot be changed, while this tooltip shows on hover at once.
   const flagHTML = flagged
-    ? '<span class="fy-dara-flag" title="Auto-set to median: holdings suggest bracket excess. '
-      + 'Adjust if this year is intended for higher income." style="color:#d97706;cursor:help;font-size:11px;margin-left:2px">⚠</span>'
+    ? '<span class="fy-dara-flag" data-tip-html="' + encodeURIComponent(flagTip)
+      + '" style="color:#d97706;cursor:help;font-size:11px;margin-left:2px">⚠</span>'
     : '';
   const displayVal = val != null && !isNaN(val) ? Math.round(val) : '';
   // The group header row's background is LIGHT (table.simple tr.fy-group-header td: #dce8e8,
@@ -258,7 +275,7 @@ function renderGroupHeader(cols, fy, rows, isBracketGroup, mode, summary, daraBy
   const suffix = gapSet.has(fy) ? ' <span style="opacity:0.6;font-style:italic;font-size:10px">(gap)</span>'
     : future30ySet.has(fy) ? ' <span style="opacity:0.6;font-style:italic;font-size:10px">(30Y)</span>' : '';
   const label = String(fy) + (isBracketGroup ? '*' : '');
-  const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears);
+  const daraHTML = daraInputHTML(fy, daraByYear, flaggedYears, gapSet, future30ySet);
   const rmdHTML = rmdOptionsLinkHTML(fy, summary?.settlementYear, summary?.rmdCouponMode, mode);
   const labelTd = isBracketGroup
     ? `<td colspan="${labelCount}"><span class="formula-var bracket-tip-target" data-tip-html="${encodeURIComponent(bracketTipHTML(fy, groupRows, mode, summary))}">${esc(label)}</span>${suffix}${daraHTML}${rmdHTML}</td>`
