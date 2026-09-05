@@ -196,18 +196,23 @@ function daraInputHTML(fy, daraByYear, flaggedYears, gapSet, future30ySet) {
   const val = daraByYear.get(fy);
   const flagged = !!flaggedYears?.has(fy);
   // Three populations reach this flag and each needs its own sentence. A bracket or cover
-  // candidate is flagged because its own holdings stand out. A gap year and a Future 30Y year
-  // hold no TIPS at all, so their value was filled in from a flagged bracket rather than read
-  // from holdings (3.0 §Before-State Preview). Which one a year is comes from the summary the
-  // header already builds to label the row, so the two never disagree.
+  // candidate is flagged because its own holdings stand out against the other held years. A gap
+  // year and a Future 30Y year have no TIPS at all, so nothing about them was measured: their
+  // value is heldYearMedianExcluding (before-state-lib.js) over the held years, with the flagged
+  // bracket or cover left out, and the bracket's only part in it is being the year left out
+  // (3.0 §Before-State Preview). It is computed once at load, so editing a bracket year's own
+  // DARA does not move it. Which population a year is in comes from the gap and Future 30Y sets
+  // the header already builds to label the row, so the two never disagree.
   const isGapYear   = !!gapSet?.has(fy);
   const isFuture30y = !!future30ySet?.has(fy);
   const flagTip = isGapYear
-    ? '<b>Auto-set to median.</b> A gap year holds no TIPS of its own to read a DARA from, so '
-      + 'this is the median of the bracket that appears to fund it. Adjust as necessary.'
+    ? '<b>Auto-set to median.</b> No TIPS matures in a gap year, so there is no quantity here to '
+      + 'infer a DARA from. This is the median annual real amount of the held years, taken '
+      + 'without the bracket year that appears to fund this one. Adjust as necessary.'
     : isFuture30y
-    ? '<b>Auto-set to median.</b> No TIPS is issued this far out yet, so this year has no DARA '
-      + 'of its own. This is the median of the cover that appears to fund it. Adjust as necessary.'
+    ? '<b>Auto-set to median.</b> No TIPS is issued this far out yet, so there is no quantity '
+      + 'here to infer a DARA from. This is the median annual real amount of the held years, '
+      + 'taken without the cover year that appears to fund this one. Adjust as necessary.'
     : '<b>Auto-set to median.</b> Holdings suggest bracket excess. Adjust if this year is '
       + 'intended for higher income.';
   // data-tip-html rather than title: the browser sets how long a title waits before it appears
