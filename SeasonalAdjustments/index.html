@@ -72,16 +72,17 @@
 
 <script type="module">
 import { loadSnapshot, SNAP, SNAPSHOT_LABEL } from './src/snap-data.js';
-import { drawS1, drawS2, drawS3, drawS4, drawS5, drawS6 } from './src/snap-slides.js';
+import { drawS1, drawS2, drawS3, drawS4, drawS5, drawS6, drawS7 } from './src/snap-slides.js';
 
 // Slide registry — grows one entry per slide as the rework proceeds.
 const PAGES = [
   { title: 'The Sawtooth', draw: drawS1, vh: 520 },
-  { title: 'Why the Month Matters', draw: drawS2, vh: 520 },
-  { title: 'The Extra Months', draw: drawS3, vh: 520 },
-  { title: 'Trend × Seasonal', draw: drawS4, vh: 520 },
-  { title: 'From Payments to One Ratio', draw: drawS5, vh: 520 },
-  { title: 'Near and Far', draw: drawS6, vh: 520 },
+  { title: 'The Seasonal Factor', draw: drawS2, vh: 520 },
+  { title: 'Why the Month Matters', draw: drawS3, vh: 520 },
+  { title: 'The Extra Months', draw: drawS4, vh: 520 },
+  { title: 'Trend × Seasonal', draw: drawS5, vh: 520 },
+  { title: 'From Payments to One Ratio', draw: drawS6, vh: 520 },
+  { title: 'Near and Far', draw: drawS7, vh: 520 },
 ];
 
 const stage = document.getElementById('stage');

@@ -26,6 +26,22 @@ export const cum = [0]; for (const d of DIM) cum.push(cum[cum.length - 1] + d);
 // The four calendar days every outstanding TIPS matures on.
 export const MATS = [{ m: 0, label: 'Jan 15' }, { m: 3, label: 'Apr 15' }, { m: 6, label: 'Jul 15' }, { m: 9, label: 'Oct 15' }];
 
+// BLS revised seasonal factors for the CPI-U, item SA0 ("All items"), series
+// CUSR0000SA0 (the CPI-U series; CWSR0000SA0 is the CPI-W counterpart). From the
+// "revised seasonally adjusted indexes and factors, last five years" file at
+// bls.gov/cpi/seasonal-adjustment/, DATA_TYPE = SEASONAL FACTOR (shown ×100).
+// SEASONAL FACTOR = UNADJUSTED INDEX / SEASONALLY ADJUSTED INDEX. BLS recomputes
+// the factors each year with the January release, covering the prior five years
+// (X-13ARIMA-SEATS). Oct 2025: no CPI published that month. Verified 2026-09-05:
+// the monthly Ref CPI NSA / SA from bls/CPI.csv reproduces every value here to 3 dp.
+export const BLS_SEASONAL_FACTOR = {
+  2021: [99.579, 99.786, 99.968, 100.165, 100.303, 100.385, 100.405, 100.327, 100.146, 100.014, 99.652, 99.273],
+  2022: [99.506, 99.724, 99.941, 100.190, 100.343, 100.459, 100.462, 100.364, 100.155, 100.002, 99.640, 99.319],
+  2023: [99.584, 99.798, 100.005, 100.171, 100.261, 100.360, 100.355, 100.308, 100.167, 99.992, 99.644, 99.354],
+  2024: [99.586, 99.794, 99.996, 100.168, 100.285, 100.361, 100.310, 100.234, 100.181, 100.010, 99.673, 99.371],
+  2025: [99.596, 99.813, 100.004, 100.154, 100.264, 100.350, 100.273, 100.212, 100.171, null, 99.711, 99.394],
+};
+
 export function localDate(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
 export function doy(month, day) { return cum[month] + (day - 1); }
 export function dateLabel(doyVal) {

@@ -5,7 +5,7 @@
 
 import {
   SNAP, SNAPSHOT_LABEL, SETTLE_LABEL, SETTLE_DATE, MONTHS, DIM, cum, MATS,
-  localDate, doy, dateLabel, Sat, waveMin, waveMax,
+  localDate, doy, dateLabel, Sat, waveMin, waveMax, BLS_SEASONAL_FACTOR,
 } from './snap-data.js';
 import { note, arrow, callout, vBracket, ring, AMBER, CYAN, GREEN, INK } from './sa-annotate.js';
 import { priceFromYield, yieldFromPrice } from '../../shared/src/bond-math.js';
@@ -14,7 +14,7 @@ const GRID = '#334155', MUTED = '#94a3b8';
 const QUOTED = '#f97316';   // same orange the YieldCurves app uses for the quoted (Ask, Market) curve
 const WAVE = '#7dd3fc';
 const SETTLE = '#38bdf8';
-const NEARC = '#22c55e', FARC = '#f97316';   // near / far accent colours, carried across slides 3 & 6
+const NEARC = '#22c55e', FARC = '#f97316';   // near / far accent colours, carried across slides 4 & 7
 
 const fmtMY = s => { const d = localDate(s); return `${MONTHS[d.getMonth()]} ${d.getFullYear()}`; };
 const SETTLE_DOY = doy(8, 1); // Sep 1
@@ -110,16 +110,80 @@ export function drawS1(el) {
   el.innerHTML = s;
 }
 
-// ── Slide 2: Why the Month Matters ─────────────────────────────────────────
-// Slide 2 connects the slide-1 saw-tooth to its cause. The daily Ref CPI used
-// for TIPS inflation adjustments is interpolated from monthly CPI-U NSA (FRED
-// CPIAUCNS) and has a seasonal pattern that repeats each year. No official
-// seasonally adjusted Ref CPI is published; we compute one by applying the same
+// ── Slide 2: The Seasonal Factor ──────────────────────────────────────────
+// What BLS publishes, and how stable it is. BLS publishes the CPI-U for the
+// "All items" category (item SA0, series CUSR0000SA0) monthly, in three data
+// types: UNADJUSTED INDEX, SEASONALLY ADJUSTED INDEX, and SEASONAL FACTOR
+// (= UNADJUSTED INDEX / SEASONALLY ADJUSTED INDEX, ×100). BLS recomputes the
+// factors each year with the January release, covering the prior five years
+// (X-13ARIMA-SEATS). Plot the SEASONAL FACTOR by month for 2021–2025: the five
+// lines nearly coincide. Data + verification note in snap-data.js.
+export function drawS2(el) {
+  const W = 900, H = 520, L = 66, R = 46, T = 100, B = 74;
+  const years = [2021, 2022, 2023, 2024, 2025];
+  const vals = years.flatMap(y => BLS_SEASONAL_FACTOR[y].filter(v => v != null));
+  const lo = Math.floor(Math.min(...vals) * 5) / 5 - 0.1;
+  const hi = Math.ceil(Math.max(...vals) * 5) / 5 + 0.1;
+  const x = m => L + m / 11 * (W - L - R);
+  const y = v => T + (1 - (v - lo) / (hi - lo)) * (H - T - B);
+
+  let s = '';
+
+  s += note(W / 2, 24, ['BLS publishes the CPI-U for All items (item SA0, series CUSR0000SA0) monthly, in three data types:'], MUTED, 'middle', 11.5);
+  s += note(W / 2, 40, ['UNADJUSTED INDEX,  SEASONALLY ADJUSTED INDEX,  and  SEASONAL FACTOR ( = UNADJUSTED INDEX ÷ SEASONALLY ADJUSTED INDEX, ×100 ).'], MUTED, 'middle', 11.5);
+  s += note(W / 2, 56, ['BLS recomputes the factors each year with the January release, covering the prior five years. Below: the SEASONAL FACTOR by month, 2021–2025.'], MUTED, 'middle', 11.5);
+
+  // y grid
+  for (let v = Math.ceil(lo * 5) / 5; v <= hi + 1e-9; v = +(v + 0.2).toFixed(3)) {
+    const yy = y(v);
+    s += `<line x1="${L}" y1="${yy.toFixed(1)}" x2="${W - R}" y2="${yy.toFixed(1)}" stroke="${GRID}" stroke-width="1" opacity="${Math.abs(v - 100) < 1e-9 ? 0 : .2}"/>`;
+    s += `<text x="${L - 6}" y="${(yy + 3).toFixed(1)}" text-anchor="end" style="fill:${MUTED};font-size:9px">${v.toFixed(1)}</text>`;
+  }
+  const y100 = y(100);
+  s += `<line x1="${L}" y1="${y100.toFixed(1)}" x2="${W - R}" y2="${y100.toFixed(1)}" stroke="${MUTED}" stroke-width="1" stroke-dasharray="3 3" opacity=".55"/>`;
+  s += `<text x="${W - R + 4}" y="${(y100 + 3).toFixed(1)}" style="fill:${MUTED};font-size:9px">100.000</text>`;
+
+  // month gridlines + labels
+  for (let m = 0; m < 12; m++) {
+    s += `<line x1="${x(m).toFixed(1)}" y1="${T}" x2="${x(m).toFixed(1)}" y2="${H - B}" stroke="${GRID}" stroke-width="1" opacity=".12"/>`;
+    s += `<text x="${x(m).toFixed(1)}" y="${H - B + 16}" text-anchor="middle" style="fill:${MUTED};font-size:10px">${MONTHS[m]}</text>`;
+  }
+  s += note(W / 2, T - 8, ['SEASONAL FACTOR  ( UNADJUSTED INDEX ÷ SEASONALLY ADJUSTED INDEX, ×100 )'], MUTED, 'middle', 10);
+
+  // one polyline per year; 2021–2024 faint, 2025 solid on top
+  for (const yr of years) {
+    const recent = yr === 2025;
+    let p = '', started = false;
+    BLS_SEASONAL_FACTOR[yr].forEach((v, m) => {
+      if (v == null) { started = false; return; }
+      p += (started ? 'L' : 'M') + x(m).toFixed(1) + ' ' + y(v).toFixed(1) + ' ';
+      started = true;
+    });
+    s += `<path d="${p}" fill="none" stroke="${recent ? WAVE : MUTED}" stroke-width="${recent ? 2.5 : 1.3}" opacity="${recent ? 1 : 0.5}"/>`;
+  }
+  BLS_SEASONAL_FACTOR[2025].forEach((v, m) => {
+    if (v != null) s += `<circle cx="${x(m).toFixed(1)}" cy="${y(v).toFixed(1)}" r="2.6" fill="${WAVE}"/>`;
+  });
+  s += note(x(2), y(99.62), ['2025'], WAVE, 'middle', 10);
+  s += note(x(2), y(99.4), ['2021–2024'], MUTED, 'middle', 10);
+  s += note(x(9) + 7, y(99.78), ['2025: no CPI', 'published for Oct'], MUTED, 'start', 9);
+
+  s += note(W / 2, H - 14, ['The seasonal factor for a given month changes little from year to year. The next slide builds a daily version of it, tied to the Ref CPI.'], AMBER, 'middle', 11.5);
+
+  el.innerHTML = s;
+}
+
+// ── Slide 3: Why the Month Matters ─────────────────────────────────────────
+// Connects the slide-1 saw-tooth to its cause, and turns slide 2's monthly
+// seasonal factor into the daily one TIPS need. The daily Ref CPI used for TIPS
+// inflation adjustments is interpolated from monthly CPI-U NSA (FRED CPIAUCNS)
+// and has a seasonal pattern that repeats each year. No official seasonally
+// adjusted Ref CPI is published; we compute one by applying the same
 // interpolation to BLS's SA CPI-U (CPIAUCSL). Ref CPI NSA / Ref CPI SA is the
 // SA Factor (DATA_DICTIONARY.md#sa-factor), plotted here for one year. It
 // differs between settlement and each maturity month/day, and that difference
 // is why the quoted yield and the SA yield are not equal. SA calcs key on mm/dd.
-export function drawS2(el) {
+export function drawS3(el) {
   const W = 900, H = 520, L = 66, R = 116, T = 96, B = 80;
   const lo = 0.9905, hi = 1.007;   // headroom above the peak / below the trough for labels
   const x = d => L + (d / 364) * (W - L - R);
@@ -192,12 +256,12 @@ export function drawS2(el) {
   el.innerHTML = s;
 }
 
-// helpers shared by slides 3–4 ------------------------------------------------
+// helpers shared by slides 4–5 ------------------------------------------------
 const DAY_MS = 86400000;
 const doyOf = d => doy(d.getMonth(), d.getDate());     // day-of-year for a Date
 const addYears = (d, n) => new Date(d.getFullYear() + n, d.getMonth(), d.getDate());
 
-// ── Slide 3: The Extra Months ─────────────────────────────────────────────
+// ── Slide 4: The Extra Months ─────────────────────────────────────────────
 // Canty (2009) §1b in TIPS terms. Follow one bond (STORY: 1.250% Apr 15 2028).
 // Its settlement-to-maturity span is one whole year plus a ~7-month stub. Over
 // each whole year the seasonal pattern completes and cancels; only the stub
@@ -205,7 +269,7 @@ const addYears = (d, n) => new Date(d.getFullYear() + n, d.getMonth(), d.getDate
 // S(settlement) = S(one year later), but S(maturity) sits well below — the
 // stub falls on the down-slope of the wave. That shortfall is seasonally
 // predictable, so the market prices it into a higher quoted real yield.
-export function drawS3(el) {
+export function drawS4(el) {
   const W = 900, H = 520, L = 66, R = 150, T = 92, B = 96;
   const settle = SETTLE_D;
   const anniv = addYears(settle, 1);
@@ -281,11 +345,11 @@ export function drawS3(el) {
   el.innerHTML = s;
 }
 
-// ── Slide 4: Trend × Seasonal ────────────────────────────────────────────
+// ── Slide 5: Trend × Seasonal ────────────────────────────────────────────
 // Canty (2009) §2, Eq. 2: the inflation index decomposes as I = T · S. The SA
 // Ref CPI is the trend T; the SA Factor NSA ÷ SA is the seasonal part S — the
-// same wave as slide 2, here across the recent months of real data.
-export function drawS4(el) {
+// same wave as slide 3, here across the recent months of real data.
+export function drawS5(el) {
   const W = 900, H = 520, L = 66, R = 30;
   const rows = SNAP.refRows.slice(-400);          // ~13 months up to the snapshot
   const n = rows.length;
@@ -331,7 +395,7 @@ export function drawS4(el) {
   let pF = '';
   rows.forEach((r, i) => { pF += (i ? 'L' : 'M') + tx(i).toFixed(1) + ' ' + by(r.factor).toFixed(1) + ' '; });
   s += `<path d="${pF}" fill="none" stroke="${WAVE}" stroke-width="2.5"/>`;
-  s += note(W - R, BT + 2, ['NSA ÷ SA = SA Factor — the seasonal part, the slide-2 wave'], WAVE, 'end', 10);
+  s += note(W - R, BT + 2, ['NSA ÷ SA = SA Factor — the seasonal part, the slide-3 wave'], WAVE, 'end', 10);
 
   // month ticks along the bottom
   let lastMo = -1;
@@ -348,14 +412,14 @@ export function drawS4(el) {
   el.innerHTML = s;
 }
 
-// ── Slide 5: From Payments to One Ratio ───────────────────────────────────
+// ── Slide 6: From Payments to One Ratio ───────────────────────────────────
 // Canty (2009) §3, simplified, landing on Eq. 14 in TIPS terms. The bond price
 // is a discounted sum of payments, each scaled by its own Ref CPI ratio. Split
 // every Ref CPI into trend × seasonal; for annual coupons every payment lands
 // on the maturity month/day, so one S(maturity) factors out of the sum and one
 // S(settlement) factors out of the settlement conversion. Everything seasonal
 // collapses to the single ratio S(settlement) / S(maturity).
-export function drawS5(el) {
+export function drawS6(el) {
   const W = 900, H = 520;
   const cx = 60;
   let s = '';
@@ -399,13 +463,13 @@ export function drawS5(el) {
   el.innerHTML = s;
 }
 
-// ── Slide 6: Near and Far ─────────────────────────────────────────────────
+// ── Slide 7: Near and Far ─────────────────────────────────────────────────
 // Apply Eq. 14 to two real TIPS and carry it through to the SA yield. NEAR
 // (Oct 2028) matures close to the settlement point on the wave, so the price
 // factor is ~1 and the yield barely moves. FAR (the STORY bond, Apr 2028)
 // matures at a seasonal low, so the factor is ~1.007 and the yield drops ~45 bp.
-// Every number here is computed from the wave shown on slides 2–4.
-export function drawS6(el) {
+// Every number here is computed from the wave shown on slides 3–5.
+export function drawS7(el) {
   const W = 900, H = 520;
   const sSettle = Sat(SETTLE_DOY);
 
