@@ -163,7 +163,7 @@ This document provides the technical schemas and field-level specifications for 
 **Update Frequency**: Daily, Local Windows Task `FundHoldings`, via `FundHoldings/updateAllHoldings.js` then `FundHoldings/enrichHoldings.js`.
 **R2 Key**: `FundHoldings/` (its own top-level prefix, since a fund’s holdings mix TIPS and nominal rows and so belong under neither `TIPS/` nor `Treasuries/`)
 
-**Key Fields**: `CUSIP`, `Holding_Name`, `Quantity`, `Percent_Of_Fund`, `Market_Value`, `Coupon`, `Maturity_Date`.
+**CSV columns** (exact header names): `CUSIP, Holding Name, Ticker, Category, Quantity, Coupon, % of Fund, Market Value, Maturity Date, ISIN, SEDOL, As of` — and, in the `-Enriched` file only, `Ask Yield, SA Yield, SAO Yield, Term, Duration`. These are the file’s own headers; the [E7](./DATA_DICTIONARY.md#e7)–[E12](./DATA_DICTIONARY.md#e12) entries name the same fields in the Data Dictionary’s normalized form.
 
 **Companion file**: `FundHoldings/FundMeta.json` = `{ @Ticker: { fundName, portId | etfId | cusip | portfolioId, expenseRatio, secYield } }`. `expenseRatio` and `secYield` are percent-scale numbers (`0.09` for 0.09%), each the provider’s own reported figure rather than an independently computed one.
 
