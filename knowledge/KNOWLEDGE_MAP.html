@@ -2,21 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Treasury Investors Portal — Context Diagram</title>
 <style>
   :root {
     --bg: #0d0d1a;
-    --panel: #16162a;
     --border: #2a2a4a;
     --text: #c0c8e0;
     --accent: #7070cc;
     --entity: #1a1a2e;
     --process: #1a2a4e;
     --store: #1a2e1a;
-    --foundation: #2e1a2e;
+    --flow: #55558c;
+    --flow-text: #8b93b8;
     --font: 'Segoe UI', system-ui, sans-serif;
   }
-  
+
   body {
     background: var(--bg);
     color: var(--text);
@@ -34,10 +35,11 @@
     max-width: 1200px;
     display: flex;
     justify-content: center;
+    flex-wrap: wrap;
     gap: 50px;
     padding: 25px;
     border-bottom: 1px solid var(--border);
-    margin-bottom: 40px;
+    margin-bottom: 30px;
   }
   .nav-header a {
     color: var(--accent);
@@ -56,112 +58,98 @@
     font-weight: 300;
     letter-spacing: 4px;
     color: var(--accent);
-    margin-bottom: 50px;
+    margin: 0 0 25px;
     text-transform: uppercase;
-  }
-
-  .dfd-container {
-    display: flex;
-    gap: 20px;
-    align-items: flex-start;
-    position: relative;
-  }
-
-  .column {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    z-index: 2;
-  }
-
-  .label {
-    font-size: 11px;
-    color: #666699;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: -5px;
     text-align: center;
-    font-weight: 700;
   }
+
+  .diagram { width: 100%; max-width: 1400px; }
+  .diagram svg { width: 100%; height: auto; display: block; }
 
   /* Shapes */
-  .entity { /* Rectangle - External Source */
+  .entity rect {
+    fill: var(--entity);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .entity:hover rect { stroke: var(--accent); }
+  .entity .e-name { fill: #c8d0ea; font-size: 13.5px; }
+  .entity .e-id { fill: #6f78a0; font-size: 10.5px; letter-spacing: 1px; }
+  .entity:hover .e-name { fill: #ffffff; }
+
+  .process circle {
+    fill: var(--process);
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+  .process:hover circle { stroke: #aaaaff; filter: drop-shadow(0 0 12px rgba(112,112,204,0.6)); }
+  .process .p-id { fill: #8fa0d8; font-size: 12px; letter-spacing: 1px; }
+  .process .p-name { fill: #eef0ff; font-size: 15px; font-weight: 600; }
+  .process .p-hint { fill: #8fa0d8; font-size: 10.5px; letter-spacing: 1px; }
+
+  .store line { stroke: #4a8a4a; stroke-width: 2; }
+  .store:hover line { stroke: #7ada7a; }
+  .store .s-name { fill: #a8e6a8; font-size: 15px; }
+  .store .s-sub { fill: #6fa86f; font-size: 11px; letter-spacing: 1px; }
+
+  a.entity, a.process, a.store { cursor: pointer; text-decoration: none; }
+  a text, g.entity text { text-anchor: middle; font-family: var(--font); }
+
+  /* Flows */
+  .flow { stroke: var(--flow); stroke-width: 1.6; fill: none; }
+  .flow-label {
+    fill: var(--flow-text);
+    font-size: 13px;
+    font-family: var(--font);
+    stroke: var(--bg);
+    stroke-width: 5;
+    paint-order: stroke;
+    stroke-linejoin: round;
+  }
+
+  .legend text { fill: #6f78a0; font-size: 12px; font-family: var(--font); }
+  .legend rect.sw { fill: var(--entity); stroke: var(--border); }
+  .legend circle.sw { fill: var(--process); stroke: var(--accent); stroke-width: 1.5; }
+  .legend line.sw { stroke: #4a8a4a; stroke-width: 2; }
+
+  .notes {
+    max-width: 900px;
+    margin-top: 30px;
+    font-size: 0.8rem;
+    color: #7a83aa;
+    line-height: 1.7;
+    text-align: center;
+  }
+  .notes a { color: var(--accent); }
+
+  .index {
+    max-width: 980px;
+    margin: 45px 0 20px;
+    border-top: 1px solid var(--border);
+    padding-top: 25px;
+  }
+  .index h2 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #666699;
+    margin: 0 0 6px;
+    text-align: center;
+  }
+  .index p { font-size: 0.8rem; color: #7a83aa; text-align: center; margin: 0 0 20px; line-height: 1.6; }
+  .index-group { margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: center; }
+  .index-group .g-label { font-size: 0.7rem; letter-spacing: 1.5px; text-transform: uppercase; color: #666699; font-weight: 700; width: 100%; text-align: center; }
+  .index-group a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.85rem;
     border: 1px solid var(--border);
     background: var(--entity);
-    padding: 12px 15px;
     border-radius: 4px;
-    width: 140px;
-    text-align: center;
-    font-size: 0.85rem;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    cursor: pointer;
-    text-decoration: none;
-    color: inherit;
+    padding: 5px 12px;
   }
-  .entity:hover { border-color: var(--accent); transform: scale(1.02); }
-
-  .foundation { /* Hexagon-ish */
-    border: 1px solid #8a4a8a;
-    background: var(--foundation);
-    padding: 12px 15px;
-    border-radius: 15px 0 15px 0;
-    width: 140px;
-    text-align: center;
-    font-size: 0.85rem;
-    color: #ffccff;
-    text-decoration: none;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-  }
-  .foundation:hover { background: #4a2a4a; border-color: #ff00ff; }
-
-  .process { /* Circle */
-    border: 2px solid var(--accent);
-    background: var(--process);
-    padding: 15px;
-    border-radius: 50%;
-    width: 125px;
-    height: 125px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    text-align: center;
-    cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
-    text-decoration: none;
-    color: white;
-    font-weight: 600;
-    font-size: 0.85rem;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
-  }
-  .process:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(112, 112, 204, 0.5); }
-  .process span { font-size: 0.65rem; font-weight: normal; margin-top: 5px; opacity: 0.8; }
-
-  .store { /* Open Box */
-    border-left: 4px solid #4a8a4a;
-    border-top: 1px solid #2a4a2a;
-    border-bottom: 1px solid #2a4a2a;
-    background: var(--store);
-    padding: 15px 20px;
-    width: 150px;
-    text-align: center;
-    font-size: 1rem;
-    color: #aaffaa;
-    cursor: pointer;
-    text-decoration: none;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-  }
-  .store:hover { background: #203520; transform: scale(1.02); }
-
-  /* Arrows */
-  .arrow-lane { width: 25px; display: flex; align-items: center; align-self: center; }
-  .arrow { width: 100%; height: 2px; background: #2a2a4a; position: relative; }
-  .arrow::after {
-    content: ''; position: absolute; right: -2px; top: -4px;
-    border-left: 6px solid #2a2a4a; border-top: 5px solid transparent; border-bottom: 5px solid transparent;
-  }
-
+  .index-group a:hover { border-color: var(--accent); color: #ffffff; }
 </style>
 </head>
 <body>
@@ -177,125 +165,214 @@
 
 <h1>Treasury Investors Portal<br><span style="font-size: 0.55em; letter-spacing: 2px; opacity: 0.75;">Context Diagram</span></h1>
 
-<div class="dfd-container">
-  
-  <!-- Column 1: Sources -->
-  <div class="column">
-    <div class="label">External Sources</div>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e1" class="entity">FedInvest</a>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e2" class="entity">TreasuryDirect</a>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e3" class="entity">FiscalData API</a>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e4" class="entity">BLS Public API</a>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e5" class="entity">CNBC Market</a>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e6" class="entity">Fidelity Market</a>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e7" class="entity" style="border-style: dashed; opacity: 0.85;">Vanguard API</a>
-    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e8" class="entity" style="border-style: dashed; opacity: 0.85;">fminvest.com</a>
-  </div>
+<div class="diagram">
+<svg viewBox="0 0 1400 900" role="img" aria-label="Context diagram: external entities E1 through E12 and the investor exchange data flows with the Treasury Investors Portal, which writes and reads the Cloudflare R2 data stores.">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#55558c"/>
+    </marker>
+  </defs>
 
-  <div class="arrow-lane"><div class="arrow"></div></div>
+  <!-- Legend -->
+  <g class="legend">
+    <rect class="sw" x="40" y="42" width="28" height="15" rx="2"/>
+    <text x="78" y="54">external entity</text>
+    <circle class="sw" cx="54" cy="80" r="9"/>
+    <text x="78" y="85">process</text>
+    <line class="sw" x1="40" y1="104" x2="68" y2="104"/>
+    <line class="sw" x1="40" y1="118" x2="68" y2="118"/>
+    <text x="78" y="116">data store</text>
+  </g>
 
-  <!-- Column 2: Ingestion -->
-  <div class="column">
-    <div class="label">Ingestion</div>
-    <a href="viewer.html#/md/knowledge/Data_Pipeline.md" class="process">
-      Ingestion Jobs
-      <span>GH Actions &<br>Local Windows Tasks</span>
-    </a>
-  </div>
+  <!-- Flows: external entities E1-E6 into the process -->
+  <line class="flow" x1="260" y1="210" x2="616.6" y2="404.5" marker-end="url(#arrow)"/>
+  <line class="flow" x1="260" y1="306" x2="609.7" y2="420.5" marker-end="url(#arrow)"/>
+  <line class="flow" x1="260" y1="402" x2="605.6" y2="439.7" marker-end="url(#arrow)"/>
+  <line class="flow" x1="260" y1="498" x2="605.6" y2="460.3" marker-end="url(#arrow)"/>
+  <line class="flow" x1="260" y1="594" x2="609.7" y2="479.5" marker-end="url(#arrow)"/>
+  <line class="flow" x1="260" y1="690" x2="616.6" y2="495.5" marker-end="url(#arrow)"/>
 
-  <div class="arrow-lane"><div class="arrow"></div></div>
+  <!-- Flows: fund providers E7-E12 carry one flow -->
+  <line class="flow" x1="1140" y1="210" x2="1010" y2="450"/>
+  <line class="flow" x1="1140" y1="306" x2="1010" y2="450"/>
+  <line class="flow" x1="1140" y1="402" x2="1010" y2="450"/>
+  <line class="flow" x1="1140" y1="498" x2="1010" y2="450"/>
+  <line class="flow" x1="1140" y1="594" x2="1010" y2="450"/>
+  <line class="flow" x1="1140" y1="690" x2="1010" y2="450"/>
+  <line class="flow" x1="1010" y1="450" x2="797" y2="450" marker-end="url(#arrow)"/>
 
-  <!-- Column 3: Storage -->
-  <div class="column">
-    <div class="label">Storage</div>
-    <a href="viewer.html#/md/knowledge/DataStores.md" class="store">
-      Cloudflare R2
-      <span>Central Truth<br>(CSV / JSON)</span>
-    </a>
-  </div>
+  <!-- Flows: investor -->
+  <line class="flow" x1="675" y1="82" x2="675" y2="356" marker-end="url(#arrow)"/>
+  <line class="flow" x1="725" y1="358" x2="725" y2="84" marker-end="url(#arrow)"/>
 
-  <div class="arrow-lane"><div class="arrow"></div></div>
+  <!-- Flows: R2 -->
+  <line class="flow" x1="675" y1="542" x2="675" y2="796" marker-end="url(#arrow)"/>
+  <line class="flow" x1="725" y1="798" x2="725" y2="544" marker-end="url(#arrow)"/>
 
-  <!-- Column 4: Applications, grouped to match the portal's own categories -->
-  <div class="column">
-    <div class="label" style="color: #7a9a7a;">Daily Workflow</div>
-    <a href="viewer.html#/md/knowledge/YieldsMonitor.md" class="process" style="border-color: #5a6e5a;">
-      YieldsMonitor
-      <span>Market Tracking</span>
-    </a>
-    <a href="viewer.html#/md/knowledge/YieldCurves.md" class="process" style="border-color: #5a6e5a;">
-      YieldCurves
-      <span>Seasonal Analysis</span>
-    </a>
-    <a href="viewer.html#/md/knowledge/TipsLadderManager.md" class="process" style="border-color: #5a6e5a;">
-      TipsLadder<br>Manager
-      <span>Ladder Planning</span>
-    </a>
+  <!-- Flow labels -->
+  <text class="flow-label" x="290" y="218.4" transform="rotate(28.6, 290, 226.4)">daily mid-market prices</text>
+  <text class="flow-label" x="290" y="307.8" transform="rotate(18.1, 290, 315.8)">daily Ref CPI</text>
+  <text class="flow-label" x="290" y="397.3" transform="rotate(6.2, 290, 405.3)">auction results, TIPS metadata</text>
+  <text class="flow-label" x="290" y="486.7" transform="rotate(-6.2, 290, 494.7)">monthly CPI-U, NSA and SA</text>
+  <text class="flow-label" x="290" y="576.2" transform="rotate(-18.1, 290, 584.2)">market yields</text>
+  <text class="flow-label" x="290" y="665.6" transform="rotate(-28.6, 290, 673.6)">bid and ask quotes</text>
 
-    <div style="height: 15px;"></div>
-    <div class="label" style="color: #6ba6cc;">Reference</div>
-    <a href="viewer.html#/md/knowledge/TreasuryAuctions.md" class="process" style="border-color: #2474a6;">
-      TreasuryAuctions
-      <span>Auction Data</span>
-    </a>
-    <a href="viewer.html#/md/TipsReference/knowledge/1.0_TIPS_Reference.md" class="process" style="border-color: #2474a6;">
-      TipsReference
-      <span>TIPS Table</span>
-    </a>
-    <a href="viewer.html#/md/CpiExplorer/knowledge/1.0_Overview.md" class="process" style="border-color: #2474a6;">
-      CpiExplorer
-      <span>CPI Analysis</span>
-    </a>
-    <a href="viewer.html#/md/TaxationOfTreasuries/docs/TaxationOfTreasuries_Foundation.md" class="process" style="border-color: #2474a6;">
-      TaxationOf<br>Treasuries
-      <span>Tax Reference</span>
-    </a>
-    <a href="viewer.html#/md/FundHoldings/knowledge/1.0_FundHoldings.md" class="process" style="border-color: #2474a6;">
-      FundHoldings
-      <span>Fund Holdings</span>
-    </a>
+  <text class="flow-label" x="902" y="438" text-anchor="middle">fund holdings</text>
 
-    <div style="height: 15px;"></div>
-    <div class="label" style="color: #a68ad4;">Educational</div>
-    <a href="viewer.html#/md/Primer/knowledge/1.0_Primer.md" class="process" style="border-color: #6c4ab8;">
-      Treasury Securities<br>Primer
-      <span>Slide Deck</span>
-    </a>
-    <a href="viewer.html#/md/SeasonalAdjustments/knowledge/1.0_SeasonalAdjustments_Explorer.md" class="process" style="border-color: #6c4ab8;">
-      Seasonal<br>Adjustments
-      <span>Visual Explainer</span>
-    </a>
+  <text class="flow-label" x="663" y="186" text-anchor="end">holdings, DARA,</text>
+  <text class="flow-label" x="663" y="204" text-anchor="end">date ranges, selections</text>
+  <text class="flow-label" x="737" y="186">tables, charts, trade</text>
+  <text class="flow-label" x="737" y="204">tickets, CSV exports</text>
 
-    <div style="height: 15px;"></div>
-    <div class="label" style="color: #d4a94a;">External Resources</div>
-    <a href="https://motips.pythonanywhere.com/" target="_blank" rel="noopener" class="entity" style="border-style: dashed; border-color: #c8920a; opacity: 0.85;">
-      After-Tax<br>Calculator
-    </a>
-  </div>
+  <text class="flow-label" x="663" y="656" text-anchor="end">ingested market</text>
+  <text class="flow-label" x="663" y="674" text-anchor="end">and reference data</text>
+  <text class="flow-label" x="737" y="656">market and</text>
+  <text class="flow-label" x="737" y="674">reference data</text>
 
-  <!-- Column 5: Foundations (Connected to Apps) -->
-  <div class="column" style="margin-left: 20px; border-left: 1px dashed #444; padding-left: 20px;">
-    <div class="label">Knowledge Base</div>
-    <a href="viewer.html#/md/knowledge/Bond_Basics.md" class="foundation">Bond Basics</a>
-    <a href="viewer.html#/md/knowledge/TIPS_Basics.md" class="foundation">TIPS Basics</a>
-    <a href="viewer.html#/md/knowledge/Treasury_CUSIP_Reference.md" class="foundation">CUSIP Ref</a>
-    
-    <div style="height: 15px;"></div>
-    <div class="label">Internal Specs</div>
-    <a href="viewer.html#/md/TipsLadderManager/knowledge/1.0_Bond_Ladders.md" class="foundation" style="font-size: 0.75rem;">Bond Ladders</a>
-    <a href="viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md" class="foundation" style="font-size: 0.75rem;">TIPS Ladders</a>
-    <a href="viewer.html#/md/TipsLadderManager/knowledge/3.0_TIPS_Ladder_Rebalancing.md" class="foundation" style="font-size: 0.75rem;">Rebalancing</a>
-    <a href="viewer.html#/md/YieldCurves/knowledge/1.0_Seasonal_Adjustments.md" class="foundation" style="font-size: 0.75rem;">SA Logic</a>
-  </div>
+  <!-- External entities: data sources E1-E6 -->
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e1">
+    <rect x="30" y="184" width="230" height="52" rx="3"/>
+    <text class="e-name" x="145" y="208">FedInvest</text>
+    <text class="e-id" x="145" y="225">E1</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e2">
+    <rect x="30" y="280" width="230" height="52" rx="3"/>
+    <text class="e-name" x="145" y="304">TreasuryDirect SecIndex</text>
+    <text class="e-id" x="145" y="321">E2</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e3">
+    <rect x="30" y="376" width="230" height="52" rx="3"/>
+    <text class="e-name" x="145" y="400">FiscalData API</text>
+    <text class="e-id" x="145" y="417">E3</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e4">
+    <rect x="30" y="472" width="230" height="52" rx="3"/>
+    <text class="e-name" x="145" y="496">BLS Public API</text>
+    <text class="e-id" x="145" y="513">E4</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e5">
+    <rect x="30" y="568" width="230" height="52" rx="3"/>
+    <text class="e-name" x="145" y="592">CNBC GraphQL</text>
+    <text class="e-id" x="145" y="609">E5</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e6">
+    <rect x="30" y="664" width="230" height="52" rx="3"/>
+    <text class="e-name" x="145" y="688">Fidelity Fixed Income</text>
+    <text class="e-id" x="145" y="705">E6</text>
+  </a>
 
+  <!-- External entities: fund providers E7-E12 -->
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e7">
+    <rect x="1140" y="184" width="230" height="52" rx="3"/>
+    <text class="e-name" x="1255" y="208">Vanguard Advisors API</text>
+    <text class="e-id" x="1255" y="225">E7</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e8">
+    <rect x="1140" y="280" width="230" height="52" rx="3"/>
+    <text class="e-name" x="1255" y="304">fminvest.com API</text>
+    <text class="e-id" x="1255" y="321">E8</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e9">
+    <rect x="1140" y="376" width="230" height="52" rx="3"/>
+    <text class="e-name" x="1255" y="400">PIMCO fund-detail API</text>
+    <text class="e-id" x="1255" y="417">E9</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e10">
+    <rect x="1140" y="472" width="230" height="52" rx="3"/>
+    <text class="e-name" x="1255" y="496">Schwab Asset Management</text>
+    <text class="e-id" x="1255" y="513">E10</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e11">
+    <rect x="1140" y="568" width="230" height="52" rx="3"/>
+    <text class="e-name" x="1255" y="592">BondBloxx</text>
+    <text class="e-id" x="1255" y="609">E11</text>
+  </a>
+  <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e12">
+    <rect x="1140" y="664" width="230" height="52" rx="3"/>
+    <text class="e-name" x="1255" y="688">BlackRock iShares</text>
+    <text class="e-id" x="1255" y="705">E12</text>
+  </a>
+
+  <!-- External entity: the investor -->
+  <g class="entity">
+    <rect x="585" y="30" width="230" height="52" rx="3"/>
+    <text class="e-name" x="700" y="54">Investor</text>
+    <text class="e-id" x="700" y="71">USER</text>
+  </g>
+
+  <!-- Process 0 -->
+  <a class="process" href="viewer.html#/md/knowledge/Portal.md">
+    <circle cx="700" cy="450" r="95"/>
+    <text class="p-id" x="700" y="424">0</text>
+    <text class="p-name" x="700" y="448">Treasury Investors</text>
+    <text class="p-name" x="700" y="468">Portal</text>
+    <text class="p-hint" x="700" y="490">DRILL DOWN</text>
+  </a>
+
+  <!-- Data store -->
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md">
+    <rect x="520" y="798" width="360" height="60" fill="transparent" stroke="none"/>
+    <line x1="520" y1="798" x2="880" y2="798"/>
+    <line x1="520" y1="858" x2="880" y2="858"/>
+    <text class="s-name" x="700" y="822">Cloudflare R2</text>
+    <text class="s-sub" x="700" y="843">DATA STORES</text>
+  </a>
+</svg>
 </div>
 
-<p style="max-width: 900px; margin-top: 40px; font-size: 0.75rem; color: #666699; text-align: center; line-height: 1.6;">
-  Application groups match the portal's own grouping (Daily Workflow / Reference / Educational / External Resources). Not every app consumes every upstream store —
-  <b>TaxationOfTreasuries</b> is static reference content with no live data pipeline; <b>FundHoldings</b> fetches its primary holdings data (Vanguard/fminvest, dashed above)
-  via a manually-run script committed directly to the repo rather than the shared Ingestion → R2 pipeline (it does still read R2 for yield enrichment); the
-  <b>After-Tax Calculator</b> is a third-party tool with no data flow from this system at all. See each app's own spec for exact data dependencies.
+<p class="notes">
+  Process 0 is the whole system, the ingestion jobs and the browser apps alike. Cloudflare R2 is drawn as a data store rather than left out as an internal one because it is hosted outside the system: the ingestion jobs write it and the browser apps read it.
+  Each fund provider, E7 through E12, supplies fund holdings together with that fund's expense ratio and 30-Day SEC yield.
+  Field-level composition for every external entity is in the <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md">Data Dictionary</a>; the R2 file manifest is in <a href="viewer.html#/md/knowledge/DataStores.md">Data Stores</a>.
 </p>
+
+<div class="index">
+  <h2>Spec Index</h2>
+  <p>Level 1 will explode process 0 into one process per app, with the data stores each one reads. Until it is drawn, the specs are linked directly here.</p>
+
+  <div class="index-group">
+    <span class="g-label">Daily Workflow</span>
+    <a href="viewer.html#/md/knowledge/TipsLadderManager.md">TipsLadderManager</a>
+    <a href="viewer.html#/md/knowledge/YieldCurves.md">YieldCurves</a>
+    <a href="viewer.html#/md/knowledge/YieldsMonitor.md">YieldsMonitor</a>
+  </div>
+
+  <div class="index-group">
+    <span class="g-label">Reference</span>
+    <a href="viewer.html#/md/knowledge/TreasuryAuctions.md">TreasuryAuctions</a>
+    <a href="viewer.html#/md/TipsReference/knowledge/1.0_TIPS_Reference.md">TipsReference</a>
+    <a href="viewer.html#/md/CpiExplorer/knowledge/1.0_Overview.md">CpiExplorer</a>
+    <a href="viewer.html#/md/TaxationOfTreasuries/docs/TaxationOfTreasuries_Foundation.md">TaxationOfTreasuries</a>
+    <a href="viewer.html#/md/FundHoldings/knowledge/1.0_FundHoldings.md">FundHoldings</a>
+  </div>
+
+  <div class="index-group">
+    <span class="g-label">Educational</span>
+    <a href="viewer.html#/md/Primer/knowledge/1.0_Primer.md">Treasury Securities Primer</a>
+    <a href="viewer.html#/md/SeasonalAdjustments/knowledge/1.0_SeasonalAdjustments_Explorer.md">SeasonalAdjustments</a>
+  </div>
+
+  <div class="index-group">
+    <span class="g-label">Shared Knowledge Base</span>
+    <a href="viewer.html#/md/knowledge/Bond_Basics.md">Bond Basics</a>
+    <a href="viewer.html#/md/knowledge/TIPS_Basics.md">TIPS Basics</a>
+    <a href="viewer.html#/md/knowledge/Treasury_CUSIP_Reference.md">Treasury CUSIP Reference</a>
+    <a href="viewer.html#/md/knowledge/Data_Pipeline.md">Data Pipeline</a>
+  </div>
+
+  <div class="index-group">
+    <span class="g-label">Ladder Specs</span>
+    <a href="viewer.html#/md/TipsLadderManager/knowledge/1.0_Bond_Ladders.md">1.0 Bond Ladders</a>
+    <a href="viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md">2.0 TIPS Ladders</a>
+    <a href="viewer.html#/md/TipsLadderManager/knowledge/3.0_TIPS_Ladder_Rebalancing.md">3.0 Rebalancing</a>
+    <a href="viewer.html#/md/YieldCurves/knowledge/1.0_Seasonal_Adjustments.md">1.0 Seasonal Adjustments</a>
+  </div>
+
+  <div class="index-group">
+    <span class="g-label">External Resources</span>
+    <a href="https://motips.pythonanywhere.com/" target="_blank" rel="noopener">After-Tax TIPS Ladder Calculator</a>
+  </div>
+</div>
 
 </body>
 </html>
