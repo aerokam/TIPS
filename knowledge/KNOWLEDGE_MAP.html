@@ -54,12 +54,11 @@
   .nav-header a.portal-link:hover { background: #1e293b; color: #ffffff; border-color: #1e293b; text-decoration: none; }
 
   h1 {
-    font-size: 1.8rem;
+    font-size: 1.5rem;
     font-weight: 300;
-    letter-spacing: 4px;
+    letter-spacing: 2px;
     color: var(--accent);
     margin: 0 0 25px;
-    text-transform: uppercase;
     text-align: center;
   }
 
@@ -74,7 +73,6 @@
   }
   .entity:hover rect { stroke: var(--accent); }
   .entity .e-name { fill: #c8d0ea; font-size: 13.5px; }
-  .entity .e-id { fill: #6f78a0; font-size: 10.5px; letter-spacing: 1px; }
   .entity:hover .e-name { fill: #ffffff; }
 
   .process circle {
@@ -85,12 +83,10 @@
   .process:hover circle { stroke: #aaaaff; filter: drop-shadow(0 0 12px rgba(112,112,204,0.6)); }
   .process .p-id { fill: #8fa0d8; font-size: 12px; letter-spacing: 1px; }
   .process .p-name { fill: #eef0ff; font-size: 15px; font-weight: 600; }
-  .process .p-hint { fill: #8fa0d8; font-size: 10.5px; letter-spacing: 1px; }
 
   .store line { stroke: #4a8a4a; stroke-width: 2; }
   .store:hover line { stroke: #7ada7a; }
   .store .s-name { fill: #a8e6a8; font-size: 15px; }
-  .store .s-sub { fill: #6fa86f; font-size: 11px; letter-spacing: 1px; }
 
   a.entity, a.process, a.store { cursor: pointer; text-decoration: none; }
   a text, g.entity text { text-anchor: middle; font-family: var(--font); }
@@ -156,17 +152,12 @@
 
 <div class="nav-header">
   <a href="../" class="portal-link">&#8592; Portal</a>
-  <a href="viewer.html#/md/knowledge/Portal.md">Portal Overview</a>
-  <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md">Data Dictionary</a>
-  <a href="viewer.html#/md/knowledge/DataStores.md">Data Stores</a>
-  <a href="viewer.html#/md/knowledge/Admin_Dashboard.md">Admin Dashboard</a>
-  <a href="viewer.html#/md/knowledge/VERIFICATION_SUITE.md">Verify Setup</a>
 </div>
 
-<h1>Treasury Investors Portal<br><span style="font-size: 0.55em; letter-spacing: 2px; opacity: 0.75;">Context Diagram</span></h1>
+<h1>Context Diagram</h1>
 
 <div class="diagram">
-<svg viewBox="0 0 1400 900" role="img" aria-label="Context diagram: external entities E1 through E12 and the investor exchange data flows with the Treasury Investors Portal, which writes and reads the Cloudflare R2 data stores.">
+<svg viewBox="0 0 1400 900" role="img" aria-label="Context diagram: twelve external data sources and the user exchange data flows with the Treasury Investors Portal, which writes and reads the Cloudflare R2 data stores.">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#55558c"/>
@@ -201,7 +192,7 @@
   <line class="flow" x1="1140" y1="690" x2="1010" y2="450"/>
   <line class="flow" x1="1010" y1="450" x2="797" y2="450" marker-end="url(#arrow)"/>
 
-  <!-- Flows: investor -->
+  <!-- Flows: user -->
   <line class="flow" x1="675" y1="82" x2="675" y2="356" marker-end="url(#arrow)"/>
   <line class="flow" x1="725" y1="358" x2="725" y2="84" marker-end="url(#arrow)"/>
 
@@ -219,85 +210,70 @@
 
   <text class="flow-label" x="902" y="438" text-anchor="middle">fund holdings</text>
 
-  <text class="flow-label" x="663" y="186" text-anchor="end">holdings, DARA,</text>
-  <text class="flow-label" x="663" y="204" text-anchor="end">date ranges, selections</text>
-  <text class="flow-label" x="737" y="186">tables, charts, trade</text>
-  <text class="flow-label" x="737" y="204">tickets, CSV exports</text>
+  <text class="flow-label" x="663" y="196" text-anchor="end">app inputs</text>
+  <text class="flow-label" x="737" y="196">app outputs</text>
 
-  <text class="flow-label" x="663" y="656" text-anchor="end">ingested market</text>
-  <text class="flow-label" x="663" y="674" text-anchor="end">and reference data</text>
+  <text class="flow-label" x="663" y="656" text-anchor="end">retrieved and</text>
+  <text class="flow-label" x="663" y="674" text-anchor="end">calculated data</text>
   <text class="flow-label" x="737" y="656">market and</text>
   <text class="flow-label" x="737" y="674">reference data</text>
 
   <!-- External entities: data sources E1-E6 -->
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e1">
     <rect x="30" y="184" width="230" height="52" rx="3"/>
-    <text class="e-name" x="145" y="208">FedInvest</text>
-    <text class="e-id" x="145" y="225">E1</text>
+    <text class="e-name" x="145" y="216">FedInvest</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e2">
     <rect x="30" y="280" width="230" height="52" rx="3"/>
-    <text class="e-name" x="145" y="304">TreasuryDirect SecIndex</text>
-    <text class="e-id" x="145" y="321">E2</text>
+    <text class="e-name" x="145" y="312">TreasuryDirect SecIndex</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e3">
     <rect x="30" y="376" width="230" height="52" rx="3"/>
-    <text class="e-name" x="145" y="400">FiscalData API</text>
-    <text class="e-id" x="145" y="417">E3</text>
+    <text class="e-name" x="145" y="408">FiscalData API</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e4">
     <rect x="30" y="472" width="230" height="52" rx="3"/>
-    <text class="e-name" x="145" y="496">BLS Public API</text>
-    <text class="e-id" x="145" y="513">E4</text>
+    <text class="e-name" x="145" y="504">BLS Public API</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e5">
     <rect x="30" y="568" width="230" height="52" rx="3"/>
-    <text class="e-name" x="145" y="592">CNBC GraphQL</text>
-    <text class="e-id" x="145" y="609">E5</text>
+    <text class="e-name" x="145" y="600">CNBC GraphQL</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e6">
     <rect x="30" y="664" width="230" height="52" rx="3"/>
-    <text class="e-name" x="145" y="688">Fidelity Fixed Income</text>
-    <text class="e-id" x="145" y="705">E6</text>
+    <text class="e-name" x="145" y="696">Fidelity Fixed Income</text>
   </a>
 
   <!-- External entities: fund providers E7-E12 -->
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e7">
     <rect x="1140" y="184" width="230" height="52" rx="3"/>
-    <text class="e-name" x="1255" y="208">Vanguard Advisors API</text>
-    <text class="e-id" x="1255" y="225">E7</text>
+    <text class="e-name" x="1255" y="216">Vanguard Advisors API</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e8">
     <rect x="1140" y="280" width="230" height="52" rx="3"/>
-    <text class="e-name" x="1255" y="304">fminvest.com API</text>
-    <text class="e-id" x="1255" y="321">E8</text>
+    <text class="e-name" x="1255" y="312">fminvest.com API</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e9">
     <rect x="1140" y="376" width="230" height="52" rx="3"/>
-    <text class="e-name" x="1255" y="400">PIMCO fund-detail API</text>
-    <text class="e-id" x="1255" y="417">E9</text>
+    <text class="e-name" x="1255" y="408">PIMCO fund-detail API</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e10">
     <rect x="1140" y="472" width="230" height="52" rx="3"/>
-    <text class="e-name" x="1255" y="496">Schwab Asset Management</text>
-    <text class="e-id" x="1255" y="513">E10</text>
+    <text class="e-name" x="1255" y="504">Schwab Asset Management</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e11">
     <rect x="1140" y="568" width="230" height="52" rx="3"/>
-    <text class="e-name" x="1255" y="592">BondBloxx</text>
-    <text class="e-id" x="1255" y="609">E11</text>
+    <text class="e-name" x="1255" y="600">BondBloxx</text>
   </a>
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e12">
     <rect x="1140" y="664" width="230" height="52" rx="3"/>
-    <text class="e-name" x="1255" y="688">BlackRock iShares</text>
-    <text class="e-id" x="1255" y="705">E12</text>
+    <text class="e-name" x="1255" y="696">BlackRock iShares</text>
   </a>
 
-  <!-- External entity: the investor -->
+  <!-- External entity: the user -->
   <g class="entity">
     <rect x="585" y="30" width="230" height="52" rx="3"/>
-    <text class="e-name" x="700" y="54">Investor</text>
-    <text class="e-id" x="700" y="71">USER</text>
+    <text class="e-name" x="700" y="62">User</text>
   </g>
 
   <!-- Process 0 -->
@@ -306,7 +282,6 @@
     <text class="p-id" x="700" y="424">0</text>
     <text class="p-name" x="700" y="448">Treasury Investors</text>
     <text class="p-name" x="700" y="468">Portal</text>
-    <text class="p-hint" x="700" y="490">DRILL DOWN</text>
   </a>
 
   <!-- Data store -->
@@ -314,16 +289,15 @@
     <rect x="520" y="798" width="360" height="60" fill="transparent" stroke="none"/>
     <line x1="520" y1="798" x2="880" y2="798"/>
     <line x1="520" y1="858" x2="880" y2="858"/>
-    <text class="s-name" x="700" y="822">Cloudflare R2</text>
-    <text class="s-sub" x="700" y="843">DATA STORES</text>
+    <text class="s-name" x="700" y="834">Cloudflare R2</text>
   </a>
 </svg>
 </div>
 
 <p class="notes">
   Process 0 is the whole system, the ingestion jobs and the browser apps alike. Cloudflare R2 is drawn as a data store rather than left out as an internal one because it is hosted outside the system: the ingestion jobs write it and the browser apps read it.
-  Each fund provider, E7 through E12, supplies fund holdings together with that fund's expense ratio and 30-Day SEC yield.
-  Field-level composition for every external entity is in the <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md">Data Dictionary</a>; the R2 file manifest is in <a href="viewer.html#/md/knowledge/DataStores.md">Data Stores</a>.
+  Each of the six fund providers supplies fund holdings together with that fund's expense ratio and 30-Day SEC yield.
+  Click any shape to reach its spec: an external entity opens its field-level composition in the <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md">Data Dictionary</a>, and Cloudflare R2 opens the file manifest in <a href="viewer.html#/md/knowledge/DataStores.md">Data Stores</a>.
 </p>
 
 <div class="index">
@@ -366,6 +340,12 @@
     <a href="viewer.html#/md/TipsLadderManager/knowledge/2.0_TIPS_Ladders.md">2.0 TIPS Ladders</a>
     <a href="viewer.html#/md/TipsLadderManager/knowledge/3.0_TIPS_Ladder_Rebalancing.md">3.0 Rebalancing</a>
     <a href="viewer.html#/md/YieldCurves/knowledge/1.0_Seasonal_Adjustments.md">1.0 Seasonal Adjustments</a>
+  </div>
+
+  <div class="index-group">
+    <span class="g-label">Developer Only</span>
+    <a href="viewer.html#/md/knowledge/Admin_Dashboard.md">Admin Dashboard</a>
+    <a href="viewer.html#/md/knowledge/VERIFICATION_SUITE.md">Verify Setup</a>
   </div>
 
   <div class="index-group">
