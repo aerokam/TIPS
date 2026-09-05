@@ -6,7 +6,7 @@ Project-wide data acquisition architecture. This document tracks the sources, sc
 
 ## 1.0 External Data Sources
 
-All data enters the system from these 6 external entities. Click the **Drill-down Schema** to see exactly which fields are provided by each source.
+All data enters the system from these external entities. Click the **Drill-down Schema** to see exactly which fields are provided by each source.
 
 | ID | Source | Data Provided | Method | Drill-down Schema |
 |---|---|---|---|---|
@@ -16,6 +16,12 @@ All data enters the system from these 6 external entities. Click the **Drill-dow
 | **E4** | **BLS API** | Monthly CPI-U (NSA/SA) factors | REST API | [E4 Schema](./DATA_DICTIONARY.md#e4) |
 | **E5** | **CNBC** | Real-time market yields | GraphQL | [E5 Schema](./DATA_DICTIONARY.md#e5) |
 | **E6** | **Fidelity** | Broker ask/bid quotes | Automated Download | [E6 Schema](./DATA_DICTIONARY.md#e6) |
+| **E7** | **Vanguard Advisors** | Fund holdings, expense ratio, 30-Day SEC yield | REST API | [E7 Schema](./DATA_DICTIONARY.md#e7) |
+| **E8** | **fminvest.com** | Fund holdings, expense ratio, 30-Day SEC yield | REST API + page scrape | [E8 Schema](./DATA_DICTIONARY.md#e8) |
+| **E9** | **PIMCO** | Fund holdings, expense ratio, 30-Day SEC yield | REST API (xlsx export) | [E9 Schema](./DATA_DICTIONARY.md#e9) |
+| **E10** | **Schwab Asset Management** | Fund holdings, expense ratio, 30-Day SEC yield | Headless-browser CSV download | [E10 Schema](./DATA_DICTIONARY.md#e10) |
+| **E11** | **BondBloxx** | Fund holdings, expense ratio, 30-Day SEC yield | Product-page scrape | [E11 Schema](./DATA_DICTIONARY.md#e11) |
+| **E12** | **BlackRock iShares** | Fund holdings, expense ratio, 30-Day SEC yield | REST API (CSV) + page scrape | [E12 Schema](./DATA_DICTIONARY.md#e12) |
 
 ---
 
@@ -34,7 +40,8 @@ These jobs run on the host machine via Windows Task Scheduler.
 | **TIPS Ref Refresh** | Mondays 7am PT | `scripts/fetchTipsRef.js` | `TipsRef.csv` |
 | **Update Yields History** | Weekdays 2:00pm PT | `YieldsMonitor/scripts/updateYieldsHistory.js` | `yields-history/history.json` |
 | **SA Factor Update** | Daily 6:35am | `YieldCurves/scripts/updateRefCpi.js` | `RefCpiNsaSa.csv` |
-| **GSW TIPS Curve** | Daily 7:15am PT | `YieldCurves/scripts/updateGswTipsCurve.js` | `TIPS/GswTipsCurve.json` (GSW Svensson params — [S11](./DataStores.md#s11)) |
+| **FundHoldings** | Daily 6:40am PT | `FundHoldings/updateAllHoldings.js`, then `FundHoldings/enrichHoldings.js` | `FundHoldings/Holdings-<TICKER>(-Enriched).csv` and `FundHoldings/FundMeta.json` ([S11](./DataStores.md#s11)) |
+| **GSW TIPS Curve** | Daily 7:15am PT | `YieldCurves/scripts/updateGswTipsCurve.js` | `TIPS/GswTipsCurve.json` (GSW Svensson params — [S12](./DataStores.md#s12)) |
 | **CPI History Refresh** | 8:35 AM ET on each BLS release date, then chains Ref CPI Refresh | `scripts/fetchCpiHistory.js` (`run-cpi-history.cmd`) | `bls/CPI_history.csv` |
 | **Ref CPI Refresh** | Chained from CPI History Refresh (not independently scheduled) | `scripts/fetchRefCpi.js` (`run-ref-cpi.cmd`) | `TIPS/RefCPI.csv` |
 

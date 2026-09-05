@@ -27,13 +27,11 @@ The portal is the browser-based entry point to all Treasury investment tools. It
 
 ```
 External Sources (E)  →  Ingestion Jobs (P)  →  Cloudflare R2 (S)  →  Browser Apps (A)
-     E1–E6                 GH Actions /               S1–S10                A1–A9
+     E1–E12                GH Actions /               S1–S12                A1–A9
                          Local Tasks (Win)
 ```
 
 All apps fetch data directly from Cloudflare R2 at runtime using public HTTPS URLs. No server-side rendering; no authentication.
-
-**Exception**: Fund Holdings (A9) does not fit this pipeline for its primary data. Its raw holdings feed (E7/E8) is fetched by a manually-run script and committed to the repo directly (not R2, not a scheduled ingestion job) — see [FundHoldings/knowledge/1.0_FundHoldings.md](../FundHoldings/knowledge/1.0_FundHoldings.md). It does still read Cloudflare R2 (S10, S7) for yield enrichment, same as any other app.
 
 ---
 
@@ -51,6 +49,8 @@ All apps fetch data directly from Cloudflare R2 at runtime using public HTTPS UR
 | [S8](./DataStores.md#s8) | CPI_history.csv | A5 (full monthly CPI history 1913+) |
 | [S9](./DataStores.md#s9) | Tentative-Auction-Schedule.xml | A4 (flag TIPS in upcoming auctions) |
 | [S10](./DataStores.md#s10) | YieldsSaSao.csv | A9 (TIPS fund holdings enrichment) |
+| [S11](./DataStores.md#s11) | FundHoldings/Holdings-&lt;TICKER&gt;(-Enriched).csv | A9 (fund holdings by CUSIP) |
+| [S12](./DataStores.md#s12) | GswTipsCurve.json | A2 (GSW zero reference curve) |
 
 ---
 
@@ -68,6 +68,10 @@ All definitions are canonical in the [Data Dictionary](./DATA_DICTIONARY.md#1.0-
 | [E6](./DATA_DICTIONARY.md#e6) | Fidelity Fixed Income | A2 |
 | [E7](./DATA_DICTIONARY.md#e7) | Vanguard Advisors API | A9 |
 | [E8](./DATA_DICTIONARY.md#e8) | fminvest.com API | A9 |
+| [E9](./DATA_DICTIONARY.md#e9) | PIMCO fund-detail API | A9 |
+| [E10](./DATA_DICTIONARY.md#e10) | Schwab Asset Management holdings export | A9 |
+| [E11](./DATA_DICTIONARY.md#e11) | BondBloxx product-page holdings table | A9 |
+| [E12](./DATA_DICTIONARY.md#e12) | BlackRock iShares fund-document API | A9 |
 
 ---
 

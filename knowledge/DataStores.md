@@ -158,7 +158,22 @@ This document provides the technical schemas and field-level specifications for 
 
 ---
 
-## <a id="s11"></a>S11: GswTipsCurve.json
+## <a id="s11"></a>S11: FundHoldings/Holdings-&lt;TICKER&gt;(-Enriched).csv
+**Description**: Treasury and TIPS fund holdings by CUSIP, one raw and one enriched CSV per fund ticker (VBIL, VTIP, VTP, RBIL, LTPZ, SCHP, XHLF, ICPI). The enriched file adds ask/SA/SAO yield, term, and duration, computed the same way for every fund from [S10](#s10) and [S7](#s7) rather than taken from each provider’s own reported analytics.
+**Update Frequency**: Daily, Local Windows Task `FundHoldings`, via `FundHoldings/updateAllHoldings.js` then `FundHoldings/enrichHoldings.js`.
+**R2 Key**: `FundHoldings/` (its own top-level prefix, since a fund’s holdings mix TIPS and nominal rows and so belong under neither `TIPS/` nor `Treasuries/`)
+
+**Key Fields**: `CUSIP`, `Holding_Name`, `Quantity`, `Percent_Of_Fund`, `Market_Value`, `Coupon`, `Maturity_Date`.
+
+**Companion file**: `FundHoldings/FundMeta.json` = `{ @Ticker: { fundName, portId | etfId | cusip | portfolioId, expenseRatio, secYield } }`. `expenseRatio` and `secYield` are percent-scale numbers (`0.09` for 0.09%), each the provider’s own reported figure rather than an independently computed one.
+
+**Sources**: [E7](./DATA_DICTIONARY.md#e7) Vanguard, [E8](./DATA_DICTIONARY.md#e8) fminvest.com, [E9](./DATA_DICTIONARY.md#e9) PIMCO, [E10](./DATA_DICTIONARY.md#e10) Schwab, [E11](./DATA_DICTIONARY.md#e11) BondBloxx, [E12](./DATA_DICTIONARY.md#e12) BlackRock iShares. Per-fund detail: [FundHoldings 1.0](../FundHoldings/knowledge/1.0_FundHoldings.md).
+
+**Live Data**: [View FundMeta.json](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/FundHoldings/FundMeta.json)
+
+---
+
+## <a id="s12"></a>S12: GswTipsCurve.json
 **Description**: The latest published row of the Federal Reserve's Gürkaynak-Sack-Wright fitted TIPS (real) yield curve (FEDS 2008-05), scraped from `feds200805_1.html`. Just the six Svensson parameters and the observation date — the app evaluates the curve itself. Used only as a reference overlay against YieldCurves' own spot fit.
 **Update Frequency**: `GswTipsCurve` task, daily 7:15am PT, via `YieldCurves/scripts/updateGswTipsCurve.js`. The source itself updates weekly (Tuesdays, covering through the prior Friday); the daily poll just picks up new or revised rows promptly.
 **R2 Key**: `TIPS/GswTipsCurve.json`
