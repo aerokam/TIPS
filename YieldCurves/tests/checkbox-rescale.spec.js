@@ -349,4 +349,18 @@ test.describe('Treasuries tab — outlier clipping: bonds+notes combined', () =>
     expect(clipped.max).toBeCloseTo(unclipped.max, 1);
     expect(clipped.max).toBeGreaterThan(5.1);
   });
+
+  test('showing Spot with Clip Outliers on keeps the whole spot curve inside the Y axis', async ({ page }) => {
+    await page.check('#showTsySpot');   // Clip Outliers is on by default
+    const fit = await page.evaluate(() => {
+      const chart = Chart.getChart(document.getElementById('yieldChart'));
+      const { min, max } = chart.scales.y;
+      const curves = chart.data.datasets.filter((d, i) => d.label.startsWith('Spot') && chart.isDatasetVisible(i));
+      const pts = curves.flatMap(d => d.data.map(p => p.y));
+      return { curves: curves.length, outside: pts.filter(y => y < min - 1e-6 || y > max + 1e-6) };
+    });
+    expect(fit.curves, 'spot fit should produce a curve for the 52-bond fixture').toBeGreaterThan(0);
+    // Clip Outliers must not trim the fitted curve — every point of it stays on-axis.
+    expect(fit.outside, `spot points outside the axis: ${JSON.stringify(fit.outside)}`).toEqual([]);
+  });
 });
