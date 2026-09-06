@@ -221,3 +221,17 @@ test('Treasuries + TIPS SHOW rows carry Spot / Spot SA', async ({ page }) => {
   await expect(page.locator('#showTipsSpot')).toBeVisible();
   await expect(page.locator('#showTipsSpotSa')).toBeVisible();
 });
+
+test('Treasuries Spot toggle is off by default and toggles without crash', async ({ page }) => {
+  await loadTreasuries(page);
+  await expect(page.locator('#showTsySpot')).not.toBeChecked();   // off by default — opt in
+  await page.locator('#showTsySpot').check();
+  await page.locator('#showTsySpot').uncheck();
+  await expect(page.locator('#yieldChart')).toBeVisible();
+});
+
+test('Treasuries Spot label opens a help popup', async ({ page }) => {
+  await loadTreasuries(page);
+  await page.click('#nominalsControls a.col-help[data-col="spot-tsy"]');
+  await expect(page.locator('#drill-modal')).toContainText('Zero-Coupon Yield Curve');
+});

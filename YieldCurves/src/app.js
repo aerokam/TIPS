@@ -235,6 +235,12 @@ const COL_HELP = {
 <p>It is a <strong>zero-coupon</strong> curve: the rate for a single payment at each horizon. The fit chooses the curve so that discounting every TIPS's own cash flows along it reproduces that bond's price. Because a bond's yield-to-maturity blends together many different-dated payments, two TIPS of the same maturity but different coupons have slightly different yields to maturity — the spot curve removes that coupon effect.</p>
 <p>Same curve family (Nelson-Siegel-Svensson) the Federal Reserve uses for its published TIPS curve. <strong>Spot</strong> is fitted to the <strong>quoted ask</strong> yields, so it tracks the Ask points.</p>`
   },
+  'spot-tsy': {
+    title: 'Spot — Zero-Coupon Yield Curve',
+    html: `<p>Bills, Notes and Bonds are one point per security. <strong>Spot</strong> is a single smooth curve fitted through the coupon Treasuries (Notes and Bonds), one line per price source (FedInvest dotted, Market solid).</p>
+<p>It is a <strong>zero-coupon</strong> curve: the rate for a single payment at each horizon. The fit chooses the curve so that discounting each security's own cash flows along it reproduces its price. Because a yield to maturity blends together many different-dated payments, two Treasuries of the same maturity but different coupons have slightly different yields to maturity — the spot curve removes that coupon effect.</p>
+<p>Same curve family (Nelson-Siegel-Svensson) the Federal Reserve uses for its published curves.</p>`
+  },
   'spot-sa': {
     title: 'Spot SA — Seasonally Adjusted Zero-Coupon Curve',
     html: `<p>The same zero-coupon fit as <strong>Spot</strong>, but fitted to the <strong>seasonally adjusted</strong> yields (the SA transform applied to the ask price) instead of the quoted ask yields.</p>
@@ -1090,7 +1096,7 @@ function renderNominalsChart(fedBonds, fidBonds) {
         pointRadius: s.curve ? (s.markerR ?? 0) : s.r,
         pointHoverRadius: s.curve ? 5 : (s.r > 0 ? s.r + 2 : 3),
         tension: s.curve ? 0.3 : 0.1,
-        hidden: !!s.curve   // Spot starts off; click the legend item to show it
+        hidden: s.curve ? !document.getElementById('showTsySpot').checked : false
       }))
     },
     options: {
@@ -2305,7 +2311,7 @@ document.getElementById('beiShowNone').onclick = (e) => {
 // Nominals 'All/None' Links
 document.getElementById('nominalsShowAll').onclick = (e) => {
   e.preventDefault();
-  ['filterBills', 'filterNotes', 'filterBonds'].forEach(id => {
+  ['filterBills', 'filterNotes', 'filterBonds', 'showTsySpot'].forEach(id => {
     const el = document.getElementById(id);
     el.checked = true;
     el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2313,7 +2319,7 @@ document.getElementById('nominalsShowAll').onclick = (e) => {
 };
 document.getElementById('nominalsShowNone').onclick = (e) => {
   e.preventDefault();
-  ['filterBills', 'filterNotes', 'filterBonds'].forEach(id => {
+  ['filterBills', 'filterNotes', 'filterBonds', 'showTsySpot'].forEach(id => {
     const el = document.getElementById(id);
     el.checked = false;
     el.dispatchEvent(new Event('change', { bubbles: true }));
@@ -2411,6 +2417,16 @@ document.getElementById('nominalsTable').querySelector('thead').addEventListener
 });
 
 document.getElementById('nominalsControls').addEventListener('change', (e) => {
+  if (e.target.id === 'showTsySpot') {
+    if (chart && activeTab === 'treasuries') {
+      chart.data.datasets.forEach((ds, i) => {
+        if (ds.label.startsWith('Spot')) chart.setDatasetVisibility(i, e.target.checked);
+      });
+      chart.update('none');
+      rescaleToVisible(chart);
+    }
+    return;
+  }
   if (e.target.id === 'clipOutliers') {
     nominalsClipOutliers = e.target.checked;
     savedZoom['treasuries'] = null;
