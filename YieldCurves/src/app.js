@@ -1077,28 +1077,29 @@ function renderNominalsChart(fedBonds, fidBonds, fedSpotBonds, fidSpotBonds) {
     };
   }
 
-  // The spot curve drives the initial y-scale only when it is actually shown; hidden, it
-  // must not stretch the axis (it is off by default).
+  // The spot curve drives the initial y-scale only when it is actually shown (off by
+  // default). It is a smooth fit, so it is never treated as an outlier — Clip Outliers
+  // only trims the per-bond points.
   const spotShown = document.getElementById('showTsySpot').checked;
-  let allY = (spotShown ? activeSeries : activeSeries.filter(s => !s.curve)).flatMap(s => s.data).map(d => d.y);
-  if (allY.length === 0) allY = allPoints.map(d => d.y);   // nothing but a hidden curve — scale to it anyway
-  let scaleY = allY;
-  if (nominalsClipOutliers && allY.length >= 4) {
+  const barePointY = activeSeries.filter(s => !s.curve).flatMap(s => s.data).map(d => d.y);
+  const curveY = spotShown ? activeSeries.filter(s => s.curve).flatMap(s => s.data).map(d => d.y) : [];
+  let scaleY = barePointY.slice();
+  if (nominalsClipOutliers && barePointY.length >= 4) {
     // Use Bills/Notes yields for IQR (outliers live in short-dated issues; bonds widen IQR too much).
     // Filter IQR source to positive yields only — near-maturity Bills/Notes can show extreme
     // negative YTM (e.g. -5%) when trading at a tiny premium with days to expiry.
-    // Only clip when Bills or Notes are visible — near-maturity Bills/Notes are the sole source of
-    // extreme negative YTM garbage. Without either, there's nothing to clip.
     const nearMaturityY = activeSeries.filter(s => s.label.includes('Notes') || s.label.includes('Bills')).flatMap(s => s.data).map(d => d.y);
     const nearMaturityYPos = nearMaturityY.filter(y => y > 0);
     if (nearMaturityYPos.length >= 4) {
       const bounds = iqrClipBounds(nearMaturityYPos);
       if (bounds) {
-        const clipped = allY.filter(y => y >= bounds.lo);
+        const clipped = barePointY.filter(y => y >= bounds.lo);
         if (clipped.length > 0) scaleY = clipped;
       }
     }
   }
+  scaleY = scaleY.concat(curveY);
+  if (scaleY.length === 0) scaleY = allPoints.map(d => d.y);
   const minYRaw = Math.min(...scaleY), maxYRaw = Math.max(...scaleY);
   const minY = Math.floor(minYRaw * 20) / 20;
   const maxY = Math.ceil(maxYRaw * 20) / 20;
@@ -1598,13 +1599,15 @@ function rescaleToVisible(chart) {
   const xMin = chart.scales.x.min;
   const xMax = chart.scales.x.max;
   let allVisibleY = [];
+  const curveVisibleY = [];   // fitted curves (Spot, GSW) — smooth, never clipped as outliers
 
   chart.data.datasets.forEach((dataset, i) => {
     if (!chart.isDatasetVisible(i)) return;
-    dataset.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) allVisibleY.push(p.y); });
+    const isCurve = dataset.label.startsWith('Spot') || dataset.label.startsWith('GSW');
+    dataset.data.forEach(p => { if (p.x >= xMin && p.x <= xMax) (isCurve ? curveVisibleY : allVisibleY).push(p.y); });
   });
 
-  if (allVisibleY.length === 0) return;
+  if (allVisibleY.length === 0 && curveVisibleY.length === 0) return;
 
   if (nominalsClipOutliers && chartTab === 'treasuries' && allVisibleY.length >= 4) {
     // Use Bills/Notes yields for IQR (outliers live in short-dated issues; bonds widen IQR too much)
@@ -1631,6 +1634,7 @@ function rescaleToVisible(chart) {
     }
   }
 
+  allVisibleY = allVisibleY.concat(curveVisibleY);
   const visibleMinY = Math.min(...allVisibleY);
   const visibleMaxY = Math.max(...allVisibleY);
   const bounds = snapYBounds(visibleMinY, visibleMaxY);
