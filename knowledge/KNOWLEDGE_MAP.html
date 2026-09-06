@@ -84,11 +84,8 @@
   .process .p-id { fill: #8fa0d8; font-size: 12px; letter-spacing: 1px; }
   .process .p-name { fill: #eef0ff; font-size: 15px; font-weight: 600; }
 
-  .store line { stroke: #4a8a4a; stroke-width: 2; }
-  .store:hover line { stroke: #7ada7a; }
-  .store .s-name { fill: #a8e6a8; font-size: 15px; }
 
-  a.entity, a.process, a.store { cursor: pointer; text-decoration: none; }
+  a.entity, a.process { cursor: pointer; text-decoration: none; }
   a text, g.entity text { text-anchor: middle; font-family: var(--font); }
 
   /* Flows */
@@ -106,7 +103,6 @@
   .legend text { fill: #6f78a0; font-size: 12px; font-family: var(--font); }
   .legend rect.sw { fill: var(--entity); stroke: var(--border); }
   .legend circle.sw { fill: var(--process); stroke: var(--accent); stroke-width: 1.5; }
-  .legend line.sw { stroke: #4a8a4a; stroke-width: 2; }
 
   .notes {
     max-width: 900px;
@@ -157,7 +153,7 @@
 <h1>Context Diagram</h1>
 
 <div class="diagram">
-<svg viewBox="0 0 1400 900" role="img" aria-label="Context diagram: twelve external data sources and the user exchange data flows with the Treasury Investors Portal, which writes and reads the Cloudflare R2 data stores.">
+<svg viewBox="0 0 1400 760" role="img" aria-label="Context diagram: twelve external data sources and the user exchange data flows with the Treasury Investors Portal.">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
       <path d="M 0 0 L 10 5 L 0 10 z" fill="#55558c"/>
@@ -170,9 +166,6 @@
     <text x="78" y="54">external entity</text>
     <circle class="sw" cx="54" cy="80" r="9"/>
     <text x="78" y="85">process</text>
-    <line class="sw" x1="40" y1="104" x2="68" y2="104"/>
-    <line class="sw" x1="40" y1="118" x2="68" y2="118"/>
-    <text x="78" y="116">data store</text>
   </g>
 
   <!-- Flows: external entities E1-E6 into the process -->
@@ -196,10 +189,6 @@
   <line class="flow" x1="675" y1="82" x2="675" y2="356" marker-end="url(#arrow)"/>
   <line class="flow" x1="725" y1="358" x2="725" y2="84" marker-end="url(#arrow)"/>
 
-  <!-- Flows: R2 -->
-  <line class="flow" x1="675" y1="542" x2="675" y2="796" marker-end="url(#arrow)"/>
-  <line class="flow" x1="725" y1="798" x2="725" y2="544" marker-end="url(#arrow)"/>
-
   <!-- Flow labels -->
   <text class="flow-label" x="290" y="218.4" transform="rotate(28.6, 290, 226.4)">daily mid-market prices</text>
   <text class="flow-label" x="290" y="307.8" transform="rotate(18.1, 290, 315.8)">daily Ref CPI</text>
@@ -212,11 +201,6 @@
 
   <text class="flow-label" x="663" y="196" text-anchor="end">app inputs</text>
   <text class="flow-label" x="737" y="196">app outputs</text>
-
-  <text class="flow-label" x="663" y="656" text-anchor="end">retrieved and</text>
-  <text class="flow-label" x="663" y="674" text-anchor="end">calculated data</text>
-  <text class="flow-label" x="737" y="656">market and</text>
-  <text class="flow-label" x="737" y="674">reference data</text>
 
   <!-- External entities: data sources E1-E6 -->
   <a class="entity" href="viewer.html#/md/knowledge/DATA_DICTIONARY.md#e1">
@@ -284,20 +268,13 @@
     <text class="p-name" x="700" y="468">Portal</text>
   </a>
 
-  <!-- Data store -->
-  <a class="store" href="viewer.html#/md/knowledge/DataStores.md">
-    <rect x="520" y="798" width="360" height="60" fill="transparent" stroke="none"/>
-    <line x1="520" y1="798" x2="880" y2="798"/>
-    <line x1="520" y1="858" x2="880" y2="858"/>
-    <text class="s-name" x="700" y="834">Cloudflare R2</text>
-  </a>
 </svg>
 </div>
 
 <p class="notes">
-  Process 0 is the whole system, the ingestion jobs and the browser apps alike. Cloudflare R2 is drawn as a data store rather than left out as an internal one because it is hosted outside the system: the ingestion jobs write it and the browser apps read it.
-  Each of the six fund providers supplies fund holdings together with that fund's expense ratio and 30-Day SEC yield.
-  Click any shape to reach its spec: an external entity opens its field-level composition in the <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md">Data Dictionary</a>, and Cloudflare R2 opens the file manifest in <a href="viewer.html#/md/knowledge/DataStores.md">Data Stores</a>.
+  Process 0 is the whole system. Its data stores are inside it, so they are drawn where they are first shared rather than here.
+  Each of the six fund providers supplies fund holdings together with that fund’s expense ratio and 30-Day SEC yield.
+  Click any shape to reach its spec: an external entity opens its field-level composition in the <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md">Data Dictionary</a>.
 </p>
 
 <div class="index">
@@ -331,6 +308,8 @@
     <a href="viewer.html#/md/knowledge/Bond_Basics.md">Bond Basics</a>
     <a href="viewer.html#/md/knowledge/TIPS_Basics.md">TIPS Basics</a>
     <a href="viewer.html#/md/knowledge/Treasury_CUSIP_Reference.md">Treasury CUSIP Reference</a>
+    <a href="viewer.html#/md/knowledge/DATA_DICTIONARY.md">Data Dictionary</a>
+    <a href="viewer.html#/md/knowledge/DataStores.md">Data Stores</a>
     <a href="viewer.html#/md/knowledge/Data_Pipeline.md">Data Pipeline</a>
   </div>
 

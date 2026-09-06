@@ -4,13 +4,13 @@ Follow these steps to verify that the navigation, rendering, and drill-down feat
 
 ## 1. Context Diagram & Top-Level Navigation
 - [ ] Open `http://localhost:8080/knowledge/KNOWLEDGE_MAP`.
-- [ ] **Top Header**: Verify "Data Dictionary", "Data Stores", "Admin Dashboard", and "Verify Setup" are at the **top** of the page.
-- [ ] **Diagram Shape**: Verify one process circle, **0 Treasury Investors Portal**, with the twelve external entities E1–E12 and the **Investor** around it, and **Cloudflare R2** below it. Every flow arrow carries a label.
+- [ ] **Top Header**: Verify the only link above the diagram is the **Portal** back link. Everything else is reached by drilling into the diagram, or from the Spec Index below it.
+- [ ] **Diagram Shape**: Verify one process circle, **0 Treasury Investors Portal**, with the twelve external entities and the **User** around it. Every flow arrow carries a label, and no data store is drawn at this level.
 - [ ] **Spec Index**: Click **TipsLadderManager**.
     - *Expected*: Opens the rendered Overview in the viewer.
 - [ ] **Back Navigation**: From inside the viewer, click **← KNOWLEDGE MAP**.
     - *Expected*: Returns to `/knowledge/KNOWLEDGE_MAP` (the full visual map). The viewer should not attempt to render an HTML file — if the guard trips, it redirects automatically.
-- [ ] **Data Store**: Click the **Cloudflare R2** store.
+- [ ] **Spec Index**: Click **Data Stores**.
     - *Expected*: Opens the detailed `DataStores.md` spec in the viewer.
 - [ ] **Source Drilling**: Click **FedInvest** in the map.
     - *Expected*: Opens `DATA_DICTIONARY.md` at the E1 schema section. Verify the note about mid-market pricing and inferred T=0.
