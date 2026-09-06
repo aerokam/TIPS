@@ -10,6 +10,10 @@ production impact go here.
 
 ### Help text still to be walked, section by section
 
+The worklist moved to `knowledge/Terminology_Worklist.md` on 2026-09-06, since the work now spans
+every app rather than this one. Open items, the enforcement, and the questions owed to the
+developer are there.
+
 - **The method, agreed 2026-08-30.** Take one help section at a time, show it, take feedback, and
   let the feedback loop back into the specs and the DD where the language is wrong there too.
   The Gap Dur popup has been through it end to end. That pass alone found a wrong maturity month
