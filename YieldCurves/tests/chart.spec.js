@@ -50,10 +50,11 @@ test.describe('Yield Curves Chart and UI', () => {
   });
 
   test('should show correct yield curve labels', async ({ page }) => {
-    // FedInvest source label + settle date now live in the TIPS source checkbox row.
+    // FedInvest source label + date now live in the TIPS source checkbox row. FedInvest
+    // prices settle on the price date itself, so only the bare date is shown.
     const fedLabel = page.locator('#chkTipsFed').locator('..');
     await expect(fedLabel).toContainText('FedInvest');
-    await expect(page.locator('#tipsFedMeta')).toContainText('settle 03/19/2026 (T)');
+    await expect(page.locator('#tipsFedMeta')).toHaveText('03/19/2026');
   });
 
   test('should allow maturity range filtering', async ({ page }) => {

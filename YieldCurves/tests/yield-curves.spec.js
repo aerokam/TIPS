@@ -235,3 +235,18 @@ test('Treasuries Spot label opens a help popup', async ({ page }) => {
   await page.click('#nominalsControls a.col-help[data-col="spot-tsy"]');
   await expect(page.locator('#drill-modal')).toContainText('Zero-Coupon Yield Curve');
 });
+
+test('Treasuries: unchecking Bills/Notes/Bonds with Spot on does not error', async ({ page }) => {
+  const errors = [];
+  page.on('pageerror', e => errors.push(e.message));
+  await loadTreasuries(page);
+  await page.locator('#showTsySpot').check();
+  await page.locator('#filterBills').uncheck();
+  await page.locator('#filterNotes').uncheck();
+  await page.locator('#filterBonds').uncheck();
+  await expect(page.locator('#nominalsTable tbody tr')).toHaveCount(0);
+  // re-check restores the per-bond rows
+  await page.locator('#filterNotes').check();
+  await expect(page.locator('#nominalsTable tbody tr')).not.toHaveCount(0);
+  expect(errors).toEqual([]);
+});

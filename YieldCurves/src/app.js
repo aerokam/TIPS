@@ -86,6 +86,13 @@ function parseFidelityDateStr(s) {
   return new Date(yr, mo - 1, dy);
 }
 
+// Settlement date for market (Fidelity) quotes — TIPS and nominals alike: the trade date
+// in the Fidelity file plus one bond trading day (T+1). DATA_DICTIONARY.md#settlement-date.
+function marketSettleIso() {
+  const d = brokerDownloadDate || fidelityNominalsDate;
+  return d ? toIsoDate(nextBusinessDay(parseFidelityDateStr(d), holidaySet)) : null;
+}
+
 // ── Date range input helpers ──────────────────────────────────────────────────
 // Convert YYYY-MM-DD → MM/DD/YYYY for display in text inputs
 function isoToMDY(iso) {
@@ -796,23 +803,39 @@ function processAndRenderNominals() {
   if (!showFed && !showFid) { statusEl.textContent = ''; if (chart) { chart.destroy(); chart = null; } return; }
 
   try {
+    // FedInvest rows settle on the price date itself (T=0); market quotes settle T+1.
+    const mktSettle = marketSettleIso();
+    const mapFedRow = r => {
+      const price = parseFloat(r.price);
+      const coupon = parseFloat(r.coupon);
+      const maturityDate = localDate(r.maturity);
+      const yld = yieldFromPrice(price, coupon, localDate(r.settlementDate), maturityDate);
+      if (yld === null || isNaN(yld)) return null;
+      return { ...r, coupon, price, yield: yld, maturityDate };
+    };
+
     let fedProcessed = null;
     if (showFed) {
       if (!rawNominalsData || rawNominalsData.length === 0) { statusEl.textContent = 'No FedInvest data available.'; return; }
-      fedProcessed = rawNominalsData.filter(r => nominalsTypeFilters.has(r.type) || (nominalsShowStrips && isStrip(r.cusip))).map(r => {
-        const price = parseFloat(r.price);
-        const coupon = parseFloat(r.coupon);
-        const maturityDate = localDate(r.maturity);
-        const yld = yieldFromPrice(price, coupon, localDate(r.settlementDate), maturityDate);
-        if (yld === null || isNaN(yld)) return null;
-        return { ...r, coupon, price, yield: yld, maturityDate };
-      }).filter(Boolean).sort((a, b) => a.maturityDate - b.maturityDate);
+      fedProcessed = rawNominalsData.filter(r => nominalsTypeFilters.has(r.type) || (nominalsShowStrips && isStrip(r.cusip)))
+        .map(mapFedRow).filter(Boolean).sort((a, b) => a.maturityDate - b.maturityDate);
     }
 
     let fidProcessed = null;
     if (showFid) {
       fidProcessed = fidelityNominalsData.filter(r => nominalsTypeFilters.has(r.type) || (nominalsShowStrips && isStrip(r.cusip)));
     }
+
+    // Full coupon+bill set for the spot fit — independent of the Bills/Notes/Bonds
+    // checkboxes (those pick which per-bond series are drawn, not what the curve is
+    // fitted to). Bills are already zero-coupon, so they anchor the short end.
+    let fedSpotSet = showFed
+      ? rawNominalsData.filter(r => !isStrip(r.cusip)).map(mapFedRow).filter(Boolean)
+      : null;
+    let fidSpotSet = showFid
+      ? fidelityNominalsData.filter(b => !isStrip(b.cusip) && b.type !== 'MARKET BASED STRIP')
+          .map(b => ({ ...b, settlementDate: mktSettle }))
+      : null;
 
     // Filter STRIPS unless user opts in (already handled by the initial filter above for performance, but we keep the fidProcessed part consistent)
     if (!nominalsShowStrips) {
@@ -833,6 +856,8 @@ function processAndRenderNominals() {
     const inRange = b => b.maturityDate >= startDate && b.maturityDate <= endDate;
     const fedFiltered = fedProcessed ? fedProcessed.filter(inRange) : null;
     const fidFiltered = fidProcessed ? fidProcessed.filter(inRange) : null;
+    const fedSpotInRange = fedSpotSet ? fedSpotSet.filter(inRange) : null;
+    const fidSpotInRange = fidSpotSet ? fidSpotSet.filter(inRange) : null;
 
     if (fidFiltered) {
       fidFiltered.forEach(b => {
@@ -846,15 +871,13 @@ function processAndRenderNominals() {
       renderSpreadTable(fidFiltered, 'treasuries');
     } else {
       renderNominalsTable(fedFiltered, fidFiltered);
-      renderNominalsChart(fedFiltered, fidFiltered);
+      renderNominalsChart(fedFiltered, fidFiltered, fedSpotInRange, fidSpotInRange);
     }
 
     const treaFedSettle = rawNominalsData?.[0]?.settlementDate;
-    document.getElementById('treaFedMeta').textContent = showFed && treaFedSettle ? `settle ${isoToMDY(treaFedSettle)} (T)` : '';
+    document.getElementById('treaFedMeta').textContent = showFed && treaFedSettle ? isoToMDY(treaFedSettle) : '';
     if (showFid && fidelityNominalsDate) {
-      const loadDate = parseFidelityDateStr(fidelityNominalsDate);
-      const t1 = nextBusinessDay(loadDate, holidaySet);
-      document.getElementById('treaMktMeta').textContent = `${fmtBrokerTime(fidelityNominalsDate)} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`;
+      document.getElementById('treaMktMeta').textContent = `${fmtBrokerTime(fidelityNominalsDate)} ET · settle ${isoToMDY(mktSettle)} (T+1)`;
     } else {
       document.getElementById('treaMktMeta').textContent = '';
     }
@@ -927,10 +950,11 @@ function renderNominalsTable(fedBonds, fidBonds) {
   }
 }
 
-function renderNominalsChart(fedBonds, fidBonds) {
+function renderNominalsChart(fedBonds, fidBonds, fedSpotBonds, fidSpotBonds) {
   const ctx = document.getElementById('yieldChart').getContext('2d');
   const allBonds = [...(fedBonds || []), ...(fidBonds || [])];
-  if (allBonds.length === 0) { if (chart) { chart.destroy(); chart = null; } return; }
+  const haveSpotInput = (fedSpotBonds && fedSpotBonds.length) || (fidSpotBonds && fidSpotBonds.length);
+  if (allBonds.length === 0 && !haveSpotInput) { if (chart) { chart.destroy(); chart = null; } return; }
 
   const now = Date.now();
   const toPoint = xAxisMode === 'ttm'
@@ -959,16 +983,17 @@ function renderNominalsChart(fedBonds, fidBonds) {
     );
   }
 
-  // Zero-coupon (spot) curve, per source — fitted in price space to the coupon Treasuries
-  // (Notes + Bonds; Bills and STRIPS left out, same as the TIPS fit drops the very short end).
+  // Zero-coupon (spot) curve, per source — fitted in price space to every non-STRIP
+  // nominal (Bills, Notes and Bonds), independent of the Bills/Notes/Bonds checkboxes.
+  // Its own colour, distinct from the per-bond lines.
   const yToX = yearsToX(now);
+  const bothSpot = fedSpotBonds && fedSpotBonds.length && fidSpotBonds && fidSpotBonds.length;
   const nomCurveSrc = [];
-  if (fedBonds) nomCurveSrc.push({ bonds: fedBonds, sfx: bothShown ? ' (FedInvest)' : '', color: '#1a56db', dash: [4, 4] });
-  if (fidBonds) nomCurveSrc.push({ bonds: fidBonds, sfx: bothShown ? ' (Market)' : '',    color: '#b45309', dash: [] });
-  for (const { bonds, sfx, color, dash } of nomCurveSrc) {
-    const coupons = bonds.filter(b => (b.type === 'MARKET BASED NOTE' || b.type === 'MARKET BASED BOND') && !isStrip(b.cusip));
-    const grid = spotCurveGrid(coupons, { priceOf: b => b.price, yieldOf: b => b.yield, yToX, minT: 1 });
-    if (grid) seriesDef.push({ label: `Spot${sfx}`, data: grid, color, w: 2.25, dash, curve: true, r: 0, markerR: 2 });
+  if (fedSpotBonds && fedSpotBonds.length) nomCurveSrc.push({ bonds: fedSpotBonds, sfx: bothSpot ? ' (FedInvest)' : '', color: '#0f172a' });
+  if (fidSpotBonds && fidSpotBonds.length) nomCurveSrc.push({ bonds: fidSpotBonds, sfx: bothSpot ? ' (Market)' : '',    color: '#b45309' });
+  for (const { bonds, sfx, color } of nomCurveSrc) {
+    const grid = spotCurveGrid(bonds, { priceOf: b => b.price, yieldOf: b => b.yield, yToX, minT: 0.25 });
+    if (grid) seriesDef.push({ label: `Spot${sfx}`, data: grid, color, w: 2.5, dash: [], curve: true, r: 0, markerR: 2 });
   }
 
   // Filter series with no data points
@@ -1052,7 +1077,11 @@ function renderNominalsChart(fedBonds, fidBonds) {
     };
   }
 
-  const allY = allPoints.map(d => d.y);
+  // The spot curve drives the initial y-scale only when it is actually shown; hidden, it
+  // must not stretch the axis (it is off by default).
+  const spotShown = document.getElementById('showTsySpot').checked;
+  let allY = (spotShown ? activeSeries : activeSeries.filter(s => !s.curve)).flatMap(s => s.data).map(d => d.y);
+  if (allY.length === 0) allY = allPoints.map(d => d.y);   // nothing but a hidden curve — scale to it anyway
   let scaleY = allY;
   if (nominalsClipOutliers && allY.length >= 4) {
     // Use Bills/Notes yields for IQR (outliers live in short-dated issues; bonds widen IQR too much).
@@ -1248,11 +1277,9 @@ function processAndRenderTips() {
       renderChart(fedFiltered, brokerFiltered);
     }
 
-    document.getElementById('tipsFedMeta').textContent = showFed && fedSettleStr ? `settle ${isoToMDY(fedSettleStr)} (T)` : '';
+    document.getElementById('tipsFedMeta').textContent = showFed && fedSettleStr ? isoToMDY(fedSettleStr) : '';
     if (showBroker && brokerDownloadDate) {
-      const loadDate = parseFidelityDateStr(brokerDownloadDate);
-      const t1 = nextBusinessDay(loadDate, holidaySet);
-      document.getElementById('tipsMktMeta').textContent = `${fmtBrokerTime(brokerDownloadDate)} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`;
+      document.getElementById('tipsMktMeta').textContent = `${fmtBrokerTime(brokerDownloadDate)} ET · settle ${isoToMDY(marketSettleIso())} (T+1)`;
     } else {
       document.getElementById('tipsMktMeta').textContent = '';
     }
@@ -1659,8 +1686,11 @@ function processAndRenderBei() {
     // horizon grid — a true same-horizon breakeven at every point, unlike the per-bond
     // closest-maturity match above.
     const yToX = yearsToX(Date.now());
+    const mktSettle = marketSettleIso();
     const nomFit = spotCurveFit(
-      nominalCandidates.filter(n => n.type === 'MARKET BASED NOTE' || n.type === 'MARKET BASED BOND'),
+      nominalCandidates
+        .filter(n => n.type === 'MARKET BASED NOTE' || n.type === 'MARKET BASED BOND')
+        .map(n => ({ ...n, settlementDate: mktSettle })),
       { priceOf: n => n.price, yieldOf: n => n.yield, minT: 1 });
     const saFit = spotCurveFit(tipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield });
     let spotBeiGrid = null;
@@ -1689,9 +1719,7 @@ function processAndRenderBei() {
     renderBeiChart(filtered, spotBeiGrid);
 
     if (brokerDownloadDate) {
-      const loadDate = parseFidelityDateStr(brokerDownloadDate);
-      const t1 = nextBusinessDay(loadDate, holidaySet);
-      document.getElementById('tipsMktMeta').textContent = `${fmtBrokerTime(brokerDownloadDate)} ET · settle ${isoToMDY(toIsoDate(t1))} (T+1)`;
+      document.getElementById('tipsMktMeta').textContent = `${fmtBrokerTime(brokerDownloadDate)} ET · settle ${isoToMDY(marketSettleIso())} (T+1)`;
     } else {
       document.getElementById('tipsMktMeta').textContent = '';
     }
