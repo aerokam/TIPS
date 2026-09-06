@@ -29,11 +29,13 @@ export const MATS = [{ m: 0, label: 'Jan 15' }, { m: 3, label: 'Apr 15' }, { m: 
 // BLS revised seasonal factors for the CPI-U, item SA0 ("All items"), series
 // CUSR0000SA0 (the CPI-U series; CWSR0000SA0 is the CPI-W counterpart). From the
 // "revised seasonally adjusted indexes and factors, last five years" file at
-// bls.gov/cpi/seasonal-adjustment/, DATA_TYPE = SEASONAL FACTOR (shown ×100).
-// SEASONAL FACTOR = UNADJUSTED INDEX / SEASONALLY ADJUSTED INDEX. BLS recomputes
-// the factors each year with the January release, covering the prior five years
-// (X-13ARIMA-SEATS). Oct 2025: no CPI published that month. Verified 2026-09-05:
-// the monthly Ref CPI NSA / SA from bls/CPI.csv reproduces every value here to 3 dp.
+// bls.gov/cpi/seasonal-adjustment/ — an annual publication, released each year
+// with the January CPI, covering the prior five years (X-13ARIMA-SEATS).
+// DATA_TYPE = SEASONAL FACTOR (= UNADJUSTED INDEX / SEASONALLY ADJUSTED INDEX,
+// shown ×100). Oct 2025: no CPI published that month. Verified 2026-09-05:
+// the monthly CPI-U NSA / SA in bls/CPI.csv (BLS API) reproduces every value
+// here to 3 dp, and its NSA / SA columns match BLS's UNADJUSTED / SEASONALLY
+// ADJUSTED INDEX exactly.
 export const BLS_SEASONAL_FACTOR = {
   2021: [99.579, 99.786, 99.968, 100.165, 100.303, 100.385, 100.405, 100.327, 100.146, 100.014, 99.652, 99.273],
   2022: [99.506, 99.724, 99.941, 100.190, 100.343, 100.459, 100.462, 100.364, 100.155, 100.002, 99.640, 99.319],
