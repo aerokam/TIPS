@@ -197,17 +197,19 @@ function daraInputHTML(fy, daraByYear, flaggedYears, gapSet, future30ySet) {
   const flagged = !!flaggedYears?.has(fy);
   // Two cases reach this flag. A bracket or cover candidate is flagged on its own ARA. A gap
   // year and a Future 30Y rung have no issued TIPS, so nothing about them was measured and the
-  // figure is filled in from the funded years instead (3.0 §Before-State Preview). Whether a
+  // figure is filled in from the maturity years that do hold TIPS (3.0 §Before-State Preview;
+  // the ARA map is built from holdings alone, so a DARA has been specified for none of them yet
+  // and they are not yet funded years). Whether a
   // year has issued TIPS comes from the gap and Future 30Y sets the header already builds to
   // label the row, so the flag and the label cannot disagree.
   const holdsNoTips = !!gapSet?.has(fy) || !!future30ySet?.has(fy);
   const flagTip = holdsNoTips
     ? '<b>Auto-set to median.</b> No TIPS have been issued for this maturity year, so there is '
       + 'no quantity here to infer a DARA from. The DARA shown is a median ARA calculated '
-      + 'across the funded years. Adjust as necessary.'
+      + 'across the maturity years that hold TIPS. Adjust as necessary.'
     : '<b>Auto-set to median.</b> The ARA for this maturity year is above the median ARA of '
-      + 'the other funded years, which suggests it holds excess TIPS. The DARA shown is that '
-      + 'median. Adjust as necessary.';
+      + 'the other maturity years that hold TIPS, which suggests it holds excess TIPS. The '
+      + 'DARA shown is that median. Adjust as necessary.';
   // data-tip-html rather than title: the browser sets how long a title waits before it appears
   // and that wait cannot be changed, while this tooltip shows on hover at once.
   const flagHTML = flagged
