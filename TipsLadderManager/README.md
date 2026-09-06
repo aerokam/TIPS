@@ -48,7 +48,7 @@ This tool is designed for **transparency first**. Every number in the UI is trac
 |---|---|---|
 | TIPS prices & yields | Market prices from a broker | Several times per weekday |
 | Reference CPI | BLS (via TreasuryDirect) | Monthly |
-| TIPS metadata (coupon, base CPI) | TreasuryDirect securities list | As needed |
+| TIPS metadata (coupon, dated date Ref CPI) | TreasuryDirect securities list | As needed |
 
 Prices are fetched from the broker feed several times a day and uploaded to Cloudflare R2; the app fetches the CSV data directly from R2. FedInvest (TreasuryDirect) prices are also ingested daily as a dormant cross-check path, not currently surfaced in the app.
 

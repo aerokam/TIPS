@@ -564,7 +564,7 @@ per-CUSIP prices for a past date (3.1 §4.0).
 - **Cause:** a matured TIPS is no longer quoted, so it is absent from the market data the app builds
   its bond map from, and the holding was silently dropped. Nothing then represented the money it had
   paid out. The reference series (`TipsRef.csv`) carries every TIPS ever issued, which is enough to
-  value what a matured position paid — maturity, coupon and base CPI — and it was not being
+  value what a matured position paid — maturity, coupon and dated date Ref CPI — and it was not being
   consulted.
 - **Fix:** maturity proceeds join coupons as settlement-year cash already received, over the same
   window (from the date the file states its DARA at, to today). The final coupon date *is* the

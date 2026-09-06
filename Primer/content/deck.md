@@ -260,7 +260,7 @@ Worked example from the CFR: Ref CPI for April 1, 1996 = the January 1996 CPI-U 
 :::
 
 ## Index Ratio
-Ref CPI on a given date, divided by Ref CPI on the security's **dated date** (its "base CPI"). This ratio is what actually scales par up or down into the inflation-adjusted principal — see two pages ahead.
+Ref CPI on a given date, divided by Ref CPI on the security's **dated date**. This ratio is what actually scales par up or down into the inflation-adjusted principal — see two pages ahead.
 
 :::aside
 If a previously-published CPI is later revised, Treasury keeps using the original (unrevised) number for every past and future Ref CPI/Index Ratio calculation — the correction never retroactively changes what TIPS holders were owed.

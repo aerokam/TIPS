@@ -200,6 +200,8 @@ For nominal Treasuries, 31 CFR §356.2 applies: *"Dated date means the date from
 - **Dated:** `Ref_CPI_dated` — Reference CPI on the TIPS [Dated Date](#dated-date) (constant for the bond's lifetime). Carried as `DatedDateCPI` in [S1](#s1) and `DatedDateRefCpi` in [S2](#s2). **Dated date Ref CPI** is the term, matching the Treasury FiscalData field it is sourced from (`ref_cpi_on_dated_date`). *Base CPI* was the earlier name and is retired.
 - **Settle:** `Ref_CPI_settle` — Reference CPI on the Settlement Date
 
+**Ref is short for Reference**, everywhere in these apps and in Treasury’s own field names. *Ref CPI* and *Reference CPI* are the same term, as are *dated date Ref CPI* and *dated date reference CPI*; the short form is the one to write.
+
 **Two derivations — retrieved is authoritative, calculated is the fallback:**
 - **Retrieved (authoritative):** TreasuryDirect SecIndex ([E2](#e2)) → `RefCPI.csv` ([S3](#s3)). **All apps use this.**
 - **Calculated (NSA fallback + educational):** 31 CFR App. B interpolation of the monthly CPI-U NSA series ([E4](#e4)). For **NSA only**, this is a **fallback** used if retrieval is unavailable, and is retained for educational value. The retrieved and calculated NSA series **must agree** (verified by test).
