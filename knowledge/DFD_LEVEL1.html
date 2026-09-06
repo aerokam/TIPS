@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Treasury Investors Portal — Level 1</title>
+<style>
+  :root {
+    --bg: #0d0d1a;
+    --border: #2a2a4a;
+    --text: #c0c8e0;
+    --accent: #7070cc;
+    --entity: #1a1a2e;
+    --process: #1a2a4e;
+    --store: #1a2e1a;
+    --flow: #55558c;
+    --flow-text: #8b93b8;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .nav-header {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 50px;
+    padding: 25px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 30px;
+  }
+  .nav-header a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .nav-header a:hover { color: #aaaaff; text-decoration: underline; }
+  .nav-header a.portal-link { font-size: 11px; font-weight: 700; color: #475569; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 10px; text-decoration: none; letter-spacing: 0.02em; text-transform: none; }
+  .nav-header a.portal-link:hover { background: #1e293b; color: #ffffff; border-color: #1e293b; text-decoration: none; }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin: 0 0 25px;
+    text-align: center;
+  }
+
+  .diagram { width: 100%; max-width: 1400px; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+
+  /* Shapes */
+  .entity rect {
+    fill: var(--entity);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .entity:hover rect { stroke: var(--accent); }
+  .entity .e-name { fill: #c8d0ea; font-size: 13.5px; }
+  .entity:hover .e-name { fill: #ffffff; }
+
+  .process circle {
+    fill: var(--process);
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+  .process:hover circle { stroke: #aaaaff; filter: drop-shadow(0 0 12px rgba(112,112,204,0.6)); }
+  .process .p-id { fill: #8fa0d8; font-size: 12px; letter-spacing: 1px; }
+  .process .p-name { fill: #eef0ff; font-size: 15px; font-weight: 600; }
+
+
+  a.entity, a.process { cursor: pointer; text-decoration: none; }
+  a text, g.entity text { text-anchor: middle; font-family: var(--font); }
+
+  /* Flows */
+  .flow { stroke: var(--flow); stroke-width: 1.6; fill: none; }
+  .flow-label {
+    fill: var(--flow-text);
+    font-size: 13px;
+    font-family: var(--font);
+    stroke: var(--bg);
+    stroke-width: 5;
+    paint-order: stroke;
+    stroke-linejoin: round;
+  }
+
+  .legend text { fill: #6f78a0; font-size: 12px; font-family: var(--font); }
+  .legend rect.sw { fill: var(--entity); stroke: var(--border); }
+  .legend circle.sw { fill: var(--process); stroke: var(--accent); stroke-width: 1.5; }
+
+  .notes {
+    max-width: 900px;
+    margin-top: 30px;
+    font-size: 0.8rem;
+    color: #7a83aa;
+    line-height: 1.7;
+    text-align: center;
+  }
+  .notes a { color: var(--accent); }
+
+  .index {
+    max-width: 980px;
+    margin: 45px 0 20px;
+    border-top: 1px solid var(--border);
+    padding-top: 25px;
+  }
+  .index h2 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #666699;
+    margin: 0 0 6px;
+    text-align: center;
+  }
+  .index p { font-size: 0.8rem; color: #7a83aa; text-align: center; margin: 0 0 20px; line-height: 1.6; }
+  .index-group { margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: center; }
+  .index-group .g-label { font-size: 0.7rem; letter-spacing: 1.5px; text-transform: uppercase; color: #666699; font-weight: 700; width: 100%; text-align: center; }
+  .index-group a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    background: var(--entity);
+    border-radius: 4px;
+    padding: 5px 12px;
+  }
+  .index-group a:hover { border-color: var(--accent); color: #ffffff; }
+</style>
+<style>
+  .store line { stroke: #4a8a4a; stroke-width: 2; }
+  .store:hover line { stroke: #7ada7a; }
+  .store .s-name { fill: #a8e6a8; font-size: 13.5px; }
+  a.store { cursor: pointer; text-decoration: none; }
+  .process .p-name { font-size: 13px; }
+  .diagram { max-width: 1180px; }
+</style>
+</head>
+<body>
+
+<div class="nav-header">
+  <a href="../" class="portal-link">&#8592; Portal</a>
+  <a href="KNOWLEDGE_MAP.html">&#8593; Context Diagram</a>
+</div>
+
+<h1>Level 1</h1>
+
+<div class="diagram">
+<svg viewBox="0 0 1190 1090" role="img" aria-label="Level 1 data flow diagram: one acquisition process and ten app processes, reading seven shared data stores, exchanging app inputs and outputs with the user.">
+  <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#55558c"/></marker></defs>
+  <line class="flow" x1="6" y1="560" x2="38" y2="560" marker-end="url(#a1)"/>
+  <text class="flow-label" x="112" y="474" text-anchor="middle">external source data</text>
+  <line class="flow" x1="253.1" y1="494.1" x2="361" y2="150" marker-end="url(#a1)"/>
+  <line class="flow" x1="261.9" y1="498.8" x2="361" y2="268" marker-end="url(#a1)"/>
+  <line class="flow" x1="275.9" y1="510.1" x2="361" y2="386" marker-end="url(#a1)"/>
+  <line class="flow" x1="292.8" y1="538.7" x2="361" y2="504" marker-end="url(#a1)"/>
+  <line class="flow" x1="292.1" y1="583.3" x2="361" y2="622" marker-end="url(#a1)"/>
+  <line class="flow" x1="275.1" y1="610.8" x2="361" y2="740" marker-end="url(#a1)"/>
+  <line class="flow" x1="261.4" y1="621.5" x2="361" y2="858" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="150" x2="755.4" y2="107.2" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="150" x2="755.0" y2="186.4" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="386" x2="765.5" y2="226.4" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="268" x2="754.4" y2="290.1" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="150" x2="761.9" y2="270.2" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="386" x2="757.5" y2="313.7" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="504" x2="766.9" y2="327.9" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="268" x2="760.4" y2="372.5" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="150" x2="769.6" y2="361.4" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="386" x2="754.0" y2="393.9" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="504" x2="758.9" y2="416.6" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="622" x2="768.2" y2="429.3" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="386" x2="759.0" y2="475.1" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="504" x2="754.0" y2="497.7" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="740" x2="769.5" y2="530.4" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="504" x2="757.7" y2="578.0" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="740" x2="761.7" y2="621.5" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="504" x2="765.6" y2="665.4" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="622" x2="756.5" y2="681.1" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="740" x2="754.9" y2="705.2" marker-end="url(#a1)"/>
+  <line class="flow" x1="584" y1="858" x2="763.2" y2="723.6" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="87" x2="1006" y2="87" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="105" x2="848" y2="105" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="187" x2="1006" y2="187" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="205" x2="848" y2="205" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="287" x2="1006" y2="287" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="305" x2="848" y2="305" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="387" x2="1006" y2="387" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="405" x2="848" y2="405" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="487" x2="1006" y2="487" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="505" x2="848" y2="505" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="587" x2="1006" y2="587" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="605" x2="848" y2="605" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="687" x2="1006" y2="687" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="705" x2="848" y2="705" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="787" x2="1006" y2="787" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="805" x2="848" y2="805" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="887" x2="1006" y2="887" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="905" x2="848" y2="905" marker-end="url(#a1)"/>
+  <line class="flow" x1="848" y1="987" x2="1006" y2="987" marker-end="url(#a1)"/>
+  <line class="flow" x1="1006" y1="1005" x2="848" y2="1005" marker-end="url(#a1)"/>
+  <text class="flow-label" x="928" y="66" text-anchor="middle">app inputs</text>
+  <text class="flow-label" x="928" y="136" text-anchor="middle">app outputs</text>
+  <g class="entity"><rect x="1010" y="60" width="150" height="970" rx="3"/>
+    <text class="e-name" x="1085" y="545">User</text></g>
+  <a class="process" href="viewer.html#/md/knowledge/Data_Pipeline.md">
+    <circle cx="112" cy="560" r="72"/>
+    <text class="p-id" x="112" y="530">1</text>
+    <text class="p-name" x="112" y="552">Acquire and</text>
+    <text class="p-name" x="112" y="570">derive</text>
+    <text class="p-name" x="112" y="588">reference data</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s3">
+    <rect x="365" y="128" width="215" height="44" fill="transparent" stroke="none"/>
+    <line x1="365" y1="128" x2="580" y2="128"/>
+    <line x1="365" y1="172" x2="580" y2="172"/>
+    <text class="s-name" x="472.5" y="155">Ref CPI</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s10">
+    <rect x="365" y="246" width="215" height="44" fill="transparent" stroke="none"/>
+    <line x1="365" y1="246" x2="580" y2="246"/>
+    <line x1="365" y1="290" x2="580" y2="290"/>
+    <text class="s-name" x="472.5" y="273">SA/SAO yields</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s2">
+    <rect x="365" y="364" width="215" height="44" fill="transparent" stroke="none"/>
+    <line x1="365" y1="364" x2="580" y2="364"/>
+    <line x1="365" y1="408" x2="580" y2="408"/>
+    <text class="s-name" x="472.5" y="391">TIPS reference data</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md">
+    <rect x="365" y="482" width="215" height="44" fill="transparent" stroke="none"/>
+    <line x1="365" y1="482" x2="580" y2="482"/>
+    <line x1="365" y1="526" x2="580" y2="526"/>
+    <text class="s-name" x="472.5" y="509">Bond holidays</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s1">
+    <rect x="365" y="600" width="215" height="44" fill="transparent" stroke="none"/>
+    <line x1="365" y1="600" x2="580" y2="600"/>
+    <line x1="365" y1="644" x2="580" y2="644"/>
+    <text class="s-name" x="472.5" y="627">FedInvest prices</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s4">
+    <rect x="365" y="718" width="215" height="44" fill="transparent" stroke="none"/>
+    <line x1="365" y1="718" x2="580" y2="718"/>
+    <line x1="365" y1="762" x2="580" y2="762"/>
+    <text class="s-name" x="472.5" y="745">Ref CPI NSA and SA</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s7">
+    <rect x="365" y="836" width="215" height="44" fill="transparent" stroke="none"/>
+    <line x1="365" y1="836" x2="580" y2="836"/>
+    <line x1="365" y1="880" x2="580" y2="880"/>
+    <text class="s-name" x="472.5" y="863">Market quotes</text>
+  </a>
+  <a class="process" href="viewer.html#/md/CpiExplorer/knowledge/1.0_Overview.md">
+    <circle cx="800" cy="96" r="46"/>
+    <text class="p-id" x="800" y="76">5</text>
+    <text class="p-name" x="800" y="95">CPI</text>
+    <text class="p-name" x="800" y="112">Explorer</text>
+  </a>
+  <a class="process" href="viewer.html#/md/Primer/knowledge/1.0_Primer.md">
+    <circle cx="800" cy="196" r="46"/>
+    <text class="p-id" x="800" y="176">4</text>
+    <text class="p-name" x="800" y="195">Treasury</text>
+    <text class="p-name" x="800" y="212">Primer</text>
+  </a>
+  <a class="process" href="viewer.html#/md/TipsReference/knowledge/1.0_TIPS_Reference.md">
+    <circle cx="800" cy="296" r="46"/>
+    <text class="p-id" x="800" y="276">3</text>
+    <text class="p-name" x="800" y="295">TIPS</text>
+    <text class="p-name" x="800" y="312">Reference</text>
+  </a>
+  <a class="process" href="viewer.html#/md/knowledge/TipsLadderManager.md">
+    <circle cx="800" cy="396" r="46"/>
+    <text class="p-id" x="800" y="376">2</text>
+    <text class="p-name" x="800" y="395">Ladder</text>
+    <text class="p-name" x="800" y="412">Manager</text>
+  </a>
+  <a class="process" href="viewer.html#/md/knowledge/YieldsMonitor.md">
+    <circle cx="800" cy="496" r="46"/>
+    <text class="p-id" x="800" y="476">6</text>
+    <text class="p-name" x="800" y="495">Yields</text>
+    <text class="p-name" x="800" y="512">Monitor</text>
+  </a>
+  <a class="process" href="viewer.html#/md/SeasonalAdjustments/knowledge/1.0_SeasonalAdjustments_Explorer.md">
+    <circle cx="800" cy="596" r="46"/>
+    <text class="p-id" x="800" y="576">8</text>
+    <text class="p-name" x="800" y="595">Seasonal</text>
+    <text class="p-name" x="800" y="612">Adjustments</text>
+  </a>
+  <a class="process" href="viewer.html#/md/knowledge/YieldCurves.md">
+    <circle cx="800" cy="696" r="46"/>
+    <text class="p-id" x="800" y="676">7</text>
+    <text class="p-name" x="800" y="695">Yield</text>
+    <text class="p-name" x="800" y="712">Curves</text>
+  </a>
+  <a class="process" href="viewer.html#/md/FundHoldings/knowledge/1.0_FundHoldings.md">
+    <circle cx="800" cy="796" r="46"/>
+    <text class="p-id" x="800" y="776">9</text>
+    <text class="p-name" x="800" y="795">Fund</text>
+    <text class="p-name" x="800" y="812">Holdings</text>
+  </a>
+  <a class="process" href="viewer.html#/md/knowledge/TreasuryAuctions.md">
+    <circle cx="800" cy="896" r="46"/>
+    <text class="p-id" x="800" y="876">10</text>
+    <text class="p-name" x="800" y="895">Treasury</text>
+    <text class="p-name" x="800" y="912">Auctions</text>
+  </a>
+  <a class="process" href="viewer.html#/md/TaxationOfTreasuries/docs/TaxationOfTreasuries_Foundation.md">
+    <circle cx="800" cy="996" r="46"/>
+    <text class="p-id" x="800" y="976">11</text>
+    <text class="p-name" x="800" y="995">Taxation of</text>
+    <text class="p-name" x="800" y="1012">Treasuries</text>
+  </a>
+</svg>
+</div>
+
+<p class="notes">
+  Process 1 covers every acquisition process the apps share. The processes and stores used by one app alone are drawn inside that app at Level 2, not here.
+  The seven stores shown are the ones more than one process reads.
+  External entities are not redrawn at this level; their twelve flows are shown against each entity on the <a href="KNOWLEDGE_MAP.html">context diagram</a>, and enter here as one flow.
+  Every app carries the same pair of flows to the user, labelled once at the top.
+</p>
+
+</body>
+</html>
