@@ -8,6 +8,7 @@ import { buildTipsMapFromYields, localDate, runRebalance, runFundedRebalance, in
 import { computeBeforeState, detectBracketFlags, heldYearMedianExcluding } from '../src/before-state-lib.js';
 import { remainingCouponPaymentsThisYear, rmdCappedRemainingCoupons, latestRemainingCouponDate } from '../src/ladder-core.js';
 import { bracketWeights, bracketWeightsN } from '../src/gap-math.js';
+import { findSpikes, smoothCurve } from '../src/shape-math.js';
 import { buildDurationPopupRows, buildBracketWeightDrill, buildFuture30yDurationPopupRows } from '../src/drill.js';
 import { rankForYear, levelValues } from '../src/allocation-policy.js';
 import { runBuild } from '../src/build-lib.js';
@@ -2591,6 +2592,87 @@ console.log('\nFuture 30Y Dur popup — cost-weighted average, computed match, c
   assert('a clamped weight is reported as held, not as the division result',
     lower.note.includes('held at'), clamped);
   assert('the division result itself appears in the note', lower.note.includes(raw.toFixed(4)), true);
+}
+
+// shape-math: the ladder's curve, and the maturity years standing above it.
+// Every expectation here is built by hand rather than read back from findSpikes: each series is
+// constructed with a known answer, so a regression in the fit cannot carry the expectation with it.
+{
+  console.log('');
+  console.log('shape-math — spikes are found, ordinary ladder shapes are not');
+  const idx = r => r.map(x => x.index).join(',');
+  const level = Array(21).fill(100);
+
+  const one = level.slice(); one[10] = 200;
+  assert('a single spike on a level ladder is found', idx(findSpikes(one)), '10');
+
+  // The regression that motivated the end rule: carrying the nearest fitted value out flat put
+  // the ends under a rising series, and nine years of a plain ramp then read as spikes.
+  const ramp = Array.from({ length: 21 }, (_, i) => 100 + 10 * i);
+  assert('a ladder rising at a constant rate has no spike', idx(findSpikes(ramp)), '');
+
+  const hump = Array.from({ length: 21 }, (_, i) => 100 + 60 * Math.sin(Math.PI * i / 20));
+  assert('a smooth hump is shape, not excess', idx(findSpikes(hump)), '');
+
+  const two = level.slice(); two[10] = 200; two[11] = 210;
+  assert('two adjacent spikes are both found', idx(findSpikes(two)), '10,11');
+
+  const dip = level.slice(); dip[10] = 20;
+  assert('a dip is not a spike', idx(findSpikes(dip)), '');
+
+  // Why a curve rather than one median: the baseline under a spike is the hump it sits on, so
+  // only what stands above the hump is excess.
+  const onHump = hump.slice(); onHump[14] += 120;
+  const hits = findSpikes(onHump);
+  assert('a spike on a hump is found', idx(hits), '14');
+  assert('its baseline is the hump beneath it, not the ladder median',
+    Math.abs(hits[0].curve - hump[14]) < 12, true);
+  const medianOfAll = [...hump].sort((a, b) => a - b)[10];
+  assert('and it sits above the median of the whole series', hits[0].curve > medianOfAll, true);
+
+  assert('the curve of a level ladder is that level', smoothCurve(level).every(v => v === 100), true);
+}
+
+// shape-math on real holdings: two retained maturity years, both found.
+// tests/dev/RetainedExcessTwoYears.csv is SampleHoldings.csv with Jul 2035 raised, so genuine
+// excess sits in 2034 and 2035 at once. The metric this replaces returns one maturity year and
+// drops the other; a width-3 fit follows both and returns neither, since they sit on the rise
+// toward the gap years.
+{
+  console.log('');
+  console.log('shape-math — two retained maturity years on real holdings');
+  const csv = readFileSync(new URL('./dev/RetainedExcessTwoYears.csv', import.meta.url), 'utf8');
+  const holdings = parseHoldings(csv);
+  const ara = computePortfolioARAByYear(holdings, tipsMap, refCPI);
+  const years = Object.keys(ara).map(Number).filter(y => ara[y] > 0).sort((a, b) => a - b);
+  const minGap = Math.min(...getGapYears(tipsMap));
+  const inRange = y => y >= 2032 && y < minGap;
+  const found = findSpikes(years.map(y => ara[y])).map(x => years[x.index]).filter(inRange);
+  assert('both 2034 and 2035 are found', found.join(','), '2034,2035');
+
+  const narrow = findSpikes(years.map(y => ara[y]), { width: 3 })
+    .map(x => years[x.index]).filter(inRange);
+  assert('a width-3 fit misses them, which is why the width is 5', narrow.join(','), '');
+}
+
+// The curve baseline against the median it replaces, on the real portfolio. Excess is whatever
+// stands above the baseline, so a baseline set at the ladder median rather than at the ladder's
+// own shape charges the hump running toward the gap years to excess along with the spike.
+{
+  console.log('');
+  console.log('shape-math — curve baseline vs the median it replaces (real holdings)');
+  const csv = readFileSync(new URL('../data/SampleHoldings.csv', import.meta.url), 'utf8');
+  const holdings = parseHoldings(csv);
+  const ara = computePortfolioARAByYear(holdings, tipsMap, refCPI);
+  const years = Object.keys(ara).map(Number).filter(y => ara[y] > 0).sort((a, b) => a - b);
+  const hit = findSpikes(years.map(y => ara[y])).find(x => years[x.index] === 2034);
+  assert('2034 is the spike in the lower bracket range', !!hit, true);
+  const medianBaseline = heldYearMedianExcluding(ara, 2034);
+  assert('the curve baseline is above the median baseline', hit.curve > medianBaseline, true);
+  assert('so the excess it reports is the smaller of the two',
+    hit.excess < ara[2034] - medianBaseline, true);
+  assert('and the gap between the two baselines is material, not rounding',
+    hit.curve - medianBaseline > 3000, true);
 }
 
 console.log(`\n${passed + failed} tests: ${passed} passed, ${failed} failed`);
