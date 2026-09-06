@@ -195,27 +195,19 @@ function daraInputHTML(fy, daraByYear, flaggedYears, gapSet, future30ySet) {
   if (!daraByYear) return '';
   const val = daraByYear.get(fy);
   const flagged = !!flaggedYears?.has(fy);
-  // Three populations reach this flag and each needs its own sentence. A bracket or cover
-  // candidate is flagged because its own holdings stand out against the other held years. A gap
-  // year and a Future 30Y year have no TIPS at all, so nothing about them was measured: their
-  // value is heldYearMedianExcluding (before-state-lib.js) over the held years, with the flagged
-  // bracket or cover left out, and the bracket's only part in it is being the year left out
-  // (3.0 §Before-State Preview). It is computed once at load, so editing a bracket year's own
-  // DARA does not move it. Which population a year is in comes from the gap and Future 30Y sets
-  // the header already builds to label the row, so the two never disagree.
-  const isGapYear   = !!gapSet?.has(fy);
-  const isFuture30y = !!future30ySet?.has(fy);
-  const flagTip = isGapYear
-    ? '<b>Auto-set to median.</b> No 10-year TIPS has been issued for this gap year, so there '
-      + 'is no quantity here to infer a DARA from. The DARA shown is a median ARA calculated '
+  // Two cases reach this flag. A bracket or cover candidate is flagged on its own ARA. A gap
+  // year and a Future 30Y rung have no issued TIPS, so nothing about them was measured and the
+  // figure is filled in from the funded years instead (3.0 §Before-State Preview). Whether a
+  // year has issued TIPS comes from the gap and Future 30Y sets the header already builds to
+  // label the row, so the flag and the label cannot disagree.
+  const holdsNoTips = !!gapSet?.has(fy) || !!future30ySet?.has(fy);
+  const flagTip = holdsNoTips
+    ? '<b>Auto-set to median.</b> No TIPS have been issued for this maturity year, so there is '
+      + 'no quantity here to infer a DARA from. The DARA shown is a median ARA calculated '
       + 'across the funded years. Adjust as necessary.'
-    : isFuture30y
-    ? '<b>Auto-set to median.</b> This Future 30Y rung lies beyond the longest-dated issued '
-      + 'TIPS, so there is no quantity here to infer a DARA from. The DARA shown is a median '
-      + 'ARA calculated across the funded years. Adjust as necessary.'
-    : '<b>Auto-set to median.</b> The ARA for this maturity year stands above the median ARA '
-      + 'of the other funded years, which suggests it holds excess TIPS. The DARA shown is '
-      + 'that median. Adjust as necessary.';
+    : '<b>Auto-set to median.</b> The ARA for this maturity year is above the median ARA of '
+      + 'the other funded years, which suggests it holds excess TIPS. The DARA shown is that '
+      + 'median. Adjust as necessary.';
   // data-tip-html rather than title: the browser sets how long a title waits before it appears
   // and that wait cannot be changed, while this tooltip shows on hover at once.
   const flagHTML = flagged
