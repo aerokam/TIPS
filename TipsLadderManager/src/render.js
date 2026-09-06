@@ -206,15 +206,16 @@ function daraInputHTML(fy, daraByYear, flaggedYears, gapSet, future30ySet) {
   const isGapYear   = !!gapSet?.has(fy);
   const isFuture30y = !!future30ySet?.has(fy);
   const flagTip = isGapYear
-    ? '<b>Auto-set to median.</b> No TIPS matures in a gap year, so there is no quantity here to '
-      + 'infer a DARA from. This is the median annual real amount of the held years, taken '
-      + 'without the bracket year that appears to fund this one. Adjust as necessary.'
+    ? '<b>Auto-set to median.</b> No 10-year TIPS has been issued for this gap year, so there '
+      + 'is no quantity here to infer a DARA from. The DARA shown is a median ARA calculated '
+      + 'across the funded years. Adjust as necessary.'
     : isFuture30y
-    ? '<b>Auto-set to median.</b> No TIPS is issued this far out yet, so there is no quantity '
-      + 'here to infer a DARA from. This is the median annual real amount of the held years, '
-      + 'taken without the cover year that appears to fund this one. Adjust as necessary.'
-    : '<b>Auto-set to median.</b> Holdings suggest bracket excess. Adjust if this year is '
-      + 'intended for higher income.';
+    ? '<b>Auto-set to median.</b> This Future 30Y rung lies beyond the longest-dated issued '
+      + 'TIPS, so there is no quantity here to infer a DARA from. The DARA shown is a median '
+      + 'ARA calculated across the funded years. Adjust as necessary.'
+    : '<b>Auto-set to median.</b> The ARA for this maturity year stands above the median ARA '
+      + 'of the other funded years, which suggests it holds excess TIPS. The DARA shown is '
+      + 'that median. Adjust as necessary.';
   // data-tip-html rather than title: the browser sets how long a title waits before it appears
   // and that wait cannot be changed, while this tooltip shows on hover at once.
   const flagHTML = flagged
