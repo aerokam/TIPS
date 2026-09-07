@@ -96,26 +96,32 @@ This document provides the technical schemas and field-level specifications for 
 
 ---
 
-## <a id="s13"></a>S13: SpotYieldCurves.json
-**Description**: Fitted Nelson-Siegel-Svensson zero-coupon (spot) yield curves — the values YieldCurves computes for its chart's "Spot" / "Spot SA" lines but does not otherwise persist. One row per (`curve`, `source`) pair: `curve` is `nominal`, `tips_ask` (fit to quoted ask price), or `tips_sa` (fit to seasonally adjusted price); `source` is `FedInvest` or `Market`. Six Svensson parameters per row, nothing evaluated — same convention as [S12](#s12); evaluate with `shared/src/spot-curve.js` (`nssBasis`).
+## <a id="s13"></a>S13: SpotYieldCurves.csv
+**Description**: Evaluated yields for every priced Treasury and TIPS security, plus the fitted nominal and TIPS-SA zero-coupon (spot) yield curves evaluated on a term grid — general-purpose, spreadsheet-ready (unlike [S12](#s12), which stores unevaluated Svensson parameters). Superseded the parameters-only `SpotYieldCurves.json` (retired 2026-09-07): six coefficients aren't usable in a spreadsheet, so this file stores actual yields instead. One row per **actual security** (`cusip`/`maturity_date`/`security_type` populated; `ask_yield`/`sa_yield`/`sao_yield` populated where they exist) or one row per **fitted grid point** (`cusip`/`maturity_date`/`security_type` blank; `spot_yield`/`spot_sa_yield`/`bei` populated).
 **Update Frequency**: Same cadence as the `FidelityQuotes` pipeline (3x daily on weekdays), via `updateSpotYieldCurves.js`.
-**R2 Key**: `Treasuries/SpotYieldCurves.json`
+**R2 Key**: `Treasuries/SpotYieldCurves.csv`
 
 | Field | Type | Description |
 |---|---|---|
-| `curve` | String | `nominal`, `tips_ask`, or `tips_sa`. |
-| `source` | String | `FedInvest` or `Market`. |
-| `settlementDate` | Date | Settlement date used for this source (FedInvest: the price-date row; Market: trade date + T+1). |
-| `asOf` | Timestamp | ISO timestamp the fit was computed at (fixes the "now" used for years-to-maturity). |
-| `beta0`-`beta3` | Number | Svensson level / slope / two curvature coefficients (% continuously compounded). |
-| `tau1`, `tau2` | Number | Svensson decay parameters (years). |
-| `tMin`, `tMax` | Number | Years-to-maturity range the fit was built over. |
+| `term_years` | Number | Years from settlement to maturity (actual security row), or the grid horizon (fitted row). |
+| `maturity_date` | Date | Maturity date. Blank on a fitted grid row. |
+| `cusip` | String | 9-character security identifier. Blank on a fitted grid row. |
+| `security_type` | String | `Bill`, `Note`, `Bond`, or `TIPS`. Blank on a fitted grid row (STRIPS excluded, same as [S1](#s1)'s fitting inputs). |
+| `source` | String | `FedInvest` or `Market`, same distinction as [S10](#s10)/[S14](#s14)/[S15](#s15). |
+| `ask_yield` | Number | Ask yield-to-maturity (decimal). Actual security rows only. FedInvest carries a single mid-market yield ([E1](./DATA_DICTIONARY.md#e1)), not a true ask — this column holds that mid-market figure on FedInvest-source rows. |
+| `sa_yield` | Number | [SA Yield](./DATA_DICTIONARY.md#sa-yield) (decimal). TIPS rows only. |
+| `sao_yield` | Number | [SAO Yield](./DATA_DICTIONARY.md#sao-yield) (decimal). TIPS rows only. |
+| `spot_yield` | Number | Fitted nominal Treasury zero-coupon yield at `term_years` (decimal, semi-annual bond-equivalent — converted from the module's continuously-compounded `z(t)` so it sits on the same basis as `ask_yield`). Fitted grid rows only. |
+| `spot_sa_yield` | Number | Fitted TIPS zero-coupon yield at `term_years`, fit to seasonally adjusted prices (decimal, semi-annual bond-equivalent, same conversion as `spot_yield`). Fitted grid rows only. |
+| `bei` | Number | `spot_yield − spot_sa_yield` at `term_years`: nominal spot yield minus real (SA) spot yield, per [4.0 Spot Yield Curves](../YieldCurves/knowledge/4.0_Spot_Yield_Curves.md#spot-bei). Fitted grid rows only. |
 
-**Not stored**: Spot BEI (nominal zero curve minus TIPS SA zero curve). It is fully re-derivable from the `nominal`/`Market` and `tips_sa`/`Market` rows at any horizon, so storing it separately would be redundant duplication rather than verifying redundancy.
+**Term grid**: half-year steps (0.5, 1.0, 1.5, …), matching the chart's own `spotCurveGrid` convention, clipped per `source` to the range where both the nominal and TIPS-SA fits are valid (`max(tMin)` to `min(tMax)` of the two fits) so `bei` is always defined wherever a grid row appears. A grid point is dropped if either fit's sanity check fails there (see `shared/src/spot-curve.js#spotCurveFit`).
 
-**Logic**: Loads the same R2 inputs the YieldCurves app loads (S1, S4, S7, `misc/BondHolidaysSifma.csv`) and fits with `shared/src/spot-curve.js#spotCurveFit` — the same module `src/app.js` imports, so the app and this pipeline can never drift onto two different fits.
+**Not fit here**: the quoted (non-SA) TIPS spot curve (`tips_ask` in the retired S13 JSON) — not part of this file's schema. The YieldCurves app still fits it live in the browser for its own chart; this pipeline only persists the nominal and TIPS-SA fits, since those are what `bei` and the general-purpose spreadsheet need.
 
-**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/SpotYieldCurves.json)
+**Logic**: Loads the same R2 inputs the YieldCurves app loads (S1, S4, S7, `misc/BondHolidaysSifma.csv`) and fits with `shared/src/spot-curve.js#spotCurveFit` — the same module `src/app.js` imports, so the app and this pipeline can never drift onto two different fits. The script evaluates the fit objects' own `z(t)`/`sane()` on the term grid rather than refitting.
+
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/SpotYieldCurves.csv)
 
 ---
 

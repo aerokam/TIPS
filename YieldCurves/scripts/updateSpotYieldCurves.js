@@ -1,5 +1,5 @@
 // updateSpotYieldCurves.js — persists the values the YieldCurves app computes but never
-// writes to R2: the fitted zero-coupon (spot) curves, per-TIPS breakeven inflation, and
+// writes to R2: evaluated spot (zero-coupon) yields, per-TIPS breakeven inflation, and
 // broker bid/ask spreads. See YieldCurves/knowledge/4.0_Spot_Yield_Curves.md.
 //
 // Loads the same R2 inputs the browser app loads (YieldsFromFedInvestPrices.csv,
@@ -9,7 +9,10 @@
 //
 // Writes three files under Treasuries/ (spot curves cover nominals AND TIPS, so they are
 // not TIPS-specific — see knowledge/DataStores.md):
-//   Treasuries/SpotYieldCurves.json   — fitted Svensson params, one row per (curve, source)
+//   Treasuries/SpotYieldCurves.csv    — per-security ask/SA/SAO yields plus evaluated
+//                                        nominal/TIPS-SA spot yields and spot BEI on a
+//                                        term grid — one spreadsheet-ready file, not
+//                                        Svensson parameters (see S13)
 //   Treasuries/BreakevenInflation.csv — per-TIPS Ask/SA/SAO breakeven vs. nearest nominal
 //   Treasuries/BidAskSpreads.csv      — per-security broker bid/ask yield & price spread
 //
@@ -25,7 +28,7 @@ import {
   cleanFidelityField as clean, fidPriceField, fidParseMaturity,
   parseFidelityDownloadDate, fidelityDownloadDateIso, parseFidelityTipsRows,
 } from '../../shared/src/fidelity-parse.js';
-import { spotCurveFit, calculateSAO } from '../../shared/src/spot-curve.js';
+import { spotCurveFit, calculateSAO, zToSA } from '../../shared/src/spot-curve.js';
 
 const R2_BASE_URL = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev';
 const YIELDS_CSV_URL = `${R2_BASE_URL}/Treasuries/YieldsFromFedInvestPrices.csv`;
@@ -135,18 +138,36 @@ function findClosestNominal(nominals, maturityDate) {
   return best;
 }
 
-// spotCurveFit's z(t) carries the fitted Svensson params on ._params ({ l1, l2, beta, ssr })
-// — pull them out into the flat row this store publishes.
-function curveRow(curve, source, fit, settlementDate, asOf) {
-  if (!fit) { console.warn(`  (skipped ${curve}/${source}: fit did not converge)`); return null; }
-  const p = fit.z._params;
-  return {
-    curve, source, settlementDate, asOf,
-    beta0: +p.beta[0].toFixed(6), beta1: +p.beta[1].toFixed(6),
-    beta2: +p.beta[2].toFixed(6), beta3: +p.beta[3].toFixed(6),
-    tau1: +p.l1.toFixed(6), tau2: +p.l2.toFixed(6),
-    tMin: +fit.tMin.toFixed(3), tMax: +fit.tMax.toFixed(3),
-  };
+// Years from settlement to maturity (decimal), for the term_years column.
+function termYears(maturityStr, settlementStr) {
+  const settle = localDate(settlementStr);
+  const mature = localDate(maturityStr);
+  return (mature.getTime() - settle.getTime()) / (365.25 * 86400000);
+}
+
+const GRID_STEP_YRS = 0.5; // half-year grid — matches the chart's own spotCurveGrid convention
+
+// Evaluated nominal + TIPS-SA spot yields (and spot BEI = nominal − TIPS SA, per
+// 4.0_Spot_Yield_Curves.md §Spot BEI) on a half-year term grid, clipped to the range where
+// BOTH fits are valid so BEI is always defined at every grid row. Uses the fit objects'
+// own z(t)/sane() — no refitting, just evaluating the shared module's already-fitted curve.
+function buildGridRows(fits, source) {
+  const { nominal: nomFit, tips_sa: saFit } = fits;
+  if (!nomFit || !saFit) { console.warn(`  (skipped ${source} grid: nominal or tips_sa fit missing)`); return []; }
+  const tMin = Math.max(nomFit.tMin, saFit.tMin);
+  const tMax = Math.min(nomFit.tMax, saFit.tMax);
+  const rows = [];
+  for (let t = Math.ceil(tMin / GRID_STEP_YRS) * GRID_STEP_YRS; t <= tMax + 1e-9; t += GRID_STEP_YRS) {
+    const nomPct = zToSA(nomFit.z(t)), saPct = zToSA(saFit.z(t));
+    if (!nomFit.sane(nomPct) || !saFit.sane(saPct)) continue; // blown-up fit at this horizon — skip
+    const spotYield = nomPct / 100, spotSaYield = saPct / 100;
+    rows.push({
+      term_years: t, maturity_date: '', cusip: '', security_type: '', source,
+      ask_yield: '', sa_yield: '', sao_yield: '',
+      spot_yield: spotYield, spot_sa_yield: spotSaYield, bei: spotYield - spotSaYield,
+    });
+  }
+  return rows;
 }
 
 async function main() {
@@ -202,18 +223,54 @@ async function main() {
   }).filter(Boolean);
   const mktNominalBonds = fidNominalBonds.map(b => ({ ...b, settlementDate: brokerSettleStr }));
 
-  // ── Spot curves: nominal fit uses minT 0.25y (Bills anchor the short end), TIPS fits use
-  // the shared default (SAO_NOISE_YRS = 0.5y) — same as src/app.js's chart calls. ─────────
-  const asOf = new Date().toISOString();
-  const curves = [
-    curveRow('nominal', 'FedInvest', spotCurveFit(fedNominalBonds, { priceOf: b => b.price, yieldOf: b => b.yield, minT: 0.25 }), fedSettleStr, asOf),
-    curveRow('nominal', 'Market', spotCurveFit(mktNominalBonds, { priceOf: b => b.price, yieldOf: b => b.yield, minT: 0.25 }), brokerSettleStr, asOf),
-    curveRow('tips_ask', 'FedInvest', spotCurveFit(fedTipsBonds, { priceOf: b => b.price, yieldOf: b => b.askYield }), fedSettleStr, asOf),
-    curveRow('tips_ask', 'Market', spotCurveFit(mktTipsBonds, { priceOf: b => b.price, yieldOf: b => b.askYield }), brokerSettleStr, asOf),
-    curveRow('tips_sa', 'FedInvest', spotCurveFit(fedTipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield }), fedSettleStr, asOf),
-    curveRow('tips_sa', 'Market', spotCurveFit(mktTipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield }), brokerSettleStr, asOf),
-  ].filter(Boolean);
-  console.log(`Fitted ${curves.length}/6 spot curves.`);
+  // ── Spot curves: nominal fit uses minT 0.25y (Bills anchor the short end), TIPS SA fit
+  // uses the shared default (SAO_NOISE_YRS = 0.5y) — same as src/app.js's chart calls. Only
+  // nominal and TIPS-SA are fit here: the quoted (non-SA) TIPS spot curve isn't part of the
+  // evaluated-CSV schema (see knowledge/DataStores.md#s13) — the app still fits it live for
+  // its own chart, independent of this pipeline. ──────────────────────────────────────
+  const fits = {
+    FedInvest: {
+      nominal: spotCurveFit(fedNominalBonds, { priceOf: b => b.price, yieldOf: b => b.yield, minT: 0.25 }),
+      tips_sa: spotCurveFit(fedTipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield }),
+    },
+    Market: {
+      nominal: spotCurveFit(mktNominalBonds, { priceOf: b => b.price, yieldOf: b => b.yield, minT: 0.25 }),
+      tips_sa: spotCurveFit(mktTipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield }),
+    },
+  };
+  console.log(`Fitted spot curves — FedInvest: nominal=${!!fits.FedInvest.nominal} tips_sa=${!!fits.FedInvest.tips_sa}; `
+    + `Market: nominal=${!!fits.Market.nominal} tips_sa=${!!fits.Market.tips_sa}`);
+
+  // ── SpotYieldCurves.csv rows: one row per actual security (ask/SA/SAO populated where
+  // they exist) plus one row per fitted grid point (spot_yield/spot_sa_yield/bei populated).
+  // See knowledge/DataStores.md#s13 for the column list and rationale. ──────────────────
+  const evalRows = [];
+  for (const b of fedNominalBonds) evalRows.push({
+    term_years: termYears(b.maturity, fedSettleStr), maturity_date: b.maturity, cusip: b.cusip,
+    security_type: classifyByCusipRoot(b.cusip) || '', source: 'FedInvest',
+    ask_yield: b.yield, sa_yield: '', sao_yield: '', spot_yield: '', spot_sa_yield: '', bei: '',
+  });
+  for (const b of mktNominalBonds) evalRows.push({
+    term_years: termYears(b.maturity, brokerSettleStr), maturity_date: b.maturity, cusip: b.cusip,
+    security_type: classifyByCusipRoot(b.cusip) || '', source: 'Market',
+    ask_yield: b.yield, sa_yield: '', sao_yield: '', spot_yield: '', spot_sa_yield: '', bei: '',
+  });
+  for (const b of fedTipsBonds) evalRows.push({
+    term_years: termYears(b.maturity, fedSettleStr), maturity_date: b.maturity, cusip: b.cusip,
+    security_type: 'TIPS', source: 'FedInvest',
+    ask_yield: b.askYield, sa_yield: b.saYield, sao_yield: b.saoYield, spot_yield: '', spot_sa_yield: '', bei: '',
+  });
+  for (const b of mktTipsBonds) evalRows.push({
+    term_years: termYears(b.maturity, brokerSettleStr), maturity_date: b.maturity, cusip: b.cusip,
+    security_type: 'TIPS', source: 'Market',
+    ask_yield: b.askYield, sa_yield: b.saYield, sao_yield: b.saoYield, spot_yield: '', spot_sa_yield: '', bei: '',
+  });
+  evalRows.push(...buildGridRows(fits.FedInvest, 'FedInvest'));
+  evalRows.push(...buildGridRows(fits.Market, 'Market'));
+  evalRows.sort((a, b) => a.term_years - b.term_years
+    || a.source.localeCompare(b.source)
+    || (a.security_type || 'zzz').localeCompare(b.security_type || 'zzz'));
+  console.log(`SpotYieldCurves.csv: ${evalRows.length} rows (securities + grid points).`);
 
   // ── Breakeven inflation (Market only — BEI needs both legs quoted the same way; see
   // src/app.js processAndRenderBei). Per-TIPS Ask/SA/SAO BEI vs. the nearest-maturity
@@ -255,7 +312,15 @@ async function main() {
   console.log(`Computed bid/ask spreads for ${spreadRows.length} securities.`);
 
   // ── Write files ──────────────────────────────────────────────────────────────
-  const curvesJson = JSON.stringify(curves, null, 2) + '\n';
+  const fmtYield = v => (v === '' || v == null || isNaN(v)) ? '' : Number(v).toFixed(7);
+  const fmtTerm = v => (v === '' || v == null || isNaN(v)) ? '' : Number(v).toFixed(3);
+  const spotHeader = 'term_years,maturity_date,cusip,security_type,source,ask_yield,sa_yield,sao_yield,spot_yield,spot_sa_yield,bei';
+  const spotLines = evalRows.map(r => [
+    fmtTerm(r.term_years), r.maturity_date, r.cusip, r.security_type, r.source,
+    fmtYield(r.ask_yield), fmtYield(r.sa_yield), fmtYield(r.sao_yield),
+    fmtYield(r.spot_yield), fmtYield(r.spot_sa_yield), fmtYield(r.bei),
+  ].join(','));
+  const spotCsv = [spotHeader, ...spotLines].join('\n') + '\n';
 
   const beiHeader = 'cusip,maturity,coupon,ask_yield,sa_yield,sao_yield,nominal_cusip,nominal_maturity,nominal_yield,ask_bei,sa_bei,sao_bei';
   const beiLines = beiRows.map(r => [
@@ -276,13 +341,13 @@ async function main() {
 
   if (DRY) {
     console.log('--dry: not uploading. Sample output:');
-    console.log(curvesJson.slice(0, 800));
+    console.log(spotCsv.split('\n').slice(0, 6).join('\n'));
     console.log(beiCsv.split('\n').slice(0, 4).join('\n'));
     console.log(spreadCsv.split('\n').slice(0, 4).join('\n'));
     return;
   }
 
-  await uploadToR2('Treasuries/SpotYieldCurves.json', curvesJson, 'application/json');
+  await uploadToR2('Treasuries/SpotYieldCurves.csv', spotCsv);
   await uploadToR2('Treasuries/BreakevenInflation.csv', beiCsv);
   await uploadToR2('Treasuries/BidAskSpreads.csv', spreadCsv);
   console.log('Update complete.');
