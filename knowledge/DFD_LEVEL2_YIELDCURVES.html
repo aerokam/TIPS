@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Yield Curves — Level 2</title>
+<style>
+  :root {
+    --bg: #0d0d1a;
+    --border: #2a2a4a;
+    --text: #c0c8e0;
+    --accent: #7070cc;
+    --entity: #1a1a2e;
+    --process: #1a2a4e;
+    --store: #1a2e1a;
+    --flow: #55558c;
+    --flow-text: #8b93b8;
+    --font: 'Segoe UI', system-ui, sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+  }
+
+  .nav-header {
+    width: 100%;
+    max-width: 1200px;
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 50px;
+    padding: 25px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 30px;
+  }
+  .nav-header a {
+    color: var(--accent);
+    text-decoration: none;
+    font-size: 1.2rem;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .nav-header a:hover { color: #aaaaff; text-decoration: underline; }
+  .nav-header a.portal-link { font-size: 11px; font-weight: 700; color: #475569; background: #e2e8f0; border: 1px solid #cbd5e1; border-radius: 4px; padding: 2px 10px; text-decoration: none; letter-spacing: 0.02em; text-transform: none; }
+  .nav-header a.portal-link:hover { background: #1e293b; color: #ffffff; border-color: #1e293b; text-decoration: none; }
+
+  h1 {
+    font-size: 1.5rem;
+    font-weight: 300;
+    letter-spacing: 2px;
+    color: var(--accent);
+    margin: 0 0 25px;
+    text-align: center;
+  }
+
+  .diagram { width: 100%; max-width: 1400px; }
+  .diagram svg { width: 100%; height: auto; display: block; }
+
+  /* Shapes */
+  .entity rect {
+    fill: var(--entity);
+    stroke: var(--border);
+    stroke-width: 1;
+  }
+  .entity:hover rect { stroke: var(--accent); }
+  .entity .e-name { fill: #c8d0ea; font-size: 13.5px; }
+  .entity:hover .e-name { fill: #ffffff; }
+
+  .process circle {
+    fill: var(--process);
+    stroke: var(--accent);
+    stroke-width: 2;
+  }
+  .process:hover circle { stroke: #aaaaff; filter: drop-shadow(0 0 12px rgba(112,112,204,0.6)); }
+  .process .p-id { fill: #8fa0d8; font-size: 12px; letter-spacing: 1px; }
+  .process .p-name { fill: #eef0ff; font-size: 15px; font-weight: 600; }
+
+
+  a.entity, a.process { cursor: pointer; text-decoration: none; }
+  a text, g.entity text { text-anchor: middle; font-family: var(--font); }
+
+  /* Flows */
+  .flow { stroke: var(--flow); stroke-width: 1.6; fill: none; }
+  .flow-label {
+    fill: var(--flow-text);
+    font-size: 13px;
+    font-family: var(--font);
+    stroke: var(--bg);
+    stroke-width: 5;
+    paint-order: stroke;
+    stroke-linejoin: round;
+  }
+
+  .legend text { fill: #6f78a0; font-size: 12px; font-family: var(--font); }
+  .legend rect.sw { fill: var(--entity); stroke: var(--border); }
+  .legend circle.sw { fill: var(--process); stroke: var(--accent); stroke-width: 1.5; }
+
+  .notes {
+    max-width: 900px;
+    margin-top: 30px;
+    font-size: 0.8rem;
+    color: #7a83aa;
+    line-height: 1.7;
+    text-align: center;
+  }
+  .notes a { color: var(--accent); }
+
+  .index {
+    max-width: 980px;
+    margin: 45px 0 20px;
+    border-top: 1px solid var(--border);
+    padding-top: 25px;
+  }
+  .index h2 {
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #666699;
+    margin: 0 0 6px;
+    text-align: center;
+  }
+  .index p { font-size: 0.8rem; color: #7a83aa; text-align: center; margin: 0 0 20px; line-height: 1.6; }
+  .index-group { margin-bottom: 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: baseline; justify-content: center; }
+  .index-group .g-label { font-size: 0.7rem; letter-spacing: 1.5px; text-transform: uppercase; color: #666699; font-weight: 700; width: 100%; text-align: center; }
+  .index-group a {
+    color: var(--text);
+    text-decoration: none;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    background: var(--entity);
+    border-radius: 4px;
+    padding: 5px 12px;
+  }
+  .index-group a:hover { border-color: var(--accent); color: #ffffff; }
+</style>
+<style>
+  .store line { stroke: #4a8a4a; stroke-width: 2; }
+  .store:hover line { stroke: #7ada7a; }
+  .store .s-name { fill: #a8e6a8; font-size: 13px; }
+  a.store { cursor: pointer; text-decoration: none; }
+  .process .p-name { font-size: 12.5px; }
+  .flow-label { font-size: 12px; }
+  .diagram { max-width: 1250px; }
+</style>
+</head>
+<body>
+
+<div class="nav-header">
+  <a href="../" class="portal-link">&#8592; Portal</a>
+  <a href="DFD_LEVEL1.html">&#8593; Level 1</a>
+</div>
+
+<h1>Level 2 &mdash; Yield Curves</h1>
+
+<div class="diagram">
+<svg viewBox="0 0 1250 1000" role="img" aria-label="Level 2 for Yield Curves: seven processes reading five data stores. No process writes a data store.">
+  <defs><marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#55558c"/></marker></defs>
+  <line class="flow" x1="260.0" y1="150.0" x2="323.7" y2="165.9" marker-end="url(#a1)"/>
+  <line class="flow" x1="260.0" y1="268.0" x2="333.2" y2="214.3" marker-end="url(#a1)"/>
+  <line class="flow" x1="260.0" y1="386.0" x2="350.8" y2="230.1" marker-end="url(#a1)"/>
+  <line class="flow" x1="260.0" y1="504.0" x2="359.9" y2="234.4" marker-end="url(#a1)"/>
+  <line class="flow" x1="260.0" y1="622.0" x2="364.8" y2="236.0" marker-end="url(#a1)"/>
+  <line class="flow" x1="428.3" y1="212.2" x2="541.7" y2="287.8" marker-end="url(#a1)"/>
+  <text class="flow-label" x="471" y="235" text-anchor="middle">priced bonds</text>
+  <line class="flow" x1="402.1" y1="233.6" x2="547.9" y2="586.4" marker-end="url(#a1)"/>
+  <text class="flow-label" x="458" y="362" text-anchor="middle">priced bonds</text>
+  <line class="flow" x1="380.0" y1="238.0" x2="380.0" y2="822.0" marker-end="url(#a1)"/>
+  <text class="flow-label" x="380" y="454" text-anchor="middle">bid and ask quotes</text>
+  <line class="flow" x1="626.6" y1="365.0" x2="683.4" y2="435.0" marker-end="url(#a1)"/>
+  <text class="flow-label" x="648" y="386" text-anchor="middle">SA yields</text>
+  <line class="flow" x1="586.4" y1="377.9" x2="573.6" y2="582.1" marker-end="url(#a1)"/>
+  <text class="flow-label" x="582" y="449" text-anchor="middle">SA yields</text>
+  <line class="flow" x1="605.2" y1="376.0" x2="704.8" y2="744.0" marker-end="url(#a1)"/>
+  <text class="flow-label" x="643" y="510" text-anchor="middle">SA real yields</text>
+  <line class="flow" x1="637.3" y1="353.6" x2="852.7" y2="506.4" marker-end="url(#a1)"/>
+  <text class="flow-label" x="719" y="406" text-anchor="middle">SA yields</text>
+  <line class="flow" x1="680.3" y1="522.3" x2="609.7" y2="597.7" marker-end="url(#a1)"/>
+  <text class="flow-label" x="653" y="545" text-anchor="middle">SAO yields</text>
+  <line class="flow" x1="720.0" y1="538.0" x2="720.0" y2="742.0" marker-end="url(#a1)"/>
+  <text class="flow-label" x="720" y="610" text-anchor="middle">SAO yields</text>
+  <line class="flow" x1="775.0" y1="498.3" x2="845.0" y2="521.7" marker-end="url(#a1)"/>
+  <text class="flow-label" x="802" y="501" text-anchor="middle">SAO yields</text>
+  <line class="flow" x1="609.7" y1="682.3" x2="680.3" y2="757.7" marker-end="url(#a1)"/>
+  <text class="flow-label" x="637" y="705" text-anchor="middle">spot curves</text>
+  <line class="flow" x1="625.5" y1="623.2" x2="844.5" y2="556.8" marker-end="url(#a1)"/>
+  <text class="flow-label" x="709" y="592" text-anchor="middle">spot curves</text>
+  <line class="flow" x1="753.0" y1="752.3" x2="867.0" y2="587.7" marker-end="url(#a1)"/>
+  <text class="flow-label" x="796" y="684" text-anchor="middle">breakeven inflation</text>
+  <line class="flow" x1="428.5" y1="848.3" x2="851.5" y2="571.7" marker-end="url(#a1)"/>
+  <text class="flow-label" x="589" y="737" text-anchor="middle">spreads</text>
+  <line class="flow" x1="961.0" y1="531.0" x2="1085.0" y2="531.0" marker-end="url(#a1)"/>
+  <line class="flow" x1="1085.0" y1="549.0" x2="961.0" y2="549.0" marker-end="url(#a1)"/>
+  <text class="flow-label" x="1024" y="518" text-anchor="middle">charts and tables</text>
+  <text class="flow-label" x="1024" y="578" text-anchor="middle">tab and date selections</text>
+  <g class="entity"><rect x="1090" y="410" width="145" height="260" rx="3"/><text class="e-name" x="1162.5" y="545">User</text></g>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s1">
+    <rect x="40" y="130" width="215" height="40" fill="transparent" stroke="none"/>
+    <line x1="40" y1="130" x2="255" y2="130"/>
+    <line x1="40" y1="170" x2="255" y2="170"/>
+    <text class="s-name" x="147.5" y="155">FedInvest prices</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s7">
+    <rect x="40" y="248" width="215" height="40" fill="transparent" stroke="none"/>
+    <line x1="40" y1="248" x2="255" y2="248"/>
+    <line x1="40" y1="288" x2="255" y2="288"/>
+    <text class="s-name" x="147.5" y="273">Market quotes</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s4">
+    <rect x="40" y="366" width="215" height="40" fill="transparent" stroke="none"/>
+    <line x1="40" y1="366" x2="255" y2="366"/>
+    <line x1="40" y1="406" x2="255" y2="406"/>
+    <text class="s-name" x="147.5" y="391">Ref CPI NSA and SA</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md">
+    <rect x="40" y="484" width="215" height="40" fill="transparent" stroke="none"/>
+    <line x1="40" y1="484" x2="255" y2="484"/>
+    <line x1="40" y1="524" x2="255" y2="524"/>
+    <text class="s-name" x="147.5" y="509">Bond holidays</text>
+  </a>
+  <a class="store" href="viewer.html#/md/knowledge/DataStores.md#s12">
+    <rect x="40" y="602" width="215" height="40" fill="transparent" stroke="none"/>
+    <line x1="40" y1="602" x2="255" y2="602"/>
+    <line x1="40" y1="642" x2="255" y2="642"/>
+    <text class="s-name" x="147.5" y="627">GSW curve parameters</text>
+  </a>
+  <a class="process" href="viewer.html#/md/knowledge/YieldCurves.md">
+    <circle cx="380" cy="180" r="58"/>
+    <text class="p-id" x="380" y="160">7.1</text>
+    <text class="p-name" x="380" y="181">Load and parse</text>
+    <text class="p-name" x="380" y="197">source data</text>
+  </a>
+  <a class="process" href="viewer.html#/md/YieldCurves/knowledge/1.0_Seasonal_Adjustments.md">
+    <circle cx="590" cy="320" r="58"/>
+    <text class="p-id" x="590" y="300">7.2</text>
+    <text class="p-name" x="590" y="321">Adjust for</text>
+    <text class="p-name" x="590" y="337">seasonality</text>
+  </a>
+  <a class="process" href="viewer.html#/md/YieldCurves/knowledge/2.0_SAO_Adjustment.md">
+    <circle cx="720" cy="480" r="58"/>
+    <text class="p-id" x="720" y="460">7.3</text>
+    <text class="p-name" x="720" y="481">Smooth</text>
+    <text class="p-name" x="720" y="497">outliers</text>
+  </a>
+  <a class="process" href="viewer.html#/md/YieldCurves/knowledge/4.0_Spot_Yield_Curves.md">
+    <circle cx="570" cy="640" r="58"/>
+    <text class="p-id" x="570" y="620">7.4</text>
+    <text class="p-name" x="570" y="641">Fit spot</text>
+    <text class="p-name" x="570" y="657">curves</text>
+  </a>
+  <a class="process" href="viewer.html#/md/YieldsMonitor/knowledge/2.3_Breakeven_Inflation.md">
+    <circle cx="720" cy="800" r="58"/>
+    <text class="p-id" x="720" y="772">7.5</text>
+    <text class="p-name" x="720" y="793">Compute</text>
+    <text class="p-name" x="720" y="809">breakeven</text>
+    <text class="p-name" x="720" y="825">inflation</text>
+  </a>
+  <a class="process" href="viewer.html#/md/knowledge/YieldCurves.md">
+    <circle cx="380" cy="880" r="58"/>
+    <text class="p-id" x="380" y="852">7.6</text>
+    <text class="p-name" x="380" y="873">Compute bid</text>
+    <text class="p-name" x="380" y="889">and ask</text>
+    <text class="p-name" x="380" y="905">spreads</text>
+  </a>
+  <a class="process" href="viewer.html#/md/YieldCurves/knowledge/3.0_Visual_Standards.md">
+    <circle cx="900" cy="540" r="58"/>
+    <text class="p-id" x="900" y="520">7.7</text>
+    <text class="p-name" x="900" y="541">Render charts</text>
+    <text class="p-name" x="900" y="557">and tables</text>
+  </a>
+</svg>
+</div>
+
+<p class="notes">
+  <b>No process here writes a data store.</b> Yield Curves reads five stores and computes everything else in the browser at load, including the spot curves, which flow to 7.7 and no further. To take a fitted spot curve into a spreadsheet, it would first have to be written somewhere.
+  7.1 is the only process that reads a store; the rest take their input from each other.
+  GSW curve parameters are the Federal Reserve’s own published fit, read as a reference line rather than computed here.
+</p>
+
+</body>
+</html>
