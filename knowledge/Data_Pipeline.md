@@ -42,6 +42,7 @@ These jobs run on the host machine via Windows Task Scheduler.
 | **SA Factor Update** | Daily 6:35am | `YieldCurves/scripts/updateRefCpi.js` | `RefCpiNsaSa.csv` |
 | **FundHoldings** | Daily 6:40am PT | `FundHoldings/updateAllHoldings.js`, then `FundHoldings/enrichHoldings.js` | `FundHoldings/Holdings-<TICKER>(-Enriched).csv` and `FundHoldings/FundMeta.json` ([S11](./DataStores.md#s11)) |
 | **GSW TIPS Curve** | Daily 7:15am PT | `YieldCurves/scripts/updateGswTipsCurve.js` | `TIPS/GswTipsCurve.json` (GSW Svensson params — [S12](./DataStores.md#s12)) |
+| **Spot Yield Curves** | Triggered by the `FidelityQuotes` task (3x daily on weekdays), chained after it | `YieldCurves/scripts/updateSpotYieldCurves.js` | `Treasuries/SpotYieldCurves.json` ([S13](./DataStores.md#s13)), `Treasuries/BreakevenInflation.csv` ([S14](./DataStores.md#s14)), `Treasuries/BidAskSpreads.csv` ([S15](./DataStores.md#s15)) |
 | **CPI History Refresh** | 8:35 AM ET on each BLS release date, then chains Ref CPI Refresh | `scripts/fetchCpiHistory.js` (`run-cpi-history.cmd`) | `bls/CPI_history.csv` |
 | **Ref CPI Refresh** | Chained from CPI History Refresh (not independently scheduled) | `scripts/fetchRefCpi.js` (`run-ref-cpi.cmd`) | `TIPS/RefCPI.csv` |
 

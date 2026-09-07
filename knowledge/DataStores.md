@@ -96,6 +96,75 @@ This document provides the technical schemas and field-level specifications for 
 
 ---
 
+## <a id="s13"></a>S13: SpotYieldCurves.json
+**Description**: Fitted Nelson-Siegel-Svensson zero-coupon (spot) yield curves — the values YieldCurves computes for its chart's "Spot" / "Spot SA" lines but does not otherwise persist. One row per (`curve`, `source`) pair: `curve` is `nominal`, `tips_ask` (fit to quoted ask price), or `tips_sa` (fit to seasonally adjusted price); `source` is `FedInvest` or `Market`. Six Svensson parameters per row, nothing evaluated — same convention as [S12](#s12); evaluate with `shared/src/spot-curve.js` (`nssBasis`).
+**Update Frequency**: Same cadence as the `FidelityQuotes` pipeline (3x daily on weekdays), via `updateSpotYieldCurves.js`.
+**R2 Key**: `Treasuries/SpotYieldCurves.json`
+
+| Field | Type | Description |
+|---|---|---|
+| `curve` | String | `nominal`, `tips_ask`, or `tips_sa`. |
+| `source` | String | `FedInvest` or `Market`. |
+| `settlementDate` | Date | Settlement date used for this source (FedInvest: the price-date row; Market: trade date + T+1). |
+| `asOf` | Timestamp | ISO timestamp the fit was computed at (fixes the "now" used for years-to-maturity). |
+| `beta0`-`beta3` | Number | Svensson level / slope / two curvature coefficients (% continuously compounded). |
+| `tau1`, `tau2` | Number | Svensson decay parameters (years). |
+| `tMin`, `tMax` | Number | Years-to-maturity range the fit was built over. |
+
+**Not stored**: Spot BEI (nominal zero curve minus TIPS SA zero curve). It is fully re-derivable from the `nominal`/`Market` and `tips_sa`/`Market` rows at any horizon, so storing it separately would be redundant duplication rather than verifying redundancy.
+
+**Logic**: Loads the same R2 inputs the YieldCurves app loads (S1, S4, S7, `misc/BondHolidaysSifma.csv`) and fits with `shared/src/spot-curve.js#spotCurveFit` — the same module `src/app.js` imports, so the app and this pipeline can never drift onto two different fits.
+
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/SpotYieldCurves.json)
+
+---
+
+## <a id="s14"></a>S14: BreakevenInflation.csv
+**Description**: Per-TIPS breakeven inflation — the Ask/SA/SAO yield for each TIPS against the yield of its nearest-maturity nominal Treasury, `Market` (Fidelity) source only. Matches the YieldCurves BEI tab's per-bond table, which the app computes but does not persist.
+**Update Frequency**: Same cadence as the `FidelityQuotes` pipeline (3x daily on weekdays), via `updateSpotYieldCurves.js`.
+**R2 Key**: `Treasuries/BreakevenInflation.csv`
+
+| Field | Type | Description |
+|---|---|---|
+| `cusip` | String | TIPS CUSIP. |
+| `maturity` | Date | TIPS maturity date. |
+| `coupon` | Number | Real coupon rate (decimal). |
+| `ask_yield` | Number | Ask yield-to-maturity (decimal). |
+| `sa_yield` | Number | [SA Yield](./DATA_DICTIONARY.md#sa-yield). |
+| `sao_yield` | Number | [SAO Yield](./DATA_DICTIONARY.md#sao-yield). |
+| `nominal_cusip` | String | CUSIP of the nearest-maturity nominal Treasury. |
+| `nominal_maturity` | Date | That nominal's maturity date. |
+| `nominal_yield` | Number | That nominal's ask yield-to-maturity (decimal). |
+| `ask_bei` | Number | `nominal_yield − ask_yield`. |
+| `sa_bei` | Number | `nominal_yield − sa_yield`. |
+| `sao_bei` | Number | `nominal_yield − sao_yield`. |
+
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/BreakevenInflation.csv)
+
+---
+
+## <a id="s15"></a>S15: BidAskSpreads.csv
+**Description**: Per-security broker bid/ask yield and price spread, TIPS and nominal Treasuries combined in one file (`security_type` discriminates, same pattern as [S7](#s7)'s `Product` column). `Market` (Fidelity) source only — FedInvest carries a single mid-market price, not a separate bid and ask.
+**Update Frequency**: Same cadence as the `FidelityQuotes` pipeline (3x daily on weekdays), via `updateSpotYieldCurves.js`.
+**R2 Key**: `Treasuries/BidAskSpreads.csv`
+
+| Field | Type | Description |
+|---|---|---|
+| `security_type` | String | `TIPS` or `Treasury`. |
+| `cusip` | String | 9-character security identifier. |
+| `maturity` | Date | Maturity date. |
+| `coupon` | Number | Coupon rate (decimal). |
+| `ask_yield` | Number | Ask yield-to-maturity (decimal). |
+| `bid_yield` | Number | Bid yield-to-maturity (decimal). |
+| `yield_spread_bps` | Number | `(bid_yield − ask_yield) × 10000`. |
+| `ask_price` | Number | Ask price (TIPS: raw clean price, matching S7). |
+| `bid_price` | Number | Bid price (TIPS: raw clean price, matching S7). |
+| `price_spread_pct` | Number | TIPS: `(adjusted_ask − adjusted_bid) / adjusted_ask × 100` (actual dollar cost). Treasury: `(ask − bid) / ask × 100`. |
+
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/BidAskSpreads.csv)
+
+---
+
 ## <a id="s7"></a>S7: FidelityTreasuriesTips.csv
 **Description**: Combined broker market quotes from Fidelity — Treasury and TIPS rows in one file, distinguished by the `Product` column (`Treasury` / `TIPS`).
 **Update Frequency**: 3× Daily (Local Windows Task).
