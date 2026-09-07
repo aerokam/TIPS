@@ -9,10 +9,10 @@
 //
 // Writes three files under Treasuries/ (spot curves cover nominals AND TIPS, so they are
 // not TIPS-specific — see knowledge/DataStores.md):
-//   Treasuries/SpotYieldCurves.csv    — per-security ask/SA/SAO yields plus evaluated
-//                                        nominal/TIPS-SA spot yields and spot BEI on a
-//                                        term grid — one spreadsheet-ready file, not
-//                                        Svensson parameters (see S13)
+//   Treasuries/YieldCurves.csv        — per-security Ask/SA/SAO yields plus evaluated
+//                                        nominal/TIPS-quoted/TIPS-SA spot yields and
+//                                        spot BEI on a term grid — one spreadsheet-ready,
+//                                        general-purpose file (see S13)
 //   Treasuries/BreakevenInflation.csv — per-TIPS Ask/SA/SAO breakeven vs. nearest nominal
 //   Treasuries/BidAskSpreads.csv      — per-security broker bid/ask yield & price spread
 //
@@ -43,6 +43,13 @@ const DRY = process.argv.includes('--dry');
 // Business logic (which fields to trust, gating against FedInvest CUSIPs) intentionally
 // stays here rather than in the shared fidelity-parse.js primitives — see that module's
 // own header comment.
+//
+// Returns EVERY nominal Treasury row, STRIPS included (Product = Treasury covers both —
+// see knowledge/DATA_DICTIONARY.md#s7/#e6, which describe Product as Treasury/TIPS but
+// don't call out that STRIPS rows sit inside the Treasury rows, identified only by CUSIP
+// root — see this script's STRIPS handling below and the task report). Callers filter
+// STRIPS out where a coupon-bond price-space curve fit needs them excluded; the raw
+// per-security rows keep them, tagged Type = STRIPS via classifyByCusipRoot.
 function parseFidelityNominalRows(text, tipsCusips) {
   const rows = parseCsv(text);
   const bonds = [];
@@ -145,26 +152,55 @@ function termYears(maturityStr, settlementStr) {
   return (mature.getTime() - settle.getTime()) / (365.25 * 86400000);
 }
 
-const GRID_STEP_YRS = 0.5; // half-year grid — matches the chart's own spotCurveGrid convention
+const GRID_STEP_YRS = 0.5; // half-year grid — matches the chart's own spotCurveGrid convention.
+// 0.5 is exactly representable in IEEE754 binary floating point, so repeated += 0.5 never
+// drifts off an integer — every whole year in range lands on the grid automatically as
+// every other step (1.0, 2.0, 3.0, …), alongside the half-year points. Kept for the finer
+// resolution; the developer's stated use (a discount rate per annual term) is a subset of
+// what this grid already produces.
 
-// Evaluated nominal + TIPS-SA spot yields (and spot BEI = nominal − TIPS SA, per
-// 4.0_Spot_Yield_Curves.md §Spot BEI) on a half-year term grid, clipped to the range where
-// BOTH fits are valid so BEI is always defined at every grid row. Uses the fit objects'
-// own z(t)/sane() — no refitting, just evaluating the shared module's already-fitted curve.
+// Evaluate one fit's z(t) at a term, honoring its own valid range and sanity check.
+// Returns a decimal yield, or null if the fit is missing, out of range, or blown up there.
+function evalFitAt(fit, t) {
+  if (!fit || t < fit.tMin - 1e-9 || t > fit.tMax + 1e-9) return null;
+  const pct = zToSA(fit.z(t));
+  return fit.sane(pct) ? pct / 100 : null;
+}
+
+// Fitted grid rows: THREE Type rows per term (Treasury / TIPS / BEI), one row per source.
+// A grid row carries CUSIP = "Spot" (not blank) so it reads consistently with security
+// rows — see knowledge/DataStores.md#s13. The three underlying curves (nominal, TIPS
+// quoted, TIPS SA) may each have a different valid range, so the grid spans their union
+// and a cell is left blank at any term/fit combination where that particular curve isn't
+// valid, rather than truncating the whole grid to the narrowest curve's range.
 function buildGridRows(fits, source) {
-  const { nominal: nomFit, tips_sa: saFit } = fits;
-  if (!nomFit || !saFit) { console.warn(`  (skipped ${source} grid: nominal or tips_sa fit missing)`); return []; }
-  const tMin = Math.max(nomFit.tMin, saFit.tMin);
-  const tMax = Math.min(nomFit.tMax, saFit.tMax);
+  const { nominal: nomFit, tips: tipsFit, tips_sa: saFit } = fits;
+  const present = [nomFit, tipsFit, saFit].filter(Boolean);
+  if (!present.length) { console.warn(`  (skipped ${source} grid: no fits available)`); return []; }
+  const tMin = Math.min(...present.map(f => f.tMin));
+  const tMax = Math.max(...present.map(f => f.tMax));
   const rows = [];
   for (let t = Math.ceil(tMin / GRID_STEP_YRS) * GRID_STEP_YRS; t <= tMax + 1e-9; t += GRID_STEP_YRS) {
-    const nomPct = zToSA(nomFit.z(t)), saPct = zToSA(saFit.z(t));
-    if (!nomFit.sane(nomPct) || !saFit.sane(saPct)) continue; // blown-up fit at this horizon — skip
-    const spotYield = nomPct / 100, spotSaYield = saPct / 100;
+    const nomVal = evalFitAt(nomFit, t);
+    const tipsVal = evalFitAt(tipsFit, t);
+    const saVal = evalFitAt(saFit, t);
+    if (nomVal == null && tipsVal == null && saVal == null) continue; // nothing valid at this term
+
     rows.push({
-      term_years: t, maturity_date: '', cusip: '', security_type: '', source,
+      term_years: t, maturity_date: '', cusip: 'Spot', type: 'Treasury', source,
       ask_yield: '', sa_yield: '', sao_yield: '',
-      spot_yield: spotYield, spot_sa_yield: spotSaYield, bei: spotYield - spotSaYield,
+      spot_yield: nomVal == null ? '' : nomVal, spot_sa_yield: '',
+    });
+    rows.push({
+      term_years: t, maturity_date: '', cusip: 'Spot', type: 'TIPS', source,
+      ask_yield: '', sa_yield: '', sao_yield: '',
+      spot_yield: tipsVal == null ? '' : tipsVal, spot_sa_yield: saVal == null ? '' : saVal,
+    });
+    rows.push({
+      term_years: t, maturity_date: '', cusip: 'Spot', type: 'BEI', source,
+      ask_yield: '', sa_yield: '', sao_yield: '',
+      spot_yield: (nomVal != null && tipsVal != null) ? nomVal - tipsVal : '',
+      spot_sa_yield: (nomVal != null && saVal != null) ? nomVal - saVal : '',
     });
   }
   return rows;
@@ -205,8 +241,15 @@ async function main() {
     if (isNaN(r.askPrice) || !tipsCusips.has(r.cusip)) continue;
     priceMap.set(r.cusip, r);
   }
-  const fidNominalBonds = parseFidelityNominalRows(fidText, tipsCusips).filter(b => !isStrip(b.cusip));
-  console.log(`Market: ${priceMap.size} TIPS quotes, ${fidNominalBonds.length} nominal quotes.`);
+  // Unfiltered: every nominal Treasury row, STRIPS included, for the per-security rows.
+  const fidNominalBondsAll = parseFidelityNominalRows(fidText, tipsCusips);
+  // Filtered: STRIPS excluded, for the coupon-bond price-space curve fit only — a STRIP's
+  // price/yield relationship is already a pure zero-coupon discount, but the *nominal fit*
+  // is a coupon-bond price-space fit (cashflowSchedule) and STRIPS aren't part of its
+  // fitting universe here, same as S1's fitting inputs (knowledge/DataStores.md#s13).
+  const fidNominalBonds = fidNominalBondsAll.filter(b => !isStrip(b.cusip));
+  console.log(`Market: ${priceMap.size} TIPS quotes, ${fidNominalBondsAll.length} nominal quotes `
+    + `(${fidNominalBondsAll.length - fidNominalBonds.length} STRIPS).`);
 
   // ── Processed bonds, per source ──────────────────────────────────────────────
   const fedTipsBonds = buildProcessedTipsBonds(rawTipsData, refCpiData, priceMap, false, fedSettleStr);
@@ -214,69 +257,76 @@ async function main() {
   if (fedTipsBonds.length) { const s = calculateSAO(fedTipsBonds); fedTipsBonds.forEach((b, i) => b.saoYield = s[i]); }
   if (mktTipsBonds.length) { const s = calculateSAO(mktTipsBonds); mktTipsBonds.forEach((b, i) => b.saoYield = s[i]); }
 
-  const fedNominalBonds = rawNominalsData.filter(r => !isStrip(r.cusip)).map(r => {
+  // FedInvest nominals: STRIPS aren't currently present in YieldsFromFedInvestPrices.csv
+  // (verified empty at time of writing), but the same all/fit split is applied for symmetry
+  // and in case that ever changes — classifyByCusipRoot tags STRIPS Type correctly either way.
+  const fedNominalBondsAll = rawNominalsData.map(r => {
     const coupon = parseFloat(r.coupon), price = parseFloat(r.price);
     const maturityDate = localDate(r.maturity);
     const yld = yieldFromPrice(price, coupon, localDate(r.settlementDate), maturityDate);
     if (yld == null || isNaN(yld)) return null;
     return { ...r, coupon, price, yield: yld, maturityDate };
   }).filter(Boolean);
+  const fedNominalBonds = fedNominalBondsAll.filter(b => !isStrip(b.cusip));
+  const mktNominalBondsAll = fidNominalBondsAll.map(b => ({ ...b, settlementDate: brokerSettleStr }));
   const mktNominalBonds = fidNominalBonds.map(b => ({ ...b, settlementDate: brokerSettleStr }));
 
-  // ── Spot curves: nominal fit uses minT 0.25y (Bills anchor the short end), TIPS SA fit
-  // uses the shared default (SAO_NOISE_YRS = 0.5y) — same as src/app.js's chart calls. Only
-  // nominal and TIPS-SA are fit here: the quoted (non-SA) TIPS spot curve isn't part of the
-  // evaluated-CSV schema (see knowledge/DataStores.md#s13) — the app still fits it live for
-  // its own chart, independent of this pipeline. ──────────────────────────────────────
+  // ── Spot curves: nominal fit uses minT 0.25y (Bills anchor the short end), TIPS quoted
+  // and TIPS SA fits use the shared default (SAO_NOISE_YRS = 0.5y) — same as src/app.js's
+  // chart calls (the quoted-TIPS fit matches src/app.js's TIPS-tab "Spot" call exactly:
+  // priceOf b.price, yieldOf b.askYield, no minT override). ──────────────────────────
   const fits = {
     FedInvest: {
       nominal: spotCurveFit(fedNominalBonds, { priceOf: b => b.price, yieldOf: b => b.yield, minT: 0.25 }),
+      tips: spotCurveFit(fedTipsBonds, { priceOf: b => b.price, yieldOf: b => b.askYield }),
       tips_sa: spotCurveFit(fedTipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield }),
     },
     Market: {
       nominal: spotCurveFit(mktNominalBonds, { priceOf: b => b.price, yieldOf: b => b.yield, minT: 0.25 }),
+      tips: spotCurveFit(mktTipsBonds, { priceOf: b => b.price, yieldOf: b => b.askYield }),
       tips_sa: spotCurveFit(mktTipsBonds, { priceOf: b => b.price * b.saRatio, yieldOf: b => b.saYield }),
     },
   };
-  console.log(`Fitted spot curves — FedInvest: nominal=${!!fits.FedInvest.nominal} tips_sa=${!!fits.FedInvest.tips_sa}; `
-    + `Market: nominal=${!!fits.Market.nominal} tips_sa=${!!fits.Market.tips_sa}`);
+  console.log(`Fitted spot curves — FedInvest: nominal=${!!fits.FedInvest.nominal} tips=${!!fits.FedInvest.tips} tips_sa=${!!fits.FedInvest.tips_sa}; `
+    + `Market: nominal=${!!fits.Market.nominal} tips=${!!fits.Market.tips} tips_sa=${!!fits.Market.tips_sa}`);
 
-  // ── SpotYieldCurves.csv rows: one row per actual security (ask/SA/SAO populated where
-  // they exist) plus one row per fitted grid point (spot_yield/spot_sa_yield/bei populated).
+  // ── YieldCurves.csv rows: one row per actual security (Ask/SA/SAO populated where they
+  // exist) plus rows per fitted grid point (Spot/Spot SA populated, Type = Treasury/TIPS/BEI).
   // See knowledge/DataStores.md#s13 for the column list and rationale. ──────────────────
   const evalRows = [];
-  for (const b of fedNominalBonds) evalRows.push({
+  for (const b of fedNominalBondsAll) evalRows.push({
     term_years: termYears(b.maturity, fedSettleStr), maturity_date: b.maturity, cusip: b.cusip,
-    security_type: classifyByCusipRoot(b.cusip) || '', source: 'FedInvest',
-    ask_yield: b.yield, sa_yield: '', sao_yield: '', spot_yield: '', spot_sa_yield: '', bei: '',
+    type: classifyByCusipRoot(b.cusip) || '', source: 'FedInvest',
+    ask_yield: b.yield, sa_yield: '', sao_yield: '', spot_yield: '', spot_sa_yield: '',
   });
-  for (const b of mktNominalBonds) evalRows.push({
+  for (const b of mktNominalBondsAll) evalRows.push({
     term_years: termYears(b.maturity, brokerSettleStr), maturity_date: b.maturity, cusip: b.cusip,
-    security_type: classifyByCusipRoot(b.cusip) || '', source: 'Market',
-    ask_yield: b.yield, sa_yield: '', sao_yield: '', spot_yield: '', spot_sa_yield: '', bei: '',
+    type: classifyByCusipRoot(b.cusip) || '', source: 'Market',
+    ask_yield: b.yield, sa_yield: '', sao_yield: '', spot_yield: '', spot_sa_yield: '',
   });
   for (const b of fedTipsBonds) evalRows.push({
     term_years: termYears(b.maturity, fedSettleStr), maturity_date: b.maturity, cusip: b.cusip,
-    security_type: 'TIPS', source: 'FedInvest',
-    ask_yield: b.askYield, sa_yield: b.saYield, sao_yield: b.saoYield, spot_yield: '', spot_sa_yield: '', bei: '',
+    type: 'TIPS', source: 'FedInvest',
+    ask_yield: b.askYield, sa_yield: b.saYield, sao_yield: b.saoYield, spot_yield: '', spot_sa_yield: '',
   });
   for (const b of mktTipsBonds) evalRows.push({
     term_years: termYears(b.maturity, brokerSettleStr), maturity_date: b.maturity, cusip: b.cusip,
-    security_type: 'TIPS', source: 'Market',
-    ask_yield: b.askYield, sa_yield: b.saYield, sao_yield: b.saoYield, spot_yield: '', spot_sa_yield: '', bei: '',
+    type: 'TIPS', source: 'Market',
+    ask_yield: b.askYield, sa_yield: b.saYield, sao_yield: b.saoYield, spot_yield: '', spot_sa_yield: '',
   });
   evalRows.push(...buildGridRows(fits.FedInvest, 'FedInvest'));
   evalRows.push(...buildGridRows(fits.Market, 'Market'));
   evalRows.sort((a, b) => a.term_years - b.term_years
     || a.source.localeCompare(b.source)
-    || (a.security_type || 'zzz').localeCompare(b.security_type || 'zzz'));
-  console.log(`SpotYieldCurves.csv: ${evalRows.length} rows (securities + grid points).`);
+    || (a.type || 'zzz').localeCompare(b.type || 'zzz'));
+  console.log(`YieldCurves.csv: ${evalRows.length} rows (securities + grid points).`);
 
   // ── Breakeven inflation (Market only — BEI needs both legs quoted the same way; see
   // src/app.js processAndRenderBei). Per-TIPS Ask/SA/SAO BEI vs. the nearest-maturity
-  // nominal (spot BEI itself is not persisted — it is fully re-derivable from the
-  // nominal/Market and tips_sa/Market rows above, so storing it separately would be
-  // redundant duplication rather than verifying redundancy). ─────────────────────
+  // nominal (spot BEI itself is not persisted here — it is fully re-derivable from the
+  // Treasury/TIPS grid rows above, so storing it separately would be redundant duplication
+  // rather than verifying redundancy). Matched against STRIPS-excluded nominals, same as
+  // before — a STRIP is not a sensible "nearest nominal" reference for a coupon TIPS. ───
   const beiRows = [];
   for (const b of mktTipsBonds) {
     const nom = findClosestNominal(mktNominalBonds, b.maturityDate);
@@ -291,7 +341,9 @@ async function main() {
   console.log(`Computed breakeven inflation for ${beiRows.length} TIPS.`);
 
   // ── Bid/ask spreads (Market only — FedInvest has no two-sided quote). TIPS and nominal
-  // Treasuries combined, one row per security, discriminated by security_type like S7. ──
+  // Treasuries combined, one row per security, discriminated by security_type like S7.
+  // STRIPS excluded, same as the BEI match above and unchanged from before — not in scope
+  // for this task's STRIPS addition (see task report). ──────────────────────────────
   const spreadRows = [];
   for (const b of mktTipsBonds) {
     spreadRows.push({
@@ -314,11 +366,11 @@ async function main() {
   // ── Write files ──────────────────────────────────────────────────────────────
   const fmtYield = v => (v === '' || v == null || isNaN(v)) ? '' : Number(v).toFixed(7);
   const fmtTerm = v => (v === '' || v == null || isNaN(v)) ? '' : Number(v).toFixed(3);
-  const spotHeader = 'term_years,maturity_date,cusip,security_type,source,ask_yield,sa_yield,sao_yield,spot_yield,spot_sa_yield,bei';
+  const spotHeader = 'Term (y),Maturity,CUSIP,Type,Source,Ask,SA,SAO,Spot,Spot SA';
   const spotLines = evalRows.map(r => [
-    fmtTerm(r.term_years), r.maturity_date, r.cusip, r.security_type, r.source,
+    fmtTerm(r.term_years), r.maturity_date, r.cusip, r.type, r.source,
     fmtYield(r.ask_yield), fmtYield(r.sa_yield), fmtYield(r.sao_yield),
-    fmtYield(r.spot_yield), fmtYield(r.spot_sa_yield), fmtYield(r.bei),
+    fmtYield(r.spot_yield), fmtYield(r.spot_sa_yield),
   ].join(','));
   const spotCsv = [spotHeader, ...spotLines].join('\n') + '\n';
 
@@ -347,7 +399,7 @@ async function main() {
     return;
   }
 
-  await uploadToR2('Treasuries/SpotYieldCurves.csv', spotCsv);
+  await uploadToR2('Treasuries/YieldCurves.csv', spotCsv);
   await uploadToR2('Treasuries/BreakevenInflation.csv', beiCsv);
   await uploadToR2('Treasuries/BidAskSpreads.csv', spreadCsv);
   console.log('Update complete.');
