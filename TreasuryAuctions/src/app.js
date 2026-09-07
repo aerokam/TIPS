@@ -690,7 +690,7 @@ function renderTentBody() {
 async function loadData() {
   setStatus('Fetching data...');
 
-  const R2_XML_MIRROR = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/Tentative-Auction-Schedule.xml';
+  const R2_XML_MIRROR = 'https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/Tentative-Auction-Schedule.xml';
 
   const [csvResult, upcomingResult, xmlResult] = await Promise.allSettled([
     fetch(R2_CSV_URL, { cache: 'no-cache' }).then(r => { if (!r.ok) throw new Error(`R2 HTTP ${r.status}`); return r.text(); }),

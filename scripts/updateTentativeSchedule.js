@@ -15,7 +15,7 @@ if (existsSync(_envPath)) {
 // (the browser can't fetch home.treasury.gov directly — no CORS).
 
 const TENTATIVE_XML_URL = 'https://home.treasury.gov/system/files/221/Tentative-Auction-Schedule.xml';
-const R2_XML_KEY = 'TIPS/Tentative-Auction-Schedule.xml';
+const R2_XML_KEY = 'Treasuries/Tentative-Auction-Schedule.xml';
 
 async function uploadToR2(key, body, contentType) {
   const { S3Client, PutObjectCommand } = await import('@aws-sdk/client-s3');

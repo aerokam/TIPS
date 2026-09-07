@@ -197,13 +197,13 @@ This document provides the technical schemas and field-level specifications for 
 ## <a id="s9"></a>S9: Tentative-Auction-Schedule.xml
 **Description**: Copy of the Treasury's Tentative Auction Schedule, used to identify TIPS auctions that the FiscalData upcoming-auctions feed doesn't flag.
 **Update Frequency**: Local Windows Task `TreasuryAuctions-TentativeSchedule`. Treasury revises this schedule at its Quarterly Refunding press conference (first Wednesday of Feb/May/Aug/Nov), with the document itself updated ~1–3 weeks later, so the task runs daily for 21 days after each of the next 2 quarterly-refunding dates, plus a monthly safety-net check the rest of the year. A companion task, `TreasuryAuctions-TentativeSchedule-Refresh`, re-runs `scripts/setup-tentative-schedule-task.ps1` quarterly to roll the trigger window forward — no manual maintenance needed.
-**R2 Key**: `TIPS/Tentative-Auction-Schedule.xml`
+**R2 Key**: `Treasuries/Tentative-Auction-Schedule.xml`
 
 **Format**: XML `<AuctionCalendarDate>` elements, each with `AuctionDate`, `SecurityTermWeekYear`, `SecurityType`, `ReOpeningIndicator` (Y/N), `TIPS` (Y/N), `FloatingRate` (Y/N), `AnnouncementDate`, `SettlementDate`.
 
 **Logic**: Fetched directly by the TreasuryAuctions app, which matches each upcoming-auction row to an `<AuctionCalendarDate>` node by `AuctionDate` + `SecurityTermWeekYear` and flags it TIPS if that node's `TIPS` field is `Y`.
 
-**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/TIPS/Tentative-Auction-Schedule.xml)
+**Live Data**: [View Preview](https://pub-ba11062b177640459f72e0a88d0261ae.r2.dev/Treasuries/Tentative-Auction-Schedule.xml)
 
 ---
 

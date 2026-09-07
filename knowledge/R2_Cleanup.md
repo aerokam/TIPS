@@ -117,3 +117,15 @@ See [DataStores.md#s7](./DataStores.md#s7) and [DATA_DICTIONARY.md#s7](./DATA_DI
 S9 in [DataStores.md](./DataStores.md#s9), [Portal.md](./Portal.md), and [DATA_DICTIONARY.md](./DATA_DICTIONARY.md#s9) previously pointed at this dead JSON file; it now correctly documents `TIPS/Tentative-Auction-Schedule.xml`, the file the app actually reads (which had no data-store entry of its own before this correction).
 
 Also removed `TreasuryAuctions/data/Tentative-Auction-Schedule.xml` and `TreasuryAuctions/data/tentative_tips.json` from git tracking and added `TreasuryAuctions/data/` to `.gitignore`: these were the script's local staging copies written before upload, not consumed by any app — R2 is the sole source apps read at runtime.
+
+---
+
+## Correction (2026-09-07)
+
+Two objects the 2026-05-21 cleanup listed for deletion were still in the bucket, frozen at 2026-07-13: `TIPS/Auctions.csv` and `TIPS/YieldsFromFedInvestPrices.csv`. Both were orphan writes, superseded by the `Treasuries/` copies every script and app already read. Deleted, and the deletion verified by fetching each key afterwards and confirming a 404 rather than assuming the delete took — the same failure that left `Treasuries/TipsRef.csv` behind.
+
+`Tentative-Auction-Schedule.xml` moved from the `TIPS/` prefix to `Treasuries/`. It was never duplicated or stale, and every spec and code path agreed on the old location; it was misfiled by category. The schedule covers every auction type and merely carries a `TIPS` field marking which are TIPS, so it is Treasury-wide data rather than TIPS data.
+
+Order followed, since this one was live: copy to the new key; repoint the writer (`scripts/updateTentativeSchedule.js`), the reader (`TreasuryAuctions/src/app.js`), the Dashboard monitor, and the specs; run the writer end to end and confirm it published 74,558 bytes to the new key; only then delete the old key and confirm the 404.
+
+`scripts/migrateR2.js` was **not** used and should not be reused as it stands: it copies everything under `TIPS/` to `Treasuries/` with no filtering and no source deletion, which would duplicate the TIPS-specific stores that correctly live under `TIPS/` and recreate exactly the cross-prefix confusion this entry records.

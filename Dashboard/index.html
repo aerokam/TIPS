@@ -240,7 +240,7 @@ const NODES = [
    r2Key:'TIPS/TipsRef.csv',
    schema:'{CUSIP + Maturity + DatedDate + Coupon + BaseCPI + Term}'},
   {id:'S9',type:'store',label:'Tentative-Auction-Schedule.xml',sub:'S9',cx:468,cy:315,
-   r2Key:'TIPS/Tentative-Auction-Schedule.xml',
+   r2Key:'Treasuries/Tentative-Auction-Schedule.xml',
    schema:'{AuctionCalendarDate: [AuctionDate + SecurityTermWeekYear + SecurityType + ReOpeningIndicator + TIPS + FloatingRate]}',
    r2Note:'Raw XML mirror; fetched directly by TreasuryAuctions to flag TIPS in the upcoming-auctions feed.'},
   {id:'S4',type:'store',label:'RefCpiNsaSa.csv', sub:'S4',cx:468,cy:385,
@@ -319,7 +319,7 @@ const EDGES = [
 ];
 
 // \u2500\u2500 Mappings for status overlay \u2500\u2500
-const R2_TO_NODE  = {'Treasuries/YieldsFromFedInvestPrices.csv':'S1','TIPS/RefCPI.csv':'S3','TIPS/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yields-history/history.json':'S6','Treasuries/FidelityTreasuriesTips.csv':'S7','misc/BondHolidaysSifma.csv':'S8','TIPS/Tentative-Auction-Schedule.xml':'S9'};
+const R2_TO_NODE  = {'Treasuries/YieldsFromFedInvestPrices.csv':'S1','TIPS/RefCPI.csv':'S3','TIPS/TipsRef.csv':'S2','Treasuries/RefCpiNsaSa.csv':'S4','Treasuries/Auctions.csv':'S5','Treasuries/yields-history/history.json':'S6','Treasuries/FidelityTreasuriesTips.csv':'S7','misc/BondHolidaysSifma.csv':'S8','Treasuries/Tentative-Auction-Schedule.xml':'S9'};
 const APPID_TO_NODE = {'yieldcurves':'A1','tipsladder':'A2','auctions':'A4','yieldsmonitor':'A3'};
 
 const nodeMap = Object.fromEntries(NODES.map(n=>[n.id,n]));
