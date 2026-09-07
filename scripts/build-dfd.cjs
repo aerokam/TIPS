@@ -17,28 +17,54 @@ const DS = a => V('knowledge/DataStores.md' + (a ? '#' + a : ''));
 // Flows curve, as DeMarco drew them: a quadratic whose control point sits off
 // the chord. Straight lines between two columns read as a single hatched mass;
 // a consistent bow lets the eye follow one flow across the others.
-const BOW = 0.075;
-function curve(x1, y1, x2, y2) {
-  const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+// A flow bows off its chord, as DeMarco drew them. The bow is not fixed: the
+// candidates below are tried in order and the first one taken that clears every
+// process it is not attached to, so no flow passes behind a bubble. Positive bows
+// come first, which puts the curve — and its label — above the chord, where a
+// label is not hidden by the flows beneath it.
+const BOWS = [0.08, 0.16, 0.26, -0.08, -0.16, -0.26, 0.38, -0.38];
+function curveWith(x1, y1, x2, y2, bow) {
   const dx = x2 - x1, dy = y2 - y1, L = Math.hypot(dx, dy) || 1;
-  return { x1, y1, x2, y2, cx: mx - dy / L * L * BOW, cy: my + dx / L * L * BOW };
+  const ux = dx / L, uy = dy / L;
+  const perp = [uy, -ux];              // for a rightward chord this points up the page
+  return { x1, y1, x2, y2, perp, L, cx: (x1 + x2) / 2 + perp[0] * bow * L, cy: (y1 + y2) / 2 + perp[1] * bow * L };
 }
 function pointOn(c, t) {
   const u = 1 - t;
   return [u * u * c.x1 + 2 * u * t * c.cx + t * t * c.x2,
           u * u * c.y1 + 2 * u * t * c.cy + t * t * c.y2];
 }
-function edge(x1, y1, x2, y2) {
-  const c = curve(x1, y1, x2, y2);
-  return { svg: `  <path class="flow" d="M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${c.cx.toFixed(1)} ${c.cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}" marker-end="url(#a1)"/>`, c };
+function clears(c, obstacles) {
+  for (let i = 1; i < 20; i++) {
+    const [x, y] = pointOn(c, i / 20);
+    for (const o of obstacles) if (Math.hypot(x - o.x, y - o.y) < o.r + 10) return false;
+  }
+  return true;
 }
-// A flow label belongs by the process that consumes it, not at the midpoint,
-// where flows converging on one process pile their labels on top of each other.
-const LABEL_T = 0.76;
-function label(c, text) {
-  if (!text) return '';
-  const [x, y] = pointOn(c, LABEL_T);
-  return `  <text class="flow-label" x="${x.toFixed(0)}" y="${(y - 8).toFixed(0)}" text-anchor="middle">${esc(text)}</text>`;
+// A label sits by the process that consumes the flow, where the flows have fanned
+// apart, rather than at the midpoint where they cross and it is unclear which flow
+// a label belongs to. Placed labels are remembered so a later one steps aside.
+function flow(x1, y1, x2, y2, opts = {}) {
+  const obstacles = opts.obstacles || [], placed = opts.placed;
+  let c = null;
+  for (const b of BOWS) { const k = curveWith(x1, y1, x2, y2, b); if (clears(k, obstacles)) { c = k; break; } }
+  if (!c) c = curveWith(x1, y1, x2, y2, BOWS[0]);
+  const out = [`  <path class="flow" d="M ${x1.toFixed(1)} ${y1.toFixed(1)} Q ${c.cx.toFixed(1)} ${c.cy.toFixed(1)} ${x2.toFixed(1)} ${y2.toFixed(1)}" marker-end="url(#a1)"/>`];
+  if (opts.text) {
+    const w = opts.text.length * 6.2, h = 15;
+    let best = null;
+    for (const tt of [0.82, 0.74, 0.9, 0.66, 0.58]) {
+      const [px, py] = pointOn(c, tt);
+      const lx = px + c.perp[0] * 11, ly = py + c.perp[1] * 11 - 3;
+      const box = { x: lx - w / 2, y: ly - h, w, h };
+      const hit = (placed || []).some(q => box.x < q.x + q.w && box.x + box.w > q.x && box.y < q.y + q.h && box.y + box.h > q.y);
+      if (!hit) { best = { lx, ly, box }; break; }
+      if (!best) best = { lx, ly, box };
+    }
+    if (placed) placed.push(best.box);
+    out.push(`  <text class="flow-label" x="${best.lx.toFixed(0)}" y="${best.ly.toFixed(0)}" text-anchor="middle">${esc(opts.text)}</text>`);
+  }
+  return out.join(NL);
 }
 const toCircle = (x1, y1, cx, cy, r) => { const dx = cx - x1, dy = cy - y1, L = Math.hypot(dx, dy) || 1; return [cx - r * dx / L, cy - r * dy / L]; };
 const fromCircle = (cx, cy, r, x2, y2) => { const dx = x2 - cx, dy = y2 - cy, L = Math.hypot(dx, dy) || 1; return [cx + r * dx / L, cy + r * dy / L]; };
@@ -136,24 +162,25 @@ function level1() {
   const sy = i => 110 + i * 92, ay = j => 230 + j * 132;
   const H = 1700, W = 1235;
   const acq = { cx: 232, cy: Math.round((sy(0) + sy(stores.length - 1)) / 2), r: 74 };
+  const OBS = [{ x: acq.cx, y: acq.cy, r: acq.r }, ...apps.map((a, j) => ({ x: AX, y: ay(j), r: AR }))];
   const P = [`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Level 1: one acquisition process and ten app processes, the R2 data stores between them, and the user.">`, marker()];
 
-  P.push(edge(8, acq.cy, acq.cx - acq.r - 3, acq.cy).svg);
+  P.push(flow(8, acq.cy, acq.cx - acq.r - 3, acq.cy));
   P.push(`  <text class="flow-label" x="10" y="${acq.cy - 12}">external source data</text>`);
   stores.forEach((s, i) => {
     const y = sy(i), [x1, y1] = fromCircle(acq.cx, acq.cy, acq.r, SX, y);
-    P.push(edge(x1, y1, SX - 5, y).svg);
-    if (s.id === 'blscpi') { const [x2, y2] = toCircle(SX - 5, y + 10, acq.cx, acq.cy, acq.r); P.push(edge(SX - 5, y + 10, x2, y2).svg); }
+    P.push(flow(x1, y1, SX - 5, y, { obstacles: OBS }));
+    if (s.id === 'blscpi') { const [x2, y2] = toCircle(SX - 5, y + 10, acq.cx, acq.cy, acq.r); P.push(flow(SX - 5, y + 10, x2, y2, { obstacles: OBS })); }
   });
   const sIdx = Object.fromEntries(stores.map((s, i) => [s.id, i]));
   apps.forEach((a, j) => a.reads.forEach(id => {
     const y = sy(sIdx[id]), ty = ay(j), [x2, y2] = toCircle(SX + SW + 5, y, AX, ty, AR);
-    P.push(edge(SX + SW + 5, y, x2, y2).svg);
+    P.push(flow(SX + SW + 5, y, x2, y2, { obstacles: OBS }));
   }));
   apps.forEach((a, j) => {
     const y = ay(j);
-    P.push(edge(AX + AR + 3, y - 9, UX - 5, y - 9).svg);
-    P.push(edge(UX - 5, y + 9, AX + AR + 3, y + 9).svg);
+    P.push(flow(AX + AR + 3, y - 9, UX - 5, y - 9));
+    P.push(flow(UX - 5, y + 9, AX + AR + 3, y + 9));
   });
   P.push(`  <text class="flow-label" x="${(AX + AR + UX) / 2}" y="${ay(0) - 34}" text-anchor="middle">app inputs</text>`);
   P.push(`  <text class="flow-label" x="${(AX + AR + UX) / 2}" y="${ay(0) + 44}" text-anchor="middle">app outputs</text>`);
@@ -201,19 +228,21 @@ function level2YieldCurves() {
   const px = { '7.1': 380, '7.2': 590, '7.3': 720, '7.4': 570, '7.5': 720, '7.6': 380, '7.7': 900 };
   const py = { '7.1': 180, '7.2': 320, '7.3': 480, '7.4': 640, '7.5': 800, '7.6': 880, '7.7': 540 };
   const H = 1000, W = 1250;
+  const OBS = procs.map(q => ({ x: px[q.id], y: py[q.id], r: PR }));
+  const LBL = [];
   const P = [`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Level 2 for Yield Curves: seven processes reading five data stores. No process writes a data store.">`, marker()];
   const sIdx = Object.fromEntries(stores.map((s, i) => [s.id, i]));
   procs.forEach(p => p.reads.forEach(id => {
     const y = sy(sIdx[id]), [x2, y2] = toCircle(SX + SW + 5, y, px[p.id], py[p.id], PR);
-    P.push(edge(SX + SW + 5, y, x2, y2).svg);
+    P.push(flow(SX + SW + 5, y, x2, y2, { obstacles: OBS }));
   }));
   procs.forEach(p => Object.entries(p.out).forEach(([t, lab]) => {
     const [x1, y1] = fromCircle(px[p.id], py[p.id], PR, px[t], py[t]);
     const [x2, y2] = toCircle(x1, y1, px[t], py[t], PR);
-    const e = edge(x1, y1, x2, y2); P.push(e.svg); P.push(label(e.c, lab));
+    P.push(flow(x1, y1, x2, y2, { obstacles: OBS.filter(o => !(o.x === px[p.id] && o.y === py[p.id]) && !(o.x === px[t] && o.y === py[t])), placed: LBL, text: lab }));
   }));
-  const e1 = edge(px['7.7'] + PR + 3, py['7.7'] - 9, UX - 5, py['7.7'] - 9); P.push(e1.svg);
-  const e2 = edge(UX - 5, py['7.7'] + 9, px['7.7'] + PR + 3, py['7.7'] + 9); P.push(e2.svg);
+  P.push(flow(px['7.7'] + PR + 3, py['7.7'] - 9, UX - 5, py['7.7'] - 9));
+  P.push(flow(UX - 5, py['7.7'] + 9, px['7.7'] + PR + 3, py['7.7'] + 9));
   P.push(`  <text class="flow-label" x="${(px['7.7'] + PR + UX) / 2}" y="${py['7.7'] - 26}" text-anchor="middle">charts and tables</text>`);
   P.push(`  <text class="flow-label" x="${(px['7.7'] + PR + UX) / 2}" y="${py['7.7'] + 42}" text-anchor="middle">tab and date selections</text>`);
   P.push(`  <g class="entity"><rect x="${UX}" y="${py['7.7'] - 130}" width="${UW}" height="260" rx="3"/><text class="e-name" x="${UX + UW / 2}" y="${py['7.7'] + 5}">User</text></g>`);
@@ -242,32 +271,34 @@ function level3YieldCurvesLoad() {
   ];
   // href null marks a process with no spec of its own; the page lists them.
   const procs = [
-    { id: '7.1.1', name: ['Parse FedInvest', 'prices'], href: DS('s1'), reads: ['fedinv'], out: { '7.1.7': 'priced rows' } },
-    { id: '7.1.2', name: ['Parse market', 'quotes'], href: DS('s7'), reads: ['quotes'], out: { '7.1.6': 'quote file date', '7.1.7': 'bid and ask quotes' } },
-    { id: '7.1.3', name: ['Parse Ref CPI', 'and SA factors'], href: V('knowledge/DATA_DICTIONARY.md#sa-factor'), reads: ['nsasa'], out: { '7.1.7': 'daily Ref CPI' } },
-    { id: '7.1.4', name: ['Parse bond', 'holidays'], href: null, reads: ['hol'], out: { '7.1.6': 'bond trading days' } },
-    { id: '7.1.5', name: ['Parse GSW', 'parameters'], href: DS('s12'), reads: ['gsw'], out: { '7.1.7': 'GSW parameters' } },
-    { id: '7.1.6', name: ['Determine', 'settlement', 'dates'], href: V('knowledge/DATA_DICTIONARY.md#settlement-date'), reads: [], out: { '7.1.7': 'settlement dates' } },
-    { id: '7.1.7', name: ['Build priced', 'bonds'], href: null, reads: [], out: {} },
+    { id: '7.1.1', name: ['Parse FedInvest', 'prices'], href: V('YieldCurves/knowledge/5.0_Load_And_Parse.md#parse-fedinvest-prices'), reads: ['fedinv'], out: { '7.1.7': 'priced rows' } },
+    { id: '7.1.2', name: ['Parse market', 'quotes'], href: V('YieldCurves/knowledge/5.0_Load_And_Parse.md#parse-market-quotes'), reads: ['quotes'], out: { '7.1.6': 'quote file date', '7.1.7': 'bid and ask quotes' } },
+    { id: '7.1.3', name: ['Parse Ref CPI', 'and SA factors'], href: V('YieldCurves/knowledge/5.0_Load_And_Parse.md#parse-ref-cpi-and-sa-factors'), reads: ['nsasa'], out: { '7.1.7': 'daily Ref CPI' } },
+    { id: '7.1.4', name: ['Parse bond', 'holidays'], href: V('YieldCurves/knowledge/5.0_Load_And_Parse.md#parse-bond-holidays'), reads: ['hol'], out: { '7.1.6': 'bond trading days' } },
+    { id: '7.1.5', name: ['Parse GSW', 'parameters'], href: V('YieldCurves/knowledge/5.0_Load_And_Parse.md#parse-gsw-parameters'), reads: ['gsw'], out: { '7.1.7': 'GSW parameters' } },
+    { id: '7.1.6', name: ['Determine', 'settlement', 'dates'], href: V('YieldCurves/knowledge/5.0_Load_And_Parse.md#determine-settlement-dates'), reads: [], out: { '7.1.7': 'settlement dates' } },
+    { id: '7.1.7', name: ['Build priced', 'bonds'], href: V('YieldCurves/knowledge/5.0_Load_And_Parse.md#build-priced-bonds'), reads: [], out: {} },
   ];
   const SX = 40, SW = 205, PR = 56, W = 1340, H = 900;
   const sy = i => 150 + i * 150;
   const px = { '7.1.1': 400, '7.1.2': 400, '7.1.3': 400, '7.1.4': 400, '7.1.5': 400, '7.1.6': 660, '7.1.7': 900 };
   const py = { '7.1.1': 150, '7.1.2': 300, '7.1.3': 450, '7.1.4': 600, '7.1.5': 750, '7.1.6': 640, '7.1.7': 380 };
+  const OBS = procs.map(q => ({ x: px[q.id], y: py[q.id], r: PR }));
+  const LBL = [];
   const P = [`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Level 3: the load and parse stage of Yield Curves, one process per source parsed.">`, marker()];
   const sIdx = Object.fromEntries(stores.map((s, i) => [s.id, i]));
   procs.forEach(p => p.reads.forEach(id => {
     const y = sy(sIdx[id]), [x2, y2] = toCircle(SX + SW + 5, y, px[p.id], py[p.id], PR);
-    P.push(edge(SX + SW + 5, y, x2, y2).svg);
+    P.push(flow(SX + SW + 5, y, x2, y2, { obstacles: OBS }));
   }));
   procs.forEach(p => Object.entries(p.out).forEach(([t, lab]) => {
     const [x1, y1] = fromCircle(px[p.id], py[p.id], PR, px[t], py[t]);
     const [x2, y2] = toCircle(x1, y1, px[t], py[t], PR);
-    const e = edge(x1, y1, x2, y2); P.push(e.svg); P.push(label(e.c, lab));
+    P.push(flow(x1, y1, x2, y2, { obstacles: OBS.filter(o => !(o.x === px[p.id] && o.y === py[p.id]) && !(o.x === px[t] && o.y === py[t])), placed: LBL, text: lab }));
   }));
   // outputs leaving 7.1 for the rest of the app, balanced against Level 2
   [['priced bonds, SA factors', -34], ['priced bonds, GSW parameters', -12], ['bid and ask quotes', 10], ['source dates', 32]].forEach(([lab, dy]) => {
-    const e = edge(px['7.1.7'] + PR + 3, py['7.1.7'] + dy, W - 12, py['7.1.7'] + dy); P.push(e.svg);
+    P.push(flow(px['7.1.7'] + PR + 3, py['7.1.7'] + dy, W - 12, py['7.1.7'] + dy));
     P.push(`  <text class="flow-label" x="${W - 16}" y="${py['7.1.7'] + dy - 7}" text-anchor="end">${lab}</text>`);
   });
   stores.forEach((s, i) => P.push(storeShape(SX, sy(i), SW, s.href, s.name)));
@@ -278,8 +309,8 @@ function level3YieldCurvesLoad() {
     title: 'Yield Curves 7.1 — Level 3', h1: 'Level 3 &mdash; Yield Curves 7.1 Load and parse source data', maxWidth: W,
     up: 'DFD_LEVEL2_YIELDCURVES.html', upLabel: 'Level 2 — Yield Curves', svg: P.join(NL),
     notes: ['  One process per source parsed, then 7.1.6 and 7.1.7, which combine them. The four flows leaving 7.1.7 on the right are the outputs 7.1 shows at Level 2.',
-      '  <b>7.1.4 and 7.1.7 have no spec of their own</b> and fall back to the app overview. 7.1.1, 7.1.2, 7.1.3 and 7.1.5 drill to the store each parses, which specifies the format but not the parsing.',
-      '  7.1.6 is where a known defect sits: the settlement date for market quotes is derived from the FedInvest price date rather than from the quote file&rsquo;s own date.'].join(NL)
+      '  Every process here drills to its own section of <a href="viewer.html#/md/YieldCurves/knowledge/5.0_Load_And_Parse.md">5.0 Load and Parse</a>, which was written because these processes had no spec at all.',
+      '  7.1.6 is where a known defect sits, recorded in 5.0 &sect;3.0: the settlement date for market quotes is derived from the FedInvest price date rather than from the quote file&rsquo;s own date.'].join(NL)
   });
 }
 
