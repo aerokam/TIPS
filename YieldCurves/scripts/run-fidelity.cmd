@@ -16,4 +16,12 @@ set EXIT_CODE=%ERRORLEVEL%
 echo [%DATE% %TIME%] Exited with code %EXIT_CODE%
 echo [%DATE% %TIME%] Exited with code %EXIT_CODE% >> "%LOG%"
 
-exit /b %EXIT_CODE%
+if %EXIT_CODE% neq 0 (
+  echo [%DATE% %TIME%] Fidelity download did not succeed — skipping Yield Curves chain. >> "%LOG%"
+  exit /b %EXIT_CODE%
+)
+
+REM Chain the yield-curves fit: it reads FidelityTreasuriesTips.csv, so re-run it
+REM whenever this input actually changed rather than on its own fixed clock.
+call "C:\Users\aerok\projects\Treasuries\YieldCurves\scripts\run-yield-curves.cmd"
+exit /b %ERRORLEVEL%

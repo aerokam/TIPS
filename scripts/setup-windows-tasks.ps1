@@ -229,19 +229,12 @@ Register-CmdTask "FidelityQuotes" `
     ) `
     "$ProjectDir\YieldCurves\scripts\run-fidelity.cmd"
 
-# SpotYieldCurves  -  8:10am ET [PT: 5:10am], 12:40pm ET [PT: 9:40am], 5:10pm ET [PT: 2:10pm]
-# 5 minutes after each FidelityQuotes run so FidelityTreasuriesTips.csv has already landed.
-# Fits the spot (zero-coupon) yield curves YieldCurves computes but does not otherwise
-# persist, plus per-TIPS breakeven inflation and broker bid/ask spreads; uploads all three
-# to R2 (S13/S14/S15 — knowledge/DataStores.md).
-Register-NodeTask "SpotYieldCurves" `
-    "Fit spot yield curves + breakeven inflation + bid/ask spreads, upload to R2 (Treasuries/ prefix)" `
-    @(
-        (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "5:10am"),
-        (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "9:40am"),
-        (New-ScheduledTaskTrigger -Weekly -DaysOfWeek $Weekdays -At "2:10pm")
-    ) `
-    "YieldCurves/scripts/updateSpotYieldCurves.js"
+# Yield Curves fit (S13/S14/S15) is NOT independently scheduled — it has no standalone
+# trigger. It runs chained from inside run-fidelity.cmd (called by FidelityQuotes, above)
+# and inside run-fedinvest.cmd (called by YieldsFromFedInvestPrices, above), each on
+# success only, via YieldCurves/scripts/run-yield-curves.cmd. Both are its actual inputs
+# (FidelityTreasuriesTips.csv and YieldsFromFedInvestPrices.csv), so it re-fits whenever
+# either one actually changed rather than on its own fixed clock.
 
 # LockProbe  -  Weekdays 11:00am PT [ET: 2:00pm], hourly for 18h (through overnight).
 # Temporary investigation (Close_Price_Investigation.md §8): each hour logs the last 7 daily
