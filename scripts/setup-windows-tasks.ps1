@@ -20,11 +20,21 @@ param(
 
 # Self-elevate via UAC if not already running as administrator.
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$LogPath = Join-Path (Join-Path (Split-Path $PSScriptRoot -Parent) "logs") "setup-tasks.log"
 if (-not $isAdmin) {
+    # The elevated window closes on exit, taking any error with it, so the child
+    # transcribes to $LogPath and this parent waits and points at it.
+    Write-Host "Elevating. Output is transcribed to:"
+    Write-Host "  $LogPath"
     $argList = "-ExecutionPolicy Bypass -NonInteractive -File `"$PSCommandPath`" -ProjectDir `"$ProjectDir`""
-    Start-Process powershell.exe -Verb RunAs -ArgumentList $argList
-    exit
+    $proc = Start-Process powershell.exe -Verb RunAs -ArgumentList $argList -Wait -PassThru
+    Write-Host "Elevated run exited with $($proc.ExitCode). See the log above for detail."
+    exit $proc.ExitCode
 }
+
+New-Item -ItemType Directory -Force -Path (Split-Path $LogPath -Parent) | Out-Null
+Start-Transcript -Path $LogPath -Force | Out-Null
+trap { Write-Host "FAILED: $_"; Stop-Transcript | Out-Null; exit 1 }
 
 $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
 if (-not $nodeCmd) {
@@ -49,7 +59,7 @@ function Register-DataTask {
         [string]   $Execute,
         [string]   $Argument,
         [string]   $Cwd = $ProjectDir,
-        [TimeSpan] $RestartInterval,
+        [Nullable[TimeSpan]] $RestartInterval,
         [int]      $RestartCount = 0
     )
     if (Get-ScheduledTask -TaskName $Name -ErrorAction SilentlyContinue) {
@@ -82,7 +92,7 @@ function Register-NodeTask {
 function Register-CmdTask {
     param(
         [string]   $Name, [string]$Description, [object[]]$Triggers, [string]$CmdFile,
-        [TimeSpan] $RestartInterval,
+        [Nullable[TimeSpan]] $RestartInterval,
         [int]      $RestartCount = 0
     )
     Register-DataTask -Name $Name -Description $Description -Triggers $Triggers `
@@ -336,3 +346,4 @@ Write-Host "  CpiTasks scheduled for $($dec29.ToString('yyyy-MM-dd')) 07:00"
 Write-Host ""
 Write-Host "Done. All tasks registered."
 Write-Host "Verify: schtasks /query /fo table | findstr /i Yields"
+Stop-Transcript | Out-Null
