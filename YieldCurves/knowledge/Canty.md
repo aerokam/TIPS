@@ -30,7 +30,7 @@ Canty's paper uses generic notation for inflation-linked bonds across any market
 | $I_{Settle}$ — index at settlement | **Ref CPI on the settlement date** | App. B interpolation for the specific day of the settlement month |
 | $I_i$ — index at each payment date | **Ref CPI on each payment date** | Interpolated for the month/day of each semi-annual coupon and the final maturity |
 | $T_t$ — trend component | **Ref CPI SA** on date $t$ | Because $S = \text{NSA}/\text{SA}$ and $I = T \times S$, the trend component is literally the daily-interpolated seasonally adjusted Ref CPI |
-| $S_t$ — seasonal component | **SA Factor** on date $t$ | $\text{RefCPI}_{NSA}(t)\,/\,\text{RefCPI}_{SA}(t)$ — ratio of the two daily interpolated series |
+| $S_t$ — seasonal component | **SA Factor** on date $t$ | $\text{RefCPI}_{NSA}(t) / \text{RefCPI}_{SA}(t)$ — ratio of the two daily interpolated series |
 | $C_i$ — real cashflows | Semi-annual coupon + principal | Coupon rate / 2 per payment period; 1 + coupon rate / 2 at maturity (per \$100 face, before inflation adjustment) |
 | $CP$ — clean price | **Quoted real price** (clean price) | The price excluding inflation accrual, as quoted by FedInvest or brokers |
 | $DP$ — dirty price | **Full price** | $CP \times \text{index ratio}$ (roughly) |
@@ -64,7 +64,7 @@ Canty opens the "Seasonally adjusted prices" section (Risk, Jan 2009, p.107) —
 
 The inflation index is decomposed multiplicatively:
 
-$$I_t = T_t \, S_t \qquad (2)$$
+$$I_t = T_t S_t \qquad (2)$$
 
 - $T_t$ — **trend component** of the index (the underlying, deseasonalised inflation path).
 - $S_t$ — **seasonal component** of the index for the calendar position of $t$ (repeats every 12 months; *constant over time* — the paper's key simplifying assumption).
@@ -73,7 +73,7 @@ $$I_t = T_t \, S_t \qquad (2)$$
 
 The fully-adjusted extension adds the outlier index (used only by FACP, §8):
 
-$$I_t = T_t \, S_t \, O_t \qquad (20)$$
+$$I_t = T_t S_t O_t \qquad (20)$$
 
 ---
 
@@ -117,7 +117,7 @@ $$CP = (SACP + RAI)\frac{S_{Maturity}}{S_{Settle}} - RAI \qquad (12)$$
 
 Solving for SACP gives the **exact relationship**:
 
-$$\boxed{\,SACP = CP\,\frac{S_{Settle}}{S_{Maturity}} + RAI\left(\frac{S_{Settle}}{S_{Maturity}} - 1\right)\,} \qquad (13)$$
+$$SACP = CP\frac{S_{Settle}}{S_{Maturity}} + RAI\left(\frac{S_{Settle}}{S_{Maturity}} - 1\right) \qquad (13)$$
 
 ---
 
@@ -125,7 +125,7 @@ $$\boxed{\,SACP = CP\,\frac{S_{Settle}}{S_{Maturity}} + RAI\left(\frac{S_{Settle
 
 When RAI is small relative to CP (TIPS coupons are low, typically ≤ 5%, paid semiannually) **and** $\left(\frac{S_{Maturity}}{S_{Settle}}-1\right)\approx 0$, the RAI term drops:
 
-$$\boxed{\,SACP \approx CP\,\frac{S_{Settle}}{S_{Maturity}}\,} \qquad (14)$$
+$$SACP \approx CP\frac{S_{Settle}}{S_{Maturity}} \qquad (14)$$
 
 **This is the key result of the paper** and the transform implemented in `src/app.js` (`price × (saSettle / saMature)` → `yieldFromPrice`). The seasonally adjusted real yield is then just the ordinary YTM computed from SACP; seasonally adjusted BEI = nominal yield − SA real yield.
 
@@ -152,7 +152,7 @@ Uses Canty lists: historical BEI/real-yield analysis; plotting a BEI term struct
 
 With semiannual coupons the cashflows fall in **two** calendar months, so there are two seasonal factors $S_1, S_2$ (the maturity month and the month six months away). The dirty price splits:
 
-$$DP = \sum_{i\,\text{odd}} C_i \frac{T_i S_1}{I_{Base}} df_i + \sum_{i\,\text{even}} C_i \frac{T_i S_2}{I_{Base}} df_i \qquad (15)$$
+$$DP = \sum_{i\ \text{odd}} C_i \frac{T_i S_1}{I_{Base}} df_i + \sum_{i\ \text{even}} C_i \frac{T_i S_2}{I_{Base}} df_i \qquad (15)$$
 
 Lacking the full discount curve for a single bond, approximate each seasonally-adjusted real discount factor by the bond's own real yield $RY$:
 
@@ -162,7 +162,7 @@ The SACP becomes a **real-discount-weighted blend** of the two factors:
 
 $$SACP \approx CP\left(\frac{w_1\frac{S_{Settle}}{S_1} + w_2\frac{S_{Settle}}{S_2}}{w_1 + w_2}\right) \qquad (17)$$
 
-$$w_1 = \sum_{i\,\text{odd}} \frac{C_i}{(1+RY)^{t_i}}, \qquad w_2 = \sum_{i\,\text{even}} \frac{C_i}{(1+RY)^{t_i}} \qquad (18,19)$$
+$$w_1 = \sum_{i\ \text{odd}} \frac{C_i}{(1+RY)^{t_i}}, \qquad w_2 = \sum_{i\ \text{even}} \frac{C_i}{(1+RY)^{t_i}} \qquad (18,19)$$
 
 > **App note.** The apps deliberately use the **single-factor Eq 14**, not Eq 17. Spec [2.2 §3.3](2.2_SAO_Residual_Analysis.md) tested Eq 17 against the live curve: it moves the worst outlier (2027-04) by **0.0 bp** and corrects at most **+1.1 bp** anywhere, only on high-coupon bonds — because the second-factor weight applies to the small *coupon* payments while the residual applies to the *principal*, which both formulas place in the maturity month identically. Eq 14 is therefore the right simplification.
 
@@ -172,13 +172,13 @@ $$w_1 = \sum_{i\,\text{odd}} \frac{C_i}{(1+RY)^{t_i}}, \qquad w_2 = \sum_{i\,\te
 
 Most ILB markets index off a **3-month-lagged, daily-interpolated** CPI. For a settlement on day $d_1$ of a month with $d_2$ days:
 
-$$I_{Interp} = I_1 + w\,(I_2 - I_1), \qquad w = 1 - \frac{d_1 - 1}{d_2}$$
+$$I_{Interp} = I_1 + w(I_2 - I_1), \qquad w = 1 - \frac{d_1 - 1}{d_2}$$
 
 where $I_1$ is the index three months prior to the settlement month and $I_2$ two months prior. (This is the 31 CFR App. B rule used throughout the project, defined once in `shared/src/ref-cpi.js`.) Canty notes the decomposition $I_{Interp}\approx T_{Interp}S_{Interp}$ is adequate because the cross-terms are negligible.
 
 The forward index for a base date $t$ and forward date $T$:
 
-$$I_T = I_t\,\frac{S_T}{S_t}\,\exp\!\big(r_{t,T}(T-t)\big)$$
+$$I_T = I_t\frac{S_T}{S_t}\exp\!\big(r_{t,T}(T-t)\big)$$
 
 with $r_{t,T}$ the continuously-compounded **trend** growth rate.
 
@@ -194,7 +194,7 @@ The lag means part of an ILB's inflation protection is **already-known history**
 
 To additionally remove a *known, non-recurring* shock, include the outlier index $O_t$ from (20). Example: an expected UK rate hike feeding the RPI mortgage component → $\{O_t\}=\{1.000,1.000,1.002,1.002,1.002\}$.
 
-$$\boxed{\,FACP = CP\,\frac{S_{Settle}}{S_{Maturity}}\,\frac{1}{O_{Maturity}}\,} \qquad (21)$$
+$$FACP = CP\frac{S_{Settle}}{S_{Maturity}}\frac{1}{O_{Maturity}} \qquad (21)$$
 
 This is needed when significant non-seasonal items affect the short end — e.g. **TIPS gasoline volatility** since the last CPI release.
 
